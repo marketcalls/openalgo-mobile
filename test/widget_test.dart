@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:algo_terminal/main.dart';
+import 'package:openalgo_terminal/main.dart';
 
 void main() {
   testWidgets('App starts successfully', (WidgetTester tester) async {

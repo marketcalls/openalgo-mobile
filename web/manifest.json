@@ -1,11 +1,11 @@
 {
-    "name": "algo_terminal",
-    "short_name": "algo_terminal",
+    "name": "OpenAlgo Terminal",
+    "short_name": "OpenAlgo",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "OpenAlgo - Professional mobile trading platform",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
