@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TradingView Chart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+        #chart-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="chart-container">
+        <div id="loading">Loading chart...</div>
+    </div>
+
+    <!-- TradingView Lightweight Charts Library -->
+    <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+
+    <script>
+        // Global chart instance
+        let chart = null;
+        let candlestickSeries = null;
+
+        // Initialize chart
+        function initChart() {
+            const container = document.getElementById('chart-container');
+            
+            // Create chart with options
+            chart = LightweightCharts.createChart(container, {
+                layout: {
+                    background: { type: 'solid', color: '#ffffff' },
+                    textColor: '#333',
+                },
+                grid: {
+                    vertLines: { color: '#f0f0f0' },
+                    horzLines: { color: '#f0f0f0' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: '#e0e0e0',
+                },
+                timeScale: {
+                    borderColor: '#e0e0e0',
+                    timeVisible: true,
+                    secondsVisible: false,
+                },
+                watermark: {
+                    visible: true,
+                    fontSize: 24,
+                    horzAlign: 'center',
+                    vertAlign: 'center',
+                    color: 'rgba(0, 0, 0, 0.1)',
+                    text: 'Powered by TradingView',
+                },
+            });
+
+            // Create candlestick series
+            candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+                borderVisible: false,
+                wickUpColor: '#26a69a',
+                wickDownColor: '#ef5350',
+            });
+
+            // Handle resize
+            window.addEventListener('resize', handleResize);
+            handleResize();
+
+            // Remove loading indicator
+            document.getElementById('loading').style.display = 'none';
+
+            // Notify Flutter that chart is ready
+            notifyFlutter('chartReady', {});
+        }
+
+        function handleResize() {
+            if (chart) {
+                chart.applyOptions({
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                });
+            }
+        }
+
+        // Set chart data from Flutter
+        function setChartData(data) {
+            try {
+                const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+                
+                if (!candlestickSeries) {
+                    console.error('Chart series not initialized');
+                    return;
+                }
+
+                // Transform data to TradingView format
+                const chartData = parsedData.map(item => ({
+                    time: parseTime(item.timestamp),
+                    open: parseFloat(item.open),
+                    high: parseFloat(item.high),
+                    low: parseFloat(item.low),
+                    close: parseFloat(item.close),
+                }));
+
+                // Sort by time (ascending)
+                chartData.sort((a, b) => a.time - b.time);
+
+                candlestickSeries.setData(chartData);
+                chart.timeScale().fitContent();
+
+                notifyFlutter('dataLoaded', { count: chartData.length });
+            } catch (error) {
+                console.error('Error setting chart data:', error);
+                notifyFlutter('error', { message: error.toString() });
+            }
+        }
+
+        // Update last candle (real-time update)
+        function updateLastCandle(candle) {
+            try {
+                const parsedCandle = typeof candle === 'string' ? JSON.parse(candle) : candle;
+                
+                if (!candlestickSeries) return;
+
+                candlestickSeries.update({
+                    time: parseTime(parsedCandle.timestamp),
+                    open: parseFloat(parsedCandle.open),
+                    high: parseFloat(parsedCandle.high),
+                    low: parseFloat(parsedCandle.low),
+                    close: parseFloat(parsedCandle.close),
+                });
+            } catch (error) {
+                console.error('Error updating candle:', error);
+            }
+        }
+
+        // Parse timestamp to TradingView time format
+        function parseTime(timestamp) {
+            // TradingView expects Unix timestamp in seconds
+            if (typeof timestamp === 'string') {
+                const date = new Date(timestamp);
+                return Math.floor(date.getTime() / 1000);
+            }
+            return timestamp;
+        }
+
+        // Update chart theme (light/dark)
+        function updateTheme(isDark) {
+            if (!chart) return;
+
+            const bgColor = isDark ? '#1e1e1e' : '#ffffff';
+            const textColor = isDark ? '#d1d4dc' : '#333';
+            const gridColor = isDark ? '#2a2a2a' : '#f0f0f0';
+            const borderColor = isDark ? '#3a3a3a' : '#e0e0e0';
+
+            chart.applyOptions({
+                layout: {
+                    background: { type: 'solid', color: bgColor },
+                    textColor: textColor,
+                },
+                grid: {
+                    vertLines: { color: gridColor },
+                    horzLines: { color: gridColor },
+                },
+                rightPriceScale: {
+                    borderColor: borderColor,
+                },
+                timeScale: {
+                    borderColor: borderColor,
+                },
+                watermark: {
+                    color: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                },
+            });
+        }
+
+        // Notify Flutter via message channel
+        function notifyFlutter(event, data) {
+            // For Flutter WebView
+            if (window.flutter_inappwebview) {
+                window.flutter_inappwebview.callHandler('chartEvent', {
+                    event: event,
+                    data: data,
+                });
+            }
+            // For web
+            if (window.parent) {
+                window.parent.postMessage({
+                    source: 'tradingview-chart',
+                    event: event,
+                    data: data,
+                }, '*');
+            }
+        }
+
+        // Initialize chart on load
+        window.addEventListener('load', initChart);
+
+        // Expose functions to Flutter
+        window.setChartData = setChartData;
+        window.updateLastCandle = updateLastCandle;
+        window.updateTheme = updateTheme;
+    </script>
+</body>
+</html>

@@ -1,0 +1,388 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:ui' as ui;
+import '../models/api_config.dart';
+import '../services/openalgo_api_service.dart';
+import '../utils/app_theme.dart';
+
+class ChartScreen extends StatefulWidget {
+  final ApiConfig config;
+  final String symbol;
+  final String exchange;
+
+  const ChartScreen({
+    super.key,
+    required this.config,
+    required this.symbol,
+    required this.exchange,
+  });
+
+  @override
+  State<ChartScreen> createState() => _ChartScreenState();
+}
+
+class _ChartScreenState extends State<ChartScreen> {
+  late final OpenAlgoApiService _apiService;
+  String _selectedInterval = '5';
+  String _selectedCandleType = 'candles';
+  bool _showEMA = false;
+  bool _showRSI = false;
+  bool _isLoading = true;
+  String? _error;
+  final String _viewType = 'chart-container-${DateTime.now().millisecondsSinceEpoch}';
+
+  final List<Map<String, String>> _intervals = [];
+  
+  @override
+  void initState() {
+    super.initState();
+    _apiService = OpenAlgoApiService(widget.config);
+    _fetchIntervals();
+  }
+
+  Future<void> _fetchIntervals() async {
+    try {
+      final intervals = await _apiService.getIntervals();
+      if (mounted) {
+        setState(() {
+          final intervalsData = intervals['data'] as List<dynamic>;
+          _intervals.clear();
+          for (final item in intervalsData) {
+            _intervals.add({
+              'value': item['interval'].toString(),
+              'label': item['interval'].toString(),
+            });
+          }
+          if (_intervals.isNotEmpty) {
+            _selectedInterval = _intervals[0]['value']!;
+          }
+          _isLoading = false;
+        });
+        _loadChart();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _intervals.addAll([
+            {'value': '1', 'label': '1m'},
+            {'value': '5', 'label': '5m'},
+            {'value': '15', 'label': '15m'},
+            {'value': '60', 'label': '1h'},
+            {'value': 'D', 'label': '1D'},
+          ]);
+          _selectedInterval = '5';
+          _isLoading = false;
+        });
+        _loadChart();
+      }
+    }
+  }
+
+  Future<void> _loadChart() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await _apiService.getHistoricalData(
+        symbol: widget.symbol,
+        exchange: widget.exchange,
+        interval: _selectedInterval,
+      );
+
+      if (mounted) {
+        _createChart(data);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load chart data: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _createChart(List<Map<String, dynamic>> data) {
+    // Register view factory for HTML content
+    // ignore: undefined_prefixed_name
+    ui.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
+      final iframe = html.IFrameElement()
+        ..style.border = 'none'
+        ..style.height = '100%'
+        ..style.width = '100%';
+
+      // Create HTML content with TradingView Lightweight Charts
+      final htmlContent = _generateChartHtml(data);
+      iframe.srcdoc = htmlContent;
+
+      return iframe;
+    });
+
+    setState(() => _isLoading = false);
+  }
+
+  String _generateChartHtml(List<Map<String, dynamic>> data) {
+    final candleData = data.map((item) {
+      return {
+        'time': (item['timestamp'] as int) ~/ 1000, // Convert to seconds
+        'open': item['open'],
+        'high': item['high'],
+        'low': item['low'],
+        'close': item['close'],
+      };
+    }).toList();
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="https://unpkg.com/lightweight-charts@latest/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #131722; }
+        #chart { width: 100%; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+    <script>
+        const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            layout: {
+                background: { color: '#131722' },
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: '#2B2B43' },
+                horzLines: { color: '#363C4E' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            timeScale: {
+                borderColor: '#485c7b',
+                timeVisible: true,
+                secondsVisible: false,
+            },
+        });
+
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+        });
+
+        const data = ${jsonEncode(candleData)};
+        candleSeries.setData(data);
+
+        ${_showEMA ? _generateEMAScript(candleData) : ''}
+        ${_showRSI ? _generateRSIScript(candleData) : ''}
+
+        chart.timeScale().fitContent();
+
+        window.addEventListener('resize', () => {
+            chart.applyOptions({
+                width: window.innerWidth,
+                height: window.innerHeight,
+            });
+        });
+    </script>
+</body>
+</html>
+    ''';
+  }
+
+  String _generateEMAScript(List<Map<String, dynamic>> data) {
+    return '''
+        // Calculate EMA
+        function calculateEMA(data, period) {
+            const ema = [];
+            const multiplier = 2 / (period + 1);
+            let emaValue = data[0].close;
+            
+            for (let i = 0; i < data.length; i++) {
+                if (i === 0) {
+                    emaValue = data[i].close;
+                } else {
+                    emaValue = (data[i].close - emaValue) * multiplier + emaValue;
+                }
+                ema.push({ time: data[i].time, value: emaValue });
+            }
+            return ema;
+        }
+
+        const ema20 = calculateEMA(data, 20);
+        const ema50 = calculateEMA(data, 50);
+
+        const ema20Series = chart.addLineSeries({
+            color: '#2962FF',
+            lineWidth: 2,
+            title: 'EMA 20',
+        });
+        ema20Series.setData(ema20);
+
+        const ema50Series = chart.addLineSeries({
+            color: '#FF6D00',
+            lineWidth: 2,
+            title: 'EMA 50',
+        });
+        ema50Series.setData(ema50);
+    ''';
+  }
+
+  String _generateRSIScript(List<Map<String, dynamic>> data) {
+    return '''
+        // Calculate RSI
+        function calculateRSI(data, period) {
+            const rsi = [];
+            let gains = 0;
+            let losses = 0;
+            
+            for (let i = 1; i < data.length; i++) {
+                const change = data[i].close - data[i - 1].close;
+                if (i <= period) {
+                    if (change > 0) gains += change;
+                    else losses += Math.abs(change);
+                } else {
+                    const avgGain = gains / period;
+                    const avgLoss = losses / period;
+                    const rs = avgGain / avgLoss;
+                    const rsiValue = 100 - (100 / (1 + rs));
+                    rsi.push({ time: data[i].time, value: rsiValue });
+                    
+                    if (change > 0) {
+                        gains = (avgGain * (period - 1) + change) / period;
+                        losses = (avgLoss * (period - 1)) / period;
+                    } else {
+                        gains = (avgGain * (period - 1)) / period;
+                        losses = (avgLoss * (period - 1) + Math.abs(change)) / period;
+                    }
+                }
+            }
+            return rsi;
+        }
+
+        const rsiData = calculateRSI(data, 14);
+        const rsiSeries = chart.addLineSeries({
+            color: '#9C27B0',
+            lineWidth: 2,
+            title: 'RSI (14)',
+            priceScaleId: 'right',
+            scaleMargins: {
+                top: 0.8,
+                bottom: 0,
+            },
+        });
+        rsiSeries.setData(rsiData);
+    ''';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${widget.symbol} Chart'),
+        actions: [
+          // Timeframe selector
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.access_time),
+            initialValue: _selectedInterval,
+            onSelected: (value) {
+              setState(() => _selectedInterval = value);
+              _loadChart();
+            },
+            itemBuilder: (context) {
+              return _intervals.map((interval) {
+                return PopupMenuItem(
+                  value: interval['value'],
+                  child: Text(interval['label']!),
+                );
+              }).toList();
+            },
+          ),
+          // Candle type selector
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.candlestick_chart),
+            initialValue: _selectedCandleType,
+            onSelected: (value) {
+              setState(() => _selectedCandleType = value);
+              _loadChart();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'candles', child: Text('Candlestick')),
+              const PopupMenuItem(value: 'bars', child: Text('Bars')),
+              const PopupMenuItem(value: 'line', child: Text('Line')),
+            ],
+          ),
+          // Indicators menu
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.show_chart),
+            onSelected: (value) {
+              setState(() {
+                if (value == 'ema') {
+                  _showEMA = !_showEMA;
+                } else if (value == 'rsi') {
+                  _showRSI = !_showRSI;
+                }
+              });
+              _loadChart();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'ema',
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _showEMA,
+                      onChanged: null,
+                    ),
+                    const Text('EMA (20, 50)'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'rsi',
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _showRSI,
+                      onChanged: null,
+                    ),
+                    const Text('RSI (14)'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: AppTheme.lossRed),
+                      const SizedBox(height: 16),
+                      Text(_error!),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadChart,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : HtmlElementView(viewType: _viewType),
+    );
+  }
+}
