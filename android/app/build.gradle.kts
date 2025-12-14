@@ -52,6 +52,10 @@ android {
         release {
             // ✅ Use release signing configuration
             signingConfig = signingConfigs.getByName("release")
+            
+            // Disable code shrinking to avoid R8 issues with Play Core
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
