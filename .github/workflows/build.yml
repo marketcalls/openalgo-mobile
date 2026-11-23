@@ -1,4 +1,4 @@
-# Builds the React Native + Expo app in spike/app for Android (APK) and iOS (unsigned IPA).
+# Builds the React Native + Expo app in spike/app: an Android APK, an unsigned iOS IPA and an iOS Simulator app.
 #
 # The app imports the OpenAlgo web frontend's source directly (spike/app/metro.config.js
 # resolves '@/...' to ../../../openalgo/frontend/src), so every job checks out this repo
@@ -111,9 +111,25 @@ jobs:
           retention-days: 30
 
   ios:
-    name: iOS IPA (unsigned)
+    name: iOS ${{ matrix.label }}
     runs-on: macos-26
     timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # For iPhones; must be re-signed before it installs.
+          - label: IPA (unsigned)
+            sdk: iphoneos
+            destination: generic/platform=iOS
+            artifact: ios-ipa-unsigned
+            ext: ipa
+          # For the iOS Simulator on an Apple Silicon Mac; needs no signing.
+          - label: Simulator app
+            sdk: iphonesimulator
+            destination: generic/platform=iOS Simulator
+            artifact: ios-simulator-app
+            ext: zip
     steps:
       - name: Check out openalgo-mobile
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -148,25 +164,31 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: npx expo prebuild --platform ios
 
-      - name: Build for device without signing
+      - name: Build without signing
         working-directory: ${{ env.APP_DIR }}/ios
+        env:
+          SDK: ${{ matrix.sdk }}
+          DESTINATION: ${{ matrix.destination }}
         run: |
           WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
           SCHEME="${WORKSPACE%.xcworkspace}"
           echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+          # arm64 only: every iPhone, and the simulator on Apple Silicon Macs.
           xcodebuild build \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
+            -sdk "$SDK" \
+            -destination "$DESTINATION" \
             -derivedDataPath build \
             -quiet \
+            ARCHS=arm64 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
       - name: Package IPA
+        if: matrix.sdk == 'iphoneos'
         run: |
           APP="$APP_DIR/ios/build/Build/Products/Release-iphoneos/$SCHEME.app"
           test -d "$APP"
@@ -174,10 +196,18 @@ jobs:
           cp -R "$APP" dist/Payload/
           (cd dist && zip -qry "openalgo-spike-${GITHUB_SHA::7}-unsigned.ipa" Payload)
 
-      - name: Upload IPA
+      - name: Package simulator app
+        if: matrix.sdk == 'iphonesimulator'
+        run: |
+          APP="$APP_DIR/ios/build/Build/Products/Release-iphonesimulator/$SCHEME.app"
+          test -d "$APP"
+          mkdir -p dist
+          ditto -c -k --keepParent "$APP" "dist/openalgo-spike-${GITHUB_SHA::7}-simulator.zip"
+
+      - name: Upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ios-ipa-unsigned
-          path: dist/*.ipa
+          name: ${{ matrix.artifact }}
+          path: dist/*.${{ matrix.ext }}
           if-no-files-found: error
           retention-days: 30

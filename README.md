@@ -19,7 +19,7 @@ The OpenAlgo mobile app is being rebuilt with **React Native + Expo** for Androi
 | `spike/mock-feed` | A local WebSocket server that speaks the OpenAlgo market-data protocol, for testing without a broker |
 | `spike/README.md` | Pass criteria, local build steps and the on-device test procedure |
 | `spike/CHANGES.md` | What reusing the web frontend's code would take in the real app |
-| `.github/workflows/build.yml` | CI that builds the Android APK and an unsigned iOS IPA |
+| `.github/workflows/build.yml` | CI that builds the Android APK, an unsigned iOS IPA and an iOS Simulator app |
 
 The app imports the OpenAlgo web frontend's source directly, so it expects
 [marketcalls/openalgo](https://github.com/marketcalls/openalgo) checked out next to this repo:
@@ -41,6 +41,9 @@ under the **Actions** tab and download from **Artifacts**:
 - **`ios-ipa-unsigned`**: a release build for iPhone with no signature. An iPhone will not
   install it as is; re-sign it with your own Apple ID (for example with Sideloadly or
   AltStore), or add Apple signing to CI (below).
+- **`ios-simulator-app`**: the same app for the iOS Simulator on an Apple Silicon Mac.
+  Unzip it, start a simulator, then
+  `xcrun simctl install booted OpenAlgoSpike.app && xcrun simctl launch booted in.openalgo.spike`.
 
 To build against a different openalgo commit, run the workflow by hand
 (**Actions › Build apps › Run workflow**) and set `openalgo_ref`.
