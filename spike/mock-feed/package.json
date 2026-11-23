@@ -1,0 +1,18 @@
+{
+  "name": "openalgo-mock-feed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "THROWAWAY SPIKE. Mock OpenAlgo market-data WebSocket server for benchmarking the React Native spike over a real socket.",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node check.mjs",
+    "check:fast": "node check.mjs --fast"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "8.22.2"
+  }
+}

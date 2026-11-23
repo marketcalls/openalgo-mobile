@@ -1,0 +1,27 @@
+/* THROWAWAY SPIKE. Stylesheet for the 'use dom' chart: Tailwind v4 plus the OpenAlgo
+   frontend's own theme, so the frontend's OpenAlgoChart renders with the web app's tokens. */
+/* source(none): no automatic content detection. Auto-detection scans this app's folder (cwd),
+   which picked up utility-like text from CHANGES.*.md and native-only files. Only the sources
+   below are scanned. */
+@import "tailwindcss" source(none);
+@import "./frontend-index.css";
+
+/* Scan the frontend's sources so classes used by frontend components exist here. */
+@source "../../../../../../openalgo/frontend/src";
+/* TickBox.tsx's comments mention `[mask:url(...)]`; Tailwind turns that into a utility and
+   Expo's CSS pipeline then fails with "Importing local resources in CSS is not supported yet". */
+@source not "../../../../../../openalgo/frontend/src/components/trading/TickBox.tsx";
+
+/* The DOM page is a fixed, non-scrolling surface: the chart owns every gesture. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}

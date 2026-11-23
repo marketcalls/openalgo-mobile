@@ -1,0 +1,31 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    // THROWAWAY SPIKE. These paths are for tsc ONLY. app.json sets experiments.tsconfigPaths
+    // to false and metro.config.js implements '~/' and '@/' itself, so Metro never reads this
+    // block. That matters for the package entries below: they point at .d.ts files, which Metro
+    // must never resolve as runtime modules.
+    "paths": {
+      "~/*": ["./src/*"],
+      "@/*": ["../../../openalgo/frontend/src/*"],
+      // Frontend files under openalgo/frontend/src import these packages, and tsc looks for
+      // them by walking up from that folder, which has no node_modules. Each entry maps to the
+      // same declaration file the app's own imports resolve to, so app files see no change.
+      "openalgo-charts": ["./node_modules/openalgo-charts/dist/index.d.ts"],
+      "openalgo-charts/*": ["./node_modules/openalgo-charts/dist/*/index.d.ts"],
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "zustand": ["./node_modules/zustand/index.d.ts"],
+      "zustand/*": ["./node_modules/zustand/*"],
+      "clsx": ["./node_modules/clsx/clsx.d.ts"],
+      "tailwind-merge": ["./node_modules/tailwind-merge/dist/types.d.ts"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}

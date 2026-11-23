@@ -1,0 +1,183 @@
+# Builds the React Native + Expo app in spike/app for Android (APK) and iOS (unsigned IPA).
+#
+# The app imports the OpenAlgo web frontend's source directly (spike/app/metro.config.js
+# resolves '@/...' to ../../../openalgo/frontend/src), so every job checks out this repo
+# and marketcalls/openalgo side by side:
+#
+#   $GITHUB_WORKSPACE/openalgo-mobile   this repo
+#   $GITHUB_WORKSPACE/openalgo          marketcalls/openalgo, pinned to OPENALGO_REF
+#
+# Native folders (android/, ios/) are not committed; each job generates them with
+# `expo prebuild` from app.json.
+name: Build apps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      openalgo_ref:
+        description: "marketcalls/openalgo commit, branch or tag to build against (default: the pinned commit)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The openalgo commit the app was last verified against. Bump it deliberately.
+  OPENALGO_REF: c8b2896ca8e9cb2d0200be29fbb3e9a162ac5276
+  APP_DIR: openalgo-mobile/spike/app
+  NODE_VERSION: "26"
+  CI: "1"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Free disk space
+        # NDK, Gradle caches and two ABIs of native builds need roughly 10 GB.
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+
+      - name: Check out openalgo-mobile
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: openalgo-mobile
+          persist-credentials: false
+
+      - name: Check out openalgo (frontend source only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ inputs.openalgo_ref || env.OPENALGO_REF }}
+          path: openalgo
+          sparse-checkout: frontend/src
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: ${{ env.APP_DIR }}
+        run: npx tsc --noEmit
+
+      - name: Set up Java
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      - name: Generate the Android project
+        working-directory: ${{ env.APP_DIR }}
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build release APK
+        working-directory: ${{ env.APP_DIR }}/android
+        # Signed with the React Native template's debug key, so it installs by sideloading
+        # only. Store builds need a real upload key passed in as secrets.
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a --no-daemon
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp "$APP_DIR/android/app/build/outputs/apk/release/app-release.apk" \
+             "dist/openalgo-spike-${GITHUB_SHA::7}.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-apk
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  ios:
+    name: iOS IPA (unsigned)
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Check out openalgo-mobile
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: openalgo-mobile
+          persist-credentials: false
+
+      - name: Check out openalgo (frontend source only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ inputs.openalgo_ref || env.OPENALGO_REF }}
+          path: openalgo
+          sparse-checkout: frontend/src
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: npm ci
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Generate the iOS project (runs pod install)
+        working-directory: ${{ env.APP_DIR }}
+        run: npx expo prebuild --platform ios
+
+      - name: Build for device without signing
+        working-directory: ${{ env.APP_DIR }}/ios
+        run: |
+          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          SCHEME="${WORKSPACE%.xcworkspace}"
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+          xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            -quiet \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package IPA
+        run: |
+          APP="$APP_DIR/ios/build/Build/Products/Release-iphoneos/$SCHEME.app"
+          test -d "$APP"
+          mkdir -p dist/Payload
+          cp -R "$APP" dist/Payload/
+          (cd dist && zip -qry "openalgo-spike-${GITHUB_SHA::7}-unsigned.ipa" Payload)
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-ipa-unsigned
+          path: dist/*.ipa
+          if-no-files-found: error
+          retention-days: 30

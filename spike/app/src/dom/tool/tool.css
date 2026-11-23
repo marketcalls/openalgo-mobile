@@ -1,0 +1,18 @@
+/* THROWAWAY SPIKE. Stylesheet for the Max Pain DOM component: Tailwind v4 + the web frontend's global stylesheet + class scanning of the frontend source. */
+
+/* Resolved from this app's node_modules (the frontend has none). */
+/* source(none): no automatic content detection (it scanned this app's folder, including
+   CHANGES.*.md). Only the @source entries below are scanned. */
+@import "tailwindcss" source(none);
+
+/* frontend/src/index.css with its own '@import "tailwindcss"' and
+   '@import "tw-animate-css"' removed (see sync-frontend-css.mjs). */
+@import "./frontend-index.css";
+
+/* Generate every utility class the frontend source uses (MaxPain, shadcn ui, ...). */
+@source "../../../../../../openalgo/frontend/src";
+/* This DOM component's own wrapper classes. */
+@source "../ToolDom.tsx";
+/* A comment in TickBox.tsx contains an arbitrary mask url utility; Tailwind would emit it and Expo's
+   CSS pipeline then warns "Importing local resources in CSS is not supported yet" (same as chart.css). */
+@source not "../../../../../../openalgo/frontend/src/components/trading/TickBox.tsx";
