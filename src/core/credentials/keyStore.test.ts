@@ -45,6 +45,35 @@ test('clear() removes both the key and the marker', async () => {
   expect(await store.load()).toBeNull()
 })
 
+test('forget() removes both the key and the marker', async () => {
+  const { secure, kv, store } = setup()
+  await store.save(KEY)
+  await store.forget()
+  expect(secure.data.size).toBe(0)
+  expect(kv.data.size).toBe(0)
+})
+
+test('forget() still removes the marker when the secure delete throws, then rejects', async () => {
+  const { secure, kv, store } = setup()
+  await store.save(KEY)
+  secure.del = async () => {
+    throw new Error('keystore unavailable')
+  }
+  await expect(store.forget()).rejects.toThrow('keystore unavailable')
+  expect(kv.data.has('oa.p1.hasKey')).toBe(false)
+  expect(await store.hasKey()).toBe(false)
+})
+
+test('forget() still removes the key when the marker delete throws, then rejects', async () => {
+  const { secure, kv, store } = setup()
+  await store.save(KEY)
+  kv.del = async () => {
+    throw new Error('disk full')
+  }
+  await expect(store.forget()).rejects.toThrow('disk full')
+  expect(secure.data.size).toBe(0)
+})
+
 test('profiles do not share keys', async () => {
   const secure = memoryKV()
   const kv = memoryKV()

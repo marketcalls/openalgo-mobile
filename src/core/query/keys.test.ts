@@ -45,5 +45,7 @@ describe('clearProfileCache', () => {
     expect(qc.getQueryData(qk.funds(A))).toBeUndefined()
     expect(qc.getQueryData(qk.holdings(A))).toBeUndefined()
     expect(qc.getQueryData(qk.funds(B))).toBe(3)
+    // Each cached query holds a real 5-minute gc timer, which would keep the worker alive.
+    qc.clear()
   })
 })

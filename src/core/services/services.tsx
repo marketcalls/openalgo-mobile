@@ -25,6 +25,7 @@ import { ApiError, userMessage } from '~/core/http/errors'
 import { createScheduler, type Scheduler } from '~/core/http/scheduler'
 import { log } from '~/core/log/logger'
 import { type BookInvalidator, createBookInvalidator } from '~/core/query/invalidate'
+import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
 import { isAnyMarketOpen, isExchangeOpen } from '~/core/realtime/marketHours'
 import { createPollingEngine, type PollingEngine } from '~/core/realtime/polling'
@@ -64,9 +65,12 @@ export type Lifecycle = {
   coldStart(): Promise<void>
   /** An AppState change, for the lock, the feed, polling and the scheduler. */
   appState(next: AppStateName): Promise<void>
-  /** The banned banner's "Try again": unhalt, re-probe, then restart the feed. */
+  /**
+   * The banned banner's "Try again": unhalt, re-probe, then restart the feed. When the ban has
+   * lifted it also checks the broker and refetches this profile's queries.
+   */
   retryAfterBan(): Promise<void>
-  /** The lock overlay's way out when the stored key cannot be read: drop it, then onboarding. */
+  /** The lock overlay's way out when the stored key cannot be read; see `forgetStoredKey`. */
   forgetKey(): Promise<void>
 }
 
@@ -118,6 +122,23 @@ export async function bootSession(d: Pick<AppDeps, 'kv' | 'secureKV'>): Promise<
   useSession
     .getState()
     .set({ status: ready ? 'ready' : 'onboarding', profileId: profile?.id ?? null })
+}
+
+/**
+ * The way out when the stored key cannot be used: deletes the key and its marker, each whether
+ * or not the other delete works (a broken keystore must not keep the marker, or every start
+ * would come back to the lock), then goes to onboarding. Never rejects.
+ */
+export async function forgetStoredKey(
+  d: Pick<AppDeps, 'kv' | 'secureKV'>,
+  pid: string,
+): Promise<void> {
+  try {
+    await createKeyStore(d.secureKV, d.kv, pid).forget()
+  } catch (e) {
+    log.warn(TAG, 'could not delete the stored key', e)
+  }
+  useSession.getState().set({ status: 'onboarding' })
 }
 
 function createProfileHandle(kv: KV, initial: ServerProfile): ProfileHandle {
@@ -332,16 +353,19 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
       conn.getState().set({ banned: null })
       if (conn.getState().keyState !== 'invalid') scheduler.unhalt()
       await reprobe()
+      // The probe hit the ban again (`guard` has re-halted) or the key is bad: send nothing more.
+      if (!talking()) return
       startFeed()
+      // The broker check needs the key; while locked, the unlock runs it (onUnlocked).
+      if (lock.isLocked()) return
+      await broker.check()
+      // What failed during the ban is stale: refetch this profile's queries.
+      if (talking()) void queryClient.invalidateQueries({ queryKey: qk.root(pid) })
     },
 
     async forgetKey() {
-      try {
-        await keys.wipe()
-      } catch (e) {
-        log.warn(TAG, 'could not delete the unreadable key', e)
-      }
-      useSession.getState().set({ status: 'onboarding' })
+      keys.lock()
+      await forgetStoredKey(deps, pid)
     },
   }
 

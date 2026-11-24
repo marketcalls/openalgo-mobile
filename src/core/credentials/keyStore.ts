@@ -25,6 +25,25 @@ export function createKeyStore(secureKV: SecureKV, kv: KV, pid: string) {
       await secureKV.del(keyName)
       await kv.del(markerName)
     },
+    /**
+     * The way out when the secure store cannot read the key: deletes the key and the marker,
+     * each whether or not the other delete works, so a broken keystore cannot keep the marker
+     * (and with it the lock screen) alive. Rejects with the first failure once both have run.
+     */
+    async forget(): Promise<void> {
+      const failures: unknown[] = []
+      try {
+        await secureKV.del(keyName)
+      } catch (e) {
+        failures.push(e)
+      }
+      try {
+        await kv.del(markerName)
+      } catch (e) {
+        failures.push(e)
+      }
+      if (failures.length > 0) throw failures[0]
+    },
     /** Reads only the marker; never touches the secure store. */
     async hasKey(): Promise<boolean> {
       return (await kv.get(markerName)) !== null

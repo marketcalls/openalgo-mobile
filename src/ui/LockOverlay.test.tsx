@@ -1,4 +1,5 @@
 import {
+  act,
   isHiddenFromAccessibility,
   render,
   screen,
@@ -36,6 +37,17 @@ function setup(o: { usable?: boolean; unreadable?: boolean } = {}) {
   return { controller, vault, authenticate, unlock }
 }
 
+/** A prompt the test answers by hand: `answer(true)` unlocks, `answer(false)` cancels. */
+function heldPrompt() {
+  const answers: ((ok: boolean) => void)[] = []
+  const prompt = () =>
+    new Promise<boolean>((r) => {
+      answers.push(r)
+    })
+  const answer = (ok: boolean) => answers.shift()?.(ok)
+  return { prompt, answer, waiting: () => answers.length }
+}
+
 test('an opaque full-screen cover with the unlock button', async () => {
   const { controller } = setup()
   await render(<LockOverlay controller={controller} />)
@@ -49,8 +61,48 @@ test('an opaque full-screen cover with the unlock button', async () => {
     backgroundColor: tokens.light.background,
   })
   expect(StyleSheet.flatten(cover.props.style).backgroundColor).toMatch(/^#[0-9a-f]{6}$/)
-  expect(screen.getByText('OpenAlgo is locked')).toBeOnTheScreen()
+  // the first prompt is cancelled, so the title and the button appear
+  expect(await screen.findByText('OpenAlgo is locked')).toBeOnTheScreen()
   expect(screen.getByRole('button', { name: 'Unlock' })).toHaveProp('testID', 'lock-unlock')
+})
+
+test('while the first attempt runs only the cover shows, and a success never shows the title', async () => {
+  const { controller, authenticate, vault } = setup()
+  const held = heldPrompt()
+  authenticate.mockImplementation(held.prompt)
+  await render(<LockOverlay controller={controller} />)
+  await waitFor(() => expect(held.waiting()).toBe(1))
+  expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen()
+  expect(screen.queryByText('OpenAlgo is locked')).toBeNull()
+  expect(screen.queryByTestId('lock-unlock')).toBeNull()
+
+  await act(async () => held.answer(true))
+  await waitFor(() => expect(controller.isLocked()).toBe(false))
+  expect(vault.get()).toBe(KEY)
+  expect(screen.queryByText('OpenAlgo is locked')).toBeNull()
+  expect(screen.queryByTestId('lock-unlock')).toBeNull()
+})
+
+test('the button appears only after a cancelled attempt, and a retry blanks the cover again', async () => {
+  const { controller, authenticate } = setup()
+  const held = heldPrompt()
+  authenticate.mockImplementation(held.prompt)
+  const user = userEvent.setup()
+  await render(<LockOverlay controller={controller} />)
+  await waitFor(() => expect(held.waiting()).toBe(1))
+  expect(screen.queryByTestId('lock-unlock')).toBeNull()
+
+  await act(async () => held.answer(false))
+  expect(await screen.findByText('OpenAlgo is locked')).toBeOnTheScreen()
+  await user.press(screen.getByTestId('lock-unlock'))
+  await waitFor(() => expect(held.waiting()).toBe(1))
+  expect(screen.queryByText('OpenAlgo is locked')).toBeNull()
+  expect(screen.queryByTestId('lock-unlock')).toBeNull()
+
+  await act(async () => held.answer(false))
+  expect(await screen.findByTestId('lock-unlock')).toBeOnTheScreen()
+  expect(controller.isLocked()).toBe(true)
+  expect(authenticate).toHaveBeenCalledTimes(2)
 })
 
 test('what it covers is hidden from assistive technology', async () => {
@@ -63,7 +115,7 @@ test('what it covers is hidden from assistive technology', async () => {
   )
   const beneath = screen.getByText('Available cash 320.66', { includeHiddenElements: true })
   expect(isHiddenFromAccessibility(beneath)).toBe(true)
-  expect(isHiddenFromAccessibility(screen.getByTestId('lock-unlock'))).toBe(false)
+  expect(isHiddenFromAccessibility(await screen.findByTestId('lock-unlock'))).toBe(false)
 })
 
 test('it prompts once on mount, and not again on a re-render', async () => {
@@ -78,8 +130,9 @@ test('the button calls controller.unlock, which can open the vault', async () =>
   const { controller, vault, authenticate, unlock } = setup()
   const user = userEvent.setup()
   await render(<LockOverlay controller={controller} />)
+  const button = await screen.findByTestId('lock-unlock')
   authenticate.mockResolvedValueOnce(true)
-  await user.press(screen.getByTestId('lock-unlock'))
+  await user.press(button)
   expect(unlock).toHaveBeenCalledTimes(2)
   expect(authenticate).toHaveBeenCalledTimes(2)
   expect(controller.isLocked()).toBe(false)
@@ -102,8 +155,9 @@ test('after a retry fails to read the key, it offers to forget the key', async (
   const user = userEvent.setup()
   await render(<LockOverlay controller={controller} onForgetKey={onForgetKey} />)
   await waitFor(() => expect(authenticate).toHaveBeenCalledTimes(1))
+  const button = await screen.findByTestId('lock-unlock')
   expect(screen.queryByTestId('lock-forget')).toBeNull()
-  await user.press(screen.getByTestId('lock-unlock'))
+  await user.press(button)
   const forget = await screen.findByRole('button', { name: 'Forget key and set up again' })
   expect(forget).toHaveProp('testID', 'lock-forget')
   await user.press(forget)

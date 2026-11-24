@@ -263,6 +263,40 @@ describe('services', () => {
     expect(h.banner('banner-banned')).toBeUndefined()
   })
 
+  test('a successful "Try again" checks the broker and refetches the profile\'s queries', async () => {
+    const h = setup()
+    await ready(h)
+    h.routes['POST /api/v1/funds'] = BANNED
+    await h.s.broker.check()
+    expect(conn()).toMatchObject({ banned: 'text', brokerSession: 'unknown' })
+    const funds = h.count('POST /api/v1/funds')
+    const invalidate = jest.spyOn(h.s.queryClient, 'invalidateQueries')
+
+    h.routes['POST /api/v1/funds'] = FUNDS_OK
+    await h.s.lifecycle.retryAfterBan()
+    expect(h.count('POST /api/v1/funds')).toBe(funds + 1)
+    expect(conn()).toMatchObject({ banned: null, keyState: 'ok', brokerSession: 'active' })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.root(PID) })
+  })
+
+  test('a "Try again" that is still banned sends no broker check and refetches nothing', async () => {
+    const h = setup()
+    await ready(h)
+    h.routes['POST /api/v1/funds'] = BANNED
+    await h.s.broker.check()
+    const funds = h.count('POST /api/v1/funds')
+    const sockets = h.ws.sockets.length
+    const invalidate = jest.spyOn(h.s.queryClient, 'invalidateQueries')
+
+    h.routes['GET /auth/app-info'] = BANNED
+    await h.s.lifecycle.retryAfterBan()
+    expect(conn().banned).toBe('text')
+    expect(h.s.scheduler.stats().halted).toBe(true)
+    expect(h.count('POST /api/v1/funds')).toBe(funds)
+    expect(h.ws.sockets).toHaveLength(sockets)
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
   test('RF 3: 20 concurrent 403s with search 403 make one search, banner-key, then nothing; a replace restarts', async () => {
     const h = setup()
     await ready(h)
@@ -570,6 +604,31 @@ describe('services', () => {
     await h.s.lifecycle.forgetKey()
     expect(secureKV.del).toHaveBeenCalledWith(`oa.${PID}.apikey`)
     expect(h.kv.data.has(`oa.${PID}.hasKey`)).toBe(false)
+    expect(useSession.getState().status).toBe('onboarding')
+  })
+
+  test('forgetting clears the marker even when the secure delete throws, then goes to onboarding', async () => {
+    const broken = new Error('keystore unavailable')
+    const secureKV: SecureKV = {
+      get: jest.fn(async () => {
+        throw broken
+      }),
+      set: jest.fn(async () => {}),
+      del: jest.fn(async () => {
+        throw broken
+      }),
+    }
+    const h = setup({ secureKV })
+    useSession.setState({ status: 'ready', profileId: PID })
+    await h.s.lock.unlock()
+    await h.s.lock.unlock()
+    expect(h.s.lock.keyUnreadable()).toBe(true)
+    await expect(h.s.lifecycle.forgetKey()).resolves.toBeUndefined()
+    expect(secureKV.del).toHaveBeenCalledWith(`oa.${PID}.apikey`)
+    expect(h.kv.data.has(`oa.${PID}.hasKey`)).toBe(false)
+    expect(useSession.getState().status).toBe('onboarding')
+    // the next boot reads the marker alone, so it starts in onboarding, not at the lock
+    await bootSession({ kv: h.kv, secureKV })
     expect(useSession.getState().status).toBe('onboarding')
   })
 

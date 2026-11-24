@@ -7,6 +7,10 @@ import { tokens } from './tokens'
  * An opaque full-screen cover, rendered as the last sibling over the app while it is locked. It
  * prompts once on mount; after a cancelled prompt the button tries again. When the stored key
  * cannot be read even after a retry, it offers `onForgetKey`.
+ *
+ * While an attempt runs (the prompt is up, or the key is being read) the cover is blank: the
+ * title and the button appear only once an attempt has failed, so "locked" never flashes behind
+ * the first prompt, a re-lock's prompt, or an unlock that needs no prompt (ruling 5).
  */
 export function LockOverlay({
   controller,
@@ -17,10 +21,16 @@ export function LockOverlay({
 }) {
   const t = useColorScheme() === 'dark' ? tokens.dark : tokens.light
   const [unreadable, setUnreadable] = useState(false)
+  // Mounting starts an attempt, so the cover starts blank.
+  const [pending, setPending] = useState(true)
 
   const unlock = useCallback(() => {
+    setPending(true)
     void controller.unlock().then((ok) => {
-      if (!ok && controller.keyUnreadable()) setUnreadable(true)
+      // On success the shell drops the cover; showing the button first would flash it.
+      if (ok) return
+      if (controller.keyUnreadable()) setUnreadable(true)
+      setPending(false)
     })
   }, [controller])
 
@@ -34,25 +44,31 @@ export function LockOverlay({
       accessibilityViewIsModal
       style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: t.background }]}
     >
-      <Text style={[styles.title, { color: t.foreground }]}>OpenAlgo is locked</Text>
-      <Pressable
-        testID="lock-unlock"
-        accessibilityRole="button"
-        onPress={unlock}
-        style={[styles.button, { backgroundColor: t.primary }]}
-      >
-        <Text style={[styles.label, { color: t.primaryForeground }]}>Unlock</Text>
-      </Pressable>
-      {unreadable && onForgetKey ? (
-        <Pressable
-          testID="lock-forget"
-          accessibilityRole="button"
-          onPress={onForgetKey}
-          hitSlop={8}
-        >
-          <Text style={[styles.link, { color: t.foreground }]}>Forget key and set up again</Text>
-        </Pressable>
-      ) : null}
+      {pending ? null : (
+        <>
+          <Text style={[styles.title, { color: t.foreground }]}>OpenAlgo is locked</Text>
+          <Pressable
+            testID="lock-unlock"
+            accessibilityRole="button"
+            onPress={unlock}
+            style={[styles.button, { backgroundColor: t.primary }]}
+          >
+            <Text style={[styles.label, { color: t.primaryForeground }]}>Unlock</Text>
+          </Pressable>
+          {unreadable && onForgetKey ? (
+            <Pressable
+              testID="lock-forget"
+              accessibilityRole="button"
+              onPress={onForgetKey}
+              hitSlop={8}
+            >
+              <Text style={[styles.link, { color: t.foreground }]}>
+                Forget key and set up again
+              </Text>
+            </Pressable>
+          ) : null}
+        </>
+      )}
     </View>
   )
 }
