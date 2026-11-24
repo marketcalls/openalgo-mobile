@@ -15,12 +15,14 @@ import { tokens } from './tokens'
 
 const KEY = 'ab'.repeat(32)
 
-function setup(o: { usable?: boolean } = {}) {
-  const store = createKeyStore(
-    memoryKV({ 'oa.p1.apikey': KEY }),
-    memoryKV({ 'oa.p1.hasKey': '1' }),
-    'p1',
-  )
+function setup(o: { usable?: boolean; unreadable?: boolean } = {}) {
+  const secure = memoryKV({ 'oa.p1.apikey': KEY })
+  if (o.unreadable) {
+    secure.get = async () => {
+      throw new Error('keystore unavailable')
+    }
+  }
+  const store = createKeyStore(secure, memoryKV({ 'oa.p1.hasKey': '1' }), 'p1')
   const vault = createKeyVault(store)
   const authenticate = jest.fn(async () => false)
   const controller = createLockController({
@@ -90,4 +92,20 @@ test('on a phone with no passcode or biometrics, mounting opens the vault with n
   await waitFor(() => expect(controller.isLocked()).toBe(false))
   expect(authenticate).not.toHaveBeenCalled()
   expect(vault.get()).toBe(KEY)
+})
+
+test('after a retry fails to read the key, it offers to forget the key', async () => {
+  jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const { controller, authenticate } = setup({ unreadable: true })
+  authenticate.mockResolvedValue(true)
+  const onForgetKey = jest.fn()
+  const user = userEvent.setup()
+  await render(<LockOverlay controller={controller} onForgetKey={onForgetKey} />)
+  await waitFor(() => expect(authenticate).toHaveBeenCalledTimes(1))
+  expect(screen.queryByTestId('lock-forget')).toBeNull()
+  await user.press(screen.getByTestId('lock-unlock'))
+  const forget = await screen.findByRole('button', { name: 'Forget key and set up again' })
+  expect(forget).toHaveProp('testID', 'lock-forget')
+  await user.press(forget)
+  expect(onForgetKey).toHaveBeenCalledTimes(1)
 })

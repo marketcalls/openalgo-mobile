@@ -10,6 +10,7 @@ const setup = (
   o: {
     start?: number
     live?: (ex: string, sym: string) => boolean
+    depthLive?: (ex: string, sym: string) => boolean
     network?: 'home' | 'tunnel'
     depth?: unknown
   } = {},
@@ -52,6 +53,7 @@ const setup = (
     api: api as never,
     store,
     isLive: o.live ?? (() => false),
+    ...(o.depthLive ? { isDepthLive: o.depthLive } : {}),
     network: () => net.v,
     now: () => t,
     setTimer,
@@ -157,6 +159,30 @@ describe('polling engine', () => {
     expect(d?.buy).toHaveLength(3)
     expect(d?.sell).toHaveLength(5)
     expect(h.store.get('NSE:A')?.source).toBe('poll')
+  })
+
+  test('depth asks isDepthLive: a live quote-only symbol still polls its depth', async () => {
+    const book = {
+      ltp: 100,
+      bids: [{ price: 99, quantity: 1 }],
+      asks: [{ price: 101, quantity: 1 }],
+    }
+    const depthLive = { v: false }
+    const h = setup({ depth: book, live: () => true, depthLive: () => depthLive.v })
+    h.engine.register(quotes('NSE:A'), true)
+    h.engine.register({ kind: 'depth', key: () => 'NSE:A' }, true)
+    await h.advance(2000)
+    expect(h.calls.map((c) => c.id)).toEqual(['depth'])
+    depthLive.v = true
+    await h.advance(4000)
+    expect(h.calls.map((c) => c.id)).toEqual(['depth'])
+  })
+
+  test('without isDepthLive, depth follows isLive', async () => {
+    const h = setup({ depth: { ltp: 100, bids: [], asks: [] }, live: () => true })
+    h.engine.register({ kind: 'depth', key: () => 'NSE:A' }, true)
+    await h.advance(4000)
+    expect(h.calls).toHaveLength(0)
   })
 
   test('B6 custom runs on its own interval', async () => {

@@ -39,6 +39,8 @@ export function createLockController(d: LockDeps) {
   let state: LockState = 'locked'
   let backgroundSince: number | null = null
   let pending: Promise<boolean> | null = null
+  /** Secure reads that failed in a row; a cancelled prompt neither counts nor resets it. */
+  let readFailures = 0
   const listeners = new Set<(s: LockState) => void>()
 
   function setState(next: LockState) {
@@ -68,17 +70,27 @@ export function createLockController(d: LockDeps) {
     try {
       const prompt = d.settings().enabled && (await lockUsable())
       if (prompt && !(await d.authenticate())) return false
-      const found = await d.vault.unlock()
-      setState(found ? 'unlocked' : 'no-key')
-      return found
     } catch (e) {
       log.warn(TAG, 'unlock failed', e)
       return false
     }
+    let found: boolean
+    try {
+      found = await d.vault.unlock()
+    } catch (e) {
+      readFailures++
+      log.warn(TAG, 'unlock failed: the stored key could not be read', e)
+      return false
+    }
+    readFailures = 0
+    setState(found ? 'unlocked' : 'no-key')
+    return found
   }
 
   return {
     isLocked: (): boolean => state !== 'unlocked',
+    /** The stored key failed to read twice in a row: the overlay offers to forget it. */
+    keyUnreadable: (): boolean => readFailures >= 2,
     subscribe(fn: (s: LockState) => void): () => void {
       listeners.add(fn)
       return () => {

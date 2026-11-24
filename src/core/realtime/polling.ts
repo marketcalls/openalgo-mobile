@@ -34,6 +34,11 @@ export type PollingDeps = {
   store: Pick<TickStore, 'put'>
   /** The socket carries this symbol: polling it would only duplicate. */
   isLive: (exchange: string, symbol: string) => boolean
+  /**
+   * The socket delivers this symbol's depth; a quote-only subscription does not, so depth
+   * polling goes on. Defaults to `isLive`.
+   */
+  isDepthLive?: (exchange: string, symbol: string) => boolean
   network: () => 'home' | 'tunnel'
   now: () => number
   setTimer?: SetTimer
@@ -101,7 +106,7 @@ export function createPollingEngine(d: PollingDeps) {
 
   const pollDepth = async (key: string) => {
     const { exchange, symbol } = split(key)
-    if (d.isLive(exchange, symbol)) return
+    if ((d.isDepthLive ?? d.isLive)(exchange, symbol)) return
     calls.depth++
     const data = await d.api.call('depth', { symbol, exchange }, DepthSchema)
     d.store.put(key, depthRestToPatch(data), 'poll')

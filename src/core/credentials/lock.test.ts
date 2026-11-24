@@ -110,6 +110,25 @@ describe('start and unlock', () => {
     expect(states).toEqual(['unlocked'])
   })
 
+  test('two failed secure reads in a row make the key unreadable; a cancelled prompt does not count', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const { lock, secure, authenticate } = setup()
+    const get = secure.get
+    secure.get = async () => {
+      throw new Error('keystore unavailable')
+    }
+    expect(await lock.unlock()).toBe(false)
+    expect(lock.keyUnreadable()).toBe(false)
+    authenticate.mockResolvedValueOnce(false)
+    expect(await lock.unlock()).toBe(false)
+    expect(lock.keyUnreadable()).toBe(false)
+    expect(await lock.unlock()).toBe(false)
+    expect(lock.keyUnreadable()).toBe(true)
+    secure.get = get
+    expect(await lock.unlock()).toBe(true)
+    expect(lock.keyUnreadable()).toBe(false)
+  })
+
   test('concurrent unlock() calls share one prompt', async () => {
     const { lock, authenticate } = setup()
     let answer: (ok: boolean) => void = () => {}

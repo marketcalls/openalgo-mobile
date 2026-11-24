@@ -67,5 +67,10 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,
+    // Resolve subpaths through package `exports`, as Metro and tsc do (expo-router/native-tabs).
+    enhancedResolveOptions: {
+      exportsFields: ['exports'],
+      conditionNames: ['import', 'require', 'node', 'default'],
+    },
   },
 }
