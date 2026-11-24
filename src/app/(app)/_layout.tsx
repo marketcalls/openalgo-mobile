@@ -158,6 +158,16 @@ function AppShell({ s }: { s: Services }) {
                       sheetGrabberVisible: true,
                     }}
                   />
+                  <Stack.Screen
+                    name="depth/[key]"
+                    options={{
+                      headerShown: true,
+                      title: 'Market depth',
+                      headerStyle: { backgroundColor: c.background },
+                      headerTintColor: c.foreground,
+                      headerShadowVisible: false,
+                    }}
+                  />
                 </Stack>
                 <ToastHost />
               </View>
