@@ -17,6 +17,7 @@ import {
   ServicesProvider,
   useSession,
 } from '~/core/services/services'
+import { TradingProvider } from '~/market/trading'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
 import { LockOverlay } from '~/ui/LockOverlay'
@@ -120,28 +121,30 @@ function AppShell({ s }: { s: Services }) {
 
   return (
     <ServicesProvider value={s}>
-      <QueryClientProvider client={s.queryClient}>
-        <TickStoreContext.Provider value={s.store}>
-          <LiveContext.Provider value={live}>
-            <Lifecycle s={s} />
-            {/* TalkBack would read through the overlay without this (iOS uses its modal flag). */}
-            <View
-              style={styles.fill}
-              importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'}
-            >
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: c.background },
-                }}
-              />
-            </View>
-            {locked ? (
-              <LockOverlay controller={s.lock} onForgetKey={() => void s.lifecycle.forgetKey()} />
-            ) : null}
-          </LiveContext.Provider>
-        </TickStoreContext.Provider>
-      </QueryClientProvider>
+      <TradingProvider now={defaultDeps.now}>
+        <QueryClientProvider client={s.queryClient}>
+          <TickStoreContext.Provider value={s.store}>
+            <LiveContext.Provider value={live}>
+              <Lifecycle s={s} />
+              {/* TalkBack would read through the overlay without this (iOS uses its modal flag). */}
+              <View
+                style={styles.fill}
+                importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'}
+              >
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: c.background },
+                  }}
+                />
+              </View>
+              {locked ? (
+                <LockOverlay controller={s.lock} onForgetKey={() => void s.lifecycle.forgetKey()} />
+              ) : null}
+            </LiveContext.Provider>
+          </TickStoreContext.Provider>
+        </QueryClientProvider>
+      </TradingProvider>
     </ServicesProvider>
   )
 }

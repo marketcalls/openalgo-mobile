@@ -1,4 +1,4 @@
-import { isAnyMarketOpen, isExchangeOpen, istParts } from './marketHours'
+import { isAnyMarketOpen, isExchangeOpen, istClock, istDate, istParts } from './marketHours'
 
 // IST = UTC+5:30. 2026-11-23 is a Monday.
 const ist = (day: number, h: number, m: number) =>
@@ -52,4 +52,17 @@ describe.each(['America/New_York', 'Asia/Kolkata', 'Pacific/Auckland'])('TZ=%s (
     process.env.TZ = prev
   })
   cases()
+})
+
+describe('IST date and clock', () => {
+  test('istDate is the IST calendar date, whatever the device zone', () => {
+    // 2026-11-23 20:00 UTC is already 01:30 on the 24th in IST
+    expect(istDate(Date.UTC(2026, 10, 23, 20, 0))).toBe('2026-11-24')
+    expect(istDate(new Date(Date.UTC(2026, 10, 23, 18, 29)))).toBe('2026-11-23')
+    expect(istDate(Date.UTC(2026, 10, 23, 18, 30))).toBe('2026-11-24')
+  })
+  test('istClock is the IST wall clock', () => {
+    expect(istClock(Date.UTC(2026, 10, 23, 3, 45, 9))).toEqual({ hh: 9, mm: 15, ss: 9 })
+    expect(istClock(Date.UTC(2026, 10, 23, 18, 30))).toEqual({ hh: 0, mm: 0, ss: 0 })
+  })
 })

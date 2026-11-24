@@ -7,13 +7,14 @@ const run = (args) =>
     encoding: 'utf8',
   })
 
-const SIX = [
+const ERROR_RULES = [
   'no-cross-feature',
   'core-no-features',
   'dom-content-no-secrets',
   'dom-content-no-secrets-reachable',
   'features-dom-bridge-only',
   'core-logic-pure',
+  'market-no-features',
   'no-unresolvable',
 ]
 
@@ -27,7 +28,7 @@ test('the fixtures violate every error rule', () => {
   ])
   const out = r.stdout + r.stderr
   assert.notEqual(r.status, 0)
-  for (const rule of SIX) assert.match(out, new RegExp(rule), `missing ${rule}`)
+  for (const rule of ERROR_RULES) assert.match(out, new RegExp(rule), `missing ${rule}`)
 })
 
 test('an aliased import is caught by dom-content-no-secrets', () => {

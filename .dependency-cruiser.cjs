@@ -24,6 +24,13 @@ module.exports = {
       to: { path: `${SRC}(features|app|ui)/` },
     },
     {
+      name: 'market-no-features',
+      severity: 'error',
+      comment: 'The shared trading logic cannot depend on features or app.',
+      from: { path: `${SRC}market/` },
+      to: { path: `${SRC}(features|app)/` },
+    },
+    {
       name: 'dom-content-no-secrets',
       severity: 'error',
       comment: 'WebView content never sees the key, the HTTP client or the gateway.',

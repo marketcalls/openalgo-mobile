@@ -7,6 +7,20 @@ export const istParts = (now: Date | number): { day: number; minutes: number } =
   return { day: d.getUTCDay(), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() }
 }
 
+const pad = (n: number, w = 2) => String(n).padStart(w, '0')
+
+/** The IST calendar date as 'YYYY-MM-DD', whatever the device time zone. */
+export const istDate = (now: Date | number): string => {
+  const d = new Date((typeof now === 'number' ? now : now.getTime()) + IST_OFFSET_MS)
+  return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
+
+/** The IST wall clock, whatever the device time zone. */
+export const istClock = (now: Date | number): { hh: number; mm: number; ss: number } => {
+  const d = new Date((typeof now === 'number' ? now : now.getTime()) + IST_OFFSET_MS)
+  return { hh: d.getUTCHours(), mm: d.getUTCMinutes(), ss: d.getUTCSeconds() }
+}
+
 const at = (h: number, m: number) => h * 60 + m
 
 type Window = readonly [open: number, close: number] | 'always'
