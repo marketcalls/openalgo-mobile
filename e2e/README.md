@@ -7,7 +7,7 @@ runs both flows in an API 34 emulator, where the host is `10.0.2.2`.
 | Flow | Mock server | What it checks |
 |---|---|---|
 | `onboarding-live.yaml` | `PORT=5000 WS_PORT=8765` | server, key and live-feed steps; the watchlist shows a price within 10 s |
-| `onboarding-polling.yaml` | `PORT=5000 WS_PORT=off` | the feed test fails, the profile saves in polling mode, `badge-polling` shows and the price moves |
+| `onboarding-polling.yaml` | `PORT=5000 WS_PORT=off` | the feed test fails, the profile saves in polling mode, `badge-polling` shows and a price is shown |
 
 The job runs both flows for `PROFILE` 2.0.0.0 and 2.0.3.5. Run the mock yourself with
 `PROFILE=2.0.3.5 npm run mock`, then `maestro test e2e/onboarding-live.yaml` against an emulator
