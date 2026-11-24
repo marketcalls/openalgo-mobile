@@ -7,11 +7,11 @@ import { LiveContext, type LiveServices } from '~/core/realtime/useLive'
 import { TickStoreContext } from '~/core/realtime/useQuote'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { type Services, ServicesProvider } from '~/core/services/services'
+import { DEFAULT_WATCHLISTS, WatchlistsSchema } from '~/market/watchlists/model'
+import { loadWatchlists, saveWatchlists } from '~/market/watchlists/store'
 import { useSeedQuotes } from './api'
 import { WatchRow } from './components/WatchRow'
-import { DEFAULT_WATCHLISTS, WatchlistsSchema } from './model'
 import { WatchlistScreen } from './screens/WatchlistScreen'
-import { loadWatchlists, saveWatchlists } from './store'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
 const screenActive = useScreenActive as jest.Mock
@@ -114,6 +114,7 @@ describe('watchlist storage', () => {
     await loadWatchlists(s)
     const mine = {
       version: 1 as const,
+      activeId: 'default',
       lists: [{ id: 'default', name: 'Mine', items: [{ exchange: 'NSE', symbol: 'ITC' }] }],
     }
     await saveWatchlists(s, mine)

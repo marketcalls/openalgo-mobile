@@ -6,7 +6,7 @@ import { log } from '~/core/log/logger'
 import { multiquoteToPatch, quoteKey } from '~/core/realtime/protocol'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { useServices } from '~/core/services/services'
-import type { WatchItem } from './model'
+import type { WatchItem } from '~/market/watchlists/model'
 
 export function useSeedQuotes(items: readonly WatchItem[]): void {
   const { api, store } = useServices()

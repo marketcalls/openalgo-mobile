@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react'
 import { FlatList, StyleSheet, View } from 'react-native'
 import { log } from '~/core/log/logger'
 import { useServices } from '~/core/services/services'
+import type { WatchItem } from '~/market/watchlists/model'
+import { loadWatchlists } from '~/market/watchlists/store'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
 import { useSeedQuotes } from '../api'
 import { useReduceMotion, WatchRow } from '../components/WatchRow'
-import type { WatchItem } from '../model'
-import { loadWatchlists } from '../store'
 
 const EMPTY: readonly WatchItem[] = []
 
