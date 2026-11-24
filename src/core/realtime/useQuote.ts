@@ -17,13 +17,15 @@ const noopUnsubscribe = () => {}
  * One row re-renders only when its own key ticks, and only while `active`. An inactive hook
  * is not subscribed; when it turns active it resubscribes and re-reads, so it catches up.
  */
-export const useQuote = (key: string, active: boolean): Quote | undefined => {
-  const store = useStore()
-  return useSyncExternalStore(
+export const useQuote = (key: string, active: boolean): Quote | undefined =>
+  useQuoteFrom(useStore(), key, active)
+
+/** `useQuote` for a store the caller already holds (the live hooks get theirs from LiveContext). */
+export const useQuoteFrom = (store: TickStore, key: string, active: boolean): Quote | undefined =>
+  useSyncExternalStore(
     (fn) => (active ? store.subscribe(key, fn) : noopUnsubscribe),
     () => store.get(key),
   )
-}
 
 /** The depth book of a key, or undefined before the first depth tick. */
 export const useDepth = (key: string, active: boolean): DepthBook | undefined =>
