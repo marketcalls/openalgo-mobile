@@ -1,0 +1,9 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/accounts-api/analyzer-status.md",
+  "status": "success",
+  "data": {
+    "analyze_mode": false,
+    "mode": "live",
+    "total_logs": 0
+  }
+}

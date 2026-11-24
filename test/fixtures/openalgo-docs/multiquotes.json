@@ -1,0 +1,51 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/data-api/multiquotes.md",
+  "status": "success",
+  "results": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "data": {
+        "open": 1542.3,
+        "high": 1571.6,
+        "low": 1540.5,
+        "ltp": 1569.9,
+        "prev_close": 1539.7,
+        "ask": 1569.9,
+        "bid": 0,
+        "oi": 0,
+        "volume": 14054299
+      }
+    },
+    {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "data": {
+        "open": 3118.8,
+        "high": 3178,
+        "low": 3117,
+        "ltp": 3162.9,
+        "prev_close": 3119.2,
+        "ask": 0,
+        "bid": 3162.9,
+        "oi": 0,
+        "volume": 2508527
+      }
+    },
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "data": {
+        "open": 1532.1,
+        "high": 1560.3,
+        "low": 1532.1,
+        "ltp": 1557.9,
+        "prev_close": 1530.6,
+        "ask": 0,
+        "bid": 1557.9,
+        "oi": 0,
+        "volume": 7575038
+      }
+    }
+  ]
+}

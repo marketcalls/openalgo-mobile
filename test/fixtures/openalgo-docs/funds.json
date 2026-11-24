@@ -1,0 +1,11 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/accounts-api/funds.md",
+  "status": "success",
+  "data": {
+    "availablecash": "320.66",
+    "collateral": "0.00",
+    "m2mrealized": "3.27",
+    "m2munrealized": "-7.88",
+    "utiliseddebits": "679.34"
+  }
+}
