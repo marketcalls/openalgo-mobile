@@ -316,12 +316,16 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
       syncPause()
       realtime.setAppState(next)
       polling.setAppActive(appActive)
-      if (!appActive || lock.isLocked() || !talking()) return
+      // Ruling 6: no traffic at all while banned or with a bad key.
+      if (!appActive || !talking()) return
+      // The re-probe is keyless, so it runs even when this resume has just locked the app: after
+      // a day away it always has (lockAfterMs is at most 15 min), and an unlock never re-probes.
       const version = caps.get()?.version ?? null
       if (caps.needsReprobe({ now: deps.now(), host: profile.get().restOrigin, version })) {
         await reprobe()
       }
-      if (talking()) await broker.check()
+      // The broker check needs the key; while locked, the unlock runs it (onUnlocked).
+      if (!lock.isLocked() && talking()) await broker.check()
     },
 
     async retryAfterBan() {

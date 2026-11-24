@@ -416,6 +416,33 @@ describe('services', () => {
     expect(h.count('GET /api/v1/swagger.json')).toBe(1)
   })
 
+  test('with the app lock on, a resume at 25 h re-probes while locked, then checks the broker on unlock', async () => {
+    const h = setup({ lockEnabled: true })
+    await ready(h)
+    const funds = h.count('POST /api/v1/funds')
+    const keyed = h.keyed()
+    await h.s.lifecycle.appState('background')
+    jest.setSystemTime(T0 + 25 * H)
+    await h.s.lifecycle.appState('active')
+    // the resume locked (25 h > lockAfterMs), and the keyless re-probe still ran
+    expect(h.s.lock.isLocked()).toBe(true)
+    expect(h.count('GET /api/v1/swagger.json')).toBe(1)
+    expect(h.s.caps.get()?.probedAt).toBe(T0 + 25 * H)
+    expect(h.keyed()).toBe(keyed)
+    expect(h.count('POST /api/v1/funds')).toBe(funds)
+    expect(h.ws.sockets).toHaveLength(1)
+
+    await h.s.lock.unlock()
+    await flush()
+    expect(h.count('POST /api/v1/funds')).toBe(funds + 1)
+    expect(h.ws.sockets).toHaveLength(2)
+    // no second re-probe at unlock or at the next short resume
+    await h.s.lifecycle.appState('background')
+    jest.setSystemTime(T0 + 25 * H + 60_000)
+    await h.s.lifecycle.appState('active')
+    expect(h.count('GET /api/v1/swagger.json')).toBe(1)
+  })
+
   test('a failed polling retry still writes lastFeedRetryAt', async () => {
     const h = setup({ profile: { feedMode: 'polling' } })
     await h.s.lifecycle.coldStart()
