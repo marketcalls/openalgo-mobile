@@ -3,7 +3,7 @@ import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
 import { SearchSchema } from '~/core/http/schemas'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { createInstrumentCache, isSymbolNotFound } from './cache'
+import { createInstrumentCache, isSymbolNotFound, isValidationRefusal } from './cache'
 import { SymbolSchema } from './meta'
 
 const DAY1 = Date.UTC(2026, 10, 24, 5, 0) // 10:30 IST, 2026-11-24
@@ -135,6 +135,28 @@ describe('instrument cache', () => {
         }),
       ),
     ).toBe(false)
+  })
+
+  test("only the server's own quote validation is a refusal, never a broker failure", () => {
+    // services/quotes_service.py:14-76, the texts validate_symbols_bulk writes
+    expect(
+      isValidationRefusal(
+        "Symbol 'NIFTY25NOV25FUT' not found for exchange 'NFO'. Please verify the symbol name " +
+          'and ensure master contracts are downloaded.',
+      ),
+    ).toBe(true)
+    expect(isValidationRefusal("Invalid exchange 'NCO'. Must be one of: NSE, NFO")).toBe(true)
+    expect(isValidationRefusal('Missing symbol or exchange in request')).toBe(true)
+    // what brokers write for a per-symbol or a batch failure (quotes_service.py:283-301)
+    expect(isValidationRefusal("HTTPSConnectionPool(host='x', port=443): Read timed out.")).toBe(
+      false,
+    )
+    expect(isValidationRefusal('Token not found for RELIANCE on NSE')).toBe(false)
+    expect(isValidationRefusal('Symbol not found')).toBe(false)
+    expect(isValidationRefusal('Symbol RELIANCE not found for exchange NSE')).toBe(false)
+    expect(isValidationRefusal("Error: Symbol 'X' not found for exchange 'NSE'")).toBe(false)
+    expect(isValidationRefusal('')).toBe(false)
+    expect(isValidationRefusal(undefined)).toBe(false)
   })
 
   test('rows given to putMany skip /symbol', async () => {

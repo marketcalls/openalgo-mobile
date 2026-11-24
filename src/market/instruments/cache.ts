@@ -46,6 +46,19 @@ export type InstrumentCache = {
 export const isSymbolNotFound = (e: unknown): boolean =>
   e instanceof ApiError && e.status === 404 && /not found in exchange/i.test(e.serverMessage ?? '')
 
+// validate_symbol_exchange's texts (services/quotes_service.py:14-38, :62).
+const REFUSAL =
+  /^(?:Symbol '.*' not found for exchange '.*'|Invalid exchange '.*'\. Must be one of:|Missing symbol or exchange in request$)/
+
+/**
+ * The server's own refusal of a quote: the symbol is not in its master contract, or the exchange
+ * is not one it accepts. multiquotes puts these entries ahead of the broker results
+ * (quotes_service.py:272-281). Any other `error` is a broker failure (a timeout, a lapsed token),
+ * which says nothing about the contract.
+ */
+export const isValidationRefusal = (message: string | undefined): boolean =>
+  message !== undefined && REFUSAL.test(message)
+
 const keyOf = (ex: string, sym: string) => `${ex}:${sym}`
 
 export function createInstrumentCache(deps: {

@@ -1,14 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react-native'
-import { Text } from 'react-native'
+import { act, render, screen, waitFor } from '@testing-library/react-native'
+import { AppState, Text } from 'react-native'
 import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
 import { memoryKV } from '../../test/helpers/memoryKV'
 import { SymbolSchema } from './instruments/meta'
 import { useInstrument } from './instruments/useInstrument'
-import { createTrading, TradingProvider, useTrading } from './trading'
+import { createTrading, TradingProvider, type UnknownKeys, useTrading } from './trading'
 
 const NOW = Date.UTC(2026, 10, 24, 5, 0)
 
@@ -64,6 +65,12 @@ const Bad = () => {
   return null
 }
 
+let grabbed: UnknownKeys | undefined
+const Grab = () => {
+  grabbed = useTrading().unknown
+  return null
+}
+
 describe('Trading', () => {
   test('createTrading holds the instrument cache', () => {
     const { s } = fakeServices()
@@ -88,5 +95,85 @@ describe('Trading', () => {
     const { s } = fakeServices()
     await mount(<Probe ex="NFO" sym="GONE" />, s)
     await waitFor(() => expect(screen.getByTestId('v').props.children).toBe('unknown'))
+  })
+})
+
+describe('Trading.unknown', () => {
+  afterEach(() => {
+    jest.restoreAllMocks()
+    useConnection.getState().reset()
+    grabbed = undefined
+  })
+
+  test('clear forgets the keys and moves the epoch on; an empty set stays put', () => {
+    const { s } = fakeServices()
+    const u = createTrading(s, { now: () => NOW }).unknown
+    u.getState().clear()
+    expect(u.getState().epoch).toBe(0)
+    u.getState().add(['NFO:GONE', 'NFO:GONE'])
+    expect([...u.getState().keys]).toEqual(['NFO:GONE'])
+    u.getState().clear()
+    expect(u.getState().keys.size).toBe(0)
+    expect(u.getState().epoch).toBe(1)
+  })
+
+  test('rollover clears only on a new IST day', () => {
+    const { s } = fakeServices()
+    let t = Date.UTC(2026, 10, 24, 18, 0) // 23:30 IST
+    const u = createTrading(s, { now: () => t }).unknown
+    u.getState().add(['NFO:GONE'])
+    t = Date.UTC(2026, 10, 24, 18, 29) // 23:59 IST
+    expect(u.getState().rollover()).toBe(false)
+    expect(u.getState().keys.has('NFO:GONE')).toBe(true)
+    t = Date.UTC(2026, 10, 24, 18, 31) // 00:01 IST, the next day
+    expect(u.getState().rollover()).toBe(true)
+    expect(u.getState().keys.size).toBe(0)
+    expect(u.getState().epoch).toBe(1)
+    expect(u.getState().rollover()).toBe(false)
+  })
+
+  test('the provider clears it when the broker session turns active', async () => {
+    const { s } = fakeServices()
+    await mount(<Grab />, s)
+    await act(async () => grabbed?.getState().add(['NFO:GONE']))
+    await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
+    expect(grabbed?.getState().keys.size).toBe(1)
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    expect(grabbed?.getState().keys.size).toBe(0)
+  })
+
+  test('the provider rolls it over when the app comes to the foreground on a new IST day', async () => {
+    let onChange: ((st: string) => void) | undefined
+    const remove = jest.fn()
+    jest.spyOn(AppState, 'addEventListener').mockImplementation(((
+      _t: string,
+      h: (st: string) => void,
+    ) => {
+      onChange = h
+      return { remove }
+    }) as never)
+    const { s } = fakeServices()
+    let t = NOW
+    const now = () => t
+    const qc = new QueryClient()
+    const view = await render(
+      <ServicesProvider value={s}>
+        <QueryClientProvider client={qc}>
+          <TradingProvider now={now}>
+            <Grab />
+          </TradingProvider>
+        </QueryClientProvider>
+      </ServicesProvider>,
+    )
+    await act(async () => grabbed?.getState().add(['NFO:GONE']))
+    await act(async () => onChange?.('active'))
+    expect(grabbed?.getState().keys.size).toBe(1)
+    t = NOW + 86_400_000
+    await act(async () => onChange?.('background'))
+    expect(grabbed?.getState().keys.size).toBe(1)
+    await act(async () => onChange?.('active'))
+    expect(grabbed?.getState().keys.size).toBe(0)
+    await view.unmount()
+    expect(remove).toHaveBeenCalled()
   })
 })

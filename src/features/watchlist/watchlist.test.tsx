@@ -26,7 +26,12 @@ const mockPush = jest.fn()
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }))
 
 const ORIGIN = 'https://algo.example.com'
-const GONE = 'Symbol NIFTY25NOV25FUT not found in exchange NFO'
+/** The server's own validation refusal, put ahead of the broker results (quotes_service.py:30-36). */
+const GONE =
+  "Symbol 'NIFTY25NOV25FUT' not found for exchange 'NFO'. " +
+  'Please verify the symbol name and ensure master contracts are downloaded.'
+/** A broker failure: kotak and nuvama give every symbol of a failed batch `error: str(e)`. */
+const TIMED_OUT = "HTTPSConnectionPool(host='api.example.com', port=443): Read timed out."
 
 beforeEach(() => {
   jest.useFakeTimers()
@@ -331,6 +336,33 @@ describe('useSeedQuotes', () => {
     await settle()
     expect([...seeded]).toEqual(['NFO:NIFTY25NOV25FUT'])
   })
+
+  test('a broker failure entry is not a refusal: no key joins the set', async () => {
+    const h = setup({
+      call: async (_id, body) => (body.symbols ?? []).map((s) => ({ ...s, error: TIMED_OUT })),
+    })
+    const items = [...ITEMS, { exchange: 'NFO', symbol: 'NIFTY30DEC25FUT' }]
+    await render(h.wrap(<Probe items={items} />))
+    await settle()
+    expect(h.count('multiquotes')).toBe(1)
+    expect([...seeded]).toEqual([])
+  })
+
+  test("the server's other refusal, an exchange it does not accept, is unknown too", async () => {
+    const h = setup({
+      call: async () => [
+        { symbol: 'RELIANCE', exchange: 'NSE', data: { ltp: 1500, prev_close: 1490 } },
+        {
+          symbol: 'CRUDEOIL',
+          exchange: 'NCO',
+          error: "Invalid exchange 'NCO'. Must be one of: NSE, NFO, CDS, BSE, BFO, BCD, MCX",
+        },
+      ],
+    })
+    await render(h.wrap(<Probe items={[...ITEMS, { exchange: 'NCO', symbol: 'CRUDEOIL' }]} />))
+    await settle()
+    expect([...seeded]).toEqual(['NCO:CRUDEOIL'])
+  })
 })
 
 describe('WatchlistScreen', () => {
@@ -633,6 +665,179 @@ describe('WatchlistScreen', () => {
     })
     await settle()
     expect(screen.queryByTestId('watch-row-NFO-NIFTY25NOV25FUT')).toBeNull()
+  })
+
+  test('a broker error entry, not the server\'s "not found", is not badged', async () => {
+    const h = setup({
+      seed: lists({ id: 'a', name: 'Mine', items: [{ exchange: 'NSE', symbol: 'RELIANCE' }] }),
+      call: async () => [{ symbol: 'RELIANCE', exchange: 'NSE', error: TIMED_OUT }],
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.queryByTestId('watch-unknown-NSE-RELIANCE')).toBeNull()
+    expect(screen.getByTestId('watch-row-NSE-RELIANCE')).not.toHaveTextContent(/Expired/)
+    expect(screen.getByTestId('watch-buy-NSE-RELIANCE')).toBeOnTheScreen()
+    expect(screen.getByTestId('watch-sell-NSE-RELIANCE')).toBeOnTheScreen()
+    // the row stays live: it holds the feed, and the next tick lands
+    expect(h.holds('NSE:RELIANCE')).toBe(1)
+    await tick(h, 1502.5)
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toHaveTextContent('1,502.50')
+  })
+
+  test('the broker session turning active again forgets the refusals and asks again', async () => {
+    let listed = false // the server has not downloaded its master contracts yet
+    const h = setup({
+      seed: lists({
+        id: 'a',
+        name: 'Mine',
+        items: [
+          { exchange: 'NSE', symbol: 'RELIANCE' },
+          { exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' },
+        ],
+      }),
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) =>
+          s.symbol === 'NIFTY25NOV25FUT' && !listed
+            ? { ...s, error: GONE }
+            : { ...s, data: { ltp: 1500, prev_close: 1490 } },
+        ),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
+    await settle()
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    listed = true
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    expect(h.count('multiquotes')).toBe(2)
+    expect(h.call.mock.calls[1]?.[1].symbols).toContainEqual({
+      symbol: 'NIFTY25NOV25FUT',
+      exchange: 'NFO',
+    })
+    expect(screen.queryByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeNull()
+    expect(screen.getByTestId('watch-buy-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    await h.flush()
+    expect(screen.getByTestId('watch-ltp-NFO-NIFTY25NOV25FUT')).toHaveTextContent('1,500.00')
+  })
+
+  test('from "unknown", the session turning active forgets the refusals and seeds again', async () => {
+    const h = setup({
+      seed: lists({
+        id: 'a',
+        name: 'Mine',
+        items: [
+          { exchange: 'NSE', symbol: 'RELIANCE' },
+          { exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' },
+        ],
+      }),
+      call: async () => [
+        { symbol: 'NIFTY25NOV25FUT', exchange: 'NFO', error: GONE },
+        { symbol: 'RELIANCE', exchange: 'NSE', data: { ltp: 1500, prev_close: 1490 } },
+      ],
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(h.count('multiquotes')).toBe(1)
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    expect(useConnection.getState().brokerSession).toBe('unknown')
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    // still refused: badged again, and asked once, not in a loop
+    expect(h.count('multiquotes')).toBe(2)
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    await later(10_000)
+    expect(h.count('multiquotes')).toBe(2)
+  })
+
+  test('a reply sent before a clear does not bring its refusals back', async () => {
+    const replies: ((refuse: string[]) => void)[] = []
+    const h = setup({
+      seed: lists({
+        id: 'a',
+        name: 'Mine',
+        items: [
+          { exchange: 'NSE', symbol: 'RELIANCE' },
+          { exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' },
+        ],
+      }),
+      call: (_id, body) =>
+        new Promise((resolve) => {
+          replies.push((refuse) =>
+            resolve(
+              (body.symbols ?? []).map((s) =>
+                refuse.includes(s.symbol)
+                  ? { ...s, error: GONE.replaceAll('NIFTY25NOV25FUT', s.symbol) }
+                  : { ...s, data: { ltp: 1500, prev_close: 1490 } },
+              ),
+            ),
+          )
+        }),
+    })
+    const { rerender } = await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    replies[0]?.(['NIFTY25NOV25FUT'])
+    await settle()
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    // a refocus asks for RELIANCE only; the session turns active while that is out
+    screenActive.mockReturnValue(false)
+    await rerender(h.wrap(<WatchlistScreen />))
+    screenActive.mockReturnValue(true)
+    await rerender(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(h.call.mock.calls[1]?.[1].symbols).toEqual([{ symbol: 'RELIANCE', exchange: 'NSE' }])
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    expect(h.count('multiquotes')).toBe(3)
+    // the old reply refuses RELIANCE, the new one lists both: neither is badged
+    replies[1]?.(['RELIANCE'])
+    await settle()
+    replies[2]?.([])
+    await settle()
+    expect(screen.queryByTestId('watch-unknown-NSE-RELIANCE')).toBeNull()
+    expect(screen.queryByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeNull()
+  })
+
+  test('a new IST day forgets the refusals: the next focus asks once more', async () => {
+    jest.setSystemTime(Date.UTC(2026, 10, 24, 9, 30)) // 15:00 IST
+    const h = setup({
+      live: false,
+      seed: lists({
+        id: 'a',
+        name: 'Expired',
+        items: [{ exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }],
+      }),
+      call: async () => {
+        throw new ApiError({
+          kind: 'Validation',
+          status: 400,
+          endpoint: 'multiquotes',
+          serverMessage: GONE,
+          invalidSymbols: [{ exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }],
+        })
+      },
+    })
+    const { rerender } = await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(h.count('multiquotes')).toBe(1)
+    const refocus = async () => {
+      screenActive.mockReturnValue(false)
+      await rerender(h.wrap(<WatchlistScreen />))
+      screenActive.mockReturnValue(true)
+      await rerender(h.wrap(<WatchlistScreen />))
+      await settle()
+    }
+    // the same IST day: nothing is asked again
+    await refocus()
+    expect(h.count('multiquotes')).toBe(1)
+    jest.setSystemTime(Date.UTC(2026, 10, 25, 3, 45)) // 09:15 IST, the next day
+    await refocus()
+    expect(h.count('multiquotes')).toBe(2)
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    await later(10_000)
+    expect(h.count('multiquotes')).toBe(2)
+    expect(h.polling.stats().consumers).toBe(0)
   })
 
   test('RF 1: a list of only NIFTY25NOV25FUT gets a seed 400, then no more multiquotes', async () => {

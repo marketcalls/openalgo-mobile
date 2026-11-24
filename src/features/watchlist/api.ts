@@ -9,6 +9,7 @@ import { log } from '~/core/log/logger'
 import { multiquoteToPatch, quoteKey } from '~/core/realtime/protocol'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { useServices } from '~/core/services/services'
+import { isValidationRefusal } from '~/market/instruments/cache'
 import { useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import {
@@ -21,8 +22,9 @@ import {
 
 /**
  * Seeds the tick store for `items` on each focus, unless the broker is blocked. Keys the server
- * refuses (an entry with `error`, or a 400's `invalid_symbols`) join the session's unknown set,
- * which is returned, and are never asked for again.
+ * itself refuses (an entry with its validation refusal, or a 400's `invalid_symbols`) join the
+ * session's unknown set, which is returned, and are not asked for again until the set is cleared
+ * (the broker session turns active, or a new IST day). A broker failure entry marks nothing.
  */
 export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlySet<string> } {
   const { api, store } = useServices()
@@ -30,11 +32,15 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
   const active = useScreenActive()
   const blocked = useBrokerBlocked()
   const keys = useStore(unknown, (st) => st.keys)
+  // a clear moves it on, so the keys it forgot are asked for again
+  const epoch = useStore(unknown, (st) => st.epoch)
   // a new array with the same symbols must not seed again
   const sig = items.map((i) => quoteKey(i.exchange, i.symbol)).join(',')
   // biome-ignore lint/correctness/useExhaustiveDependencies: `sig` stands for `items`
   useEffect(() => {
     if (!active || blocked) return
+    // A new IST day forgets the refusals; the new epoch runs this again.
+    if (unknown.getState().rollover()) return
     // Read here, not as a dependency: a key found unknown must not re-seed the rest.
     const todo = items.filter(
       (i) =>
@@ -45,6 +51,10 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
     let live = true
     // taken before the request: a tick that lands meanwhile is newer and wins
     const at = Date.now()
+    // a reply from before a clear must not bring its refusals back
+    const refuse = (ks: string[]) => {
+      if (unknown.getState().epoch === epoch) unknown.getState().add(ks)
+    }
     const symbols = todo.map((i) => ({ symbol: i.symbol, exchange: i.exchange }))
     api
       .call('multiquotes', { symbols }, MultiQuotesSchema)
@@ -52,21 +62,21 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
         const refused: string[] = []
         for (const r of results) {
           const k = quoteKey(r.exchange, r.symbol)
-          if (r.error !== undefined) refused.push(k)
+          if (isValidationRefusal(r.error)) refused.push(k)
           else if (r.data && live) store.seed(k, multiquoteToPatch(r.data), at)
         }
-        unknown.getState().add(refused)
+        refuse(refused)
       })
       .catch((e: unknown) => {
         const refused =
           e instanceof ApiError && e.kind === 'Validation' ? e.invalidSymbols : undefined
-        if (refused) unknown.getState().add(refused.map((s) => quoteKey(s.exchange, s.symbol)))
+        if (refused) refuse(refused.map((s) => quoteKey(s.exchange, s.symbol)))
         else log.warn('watchlist', 'could not seed quotes', e)
       })
     return () => {
       live = false
     }
-  }, [active, blocked, api, store, instruments, unknown, sig])
+  }, [active, blocked, api, store, instruments, unknown, sig, epoch])
   return { unknown: keys }
 }
 
