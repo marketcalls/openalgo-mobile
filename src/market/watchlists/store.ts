@@ -37,20 +37,42 @@ export type WatchlistsState = {
 export type WatchlistsStore = StoreApi<WatchlistsState>
 
 export function createWatchlistsStore(storage: ProfileStorage): WatchlistsStore {
-  return createStore<WatchlistsState>((set, get) => ({
-    data: DEFAULT_WATCHLISTS,
-    loaded: false,
-    async load() {
+  /** Loads and applies run one at a time, in call order, so none sees or clobbers a half-done change. */
+  let tail: Promise<unknown> = Promise.resolve()
+  const enqueue = <T>(job: () => Promise<T>): Promise<T> => {
+    const run = tail.then(job)
+    tail = run.catch(() => undefined)
+    return run
+  }
+  /** The last state known to be on disk; a failed save rolls memory back to it. */
+  let persisted: Watchlists = DEFAULT_WATCHLISTS
+
+  return createStore<WatchlistsState>((set, get) => {
+    const doLoad = async () => {
       const data = await loadWatchlists(storage)
+      persisted = data
       set({ data, loaded: true })
-    },
-    async apply(reducer, ...args) {
-      const { next, result } = reducer(get().data, ...args)
-      if (next !== get().data) {
-        set({ data: next })
-        await saveWatchlists(storage, next)
-      }
-      return result
-    },
-  }))
+    }
+    return {
+      data: DEFAULT_WATCHLISTS,
+      loaded: false,
+      load: () => enqueue(doLoad),
+      apply: (reducer, ...args) =>
+        enqueue(async () => {
+          if (!get().loaded) await doLoad()
+          const { next, result } = reducer(get().data, ...args)
+          if (next !== get().data) {
+            set({ data: next })
+            try {
+              await saveWatchlists(storage, next)
+              persisted = next
+            } catch (e) {
+              set({ data: persisted })
+              throw e
+            }
+          }
+          return result
+        }),
+    }
+  })
 }

@@ -22,7 +22,11 @@ describe('loadWatchlists', () => {
     expect((await loadWatchlists(s)).activeId).toBe('x')
   })
   test('an activeId that names no list falls back to the first', async () => {
-    const doc = { version: 1, activeId: 'gone', lists: [{ id: 'x', name: 'X', items: [] }] }
+    const doc = {
+      version: 1,
+      activeId: 'gone',
+      lists: [{ id: 'x', name: 'X', items: [] }],
+    }
     const { s } = setup({ [KEY]: JSON.stringify(doc) })
     expect((await loadWatchlists(s)).activeId).toBe('x')
   })
@@ -69,5 +73,68 @@ describe('createWatchlistsStore', () => {
     const b = createWatchlistsStore(s)
     await b.getState().load()
     expect(b.getState().data).toEqual(a.getState().data)
+  })
+
+  test('apply before load keeps the persisted lists and applies on top of them', async () => {
+    const { s } = setup()
+    const w = createList(DEFAULT_WATCHLISTS, 'Swing', 'sw').next
+    await saveWatchlists(s, w)
+    const store = createWatchlistsStore(s)
+    expect(await store.getState().apply(createList, 'Intraday', 'in')).toBe('ok')
+    expect(store.getState().data.lists.map((l) => l.id)).toEqual(['default', 'sw', 'in'])
+    const again = createWatchlistsStore(s)
+    await again.getState().load()
+    expect(again.getState().data.lists.map((l) => l.id)).toEqual(['default', 'sw', 'in'])
+  })
+
+  test('a slow load followed by apply keeps the applied change', async () => {
+    const { s } = setup()
+    const slow = {
+      ...s,
+      getJSON: async (...a: Parameters<typeof s.getJSON>) => {
+        await new Promise((r) => setTimeout(r, 20))
+        return s.getJSON(...a)
+      },
+    } as typeof s
+    const store = createWatchlistsStore(slow)
+    const loading = store.getState().load()
+    const applying = store.getState().apply(createList, 'Swing', 'sw')
+    await Promise.all([loading, applying])
+    expect(store.getState().data.lists.map((l) => l.id)).toEqual(['default', 'sw'])
+  })
+
+  test('concurrent applies are serialized', async () => {
+    const { s } = setup()
+    const store = createWatchlistsStore(s)
+    await store.getState().load()
+    await Promise.all([
+      store.getState().apply(createList, 'A', 'a'),
+      store.getState().apply(createList, 'B', 'b'),
+    ])
+    expect(store.getState().data.lists.map((l) => l.id)).toEqual(['default', 'a', 'b'])
+    const again = createWatchlistsStore(s)
+    await again.getState().load()
+    expect(again.getState().data).toEqual(store.getState().data)
+  })
+
+  test('a failing save rolls data back to the persisted state and rejects', async () => {
+    const { s } = setup()
+    let fail = false
+    const flaky = {
+      ...s,
+      setJSON: async (...a: Parameters<typeof s.setJSON>) => {
+        if (fail) throw new Error('disk full')
+        return s.setJSON(...a)
+      },
+    } as typeof s
+    const store = createWatchlistsStore(flaky)
+    await store.getState().load()
+    const persistedData = store.getState().data
+    fail = true
+    await expect(store.getState().apply(createList, 'Swing', 'sw')).rejects.toThrow('disk full')
+    expect(store.getState().data).toEqual(persistedData)
+    fail = false
+    expect(await store.getState().apply(createList, 'Swing', 'sw')).toBe('ok')
+    expect(store.getState().data.lists.map((l) => l.id)).toEqual(['default', 'sw'])
   })
 })
