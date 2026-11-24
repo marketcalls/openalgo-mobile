@@ -1,0 +1,38 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/accounts-api/holdings.md",
+  "status": "success",
+  "data": {
+    "holdings": [
+      {
+        "symbol": "RELIANCE",
+        "exchange": "NSE",
+        "product": "CNC",
+        "quantity": 1,
+        "pnl": -149.0,
+        "pnlpercent": -11.1
+      },
+      {
+        "symbol": "TATASTEEL",
+        "exchange": "NSE",
+        "product": "CNC",
+        "quantity": 1,
+        "pnl": -15.0,
+        "pnlpercent": -10.41
+      },
+      {
+        "symbol": "CANBK",
+        "exchange": "NSE",
+        "product": "CNC",
+        "quantity": 5,
+        "pnl": -69.0,
+        "pnlpercent": -13.43
+      }
+    ],
+    "statistics": {
+      "totalholdingvalue": 1768.0,
+      "totalinvvalue": 2001.0,
+      "totalprofitandloss": -233.15,
+      "totalpnlpercentage": -11.65
+    }
+  }
+}

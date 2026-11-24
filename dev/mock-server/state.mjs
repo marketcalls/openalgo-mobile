@@ -2,11 +2,12 @@ import { PROFILES } from './profiles.mjs'
 
 export const DEFAULT_PROFILE = '2.0.3.5'
 export const DEFAULT_API_KEY = 'ab'.repeat(32)
-export const BROKER = 'zerodha'
+export const DEFAULT_BROKER = 'zerodha'
 export const USER_ID = 'mock'
 
-const initial = (profile) => ({
+const initial = (profile, broker) => ({
   profile,
+  broker,
   brokerLoggedOut: false,
   semiAuto: false,
   analyzer: false,
@@ -21,12 +22,20 @@ const initial = (profile) => ({
   silenceFeed: false,
   absentFields: [],
   failNext: null,
+  delayNext: null,
+  orderEvents: true,
+  flatCloseError: false,
+  splitFailFrom: null,
+  marginUnsupported: false,
 })
 
 const oneOf = (values) => (v) => values.includes(v) || `must be one of ${JSON.stringify(values)}`
 const isBool = (v) => typeof v === 'boolean' || 'must be a boolean'
+const optionalBool = (v) => v === undefined || typeof v === 'boolean'
 const STORED = {
   profile: oneOf(Object.keys(PROFILES)),
+  broker: (v) =>
+    (typeof v === 'string' && /^[a-z][a-z0-9_]*$/.test(v)) || 'must be a broker id such as zerodha',
   brokerLoggedOut: isBool,
   semiAuto: isBool,
   analyzer: isBool,
@@ -41,12 +50,27 @@ const STORED = {
   silenceFeed: isBool,
   absentFields: (v) =>
     (Array.isArray(v) && v.every((f) => typeof f === 'string')) || 'must be an array of names',
+  // afterApply: the write is carried out, then answered with the failure.
   failNext: (v) =>
     v === null ||
-    (typeof v?.path === 'string' && Number.isInteger(v.status)) ||
-    'must be null or {path, status, body?, contentType?}',
+    (typeof v?.path === 'string' && Number.isInteger(v.status) && optionalBool(v.afterApply)) ||
+    'must be null or {path, status, body?, contentType?, afterApply?}',
+  // The next request to `path` is answered `ms` late: before it is carried out, or after
+  // with afterApply.
+  delayNext: (v) =>
+    v === null ||
+    (typeof v?.path === 'string' &&
+      Number.isInteger(v.ms) &&
+      v.ms >= 0 &&
+      optionalBool(v.afterApply)) ||
+    'must be null or {path, ms, afterApply?}',
+  orderEvents: isBool,
+  flatCloseError: isBool,
+  splitFailFrom: (v) =>
+    v === null || (Number.isInteger(v) && v >= 1) || 'must be null or a child number from 1',
+  marginUnsupported: isBool,
 }
-// One-shot actions: the feed carries them out, and they are not stored.
+// One-shot actions: the feed or the order engine carries them out, and they are not stored.
 const ACTIONS = {
   // 1006 drops the connection; ws refuses to send 1004-1006 or anything outside these ranges.
   closeSockets: (v) =>
@@ -55,6 +79,8 @@ const ACTIONS = {
     'must be a close code that can be sent, or 1006',
   emitOrderUpdate: (v) =>
     v === true || (typeof v === 'object' && v !== null) || 'must be an object',
+  // The order engine fills every working order at its own price.
+  fillWorking: (v) => v === true || 'must be true',
 }
 
 export class ControlError extends Error {}
@@ -77,13 +103,21 @@ export function pathKey(pathname) {
   return p.startsWith('/api/v1/') ? p.slice('/api/v1/'.length) : p
 }
 
-const emptyStats = () => ({ requests: {}, wsConnections: 0, wsAuthAttempts: 0 })
+const emptyStats = () => ({ requests: {}, wsConnections: 0, wsAuthAttempts: 0, lastBody: {} })
 
-export function createState({ profile = DEFAULT_PROFILE } = {}) {
+export function createState({ profile = DEFAULT_PROFILE, broker = DEFAULT_BROKER } = {}) {
   if (!PROFILES[profile]) throw new ControlError(`unknown profile ${profile}`)
-  let current = initial(profile)
+  const ok = STORED.broker(broker)
+  if (ok !== true) throw new ControlError(`broker ${ok}`)
+  let current = initial(profile, broker)
   let stats = emptyStats()
   const listeners = new Set()
+  const take = (control, pathname) => {
+    const c = current[control]
+    if (!c || pathKey(c.path) !== pathKey(pathname)) return null
+    current = { ...current, [control]: null }
+    return c
+  }
 
   return {
     get current() {
@@ -116,15 +150,21 @@ export function createState({ profile = DEFAULT_PROFILE } = {}) {
       const key = pathKey(pathname)
       stats.requests[key] = (stats.requests[key] ?? 0) + 1
     },
+    /** Keeps the request body that reached `pathname`, without the key, for the stats. */
+    noteBody(pathname, body) {
+      const { apikey: _, ...rest } = body
+      stats.lastBody[pathKey(pathname)] = rest
+    },
     /** The pending failNext for this path, cleared as it is taken. */
     takeFailure(pathname) {
-      const f = current.failNext
-      if (!f || pathKey(f.path) !== pathKey(pathname)) return null
-      current = { ...current, failNext: null }
-      return f
+      return take('failNext', pathname)
+    },
+    /** The pending delayNext for this path, cleared as it is taken. */
+    takeDelay(pathname) {
+      return take('delayNext', pathname)
     },
     reset() {
-      current = initial(profile)
+      current = initial(profile, broker)
       stats = emptyStats()
     },
   }

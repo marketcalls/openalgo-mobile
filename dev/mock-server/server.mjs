@@ -1,9 +1,16 @@
 // startMockServer: the REST port, the WS proxy port and the /__mock control routes.
 import http from 'node:http'
 import { createFeed } from './feed.mjs'
+import { createOrderEngine } from './orders.mjs'
 import { createPriceBook } from './prices.mjs'
 import { createRest } from './rest.mjs'
-import { ControlError, createState, DEFAULT_API_KEY, DEFAULT_PROFILE } from './state.mjs'
+import {
+  ControlError,
+  createState,
+  DEFAULT_API_KEY,
+  DEFAULT_BROKER,
+  DEFAULT_PROFILE,
+} from './state.mjs'
 
 function listen(server, port, host) {
   return new Promise((resolve, reject) => {
@@ -41,6 +48,7 @@ async function readJson(req) {
 /**
  * Starts the mock. `wsPort: 'off'` runs no WS proxy (wsUrl is null), and port 0 picks a
  * free port. A wildcard host is reported as 127.0.0.1, which the app accepts in __DEV__.
+ * `broker` is the start value of the broker control, which /__mock/reset restores.
  */
 export async function startMockServer(o = {}) {
   const {
@@ -51,25 +59,33 @@ export async function startMockServer(o = {}) {
     apiKey = DEFAULT_API_KEY,
     rate = 10,
     authGraceMs = 15_000,
+    broker = DEFAULT_BROKER,
   } = o
-  const state = createState({ profile })
+  const state = createState({ profile, broker })
   const prices = createPriceBook()
-  const rest = createRest({ state, prices, apiKey })
+  const orders = createOrderEngine({ state, prices })
+  const rest = createRest({ state, prices, apiKey, orders })
+  const snapshot = () => {
+    const s = state.snapshot()
+    s.stats.orders = orders.counts()
+    return s
+  }
 
   // The control routes keep working while the mock is banned or rate limited.
   async function control(req, res, pathname) {
     try {
       if (req.method === 'GET' && pathname === '/__mock/control') {
-        return reply(res, 200, state.snapshot())
+        return reply(res, 200, snapshot())
       }
       if (req.method === 'POST' && pathname === '/__mock/control') {
         state.patch(await readJson(req))
-        return reply(res, 200, state.snapshot())
+        return reply(res, 200, snapshot())
       }
       if (req.method === 'POST' && pathname === '/__mock/reset') {
         state.reset()
         prices.reset()
-        return reply(res, 200, state.snapshot())
+        orders.reset()
+        return reply(res, 200, snapshot())
       }
       return reply(res, 404, { error: `no mock route ${req.method} ${pathname}` })
     } catch (e) {
@@ -95,6 +111,7 @@ export async function startMockServer(o = {}) {
   let feedServer = null
   if (wsPort !== 'off') {
     feed = createFeed({ state, prices, apiKey, rate, authGraceMs })
+    orders.onUpdate((u) => feed.orderUpdate(u))
     feedServer = http.createServer((_req, res) => {
       res.writeHead(426, { 'Content-Type': 'text/plain' })
       res.end('Upgrade Required')

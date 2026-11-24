@@ -1,9 +1,10 @@
 // npm run mock. Env: PORT (5000), WS_PORT (8765; 0 = ephemeral, off = no WS), HOST (0.0.0.0),
-// PROFILE (2.0.3.5), MOCK_API_KEY ('ab' x 32), RATE (10 ticks/s per connection) and
-// AUTH_GRACE_MS (15000). Prints `MOCK_READY rest=<origin> ws=<url|off>` once listening.
+// PROFILE (2.0.3.5), MOCK_API_KEY ('ab' x 32), RATE (10 ticks/s per connection),
+// AUTH_GRACE_MS (15000) and BROKER (zerodha: the ping and WS auth broker, kept across
+// /__mock/reset). Prints `MOCK_READY rest=<origin> ws=<url|off>` once listening.
 import { PROFILES } from './profiles.mjs'
 import { startMockServer } from './server.mjs'
-import { DEFAULT_API_KEY, DEFAULT_PROFILE } from './state.mjs'
+import { DEFAULT_API_KEY, DEFAULT_BROKER, DEFAULT_PROFILE } from './state.mjs'
 
 const env = process.env
 
@@ -34,6 +35,7 @@ const m = await startMockServer({
   apiKey,
   rate: count('RATE', 10),
   authGraceMs: count('AUTH_GRACE_MS', 15_000),
+  broker: env.BROKER ?? DEFAULT_BROKER,
 }).catch((e) => fail(e.message))
 
 console.log(`MOCK_READY rest=${m.origin} ws=${m.wsUrl ?? 'off'}`)

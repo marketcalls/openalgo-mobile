@@ -1,0 +1,33 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/accounts-api/positionbook.md",
+  "status": "success",
+  "data": [
+    {
+      "symbol": "NHPC",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": "-1",
+      "average_price": "83.74",
+      "ltp": "83.72",
+      "pnl": "0.02"
+    },
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": "0",
+      "average_price": "0.0",
+      "ltp": "1189.9",
+      "pnl": "5.90"
+    },
+    {
+      "symbol": "YESBANK",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": "-104",
+      "average_price": "17.2",
+      "ltp": "17.31",
+      "pnl": "-10.44"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/orders-api/splitorder.md",
+  "status": "success",
+  "split_size": 20,
+  "total_quantity": 105,
+  "results": [
+    {
+      "order_num": 1,
+      "orderid": "250408001021467",
+      "quantity": 20,
+      "status": "success"
+    },
+    {
+      "order_num": 2,
+      "orderid": "250408001021459",
+      "quantity": 20,
+      "status": "success"
+    },
+    {
+      "order_num": 3,
+      "orderid": "250408001021466",
+      "quantity": 20,
+      "status": "success"
+    },
+    {
+      "order_num": 4,
+      "orderid": "250408001021470",
+      "quantity": 20,
+      "status": "success"
+    },
+    {
+      "order_num": 5,
+      "orderid": "250408001021471",
+      "quantity": 20,
+      "status": "success"
+    },
+    {
+      "order_num": 6,
+      "orderid": "250408001021472",
+      "quantity": 5,
+      "status": "success"
+    }
+  ]
+}

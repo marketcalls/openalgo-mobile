@@ -1,0 +1,41 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/accounts-api/orderbook.md",
+  "status": "success",
+  "data": {
+    "orders": [
+      {
+        "action": "BUY",
+        "symbol": "RELIANCE",
+        "exchange": "NSE",
+        "orderid": "250408000989443",
+        "product": "MIS",
+        "quantity": "1",
+        "price": 1186.0,
+        "pricetype": "MARKET",
+        "order_status": "complete",
+        "trigger_price": 0.0,
+        "timestamp": "08-Apr-2025 13:58:03"
+      },
+      {
+        "action": "BUY",
+        "symbol": "YESBANK",
+        "exchange": "NSE",
+        "orderid": "250408001002736",
+        "product": "MIS",
+        "quantity": "1",
+        "price": 16.5,
+        "pricetype": "LIMIT",
+        "order_status": "cancelled",
+        "trigger_price": 0.0,
+        "timestamp": "08-Apr-2025 14:13:45"
+      }
+    ],
+    "statistics": {
+      "total_buy_orders": 2.0,
+      "total_sell_orders": 0.0,
+      "total_completed_orders": 1.0,
+      "total_open_orders": 0.0,
+      "total_rejected_orders": 0.0
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/orders-api/cancelallorder.md",
+  "status": "success",
+  "message": "Canceled 1 orders. Failed to cancel 1 orders.",
+  "canceled_orders": [
+    "SB-250408001042620"
+  ],
+  "failed_cancellations": [
+    {
+      "orderid": "SB-250408001043015",
+      "message": "Failed to cancel"
+    }
+  ],
+  "mode": "analyze"
+}

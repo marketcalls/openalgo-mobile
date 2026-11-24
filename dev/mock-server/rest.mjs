@@ -1,9 +1,12 @@
 // The stock server's HTTP side: /auth/app-info, /api/v1/swagger.json and the POST
-// endpoints, with the error shapes of openalgo at c8b2896 (plan contract S2-S9).
+// endpoints, with the error shapes of openalgo at c8b2896 (plan contract S2-S9). The trading
+// endpoints' validation and handlers live in orders.mjs; this file routes them.
 import { STATUS_CODES } from 'node:http'
+import { findInstrument, searchInstruments } from './instruments.mjs'
+import { TRADING_SCHEMAS } from './orders.mjs'
 import { depthLevels, quote, r05 } from './prices.mjs'
 import { endpointsOf, swaggerKey } from './profiles.mjs'
-import { BROKER, pathKey } from './state.mjs'
+import { pathKey } from './state.mjs'
 
 const HTML_SHELL =
   '<!doctype html><html><head><title>OpenAlgo</title></head><body><div id="root"></div></body></html>'
@@ -78,9 +81,15 @@ export function writeRaw(socket, r) {
 
 // --- Validation, as marshmallow and each restx handler report it (S7) -------------
 
-/** Python's repr() of marshmallow's error dict, as `str(err.messages)` prints it. */
+/**
+ * Python's repr() of marshmallow's error dict, as `str(err.messages)` prints it. A Map holds
+ * a list's per-index errors, whose keys are ints.
+ */
 function pyRepr(v) {
   if (Array.isArray(v)) return `[${v.map(pyRepr).join(', ')}]`
+  if (v instanceof Map) {
+    return `{${[...v].map(([k, x]) => `${pyRepr(k)}: ${pyRepr(x)}`).join(', ')}}`
+  }
   if (v && typeof v === 'object') {
     return `{${Object.entries(v)
       .map(([k, x]) => `${pyRepr(k)}: ${pyRepr(x)}`)
@@ -112,6 +121,11 @@ function toBool(v) {
   return null
 }
 
+// validate.OneOf(VALID_EXCHANGES), with the profile's C2 set.
+const exchangeField = (b, v) =>
+  b.exchange != null && !v.exchanges.includes(b.exchange)
+    ? { exchange: [`Must be one of: ${v.exchanges.join(', ')}.`] }
+    : null
 const boolField = (f) => (b) =>
   b[f] !== undefined && toBool(b[f]) === null ? { [f]: ['Not a valid boolean.'] } : null
 const listField =
@@ -145,7 +159,13 @@ const SYMBOL = ['apikey', 'symbol', 'exchange']
 const SCHEMAS = {
   ping: { style: 'dict', required: ['apikey'] },
   funds: { style: 'dict', required: ['apikey'] },
-  search: { style: 'dict', required: ['apikey', 'query'], optional: ['exchange'] },
+  search: {
+    style: 'dict',
+    required: ['apikey', 'query'],
+    optional: ['exchange'],
+    check: exchangeField,
+  },
+  symbol: { style: 'dict', required: SYMBOL, check: exchangeField },
   analyzer: { style: 'repr', required: ['apikey'] },
   'analyzer/toggle': { style: 'repr', required: ['apikey', 'mode'], check: boolField('mode') },
   quotes: { style: 'dict', required: SYMBOL },
@@ -190,7 +210,7 @@ function validationErrors(schema, body, version) {
     if (!(f in body)) errors[f] = ['Missing data for required field.']
     else if (body[f] === null) errors[f] = ['Field may not be null.']
   }
-  Object.assign(errors, schema.check?.(body))
+  Object.assign(errors, schema.check?.(body, version))
   const optional =
     typeof schema.optional === 'function' ? schema.optional(version) : (schema.optional ?? [])
   const known = new Set([...schema.required, ...optional])
@@ -200,18 +220,13 @@ function validationErrors(schema, body, version) {
 
 // --- Data -------------------------------------------------------------------------
 
-// utils/constants.py:52-67
-const VALID_EXCHANGES = (
-  'NSE NFO CDS BSE BFO BCD MCX NCDEX NCO ' + 'NSE_INDEX BSE_INDEX MCX_INDEX GLOBAL_INDEX CRYPTO'
-).split(' ')
-// The mock has no master contract: any well-formed symbol is listed (services/quotes_service.py:14-38).
-const LISTED_FORM = /^[A-Z0-9][A-Z0-9&_-]*$/
-function symbolError(symbol, exchange) {
+// services/quotes_service.py:14-38: the exchange, then the master contract (instruments.mjs).
+function symbolError(symbol, exchange, { exchanges }) {
   if (!symbol || !exchange) return 'Missing symbol or exchange in request'
-  if (!VALID_EXCHANGES.includes(String(exchange).toUpperCase())) {
-    return `Invalid exchange '${exchange}'. Must be one of: ${VALID_EXCHANGES.join(', ')}`
+  if (!exchanges.includes(String(exchange).toUpperCase())) {
+    return `Invalid exchange '${exchange}'. Must be one of: ${exchanges.join(', ')}`
   }
-  if (!LISTED_FORM.test(symbol)) {
+  if (!findInstrument(symbol, exchange)) {
     return (
       `Symbol '${symbol}' not found for exchange '${exchange}'. ` +
       'Please verify the symbol name and ensure master contracts are downloaded.'
@@ -219,29 +234,6 @@ function symbolError(symbol, exchange) {
   }
   return null
 }
-
-// What search finds: the app's default watchlist.
-const SEARCHABLE = [
-  ['RELIANCE', 'NSE', 'RELIANCE INDUSTRIES LTD', '2885'],
-  ['TCS', 'NSE', 'TATA CONSULTANCY SERV LT', '11536'],
-  ['INFY', 'NSE', 'INFOSYS LIMITED', '1594'],
-  ['HDFCBANK', 'NSE', 'HDFC BANK LTD', '1333'],
-  ['ICICIBANK', 'NSE', 'ICICI BANK LTD.', '4963'],
-  ['SBIN', 'NSE', 'STATE BANK OF INDIA', '3045'],
-  ['NIFTY', 'NSE_INDEX', 'NIFTY 50', '26000'],
-].map(([symbol, exchange, name, token]) => ({
-  symbol,
-  brsymbol: symbol,
-  name,
-  exchange,
-  brexchange: exchange,
-  token,
-  expiry: '',
-  strike: -1,
-  lotsize: 1,
-  instrumenttype: exchange === 'NSE_INDEX' ? 'INDEX' : 'EQ',
-  tick_size: 0.05,
-}))
 
 const FUNDS = {
   availablecash: '320.66',
@@ -263,22 +255,27 @@ const fixed2 = (o) =>
 // history, optionchain, multioptiongreeks and the tools have no M1 consumer: their bodies
 // only have the documented shape.
 const HANDLERS = {
-  ping: () => ok({ message: 'pong', broker: BROKER }),
+  ping: (_b, { state }) => ok({ message: 'pong', broker: state.current.broker }),
   funds: () => ok(FUNDS),
   search(b) {
     const q = typeof b.query === 'string' ? b.query.trim().toUpperCase() : ''
     if (!q) {
       return [400, { status: 'error', message: 'Query parameter is required and cannot be empty' }]
     }
-    const data = SEARCHABLE.filter(
-      (i) =>
-        (!b.exchange || i.exchange === b.exchange) &&
-        (i.symbol.startsWith(q) || i.name.startsWith(q)),
-    )
+    const data = searchInstruments(q, b.exchange)
     const message = data.length
       ? `Found ${data.length} matching symbols`
       : 'No matching symbols found'
     return [200, { status: 'success', message, data }]
+  },
+  // services/symbol_service.py:39-66.
+  symbol(b) {
+    const i = findInstrument(b.symbol, b.exchange)
+    if (!i) {
+      const message = `Symbol ${b.symbol} not found in exchange ${b.exchange}`
+      return [404, { status: 'error', message }]
+    }
+    return [200, { data: { ...i }, status: 'success' }]
   },
   analyzer: (_b, { state }) => ok(analyzerData(state.current.analyzer)),
   'analyzer/toggle'(b, { state }) {
@@ -289,16 +286,16 @@ const HANDLERS = {
       message: `Analyzer mode switched to ${on ? 'analyze' : 'live'}`,
     })
   },
-  quotes(b, { prices }) {
-    const error = symbolError(b.symbol, b.exchange)
+  quotes(b, { prices, version }) {
+    const error = symbolError(b.symbol, b.exchange, version)
     return error
       ? [400, { status: 'error', message: error }]
       : ok(quote(prices.read(b.symbol, b.exchange)))
   },
-  multiquotes(b, { prices }) {
+  multiquotes(b, { prices, version }) {
     const checked = b.symbols.map((s) => ({
       s: s ?? {},
-      error: symbolError(s?.symbol, s?.exchange),
+      error: symbolError(s?.symbol, s?.exchange, version),
     }))
     const bad = checked
       .filter((x) => x.error)
@@ -318,8 +315,8 @@ const HANDLERS = {
     ]
     return [200, { status: 'success', results }]
   },
-  depth(b, { prices }) {
-    const error = symbolError(b.symbol, b.exchange)
+  depth(b, { prices, version }) {
+    const error = symbolError(b.symbol, b.exchange, version)
     if (error) return [400, { status: 'error', message: error }]
     const st = prices.read(b.symbol, b.exchange)
     const side = (s) => depthLevels(st, s, 5).map(({ price, quantity }) => ({ price, quantity }))
@@ -342,8 +339,8 @@ const HANDLERS = {
       bids,
     })
   },
-  history(b, { prices }) {
-    const error = symbolError(b.symbol, b.exchange)
+  history(b, { prices, version }) {
+    const error = symbolError(b.symbol, b.exchange, version)
     if (error) return [400, { status: 'error', message: error }]
     const st = prices.get(b.symbol, b.exchange)
     const now = Math.floor(Date.now() / 60_000) * 60
@@ -444,7 +441,16 @@ function readBody(req) {
   })
 }
 
-export function createRest({ state, prices, apiKey }) {
+// Unref'd, so a delayed answer never keeps a closed mock's process alive.
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms).unref())
+
+/** The legacy schemas' load: the body itself, or its errors. */
+function loadBody(schema, body, version) {
+  const errors = validationErrors(schema, body, version)
+  return errors ? { errors } : { data: body }
+}
+
+export function createRest({ state, prices, apiKey, orders }) {
   function apiCall(id, contentType, text) {
     // Flask 3.1 refuses request.json without a JSON Content-Type, and so does a body that
     // does not parse; each handler's `except Exception` turns that into this 500.
@@ -455,14 +461,16 @@ export function createRest({ state, prices, apiKey }) {
     } catch {
       return UNEXPECTED
     }
-    const schema = SCHEMAS[id]
+    const trading = TRADING_SCHEMAS[id]
+    const schema = trading ?? SCHEMAS[id]
     const style = STYLES[schema.style]
     if (typeof body !== 'object' || body === null || Array.isArray(body)) {
       return jsonReply(400, style({ _schema: ['Invalid input type.'] }))
     }
+    state.noteBody(id, body)
     const version = state.version
-    const errors = validationErrors(schema, body, version)
-    if (errors) return jsonReply(400, style(errors))
+    const loaded = trading ? trading.load(body, version) : loadBody(schema, body, version)
+    if (loaded.errors) return jsonReply(400, style(loaded.errors))
     // restx_api/multi_option_greeks.py:104-110 answers a bad key with 401.
     if (body.apikey !== apiKey) {
       return jsonReply(id === 'multioptiongreeks' ? 401 : 403, INVALID_KEY)
@@ -470,7 +478,8 @@ export function createRest({ state, prices, apiKey }) {
     // S3: search checks only the key; everything else also needs the broker session.
     if (state.current.brokerLoggedOut && id !== 'search') return jsonReply(403, INVALID_KEY)
     try {
-      const [status, out] = HANDLERS[id](body, { state, prices, version })
+      const handler = trading ? orders.handlers[id] : HANDLERS[id]
+      const [status, out] = handler(loaded.data, { state, prices, version })
       return jsonReply(status, out)
     } catch (e) {
       console.error('mock-server:', e)
@@ -478,49 +487,53 @@ export function createRest({ state, prices, apiKey }) {
     }
   }
 
+  // The answer to a request that is neither banned nor failed by a control.
+  function route(req, pathname, text) {
+    const s = state.current
+    const version = state.version
+    const id = pathKey(pathname)
+    const api = pathname.startsWith('/api/v1/')
+    if (s.rateLimited && api && id !== 'swagger.json') return RATE_LIMITED[s.rateLimited]
+    if (req.method === 'GET' && pathname === '/auth/app-info' && version.appInfo && s.appInfo) {
+      return jsonReply(200, { status: 'success', version: s.profile, name: 'OpenAlgo' })
+    }
+    if (req.method === 'GET' && id === 'swagger.json' && api && s.swagger) {
+      const paths = Object.fromEntries(
+        endpointsOf(version).map((e) => [swaggerKey(e), { post: {} }]),
+      )
+      const spec = {
+        swagger: '2.0',
+        basePath: '/api/v1',
+        info: { title: 'OpenAlgo API', version: '1.0' },
+        paths,
+      }
+      return jsonReply(200, spec)
+    }
+    if (api && endpointsOf(version).includes(id)) {
+      if (req.method !== 'POST') {
+        return jsonReply(405, { message: 'The method is not allowed for the requested URL.' })
+      }
+      return apiCall(id, req.headers['content-type'], text)
+    }
+    return missingReply(version, pathname)
+  }
+
   return {
     async handle(req, res) {
       const { pathname } = new URL(req.url, 'http://mock')
       state.countRequest(pathname)
-      const s = state.current
-      const version = state.version
-      if (s.banned) return send(res, banReply(s.banned))
+      // Read first: a request delayed by delayNext may outlive its client.
+      const text = await readBody(req)
+      if (state.current.banned) return send(res, banReply(state.current.banned))
+      // failNext and delayNext: with afterApply the request is carried out first, then its
+      // answer is replaced by the failure or sent late.
       const failure = state.takeFailure(pathname)
-      if (failure) return send(res, failureReply(failure))
-      const id = pathKey(pathname)
-      const api = pathname.startsWith('/api/v1/')
-      if (s.rateLimited && api && id !== 'swagger.json') {
-        return send(res, RATE_LIMITED[s.rateLimited])
-      }
-
-      if (req.method === 'GET' && pathname === '/auth/app-info' && version.appInfo && s.appInfo) {
-        return send(
-          res,
-          jsonReply(200, { status: 'success', version: s.profile, name: 'OpenAlgo' }),
-        )
-      }
-      if (req.method === 'GET' && id === 'swagger.json' && api && s.swagger) {
-        const paths = Object.fromEntries(
-          endpointsOf(version).map((e) => [swaggerKey(e), { post: {} }]),
-        )
-        const spec = {
-          swagger: '2.0',
-          basePath: '/api/v1',
-          info: { title: 'OpenAlgo API', version: '1.0' },
-          paths,
-        }
-        return send(res, jsonReply(200, spec))
-      }
-      if (api && endpointsOf(version).includes(id)) {
-        if (req.method !== 'POST') {
-          return send(
-            res,
-            jsonReply(405, { message: 'The method is not allowed for the requested URL.' }),
-          )
-        }
-        return send(res, apiCall(id, req.headers['content-type'], await readBody(req)))
-      }
-      return send(res, missingReply(version, pathname))
+      const delay = state.takeDelay(pathname)
+      if (delay && !delay.afterApply) await sleep(delay.ms)
+      let r = failure && !failure.afterApply ? null : route(req, pathname, text)
+      if (failure) r = failureReply(failure)
+      if (delay?.afterApply) await sleep(delay.ms)
+      if (!res.destroyed) send(res, r)
     },
 
     /** A WebSocket upgrade on the REST port: Flask answers it as a missing route, 404 html. */

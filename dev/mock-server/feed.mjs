@@ -1,9 +1,10 @@
 // The stock server's WebSocket proxy (websocket_proxy/server.py; plan contract S11-S12). Frame
 // shapes are ported from spike/mock-feed/server.mjs and follow the contract where they differ.
 import { WebSocketServer } from 'ws'
+import { findInstrument } from './instruments.mjs'
 import { step, tickData } from './prices.mjs'
 import { banReply, writeRaw } from './rest.mjs'
-import { BROKER, USER_ID } from './state.mjs'
+import { USER_ID } from './state.mjs'
 
 const TICK_MS = 20
 const MODE_LABEL = { 1: 'LTP', 2: 'Quote', 3: 'Depth' }
@@ -55,6 +56,7 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false })
   const clients = new Set()
 
+  const broker = () => state.current.broker
   const send = (c, obj) => {
     if (c.ws.readyState === c.ws.OPEN) c.ws.send(JSON.stringify(obj))
   }
@@ -84,7 +86,7 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
       type: 'auth',
       status: 'success',
       message: 'Authentication successful',
-      broker: BROKER,
+      broker: broker(),
       user_id: USER_ID,
       supported_features: { ltp: true, quote: true, depth: true },
     })
@@ -117,6 +119,18 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
     const subscriptions = []
     for (const s of symbols) {
       if (!s?.symbol || !s?.exchange) continue
+      // The adapter finds no token for an unlisted symbol (zerodha_adapter.py:284), and the
+      // server reports the entry as an error (websocket_proxy/server.py:1324-1334).
+      if (!findInstrument(s.symbol, s.exchange)) {
+        subscriptions.push({
+          symbol: s.symbol,
+          exchange: s.exchange,
+          status: 'error',
+          message: `Token not found for ${s.symbol} on ${s.exchange}`,
+          broker: broker(),
+        })
+        continue
+      }
       const key = `${s.exchange}:${s.symbol}`
       if (!c.subs.has(key)) {
         c.subs.set(key, { symbol: s.symbol, exchange: s.exchange, modes: new Map() })
@@ -128,15 +142,15 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
         status: 'success',
         mode: version.modeLabels ? MODE_LABEL[mode] : raw,
         depth: ackDepth,
-        broker: BROKER,
+        broker: broker(),
       })
     }
     send(c, {
       type: 'subscribe',
-      status: 'success',
+      status: subscriptions.some((x) => x.status === 'error') ? 'partial' : 'success',
       subscriptions,
       message: 'Subscription processing complete',
-      broker: BROKER,
+      broker: broker(),
     })
   }
 
@@ -154,7 +168,7 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
       exchange: s.exchange,
       ...(labels ? { mode: MODE_LABEL[mode] ?? null } : {}),
       status: 'success',
-      broker: BROKER,
+      broker: broker(),
     })
     const successful = []
     const failed = []
@@ -189,7 +203,7 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
       message: 'Unsubscription processing complete',
       successful,
       failed,
-      broker: BROKER,
+      broker: broker(),
     })
   }
 
@@ -287,7 +301,7 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
       symbol: sub.symbol,
       exchange: sub.exchange,
       mode,
-      broker: BROKER,
+      broker: broker(),
       data,
     }
   }
@@ -308,19 +322,23 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
     }
   }, TICK_MS)
 
+  // subscribers/wsproxy_subscriber.py:33-52 shapes the frame.
+  function sendOrderUpdate(fields) {
+    const update = {
+      type: 'order_update',
+      user_id: USER_ID,
+      mode: state.current.analyzer ? 'analyze' : 'live',
+      broker: broker(),
+      ...fields,
+    }
+    for (const c of clients) if (c.authed && c.orders) send(c, update)
+  }
+
   const offPatch = state.onPatch((p, prev) => {
     if (p.closeSockets !== undefined) for (const c of clients) close(c, p.closeSockets)
     if (p.emitOrderUpdate) {
       const extra = typeof p.emitOrderUpdate === 'object' ? p.emitOrderUpdate : {}
-      const update = {
-        type: 'order_update',
-        user_id: USER_ID,
-        mode: state.current.analyzer ? 'analyze' : 'live',
-        broker: BROKER,
-        ...DEFAULT_ORDER_UPDATE,
-        ...extra,
-      }
-      for (const c of clients) if (c.authed && c.orders) send(c, update)
+      sendOrderUpdate({ ...DEFAULT_ORDER_UPDATE, ...extra })
     }
     // From 2.0.3.5 a broker logout closes the user's sockets 1012; before, they go silent.
     if (state.current.brokerLoggedOut && !prev.brokerLoggedOut && state.version.close1012) {
@@ -329,6 +347,10 @@ export function createFeed({ state, prices, apiKey, rate, authGraceMs }) {
   })
 
   return {
+    /** An order change from the engine; orderEvents:false is a broker without events (C7). */
+    orderUpdate(fields) {
+      if (state.version.orderStream && state.current.orderEvents) sendOrderUpdate(fields)
+    },
     handleUpgrade(req, socket, head) {
       state.stats.wsConnections++
       const banned = state.current.banned

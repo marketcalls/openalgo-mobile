@@ -500,6 +500,8 @@ test('GET /__mock/control returns the state plus request and WS stats', async (t
     requests: { funds: 2, '/auth/app-info': 1, '/ws': 1 },
     wsConnections: 1,
     wsAuthAttempts: 2,
+    lastBody: {},
+    orders: {},
   })
 })
 

@@ -14,6 +14,18 @@ const INVALID_KEY = { status: 'error', message: 'Invalid openalgo apikey' }
 const MISSING = ['Missing data for required field.']
 const UNKNOWN = ['Unknown field.']
 
+const ORDER = {
+  strategy: 'mobile',
+  exchange: 'NSE',
+  symbol: 'RELIANCE',
+  action: 'BUY',
+  quantity: 1,
+  pricetype: 'MARKET',
+  product: 'MIS',
+  price: 0,
+  trigger_price: 0,
+}
+
 // A valid request body (without the key) for every endpoint the mock serves.
 const BODIES = {
   ping: {},
@@ -45,8 +57,41 @@ const BODIES = {
     amount: 1000,
   },
   sectorrotation: {},
+  // The trading endpoints (plan B Task 1); orders.test.mjs covers their behaviour.
+  symbol: { symbol: 'RELIANCE', exchange: 'NSE' },
+  orderbook: {},
+  tradebook: {},
+  positionbook: {},
+  holdings: {},
+  placeorder: ORDER,
+  placesmartorder: { ...ORDER, quantity: 1, position_size: 0 },
+  splitorder: { ...ORDER, quantity: 10, splitsize: 5 },
+  modifyorder: {
+    ...ORDER,
+    orderid: '251124000000001',
+    pricetype: 'LIMIT',
+    price: 100,
+    disclosed_quantity: 0,
+  },
+  cancelorder: { strategy: 'mobile', orderid: '251124000000001' },
+  cancelallorder: { strategy: 'mobile' },
+  closeposition: { strategy: 'mobile' },
+  margin: {
+    positions: [
+      {
+        symbol: 'RELIANCE',
+        exchange: 'NSE',
+        action: 'BUY',
+        quantity: '1',
+        product: 'MIS',
+        pricetype: 'MARKET',
+      },
+    ],
+  },
 }
 const ENDPOINTS = Object.keys(BODIES)
+// These two need an order that exists; the success test places it first.
+const NEEDS_ORDER = ['modifyorder', 'cancelorder']
 
 async function mock(t, o = {}) {
   const m = await startMockServer({ wsPort: 'off', ...o })
@@ -194,6 +239,9 @@ test('swagger lists each profile’s endpoints in the S9 form', async (t) => {
     const ids = keys.map((k) => k.replace(/^\/+|\/+$/g, ''))
     for (const id of ids) assert.equal((await post(m, id, {})).status, 400, id)
     assert.equal(ids.includes('multioptiongreeks'), profile !== '1.0.0.41')
+    for (const id of ['symbol', 'orderbook', 'placeorder', 'splitorder', 'margin']) {
+      assert.equal(ids.includes(id), profile !== '1.0.0.41', `${profile} ${id}`)
+    }
     assert.equal(ids.includes('portfolio/backtest'), ['2.0.2.0', '2.0.3.5'].includes(profile))
     assert.equal(ids.includes('sectorrotation'), profile === '2.0.3.5')
   }
@@ -247,8 +295,13 @@ test('a wrong key gets 403 Invalid openalgo apikey (multioptiongreeks: 401)', as
 
 test('every endpoint answers a valid request with success', async (t) => {
   const m = await mock(t)
+  const limit = { apikey: KEY, ...ORDER, pricetype: 'LIMIT', price: 100 }
+  const { orderid } = (await post(m, 'placeorder', limit)).json
   for (const endpoint of ENDPOINTS) {
-    const r = await post(m, endpoint, withKey(endpoint))
+    const body = NEEDS_ORDER.includes(endpoint)
+      ? { ...withKey(endpoint), orderid }
+      : withKey(endpoint)
+    const r = await post(m, endpoint, body)
     assert.equal(r.status, 200, endpoint)
     assert.equal(r.json.status, 'success', endpoint)
   }
@@ -485,7 +538,13 @@ test('POST /__mock/reset restores the start state and clears the stats', async (
   const reset = await call(m, 'POST', '/__mock/reset')
   assert.equal(reset.status, 200)
   assert.deepEqual(reset.json, initial)
-  assert.deepEqual(initial.stats, { requests: {}, wsConnections: 0, wsAuthAttempts: 0 })
+  assert.deepEqual(initial.stats, {
+    requests: {},
+    wsConnections: 0,
+    wsAuthAttempts: 0,
+    lastBody: {},
+    orders: {},
+  })
   assert.equal((await post(m, 'funds', withKey('funds'))).status, 200)
   assert.equal((await call(m, 'GET', '/auth/app-info')).json.version, '2.0.2.0')
 })
