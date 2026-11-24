@@ -171,7 +171,9 @@ describe('SearchScreen', () => {
     await settle()
     expect(screen.queryByTestId('search-added-NSE-ITC')).toBeNull()
     await act(async () => void fireEvent.press(screen.getByTestId('search-row-NSE-ITC')))
-    expect(screen.getByTestId('toast')).toHaveTextContent('Added ITC to Watchlist')
+    expect(screen.getByTestId('search-status')).toHaveTextContent('Added ITC to Watchlist')
+    // rendered inside the search screen, not by the root host
+    expect(screen.queryByTestId('toast')).toBeNull()
     expect(screen.getByTestId('search-added-NSE-ITC')).toBeOnTheScreen()
     expect(mockReplace).not.toHaveBeenCalled()
     const saved = WatchlistsSchema.parse(JSON.parse(h.kv.data.get('oa.p1.watchlists') ?? 'null'))
@@ -180,9 +182,26 @@ describe('SearchScreen', () => {
     expect(saved.lists[0]?.items.length).toBeGreaterThan(1)
 
     await act(async () => void fireEvent.press(screen.getByTestId('search-row-NSE-ITC')))
-    expect(screen.getByTestId('toast')).toHaveTextContent('Already in this list')
+    expect(screen.getByTestId('search-status')).toHaveTextContent('Already in this list')
     await act(async () => void jest.advanceTimersByTime(TOAST_MS))
-    expect(screen.queryByTestId('toast')).toBeNull()
+    expect(screen.queryByTestId('search-status')).toBeNull()
+  })
+
+  test('add mode names the list as stored at tap time', async () => {
+    const h = setup()
+    h.kv.data.set(
+      'oa.p1.watchlists',
+      JSON.stringify({
+        version: 1,
+        activeId: 'default',
+        lists: [{ id: 'default', name: 'Swing picks', items: [] }],
+      }),
+    )
+    await render(h.ui('default'))
+    await type('it')
+    await settle()
+    await act(async () => void fireEvent.press(screen.getByTestId('search-row-NSE-ITC')))
+    expect(screen.getByTestId('search-status')).toHaveTextContent('Added ITC to Swing picks')
   })
 
   test('add mode on a full list says so', async () => {
@@ -203,7 +222,7 @@ describe('SearchScreen', () => {
     await type('it')
     await settle()
     await act(async () => void fireEvent.press(screen.getByTestId('search-row-NSE-ITC')))
-    expect(screen.getByTestId('toast')).toHaveTextContent('This list is full (250)')
+    expect(screen.getByTestId('search-status')).toHaveTextContent('This list is full (250)')
   })
 
   test('search results warm the instrument cache', async () => {

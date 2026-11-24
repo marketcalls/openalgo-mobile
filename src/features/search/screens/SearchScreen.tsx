@@ -1,7 +1,7 @@
 // The search modal. Browse mode opens the instrument sheet; add mode (`addTo` = a list id)
 // adds the symbol to that list. Chips narrow the search to one exchange.
 import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useServices } from '~/core/services/services'
 import { searchExchanges } from '~/market/instruments/exchanges'
@@ -12,7 +12,7 @@ import { EmptyState } from '~/ui/EmptyState'
 import { ErrorState } from '~/ui/ErrorState'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-import { toast } from '~/ui/Toast'
+import { TOAST_MS } from '~/ui/Toast'
 import { useTheme } from '~/ui/theme'
 import { MAX_QUERY, useSymbolSearch } from '../api'
 import { ResultRow } from '../components/ResultRow'
@@ -24,6 +24,21 @@ export function SearchScreen({ addTo }: { addTo?: string }) {
   const { watchlists } = useTrading()
   const [text, setText] = useState('')
   const [chip, setChip] = useState('ALL')
+  // Add-mode feedback is drawn inside this screen: the root ToastHost sits beneath the native
+  // modal presentation and can be hidden behind it on iOS.
+  const [status, setStatus] = useState<string | null>(null)
+  const statusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const say = (message: string) => {
+    if (statusTimer.current) clearTimeout(statusTimer.current)
+    setStatus(message)
+    statusTimer.current = setTimeout(() => setStatus(null), TOAST_MS)
+  }
+  useEffect(
+    () => () => {
+      if (statusTimer.current) clearTimeout(statusTimer.current)
+    },
+    [],
+  )
   const chips = ['ALL', ...searchExchanges(caps.get()?.version ?? null)]
   const search = useSymbolSearch(text, chip === 'ALL' ? undefined : chip)
 
@@ -40,9 +55,10 @@ export function SearchScreen({ addTo }: { addTo?: string }) {
     }
     if (!watchlists.getState().loaded) await watchlists.getState().load()
     const result = await watchlists.getState().apply(addItem, addTo, { exchange, symbol })
-    toast(
+    const name = watchlists.getState().data.lists.find((l) => l.id === addTo)?.name
+    say(
       {
-        added: `Added ${symbol} to ${list?.name ?? 'the list'}`,
+        added: `Added ${symbol} to ${name ?? 'the list'}`,
         duplicate: 'Already in this list',
         full: `This list is full (${WATCHLIST_LIMITS.items})`,
         missing: 'That list no longer exists',
@@ -112,6 +128,19 @@ export function SearchScreen({ addTo }: { addTo?: string }) {
         ))}
       </ScrollView>
       {body()}
+      {status !== null && (
+        <View pointerEvents="none" style={styles.statusWrap}>
+          <View
+            testID="search-status"
+            accessibilityLiveRegion="polite"
+            style={[styles.status, { backgroundColor: c.foreground }]}
+          >
+            <Text numberOfLines={1} style={{ color: c.background }}>
+              {status}
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   )
 }
@@ -127,6 +156,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
   },
+  statusWrap: { position: 'absolute', left: 16, right: 16, bottom: 48, alignItems: 'center' },
+  status: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, maxWidth: '100%' },
   chips: { flexGrow: 0, paddingHorizontal: 12, paddingBottom: 8 },
   chip: {
     minHeight: 32,
