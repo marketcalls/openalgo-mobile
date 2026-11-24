@@ -201,11 +201,15 @@ function useLevelCheck(p: {
         s.levels.push(q.depth.levels)
       }
     }
+    // confirmedDepth's levels part is the most levels any tick on the new wire entry carried,
+    // the 5-level subscription's late ticks included. Once a tick since the window has shown more
+    // than 5, that part is above 5, so a confirmedDepth of 5 or fewer can only be the ack's.
+    const deeperSeen = s.levels.some((n) => n > 5)
     const { downgraded } = confirmLevels({
       requested,
       feedLive,
       wired: realtime.isLive(exchange, symbol),
-      confirmedDepth: realtime.confirmedDepth(exchange, symbol),
+      confirmedDepth: deeperSeen ? realtime.confirmedDepth(exchange, symbol) : undefined,
       wsLevels: s.levels,
     })
     if (downgraded) depthDowngrades.getState().add(dkey)

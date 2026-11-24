@@ -93,6 +93,26 @@ describe('confirmLevels (ruling 10)', () => {
     expect(confirmLevels({ ...wired, confirmedDepth: 5 })).toEqual({ downgraded: true })
   })
 
+  test('a confirmed depth of 5 or fewer downgrades', () => {
+    for (const confirmedDepth of [1, 3, 5]) {
+      expect(confirmLevels({ ...wired, confirmedDepth })).toEqual({ downgraded: true })
+    }
+  })
+
+  test('a thin deeper book (6 to 19 priced levels) proves deeper levels: no downgrade', () => {
+    for (const confirmedDepth of [6, 12, 19]) {
+      expect(
+        confirmLevels({ ...wired, confirmedDepth, wsLevels: [confirmedDepth, confirmedDepth] }),
+      ).toEqual({ downgraded: false })
+    }
+  })
+
+  test('a request of 30 confirmed at 20 still has deeper levels: no fall back to 5', () => {
+    expect(confirmLevels({ ...wired, requested: 30, confirmedDepth: 20 })).toEqual({
+      downgraded: false,
+    })
+  })
+
   test('two 5-level ticks downgrade; one does not yet', () => {
     expect(confirmLevels({ ...wired, wsLevels: [5] })).toEqual({ downgraded: false })
     expect(confirmLevels({ ...wired, wsLevels: [5, 4] })).toEqual({ downgraded: true })

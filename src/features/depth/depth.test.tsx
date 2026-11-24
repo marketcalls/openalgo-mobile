@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { profileStorage } from '~/core/config/storage'
 import { ApiError } from '~/core/http/errors'
 import type { DepthBook, QuotePatch } from '~/core/realtime/protocol'
-import type { SubRequest } from '~/core/realtime/subscriptions'
+import { createSubscriptionManager, type SubRequest } from '~/core/realtime/subscriptions'
 import { createTickStore } from '~/core/realtime/tickStore'
 import { LiveContext, type LiveServices } from '~/core/realtime/useLive'
 import { TickStoreContext } from '~/core/realtime/useQuote'
@@ -69,13 +69,15 @@ const setup = (broker: string | null = 'dhan') => {
     }
     throw new Error(`unexpected ${id}`)
   })
-  // What the feed says about the key: whether its subscription is on the wire, and its depth.
-  const feed = { wired: true, confirmed: undefined as number | undefined }
-  const acquire = jest.fn((_r: SubRequest) => () => {})
+  // The real subscription manager on a live socket: it decides what is on the wire, and its
+  // confirmedDepth is min(ack, the most levels any ws depth tick on the wire entry carried).
+  const subs = createSubscriptionManager({ send: () => {} })
+  subs.resendAll()
+  const acquire = jest.fn((r: SubRequest) => subs.acquire(r))
   const realtime = {
     acquire,
-    isLive: jest.fn(() => feed.wired),
-    confirmedDepth: jest.fn(() => feed.confirmed),
+    isLive: jest.fn((ex: string, sym: string) => subs.isWired(ex, sym)),
+    confirmedDepth: jest.fn((ex: string, sym: string) => subs.confirmedDepth(ex, sym)),
     status: () => ({ broker: null }),
     onStatus: () => () => {},
   }
@@ -105,7 +107,7 @@ const setup = (broker: string | null = 'dhan') => {
       </TradingProvider>
     </ServicesProvider>
   )
-  return { store, call, acquire, register, feed, tree }
+  return { store, call, acquire, register, subs, tree }
 }
 
 type Harness = ReturnType<typeof setup>
@@ -123,10 +125,30 @@ const open = async (exchange: string, symbol: string, h: Harness = setup()) => {
       act(async () => {
         // a later tick carries a later time
         jest.advanceTimersByTime(5)
+        // as wsClient's onTick: a socket depth tick feeds the wire entry's level count first
+        if (source === 'ws' && patch.depth) {
+          h.subs.noteDepthLevels(exchange, symbol, patch.depth.levels)
+        }
         h.store.put(key, patch, source)
+      }),
+    /** The server's subscribe ack for the key's wire entry (C8: an error entry is a refusal). */
+    ack: (o: { ok?: boolean; depth?: number }) =>
+      h.subs.onAck({
+        t: 'sub_ack',
+        entries: [
+          {
+            exchange,
+            symbol,
+            ok: o.ok ?? true,
+            ...(o.depth !== undefined ? { depth: o.depth } : {}),
+          },
+        ],
       }),
   }
 }
+
+/** A changed subscription reaches the wire after the socket's 100 ms debounce. */
+const ON_WIRE_MS = 150
 
 const bids = () => screen.queryAllByTestId(/^depth-bid-\d+$/)
 const asks = () => screen.queryAllByTestId(/^depth-ask-\d+$/)
@@ -148,7 +170,8 @@ describe('levels switch', () => {
     expect(screen.getByTestId('depth-bid-19')).toBeTruthy()
 
     // the feed confirms 20
-    h.feed.confirmed = 20
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 20 })
     await pass(CONFIRM_SETTLE_MS)
     await h.tick({ depth: book(20) })
     await h.tick({ depth: book(20) })
@@ -194,8 +217,9 @@ describe('confirming deeper levels (ruling 10)', () => {
   test('an error ack for 20: "This broker sends 5 levels here.", depth 5 again, 5 rows', async () => {
     const h = await open('NSE', 'RELIANCE')
     await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
     // the server refused the subscribe: the key is not wired, and polling takes it
-    h.feed.wired = false
+    h.ack({ ok: false, depth: 20 })
     await pass(CONFIRM_SETTLE_MS)
     expect(screen.getByText(FIVE_ONLY)).toBeTruthy()
     expect(screen.queryByTestId('depth-levels-20')).toBeNull()
@@ -209,7 +233,8 @@ describe('confirming deeper levels (ruling 10)', () => {
   test('the downgrade holds for that broker and exchange for the session, not others', async () => {
     const a = await open('NSE', 'RELIANCE')
     await fireEvent.press(screen.getByTestId('depth-levels-20'))
-    a.feed.wired = false
+    await pass(ON_WIRE_MS)
+    a.ack({ ok: false, depth: 20 })
     await pass(CONFIRM_SETTLE_MS)
     await a.unmount()
 
@@ -222,17 +247,70 @@ describe('confirming deeper levels (ruling 10)', () => {
     expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
   })
 
-  test('an ack depth of 5 downgrades once the subscribe has settled, not before', async () => {
+  test('an ack depth of 5 downgrades once a tick after the window is past 5, not before', async () => {
     const h = await open('NSE', 'RELIANCE')
     await fireEvent.press(screen.getByTestId('depth-levels-20'))
-    h.feed.confirmed = 5
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 5 })
     // the 5-level subscription's last ticks can still arrive
     await h.tick({ depth: book(5) })
     await h.tick({ depth: book(5) })
     expect(screen.queryByText(FIVE_ONLY)).toBeNull()
     await pass(CONFIRM_SETTLE_MS)
+    // the levels seen so far may be the old subscription's: confirmedDepth is not judged yet
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    // past 5 levels, min(ack, levels) of 5 can only be the ack's
+    await h.tick({ depth: book(20) })
+    expect(h.subs.confirmedDepth('NSE', 'RELIANCE')).toBe(5)
     expect(screen.getByText(FIVE_ONLY)).toBeTruthy()
     expect(h.acquire).toHaveBeenLastCalledWith({ ...RELIANCE, mode: 3, depth: 5 })
+  })
+
+  test('a 5-level tick on the new subscription, then a first 20-level one after the window, keeps 20', async () => {
+    const h = await open('NSE', 'RELIANCE')
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 20 })
+    // the 5-level subscription's last tick lands on the new wire entry
+    await h.tick({ depth: book(5) })
+    expect(h.subs.confirmedDepth('NSE', 'RELIANCE')).toBe(5)
+    // a quiet contract, or a slow first 20-level tick: nothing more until the window has opened
+    await pass(CONFIRM_SETTLE_MS)
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    await h.tick({ depth: book(20) })
+    expect(h.subs.confirmedDepth('NSE', 'RELIANCE')).toBe(20)
+    await h.tick({ depth: book(20) })
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+    expect(bids()).toHaveLength(20)
+  })
+
+  test('the tick on screen when the window opens is not one of the first two', async () => {
+    const h = await open('NSE', 'RELIANCE')
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
+    await h.tick({ depth: book(5) })
+    await pass(CONFIRM_SETTLE_MS)
+    // one 5-level tick since the window: not two yet
+    await h.tick({ depth: book(5) })
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    await h.tick({ depth: book(20) })
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+  })
+
+  test('a thin 20-level book (12 priced levels) does not downgrade', async () => {
+    const h = await open('NFO', 'NIFTY25NOV2530000CE')
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 20 })
+    await pass(CONFIRM_SETTLE_MS)
+    await h.tick({ depth: book(12) })
+    await h.tick({ depth: book(12) })
+    expect(h.subs.confirmedDepth('NFO', 'NIFTY25NOV2530000CE')).toBe(12)
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+    expect(bids()).toHaveLength(12)
   })
 
   test('two 5-level ticks after the subscribe downgrade', async () => {
@@ -250,12 +328,11 @@ describe('confirming deeper levels (ruling 10)', () => {
     await fireEvent.press(screen.getByTestId('depth-levels-20'))
     await pass(CONFIRM_SETTLE_MS)
     // off hours the broker pads the book: no priced level yet
-    h.feed.confirmed = 0
     await h.tick({ depth: book(0) })
+    expect(h.subs.confirmedDepth('NSE', 'RELIANCE')).toBe(0)
     await h.tick({ depth: book(5) }, 'poll')
     await h.tick({ depth: book(5) }, 'poll')
     expect(screen.queryByText(FIVE_ONLY)).toBeNull()
-    h.feed.confirmed = 20
     await h.tick({ depth: book(20) })
     await h.tick({ depth: book(20) })
     expect(screen.queryByText(FIVE_ONLY)).toBeNull()
@@ -265,18 +342,36 @@ describe('confirming deeper levels (ruling 10)', () => {
   test('leaving the screen during the check does not count as a refusal', async () => {
     const h = await open('NSE', 'RELIANCE')
     await fireEvent.press(screen.getByTestId('depth-levels-20'))
-    // another screen covers this one: the subscription is released
+    // another screen covers this one: the subscription is released, and leaves the wire
     ;(useScreenActive as jest.Mock).mockReturnValue(false)
-    h.feed.wired = false
     await h.rerender()
     await pass(CONFIRM_SETTLE_MS)
+    expect(h.subs.isWired('NSE', 'RELIANCE')).toBe(false)
     expect(screen.queryByText(FIVE_ONLY)).toBeNull()
-    // back: the subscribe goes out again, and the check starts afresh
+    // back: the subscribe goes out again after the debounce, and the check starts afresh
     ;(useScreenActive as jest.Mock).mockReturnValue(true)
     await h.rerender()
-    await pass(CONFIRM_SETTLE_MS / 2)
-    h.feed.wired = true
+    await pass(CONFIRM_SETTLE_MS * 2)
+    expect(h.subs.isWired('NSE', 'RELIANCE')).toBe(true)
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+  })
+
+  test('leaving once the check is open: coming back does not judge the unwired gap', async () => {
+    const h = await open('NSE', 'RELIANCE')
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 20 })
     await pass(CONFIRM_SETTLE_MS)
+    await h.tick({ depth: book(20) })
+    ;(useScreenActive as jest.Mock).mockReturnValue(false)
+    await h.rerender()
+    await pass(CONFIRM_SETTLE_MS)
+    // back: until the debounce puts the subscribe on the wire again, the key is not wired
+    ;(useScreenActive as jest.Mock).mockReturnValue(true)
+    await h.rerender()
+    expect(h.subs.isWired('NSE', 'RELIANCE')).toBe(false)
+    await pass(CONFIRM_SETTLE_MS * 2)
     expect(screen.queryByText(FIVE_ONLY)).toBeNull()
     expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
   })

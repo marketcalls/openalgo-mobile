@@ -64,7 +64,11 @@ export type LevelFacts = {
   feedLive: boolean
   /** `realtime.isLive(ex, sym)`: on the wire, and not refused by the subscribe ack. */
   wired: boolean
-  /** `realtime.confirmedDepth(ex, sym)`: min(ack depth, levels seen); 0 is no levels yet. */
+  /**
+   * `realtime.confirmedDepth(ex, sym)`: min(ack depth, levels seen); 0 is no levels yet. The
+   * screen passes it only once a tick since the subscribe has carried more than 5 levels, so the
+   * levels part cannot be the old 5-level subscription's ticks and 5 or fewer is the ack's.
+   */
   confirmedDepth?: number
   /** The level counts of the socket's depth ticks since the subscribe, zero-level ticks left out. */
   wsLevels: readonly number[]
@@ -72,14 +76,14 @@ export type LevelFacts = {
 
 /**
  * Whether a request above 5 levels should fall back to 5: the server refused the subscribe (an
- * error ack leaves the key unwired while the feed is live, C8), the feed confirms fewer levels
- * than asked, or the first two ticks carry 5 levels or fewer. A 5-level request never downgrades.
+ * error ack leaves the key unwired while the feed is live, C8), the feed confirms 5 levels or
+ * fewer, or the first two ticks carry 5 levels or fewer. A confirmed depth above 5 proves deeper
+ * levels, even when a thin book prices fewer than asked. A 5-level request never downgrades.
  */
 export function confirmLevels(f: LevelFacts): { downgraded: boolean } {
   if (f.requested <= 5) return { downgraded: false }
   const refused = f.feedLive && !f.wired
-  const short =
-    f.confirmedDepth !== undefined && f.confirmedDepth > 0 && f.confirmedDepth < f.requested
+  const short = f.confirmedDepth !== undefined && f.confirmedDepth > 0 && f.confirmedDepth <= 5
   const [first, second] = f.wsLevels
   const shallow = first !== undefined && second !== undefined && first <= 5 && second <= 5
   return { downgraded: refused || short || shallow }
