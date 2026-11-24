@@ -442,7 +442,7 @@ openalgo-mobile/            (repo root = Expo project)
   - 120 s for the portfolio, SIP and sector-rotation tools.
 
 **Error model**
-- `KeyInvalid`, `BrokerLoggedOut`, `IpBanned` (either "Access Denied" form, section 5.3: stop all traffic for that server and explain), `Unsupported` (endpoint or field missing), `SemiAutoBlocked` (403 with the Semi-Auto message), `RateLimited`, `Validation`, `Server`, `Network`, and `MaybePlaced` (502 or timeout on an order).
+- `KeyInvalid`, `BrokerLoggedOut`, `IpBanned` (either "Access Denied" form, section 5.3: stop all traffic for that server and explain), `Unsupported` (endpoint or field missing), `SemiAutoBlocked` (403 with the Semi-Auto message), `RateLimited`, `Validation`, `Server`, `Network`, and `MaybePlaced`. On an order lane, that is a timeout, a 502, or any other 5xx without an OpenAlgo JSON `status` except 501 and 503. It covers proxy pages such as nginx 504 and Cloudflare 520/524.
 
 **Request scheduler** (one per server). It protects the user's shared rate-limit buckets and their strategies:
 - **Pacing.**
