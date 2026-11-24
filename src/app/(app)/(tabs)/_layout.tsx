@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { log } from '~/core/log/logger'
 import { useConnection } from '~/core/services/connection'
 import { shellBanners, useServices } from '~/core/services/services'
+import { useAnalyzer } from '~/features/account/api'
 import { Banner } from '~/ui/Banner'
 import { StatusBadges } from '~/ui/StatusBadges'
 import { useTheme } from '~/ui/theme'
@@ -21,6 +22,8 @@ const TABS = [
 export default function TabsLayout() {
   const s = useServices()
   const conn = useConnection()
+  // the header badge reads conn.analyzer, which only this hook writes (ruling 10)
+  useAnalyzer()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { c } = useTheme()
