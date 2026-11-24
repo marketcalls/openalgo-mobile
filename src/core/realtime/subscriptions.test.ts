@@ -316,6 +316,75 @@ describe('createSubscriptionManager', () => {
     expect(sent).toEqual([sub(['TCS'], 2)]) // the failed entry is not retried on every flush
   })
 
+  test('B8 a typeless error answering a subscribe marks that batch not wired (S11: no ack)', () => {
+    const { m } = setup()
+    m.acquire(req('RELIANCE', 2))
+    m.acquire(req('TCS', 2))
+    m.acquire(req('INFY', 3))
+    flush() // one frame for mode 2, one for mode 3
+    expect(m.onRequestError()).toBe(true) // answers the mode-2 frame, the oldest
+    expect(m.isWired('NSE', 'RELIANCE')).toBe(false)
+    expect(m.isWired('NSE', 'TCS')).toBe(false)
+    expect(m.isWired('NSE', 'INFY')).toBe(true)
+    m.onAck(ack(['INFY', true, 5]))
+    expect(m.isWired('NSE', 'INFY')).toBe(true)
+    expect(m.onRequestError()).toBe(false) // nothing is waiting for an answer
+    expect(m.isWired('NSE', 'INFY')).toBe(true)
+  })
+
+  test('B8 replies come in send order: an error after an unsubscribe answers the unsubscribe', () => {
+    const { m } = setup()
+    const rel = m.acquire(req('RELIANCE', 2))
+    flush()
+    m.onAck(ack(['RELIANCE', true]))
+    rel()
+    m.acquire(req('TCS', 2))
+    flush() // the unsubscribe of RELIANCE, then the subscribe of TCS
+    expect(m.onRequestError()).toBe(false)
+    expect(m.isWired('NSE', 'TCS')).toBe(true)
+    expect(m.onRequestError()).toBe(true)
+    expect(m.isWired('NSE', 'TCS')).toBe(false)
+  })
+
+  test('B8 an unsubscribe ack and a subscribe ack each settle their own request', () => {
+    const { m } = setup()
+    const rel = m.acquire(req('RELIANCE', 2))
+    flush()
+    m.acquire(req('INFY', 2))
+    flush()
+    m.onAck(ack(['RELIANCE', true]))
+    rel()
+    m.acquire(req('TCS', 2))
+    flush() // waiting: subscribe INFY, unsubscribe RELIANCE, subscribe TCS
+    m.onAck(ack(['INFY', true]))
+    m.onUnsubAck()
+    expect(m.onRequestError()).toBe(true)
+    expect(m.isWired('NSE', 'INFY')).toBe(true)
+    expect(m.isWired('NSE', 'TCS')).toBe(false)
+  })
+
+  test('B8 a resubscribed symbol is not failed by an error that answers its old frame', () => {
+    const { m } = setup()
+    const ltp = m.acquire(req('RELIANCE', 1))
+    flush()
+    m.acquire(req('RELIANCE', 2))
+    ltp()
+    flush() // RELIANCE is now on the wire at mode 2, from a newer frame
+    expect(m.onRequestError()).toBe(true) // answers the mode-1 frame
+    expect(m.isWired('NSE', 'RELIANCE')).toBe(true)
+  })
+
+  test('B8 connectionLost forgets the unanswered requests', () => {
+    const { m } = setup()
+    m.acquire(req('RELIANCE', 2))
+    flush()
+    m.connectionLost()
+    m.resendAll()
+    m.onAck(ack(['RELIANCE', true]))
+    expect(m.onRequestError()).toBe(false)
+    expect(m.isWired('NSE', 'RELIANCE')).toBe(true)
+  })
+
   test('B7 reconnect: connectionLost clears the wire state; resendAll resubscribes everything', () => {
     const sent: unknown[] = []
     const m = createSubscriptionManager({ send: (f) => sent.push(JSON.parse(f)) })

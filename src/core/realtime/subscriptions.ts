@@ -56,6 +56,12 @@ const topOf = (w: Wanted): SubRequest | undefined => {
 const same = (a: SubRequest, b: SubRequest) => a.mode === b.mode && a.depth === b.depth
 
 type Batch = { mode: Mode; depth?: DepthLevels; pairs: SymbolPair[] }
+/**
+ * A frame sent on this connection and not answered yet. The server answers each frame once and
+ * in order, so a reply with no type (S11's errors) answers the oldest. A subscribe keeps the
+ * entries it put on the wire.
+ */
+type Unanswered = { kind: 'subscribe'; entries: Map<string, Wired> } | { kind: 'unsubscribe' }
 
 /** Adds `s` to the batch for its mode (and its depth, if `byDepth`), keeping first-seen order. */
 const addTo = (batches: Map<string, Batch>, s: SubRequest, byDepth: boolean) => {
@@ -79,6 +85,7 @@ export const createSubscriptionManager = ({
   /** Symbols over the budget, first come first served. */
   const queue: string[] = []
   const wire = new Map<string, Wired>()
+  const unanswered: Unanswered[] = []
   /** True between an authenticate (`resendAll`) and the next `connectionLost`. */
   let online = false
   let cancelFlush: (() => void) | undefined
@@ -132,8 +139,26 @@ export const createSubscriptionManager = ({
       addTo(subs, top, true)
       wire.set(key, { ...top, failed: false })
     }
-    for (const b of unsubs.values()) send(unsubscribeMsg(b.pairs, b.mode))
-    for (const b of subs.values()) send(subscribeMsg(b.pairs, b.mode, b.depth))
+    for (const b of unsubs.values()) {
+      unanswered.push({ kind: 'unsubscribe' })
+      send(unsubscribeMsg(b.pairs, b.mode))
+    }
+    for (const b of subs.values()) {
+      const entries = new Map<string, Wired>()
+      for (const p of b.pairs) {
+        const key = quoteKey(p.exchange, p.symbol)
+        const w = wire.get(key)
+        if (w) entries.set(key, w)
+      }
+      unanswered.push({ kind: 'subscribe', entries })
+      send(subscribeMsg(b.pairs, b.mode, b.depth))
+    }
+  }
+
+  /** Drops the oldest unanswered request of `kind` that `match` accepts. */
+  const settle = (kind: Unanswered['kind'], match: (u: Unanswered) => boolean = () => true) => {
+    const i = unanswered.findIndex((u) => u.kind === kind && match(u))
+    if (i >= 0) unanswered.splice(i, 1)
   }
 
   /**
@@ -182,6 +207,31 @@ export const createSubscriptionManager = ({
         w.failed = !e.ok
         if (e.depth !== undefined) w.ackDepth = e.depth
       }
+      const first = a.entries[0]
+      const key = first && quoteKey(first.exchange, first.symbol)
+      // The frame the ack names; an ack that names none answers the oldest subscribe.
+      settle(
+        'subscribe',
+        (u) => key === undefined || (u.kind === 'subscribe' && u.entries.has(key)),
+      )
+    },
+
+    /** An unsubscribe ack: it answers the oldest unsubscribe. */
+    onUnsubAck() {
+      settle('unsubscribe')
+    },
+
+    /**
+     * An error with no type that the client did not handle otherwise (S11: SERVER_ERROR when the
+     * adapter throws mid-batch, INVALID_MODE, INVALID_PARAMETERS). It answers the oldest frame;
+     * when that is a subscribe, its symbols are not on the wire, so they are marked failed and
+     * polled. True when it answered a subscribe.
+     */
+    onRequestError(): boolean {
+      const u = unanswered.shift()
+      if (u?.kind !== 'subscribe') return false
+      for (const [key, w] of u.entries) if (wire.get(key) === w) w.failed = true
+      return true
     },
 
     /** One depth tick held `n` priced levels (S12: brokers pad with price 0). */
@@ -193,6 +243,7 @@ export const createSubscriptionManager = ({
     /** Call on every auth_ok: the new connection holds nothing, so everything is sent at once. */
     resendAll() {
       wire.clear()
+      unanswered.length = 0
       online = true
       flush()
     },
@@ -201,6 +252,7 @@ export const createSubscriptionManager = ({
     connectionLost() {
       online = false
       wire.clear()
+      unanswered.length = 0
       cancelFlush?.()
       cancelFlush = undefined
     },

@@ -288,6 +288,8 @@ export function createRealtime(d: RealtimeDeps): Realtime {
         return onError(m.code, m.message)
       case 'sub_ack':
         return subs.onAck(m)
+      case 'unsub_ack':
+        return subs.onUnsubAck()
       case 'tick':
         return onTick(m)
       case 'orders_ack':
@@ -324,6 +326,9 @@ export function createRealtime(d: RealtimeDeps): Realtime {
       // The message names the refused action (S11).
       if (message.includes('subscribe_orders')) d.caps.setWs({ orderStream: false })
       else if (/\bping\b/.test(message)) d.caps.setWs({ ping: false })
+    } else if (subs.onRequestError()) {
+      // No ack came, so those symbols are not on the wire: polling covers them from here on.
+      log.warn(TAG, `a subscribe was answered with ${code}; its symbols are polled`)
     }
   }
 

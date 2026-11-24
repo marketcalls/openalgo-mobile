@@ -384,6 +384,56 @@ describe('createRealtime', () => {
     expect(f.sockets).toHaveLength(2)
   })
 
+  test('B6 a SERVER_ERROR answering a subscribe leaves those symbols to polling, still live', () => {
+    const { rt, f } = setup()
+    rt.acquire(RELIANCE)
+    rt.acquire({ exchange: 'NSE', symbol: 'TCS', mode: 2 })
+    rt.start()
+    live(f.last())
+    expect(rt.isLive('NSE', 'RELIANCE')).toBe(true)
+    // the proxy's adapter threw inside its per-symbol loop: one error, no ack (S11)
+    f.last().serverSend(wsError('SERVER_ERROR', "'NoneType' object has no attribute 'get'"))
+    expect(rt.status().state).toBe('live')
+    expect(rt.isLive('NSE', 'RELIANCE')).toBe(false)
+    expect(rt.isLive('NSE', 'TCS')).toBe(false)
+    expect(f.sockets).toHaveLength(1)
+  })
+
+  test('B6 an INVALID_ACTION answering subscribe_orders does not touch the subscriptions', () => {
+    const { rt, f } = setup()
+    rt.acquire(RELIANCE)
+    rt.start()
+    live(f.last())
+    f.last().serverSend(wsError('INVALID_ACTION', 'Invalid action: subscribe_orders'))
+    expect(rt.isLive('NSE', 'RELIANCE')).toBe(true)
+  })
+
+  test('B6 an error answering an unsubscribe is not taken for the subscribe after it', () => {
+    const { rt, f } = setup()
+    const release = rt.acquire(RELIANCE)
+    rt.start()
+    live(f.last())
+    f.last().serverSend({
+      type: 'subscribe',
+      status: 'success',
+      subscriptions: [{ symbol: 'RELIANCE', exchange: 'NSE', status: 'success', mode: 'Quote' }],
+    })
+    release()
+    rt.acquire({ exchange: 'NSE', symbol: 'TCS', mode: 2 })
+    jest.advanceTimersByTime(100) // unsubscribe RELIANCE, then subscribe TCS
+    f.last().serverSend(
+      wsError('INVALID_PARAMETERS', 'Either symbols or unsubscribe_all is required'),
+    )
+    expect(rt.isLive('NSE', 'TCS')).toBe(true)
+    f.last().serverSend({
+      type: 'subscribe',
+      status: 'success',
+      subscriptions: [{ symbol: 'TCS', exchange: 'NSE', status: 'success', mode: 'Quote' }],
+    })
+    f.last().serverSend(wsError('SERVER_ERROR', 'unrelated')) // nothing is waiting for it
+    expect(rt.isLive('NSE', 'TCS')).toBe(true)
+  })
+
   test('B7 1012 calls on1012, reconnects at once and resets failures', () => {
     const { rt, f, d } = setup()
     rt.start()
