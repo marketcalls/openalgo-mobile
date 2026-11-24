@@ -745,24 +745,6 @@ describe('createRealtime', () => {
     expect(d.onResync).not.toHaveBeenCalled()
   })
 
-  test('B11 the store is stale unless the feed is live', () => {
-    const { rt, f, store } = setup()
-    rt.start()
-    expect(store.isStale()).toBe(true)
-    live(f.last())
-    expect(store.isStale()).toBe(false)
-    f.last().serverClose(1006)
-    expect(store.isStale()).toBe(true)
-  })
-
-  test('B11 polling is not stale', () => {
-    const { rt, store } = setup({ profile: { feedMode: 'polling', lastFeedRetryAt: null } })
-    store.setStale(true)
-    rt.start()
-    expect(rt.status().state).toBe('polling')
-    expect(store.isStale()).toBe(false)
-  })
-
   test('stop closes 1000, cancels every timer, and a later start connects afresh', () => {
     const { rt, f } = setup()
     rt.start()

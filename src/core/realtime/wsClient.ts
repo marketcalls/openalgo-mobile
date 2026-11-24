@@ -72,7 +72,7 @@ export type RealtimeDeps = {
   WebSocketImpl: WebSocketCtor
   /** The profile's last live-feed retry (ms), which seeds the 10-minute window. */
   lastFeedRetryAt: () => number | null
-  store: Pick<TickStore, 'put' | 'setStale' | 'lastWsTickAt' | 'dropDepth'>
+  store: Pick<TickStore, 'put' | 'lastWsTickAt' | 'dropDepth'>
   caps: Pick<CapabilityStore, 'ws' | 'setWs'>
   isExchangeOpen: (exchange: string, now: number) => boolean
   /** S11: a BROKER_* code is not proof of logout, so the session is checked. */
@@ -174,11 +174,8 @@ export function createRealtime(d: RealtimeDeps): Realtime {
     if (keys.every((k) => next[k] === status[k])) return
     const stateChanged = next.state !== status.state
     status = next
-    if (stateChanged) {
-      log.info(TAG, `state ${next.state}`)
-      // B11, ruling 8: polling prices are fresh too.
-      d.store.setStale(next.state !== 'live' && next.state !== 'polling')
-    }
+    // B11: the services container turns the state into stale styling (staleness.ts).
+    if (stateChanged) log.info(TAG, `state ${next.state}`)
     for (const fn of Array.from(listeners)) fn(next)
   }
 

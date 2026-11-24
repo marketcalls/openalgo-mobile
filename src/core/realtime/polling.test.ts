@@ -137,6 +137,15 @@ describe('polling engine', () => {
     await depth.advance(10_000)
     expect(depth.calls).toHaveLength(1)
 
+    // with every key on the socket, the rate follows them all, so a drop is covered soon
+    const live = { v: true }
+    const open = setup({ live: () => live.v })
+    open.engine.register(quotes('NSE:A'), true)
+    await open.advance(2000)
+    live.v = false
+    await open.advance(2000)
+    expect(open.calls).toHaveLength(1)
+
     // a polled CRYPTO key is open around the clock, so its call keeps the home rate
     const crypto = setup({ start: SATURDAY_10_IST, realHours: true })
     crypto.engine.register(quotes('NSE:A', 'CRYPTO:BTCUSDT'), true)
@@ -231,6 +240,62 @@ describe('polling engine', () => {
     await h.advance(4000)
     expect(h.api.call).toHaveBeenCalledTimes(2)
     expect(h.engine.stats().errors).toBe(1)
+  })
+
+  test('health: none before a call, ok after one, failing after a failed one, none once stopped', async () => {
+    const h = setup()
+    const heard: string[] = []
+    h.engine.onHealth(() => heard.push(h.engine.health()))
+    expect(h.engine.health()).toBe('none')
+    const off = h.engine.register(quotes('NSE:A'), true)
+    await h.advance(2000)
+    expect(h.engine.health()).toBe('ok')
+    h.api.call.mockRejectedValueOnce(new Error('network'))
+    await h.advance(2000)
+    expect(h.engine.health()).toBe('failing')
+    await h.advance(2000)
+    expect(h.engine.health()).toBe('ok')
+    off()
+    expect(h.engine.health()).toBe('none')
+    expect(heard).toEqual(['ok', 'failing', 'ok', 'none'])
+  })
+
+  test('health: one failing price loop is enough; custom consumers do not count', async () => {
+    const h = setup({ depth: { ltp: 1, bids: [], asks: [] } })
+    h.engine.register(quotes('NSE:A'), true)
+    h.engine.register({ kind: 'depth', key: () => 'NSE:B' }, true)
+    h.engine.register(
+      { kind: 'custom', intervalMs: () => 1000, run: () => Promise.reject(new Error('x')) },
+      true,
+    )
+    h.api.call.mockImplementation(async (id: string) => {
+      if (id === 'depth') throw new Error('network')
+      return [{ symbol: 'A', exchange: 'NSE', data: { ltp: 1 } }]
+    })
+    await h.advance(2000)
+    expect(h.engine.health()).toBe('failing')
+  })
+
+  test('health: a call still out after 3 intervals counts as failing', async () => {
+    const h = setup()
+    h.api.call.mockImplementationOnce(() => new Promise(() => {}))
+    h.engine.register(quotes('NSE:A'), true)
+    await h.advance(2000) // the call goes out and never comes back
+    await h.advance(5999)
+    expect(h.engine.health()).toBe('none')
+    await h.advance(1)
+    expect(h.engine.health()).toBe('failing')
+  })
+
+  test('health: nothing to poll (every key live) is no claim either way', async () => {
+    const live = { v: false }
+    const h = setup({ live: () => live.v })
+    h.engine.register(quotes('NSE:A'), true)
+    await h.advance(2000)
+    expect(h.engine.health()).toBe('ok')
+    live.v = true
+    await h.advance(2000)
+    expect(h.engine.health()).toBe('none')
   })
 
   test('stop then restart while a step is in flight leaves exactly one loop', async () => {

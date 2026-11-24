@@ -29,6 +29,7 @@ import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
 import { isExchangeOpen } from '~/core/realtime/marketHours'
 import { createPollingEngine, type PollingEngine } from '~/core/realtime/polling'
+import { pricesStale } from '~/core/realtime/staleness'
 import { createTickStore, type TickStore } from '~/core/realtime/tickStore'
 import { createRealtime, type Realtime, type WebSocketCtor } from '~/core/realtime/wsClient'
 import {
@@ -309,6 +310,12 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     isExchangeOpen,
   })
 
+  /** B11: stale styling follows the feed, the broker session and how polling is doing. */
+  const syncStale = () =>
+    store.setStale(
+      pricesStale(realtime.status().state, conn.getState().brokerSession, polling.health()),
+    )
+
   /** Ruling 5: the key is in memory again, so everything that needs it starts. */
   function onUnlocked() {
     syncPause()
@@ -327,8 +334,13 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     feed: realtime.status().state,
   })
   const unsubs = [
-    realtime.onStatus((st) => conn.getState().set({ feed: st.state })),
+    realtime.onStatus((st) => {
+      conn.getState().set({ feed: st.state })
+      syncStale()
+    }),
+    polling.onHealth(syncStale),
     conn.subscribe((st, prev) => {
+      if (st.brokerSession !== prev.brokerSession) syncStale()
       if (st.keyState === 'invalid' && prev.keyState !== 'invalid') {
         scheduler.halt(KEY_INVALID())
         realtime.stop()
@@ -347,6 +359,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     }),
   ]
   syncPause()
+  syncStale()
 
   const lifecycle: Lifecycle = {
     async coldStart() {

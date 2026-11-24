@@ -24,6 +24,13 @@ export const POLL_RATES = {
   offHoursFactor: 5,
 } as const satisfies Record<string, Rate | number>
 
+/**
+ * How the price polls are doing: `ok` when the last call of every running quotes and depth loop
+ * got a reply, `failing` when one failed or is still out after three intervals, `none` with no
+ * price loop running or nothing to poll.
+ */
+export type PollHealth = 'ok' | 'failing' | 'none'
+
 export type PollConsumer =
   | { kind: 'quotes'; keys: () => string[] }
   | { kind: 'depth'; key: () => string }
@@ -48,6 +55,8 @@ export type PollingDeps = {
 
 const TAG = 'poll'
 const BATCH = 100
+/** A price call still out after this many intervals counts as failed. */
+const OVERDUE_INTERVALS = 3
 /** How often a function-form `active` is re-read to start or stop loops. */
 const WATCH_MS = 1000
 
@@ -71,6 +80,21 @@ export function createPollingEngine(d: PollingDeps) {
   let appActive = true
   const calls = { quotes: 0, depth: 0, custom: 0 }
   let errors = 0
+  /** Per price loop: whether its last call got a reply. */
+  const results = new Map<string | Entry, boolean>()
+  const healthListeners = new Set<() => void>()
+  let health: PollHealth = 'none'
+
+  /** Records a price loop's last call (undefined: it made none, or it stopped). */
+  const note = (id: string | Entry, ok: boolean | undefined) => {
+    if (ok === undefined) results.delete(id)
+    else results.set(id, ok)
+    let next: PollHealth = results.size === 0 ? 'none' : 'ok'
+    for (const v of results.values()) if (!v) next = 'failing'
+    if (next === health) return
+    health = next
+    for (const fn of Array.from(healthListeners)) fn()
+  }
 
   const isActive = (e: Entry) =>
     appActive && (typeof e.active === 'function' ? e.active() : e.active)
@@ -83,19 +107,30 @@ export function createPollingEngine(d: PollingDeps) {
     return open ? base : base * POLL_RATES.offHoursFactor
   }
 
-  /** The merged keys of the active quote consumers that the socket does not carry. */
-  const quoteKeys = (): string[] => {
+  /** The merged keys of the active quote consumers. */
+  const activeQuoteKeys = (): string[] => {
     const keys = new Set<string>()
     for (const e of entries) {
       if (e.c.kind === 'quotes' && isActive(e)) for (const k of e.c.keys()) keys.add(k)
     }
-    return Array.from(keys).filter((k) => {
+    return Array.from(keys)
+  }
+
+  /** The keys to poll: the active ones the socket does not carry. */
+  const quoteKeys = (): string[] =>
+    activeQuoteKeys().filter((k) => {
       const { exchange, symbol } = split(k)
       return !d.isLive(exchange, symbol)
     })
+
+  /** While the socket carries every key, the rate follows them all, so a drop is covered soon. */
+  const quotesInterval = (): number => {
+    const todo = quoteKeys()
+    return interval('quotes', todo.length > 0 ? todo : activeQuoteKeys())
   }
 
-  const pollQuotes = async () => {
+  /** True when it made a call. */
+  const pollQuotes = async (): Promise<boolean> => {
     const todo = quoteKeys()
     for (let i = 0; i < todo.length; i += BATCH) {
       const symbols = todo
@@ -111,14 +146,17 @@ export function createPollingEngine(d: PollingDeps) {
         if (r.data) d.store.put(quoteKey(r.exchange, r.symbol), multiquoteToPatch(r.data), 'poll')
       }
     }
+    return todo.length > 0
   }
 
-  const pollDepth = async (key: string) => {
+  /** True when it made a call. */
+  const pollDepth = async (key: string): Promise<boolean> => {
     const { exchange, symbol } = split(key)
-    if ((d.isDepthLive ?? d.isLive)(exchange, symbol)) return
+    if ((d.isDepthLive ?? d.isLive)(exchange, symbol)) return false
     calls.depth++
     const data = await d.api.call('depth', { symbol, exchange }, DepthSchema)
     d.store.put(key, depthRestToPatch(data), 'poll')
+    return true
   }
 
   const wantsQuotes = () => Array.from(entries).some((e) => e.c.kind === 'quotes' && isActive(e))
@@ -127,30 +165,42 @@ export function createPollingEngine(d: PollingDeps) {
    * Runs `step` every `ms()` after the previous one finished, until cancelled. Each loop owns a
    * token; a step that outlives its loop (stopped, or stopped and restarted meanwhile) finds
    * another token in the map and does not re-arm. `alive` is read at every tick: a loop whose
-   * consumer went inactive ends itself instead of polling.
+   * consumer went inactive ends itself instead of polling. A price loop (`price`) reports each
+   * call's outcome to the health.
    */
   const loop = (
     id: string | Entry,
     ms: () => number,
     alive: () => boolean,
-    step: () => Promise<void> | void,
+    /** A price step resolves true when it made a call. */
+    step: () => Promise<unknown>,
+    price = false,
   ) => {
     const token = {}
+    const mine = () => loops.get(id)?.token === token
     const arm = () => {
+      const wait = ms()
       const cancel = setTimer(async () => {
-        if (loops.get(id)?.token !== token) return
+        if (!mine()) return
         if (!alive()) {
           stop(id)
           return
         }
+        const overdue = price
+          ? setTimer(() => mine() && note(id, false), OVERDUE_INTERVALS * wait)
+          : undefined
         try {
-          await step()
+          const called = await step()
+          if (price && mine()) note(id, called === true ? true : undefined)
         } catch (e) {
           errors++
+          if (price && mine()) note(id, false)
           log.warn(TAG, `poll failed: ${e instanceof Error ? e.name : 'error'}`)
+        } finally {
+          overdue?.()
         }
-        if (loops.get(id)?.token === token) arm()
-      }, ms())
+        if (mine()) arm()
+      }, wait)
       loops.set(id, { cancel, token })
     }
     arm()
@@ -159,13 +209,14 @@ export function createPollingEngine(d: PollingDeps) {
   const stop = (id: string | Entry) => {
     loops.get(id)?.cancel()
     loops.delete(id)
+    note(id, undefined)
   }
 
   /** Starts the loops that should run and stops the rest. */
   const sync = () => {
     const wantQuotes = wantsQuotes()
     if (wantQuotes && !loops.has('quotes'))
-      loop('quotes', () => interval('quotes', quoteKeys()), wantsQuotes, pollQuotes)
+      loop('quotes', quotesInterval, wantsQuotes, pollQuotes, true)
     if (!wantQuotes) stop('quotes')
     for (const e of entries) {
       const c = e.c
@@ -178,6 +229,7 @@ export function createPollingEngine(d: PollingDeps) {
             () => interval('depth', [c.key()]),
             () => isActive(e),
             () => pollDepth(c.key()),
+            true,
           )
         else {
           loop(
@@ -231,6 +283,14 @@ export function createPollingEngine(d: PollingDeps) {
       sync()
     },
     stats: () => ({ calls: { ...calls }, errors, consumers: entries.size, loops: loops.size }),
+    health: (): PollHealth => health,
+    /** Told when `health()` changes. */
+    onHealth(fn: () => void): () => void {
+      healthListeners.add(fn)
+      return () => {
+        healthListeners.delete(fn)
+      }
+    },
   }
 }
 

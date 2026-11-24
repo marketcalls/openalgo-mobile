@@ -560,6 +560,78 @@ describe('services', () => {
     expect(h.s.profile.get()).toMatchObject({ feedMode: 'live', lastFeedRetryAt: null })
   })
 
+  const MULTIQUOTES_OK: Route = {
+    status: 200,
+    body: {
+      status: 'success',
+      results: [{ symbol: 'RELIANCE', exchange: 'NSE', data: { ltp: 1424, prev_close: 1418 } }],
+    },
+  }
+  const watch = (h: Harness) =>
+    h.s.polling.register({ kind: 'quotes', keys: () => ['NSE:RELIANCE'] }, true)
+
+  test('design 7.1: a logged-out broker dims prices in polling mode; logging in lifts it', async () => {
+    const h = setup({
+      profile: { wsUrl: null, feedMode: 'polling' },
+      routes: { 'POST /api/v1/multiquotes': MULTIQUOTES_OK },
+    })
+    await h.s.lifecycle.coldStart()
+    await h.s.lock.unlock()
+    await flush()
+    watch(h)
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.s.store.isStale()).toBe(false)
+    h.routes['POST /api/v1/funds'] = BAD_KEY // search still takes the key: the broker logged out
+    await h.s.broker.check()
+    expect(conn().brokerSession).toBe('logged_out')
+    expect(h.s.store.isStale()).toBe(true)
+    h.routes['POST /api/v1/funds'] = FUNDS_OK
+    await h.s.broker.check()
+    expect(h.s.store.isStale()).toBe(false)
+  })
+
+  test('design 7.1: a REST broker logout dims prices while the socket stays live', async () => {
+    const h = setup()
+    await ready(h)
+    expect(h.s.realtime.status().state).toBe('live')
+    expect(h.s.store.isStale()).toBe(false)
+    h.routes['POST /api/v1/funds'] = BAD_KEY
+    await h.s.broker.check()
+    expect(h.s.realtime.status().state).toBe('live')
+    expect(h.s.store.isStale()).toBe(true)
+  })
+
+  test('in polling mode a failing poll dims prices, and the next good poll lifts it', async () => {
+    const h = setup({ profile: { wsUrl: null, feedMode: 'polling' } })
+    await h.s.lifecycle.coldStart()
+    await h.s.lock.unlock()
+    await flush()
+    h.routes['POST /api/v1/multiquotes'] = 'throw' // a dead tunnel
+    watch(h)
+    expect(h.s.store.isStale()).toBe(false)
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.s.store.isStale()).toBe(true)
+    h.routes['POST /api/v1/multiquotes'] = MULTIQUOTES_OK
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.s.store.isStale()).toBe(false)
+  })
+
+  test('while the socket reconnects, prices that polling keeps fresh are not dimmed', async () => {
+    const h = setup({ routes: { 'POST /api/v1/multiquotes': MULTIQUOTES_OK } })
+    const sock = await ready(h)
+    h.s.realtime.acquire({ exchange: 'NSE', symbol: 'RELIANCE', mode: 2 })
+    watch(h)
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.count('POST /api/v1/multiquotes')).toBe(0) // the socket carries it
+    sock.serverClose(1006)
+    expect(h.s.realtime.status().state).toBe('reconnecting')
+    expect(h.s.store.isStale()).toBe(true) // the last tick may be old
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.count('POST /api/v1/multiquotes')).toBeGreaterThan(0)
+    expect(h.s.realtime.status().state).not.toBe('live')
+    expect(h.s.store.isStale()).toBe(false)
+  })
+
   test('polling mode shows the polling banner, whose link opens the setup help', async () => {
     const h = setup({ profile: { wsUrl: null, feedMode: 'polling' } })
     await h.s.lifecycle.coldStart()
