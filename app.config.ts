@@ -57,6 +57,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-local-authentication',
         { faceIDPermission: 'OpenAlgo uses Face ID to unlock the app.' },
       ],
+      './plugins/withReleaseSigning',
       ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
     ],
     experiments: { typedRoutes: true, reactCompiler: true },

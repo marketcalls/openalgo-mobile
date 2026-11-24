@@ -53,9 +53,12 @@ exported bundles). `.githooks` runs a fast subset before each commit.
 job gates the builds. Open the run under the **Actions** tab and download from
 **Artifacts**:
 
-- **`android-apk`**: `openalgo-<version>-b<run>-<sha7>.apk`, a release APK for arm64 and
-  armv7. It is signed with the React Native debug key, so sideload it
-  (`adb install -r <file>.apk`). It is not suitable for the Play Store.
+- **`android-apk`**: a release APK for arm64 and armv7, to sideload
+  (`adb install -r <file>.apk`). It is not suitable for the Play Store. With the release
+  keystore secrets set (below) it is `openalgo-<version>-b<run>-<sha7>-release.apk`, and
+  the job summary shows the signing certificate's SHA-256. Without them (and on pull
+  requests from forks) it is signed with the debug key and named `...-debugkey.apk`; that
+  build will not update a release-signed install.
 - **`ios-simulator-app`**: the app for the iOS Simulator on an Apple Silicon Mac. Unzip it,
   then `xcrun simctl install booted <name>.app`.
 - **`ios-ipa-unsigned`** (not built for pull requests): an unsigned iPhone build. Re-sign it
@@ -64,6 +67,17 @@ job gates the builds. Open the run under the **Actions** tab and download from
 `.github/workflows/spike.yml` (**Spike builds**) builds the old spike and runs only when
 `spike/**` or the workflow itself changes. Store signing, golden-image regeneration and
 TestFlight upload are not set up yet.
+
+## Android release signing (owner steps)
+
+The builder never handles the key. Do this once, on your own machine:
+
+1. `keytool -genkeypair -v -storetype PKCS12 -keystore openalgo-release.jks -alias openalgo -keyalg RSA -keysize 4096 -validity 10000`
+2. `base64 -i openalgo-release.jks | gh secret set ANDROID_KEYSTORE_BASE64`, then
+   `gh secret set ANDROID_KEY_ALIAS`, `gh secret set ANDROID_KEYSTORE_PASSWORD` and
+   `gh secret set ANDROID_KEY_PASSWORD` (for a PKCS12 keystore the two passwords are equal).
+3. Keep the `.jks` and its passwords in two offline places. Losing them means installs
+   signed with it can never be updated.
 
 ## Bumping the openalgo ref
 

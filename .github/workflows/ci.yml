@@ -132,8 +132,16 @@ jobs:
 
       - name: Build APK
         uses: ./.github/actions/android-build
+        env:
+          # A composite action cannot read secrets; pull requests from forks get none.
+          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         with:
           artifact: android-apk
+          has-keystore: ${{ env.HAS_KEYSTORE }}
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
   ios-simulator:
     name: iOS Simulator app

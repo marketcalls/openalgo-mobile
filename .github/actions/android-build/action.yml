@@ -1,5 +1,5 @@
 name: Android build
-description: Prebuild the Android project and assemble a release APK (debug-key signed).
+description: Prebuild the Android project and assemble a release APK (release keystore, or the debug key when no keystore is given).
 inputs:
   abis:
     description: Comma-separated ABIs to build
@@ -8,6 +8,26 @@ inputs:
   artifact:
     description: Name of the uploaded artifact
     required: true
+  has-keystore:
+    description: '"true" when the release keystore secrets are set (a composite action cannot read secrets)'
+    required: false
+    default: "false"
+  keystore-base64:
+    description: Base64 of the release keystore
+    required: false
+    default: ""
+  keystore-password:
+    description: Release keystore password
+    required: false
+    default: ""
+  key-alias:
+    description: Release key alias
+    required: false
+    default: ""
+  key-password:
+    description: Release key password
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -19,6 +39,23 @@ runs:
         cache: gradle
         cache-dependency-path: package-lock.json
 
+    - name: Prepare the release keystore
+      if: inputs.has-keystore == 'true'
+      shell: bash
+      env:
+        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
+        KEY_ALIAS: ${{ inputs.key-alias }}
+        KEY_PASSWORD: ${{ inputs.key-password }}
+      run: |
+        printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+        {
+          echo "OA_KEYSTORE_PATH=$RUNNER_TEMP/release.jks"
+          echo "OA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+          echo "OA_KEY_ALIAS=$KEY_ALIAS"
+          echo "OA_KEY_PASSWORD=$KEY_PASSWORD"
+        } >> "$GITHUB_ENV"
+
     - name: Generate the Android project
       shell: bash
       run: npx expo prebuild --platform android --no-install
@@ -26,16 +63,34 @@ runs:
     - name: Build release APK
       shell: bash
       working-directory: android
-      # Signed with the React Native template's debug key: sideload only.
+      # The release plugin picks the key: OA_KEYSTORE_PATH set -> release key, else the debug key.
       run: ./gradlew assembleRelease -PreactNativeArchitectures=${{ inputs.abis }} --no-daemon
 
-    - name: Rename APK
+    - name: Verify signature and rename APK
       shell: bash
+      env:
+        KEYSTORE: ${{ inputs.has-keystore }}
       run: |
         VERSION=$(node -p "require('./package.json').version")
+        APK=android/app/build/outputs/apk/release/app-release.apk
+        TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+        CERTS=$("$TOOLS/apksigner" verify --print-certs "$APK")
+        SHA=$(printf '%s\n' "$CERTS" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+        if [ "$KEYSTORE" = "true" ]; then
+          SUFFIX=release
+          NOTE="Signed with the release key."
+        else
+          SUFFIX=debugkey
+          NOTE="Release keystore secrets not set: APK signed with the debug key; it will not update a release-signed install."
+        fi
+        {
+          echo "### Android APK ($SUFFIX)"
+          echo "$NOTE"
+          echo
+          echo "Certificate SHA-256: \`$SHA\`"
+        } >> "$GITHUB_STEP_SUMMARY"
         mkdir -p dist
-        cp android/app/build/outputs/apk/release/app-release.apk \
-           "dist/openalgo-${VERSION}-b${BUILD_NUMBER}-${GITHUB_SHA::7}.apk"
+        cp "$APK" "dist/openalgo-${VERSION}-b${BUILD_NUMBER}-${GITHUB_SHA::7}-${SUFFIX}.apk"
 
     - name: Upload APK
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
