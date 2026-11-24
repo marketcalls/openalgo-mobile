@@ -138,6 +138,7 @@ export async function makeApp(mock: MockServerProcess, o: AppOptions = {}): Prom
       settings: () => ({ enabled: false, lockAfterMs: 300_000 }),
       authenticate: async () => true,
       available: async () => true,
+      confirm: async () => 'ok',
     },
   }
   const s = createServices(profile, deps)

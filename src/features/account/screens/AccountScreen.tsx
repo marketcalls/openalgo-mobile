@@ -20,6 +20,7 @@ export const ACCOUNT_COPY = {
   semiAuto:
     'Mode switching is off because this account uses Semi-Auto orders. Change the mode on the web.',
   noPasscode: 'Set a device passcode to use app lock',
+  noPasscodeConfirm: 'Set a device passcode to confirm live actions',
   login: 'Log in to your broker',
   hideContent: 'Hide content in screenshots and recent apps',
   confirmLive: 'Confirm live actions with biometrics',
@@ -183,10 +184,16 @@ export function AccountScreen() {
           <Switch
             testID="pref-confirm-live"
             accessibilityLabel={ACCOUNT_COPY.confirmLive}
-            value={prefs.confirmLiveWrites}
+            value={prefs.confirmLiveWrites && lockAvailable}
+            disabled={!lockAvailable}
             onValueChange={(v) => prefs.setPrefs({ confirmLiveWrites: v })}
           />
         </View>
+        {lockAvailable ? null : (
+          <Text variant="caption" tone="muted" testID="confirm-live-unavailable">
+            {ACCOUNT_COPY.noPasscodeConfirm}
+          </Text>
+        )}
         {Platform.OS === 'android' ? (
           <View style={styles.rowBetween}>
             <Text style={styles.fill}>{ACCOUNT_COPY.hideContent}</Text>

@@ -26,7 +26,7 @@ import { COPY, wsHostDiffers } from '~/features/onboarding'
 import { type Route, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets, PONG } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { ANALYZER_COPY, useAnalyzer, useToggleAnalyzer } from './api'
+import { ANALYZER_COPY, CONFIRM_FAILED, LIVE_PROMPT, useAnalyzer, useToggleAnalyzer } from './api'
 import { LOST_PHONE_STEPS } from './screens/LostPhoneScreen'
 import { SIGN_OUT_COPY } from './screens/SignOutScreen'
 import { signOut } from './signOut'
@@ -111,6 +111,7 @@ async function setup(
       settings: () => ({ enabled: false, lockAfterMs: 60_000 }),
       authenticate: jest.fn(async () => true),
       available: async () => true,
+      confirm: jest.fn(async () => 'ok' as const),
     },
   })
   services = createServices(profile, mockDeps)
@@ -264,18 +265,52 @@ describe('useToggleAnalyzer', () => {
     expect(calls('/analyzer/toggle')).toHaveLength(0)
   })
 
-  test('a failed biometric check stops a switch to LIVE', async () => {
+  test('a failed biometric check stops a switch to LIVE and says why', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
     usePrefs.setState({ confirmLiveWrites: true })
     await setup()
-    mockDeps.lock.authenticate = jest.fn(async () => false)
+    mockDeps.lock.confirm = jest.fn(async () => 'failed' as const)
     const { result } = await renderHook(() => useToggleAnalyzer(), { wrapper })
     await act(async () => {
       void result.current.toggle('live')
     })
     await confirmAlert(alert)
-    expect(mockDeps.lock.authenticate).toHaveBeenCalled()
+    // ruling 5: the prompt names the live write, not the unlock
+    expect(mockDeps.lock.confirm).toHaveBeenCalledWith(LIVE_PROMPT)
+    expect(LIVE_PROMPT).toBe('Switch to LIVE trading')
+    expect(mockDeps.lock.authenticate).not.toHaveBeenCalled()
     expect(calls('/analyzer/toggle')).toHaveLength(0)
+    await waitFor(() => expect(result.current.error).toBe(CONFIRM_FAILED))
+  })
+
+  test('a cancelled biometric prompt stops a switch to LIVE without an error', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
+    usePrefs.setState({ confirmLiveWrites: true })
+    await setup()
+    mockDeps.lock.confirm = jest.fn(async () => 'cancelled' as const)
+    const { result } = await renderHook(() => useToggleAnalyzer(), { wrapper })
+    await act(async () => {
+      void result.current.toggle('live')
+    })
+    await confirmAlert(alert)
+    expect(calls('/analyzer/toggle')).toHaveLength(0)
+    expect(result.current.error).toBeNull()
+  })
+
+  test('with no passcode or biometrics, the switch to LIVE goes ahead with no prompt', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
+    usePrefs.setState({ confirmLiveWrites: true })
+    await setup({ 'POST /api/v1/analyzer/toggle': analyzer('live') })
+    mockDeps.lock.available = async () => false
+    const { result } = await renderHook(() => useToggleAnalyzer(), { wrapper })
+    let done: Promise<void> = Promise.resolve()
+    await act(async () => {
+      done = result.current.toggle('live')
+    })
+    await confirmAlert(alert)
+    await act(async () => done)
+    expect(mockDeps.lock.confirm).not.toHaveBeenCalled()
+    expect(calls('/analyzer/toggle')).toHaveLength(1)
   })
 
   test("a 409 shows the server's message", async () => {
@@ -322,6 +357,19 @@ describe('account screen', () => {
     await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
     await userEvent.press(screen.getByText('Log in to your broker'))
     expect(Linking.openURL).toHaveBeenCalledWith(`${ORIGIN}/login`)
+  })
+
+  test('with no passcode or biometrics, the confirm-live switch is off and disabled, with a note', async () => {
+    usePrefs.setState({ confirmLiveWrites: true })
+    await setup()
+    mockDeps.lock.available = async () => false
+    await renderRouter(ROUTES, { initialUrl: '/' })
+    expect(await screen.findByTestId('confirm-live-unavailable')).toHaveTextContent(
+      'Set a device passcode to confirm live actions',
+    )
+    const sw = screen.getByTestId('pref-confirm-live')
+    expect(sw.props.value).toBe(false)
+    expect(sw.props.disabled).toBe(true)
   })
 
   test('links to the other screens', async () => {

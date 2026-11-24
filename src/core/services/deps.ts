@@ -3,7 +3,12 @@
 import * as Crypto from 'expo-crypto'
 import { asyncStorageKV } from '~/core/config/bindings'
 import { usePrefs } from '~/core/config/prefs'
-import { canUseAppLock, expoAuthenticate, expoSecureKV } from '~/core/credentials/bindings'
+import {
+  canUseAppLock,
+  expoAuthenticate,
+  expoConfirm,
+  expoSecureKV,
+} from '~/core/credentials/bindings'
 import type { AppDeps } from './services'
 
 export const defaultDeps: AppDeps = {
@@ -23,6 +28,7 @@ export const defaultDeps: AppDeps = {
     },
     authenticate: expoAuthenticate,
     available: canUseAppLock,
+    confirm: expoConfirm,
     // Not moved by a date change, so a clock set back cannot skip the lock.
     monotonicNow: () => performance.now(),
   },

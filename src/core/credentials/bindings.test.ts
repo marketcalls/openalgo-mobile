@@ -1,4 +1,4 @@
-import { canUseAppLock, expoAuthenticate, expoSecureKV } from './bindings'
+import { canUseAppLock, expoAuthenticate, expoConfirm, expoSecureKV } from './bindings'
 
 // The expo modules are reached only through jest's mock registry, so this test, like the rest
 // of the pure core outside bindings.ts, imports no expo-* module (core-logic-pure).
@@ -55,6 +55,26 @@ describe('expoAuthenticate', () => {
   test('a cancelled or failed prompt is false', async () => {
     auth.authenticateAsync.mockResolvedValueOnce({ success: false, error: 'user_cancel' })
     expect(await expoAuthenticate()).toBe(false)
+  })
+})
+
+describe('expoConfirm', () => {
+  test('prompts with the given message (ruling 5) and allows the device passcode', async () => {
+    auth.authenticateAsync.mockResolvedValueOnce({ success: true })
+    expect(await expoConfirm('Switch to LIVE trading')).toBe('ok')
+    expect(auth.authenticateAsync).toHaveBeenCalledWith({
+      promptMessage: 'Switch to LIVE trading',
+      disableDeviceFallback: false,
+    })
+  })
+
+  test('a user cancel is cancelled; any other failure is failed', async () => {
+    auth.authenticateAsync.mockResolvedValueOnce({ success: false, error: 'user_cancel' })
+    expect(await expoConfirm('x')).toBe('cancelled')
+    auth.authenticateAsync.mockResolvedValueOnce({ success: false, error: 'lockout' })
+    expect(await expoConfirm('x')).toBe('failed')
+    auth.authenticateAsync.mockResolvedValueOnce({ success: false, error: 'passcode_not_set' })
+    expect(await expoConfirm('x')).toBe('failed')
   })
 })
 

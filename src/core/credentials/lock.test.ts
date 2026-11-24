@@ -393,22 +393,42 @@ describe('app lock off or unusable', () => {
 })
 
 describe('confirmLiveWrite', () => {
-  test('disabled: true without a prompt', async () => {
-    const authenticate = jest.fn(async () => false)
-    expect(await confirmLiveWrite({ enabled: false, authenticate })).toBe(true)
-    expect(authenticate).not.toHaveBeenCalled()
+  const available = async () => true
+
+  test('disabled: ok without a prompt', async () => {
+    const prompt = jest.fn(async () => 'failed' as const)
+    expect(await confirmLiveWrite({ enabled: false, available, prompt })).toBe('ok')
+    expect(prompt).not.toHaveBeenCalled()
   })
 
   test('enabled: the prompt decides', async () => {
-    expect(await confirmLiveWrite({ enabled: true, authenticate: async () => true })).toBe(true)
-    expect(await confirmLiveWrite({ enabled: true, authenticate: async () => false })).toBe(false)
+    for (const r of ['ok', 'cancelled', 'failed'] as const) {
+      expect(await confirmLiveWrite({ enabled: true, available, prompt: async () => r })).toBe(r)
+    }
+  })
+
+  test('enabled on a phone with no passcode or biometrics: ok without a prompt, as the app lock', async () => {
+    const prompt = jest.fn(async () => 'failed' as const)
+    const none = async () => false
+    expect(await confirmLiveWrite({ enabled: true, available: none, prompt })).toBe('ok')
+    expect(prompt).not.toHaveBeenCalled()
+  })
+
+  test('a device check that throws still prompts (fails closed)', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const prompt = jest.fn(async () => 'cancelled' as const)
+    const broken = async (): Promise<boolean> => {
+      throw new Error('getEnrolledLevelAsync failed')
+    }
+    expect(await confirmLiveWrite({ enabled: true, available: broken, prompt })).toBe('cancelled')
+    expect(prompt).toHaveBeenCalledTimes(1)
   })
 
   test('enabled: a prompt that throws refuses the write', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {})
-    const authenticate = async (): Promise<boolean> => {
+    const prompt = async (): Promise<'ok'> => {
       throw new Error('lockout')
     }
-    expect(await confirmLiveWrite({ enabled: true, authenticate })).toBe(false)
+    expect(await confirmLiveWrite({ enabled: true, available, prompt })).toBe('failed')
   })
 })

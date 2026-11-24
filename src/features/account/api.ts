@@ -31,6 +31,9 @@ export const ANALYZER_COPY = {
 } as const
 
 export const TOGGLE_FAILED = 'Could not switch the mode. Try again.'
+/** The biometric prompt's title for the LIVE switch (ruling 5). */
+export const LIVE_PROMPT = 'Switch to LIVE trading'
+export const CONFIRM_FAILED = 'Could not confirm with biometrics. Try again.'
 
 /** A native confirm: true when the user taps the confirm button. */
 export function confirmAction(o: {
@@ -92,14 +95,16 @@ export function useToggleAnalyzer(): {
         const c = ANALYZER_COPY[to]
         if (!(await confirmAction({ title: c.title, message: c.message, confirmLabel: c.confirm })))
           return
-        if (
-          to === 'live' &&
-          !(await confirmLiveWrite({
+        if (to === 'live') {
+          const confirmed = await confirmLiveWrite({
             enabled: usePrefs.getState().confirmLiveWrites,
-            authenticate: defaultDeps.lock.authenticate,
-          }))
-        )
-          return
+            available: defaultDeps.lock.available,
+            prompt: () => defaultDeps.lock.confirm(LIVE_PROMPT),
+          })
+          // The user's own cancel needs no word; a lockout or a failed check does.
+          if (confirmed === 'failed') setError(CONFIRM_FAILED)
+          if (confirmed !== 'ok') return
+        }
         setPending(true)
         try {
           await s.api.call('analyzer/toggle', { mode: to === 'analyze' }, AnalyzerSchema)

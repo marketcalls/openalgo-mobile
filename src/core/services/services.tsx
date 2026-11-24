@@ -16,6 +16,7 @@ import {
   createLockController,
   type LockController,
   type LockDeps,
+  type PromptResult,
 } from '~/core/credentials/lock'
 import { type BrokerStatus, createBrokerStatus } from '~/core/credentials/status'
 import { createKeyVault, type KeyVault } from '~/core/credentials/vault'
@@ -52,7 +53,10 @@ export type AppDeps = {
   uuid: () => string
   allowDevHosts: boolean
   /** The app lock's prompt, device check, settings and clock (ruling 6: the lock lives in Services). */
-  lock: Pick<LockDeps, 'settings' | 'authenticate' | 'available' | 'monotonicNow'>
+  lock: Pick<LockDeps, 'settings' | 'authenticate' | 'available' | 'monotonicNow'> & {
+    /** The live-write prompt (ruling 5), titled with what it confirms. */
+    confirm: (promptMessage: string) => Promise<PromptResult>
+  }
 }
 
 /** The active profile in memory (ruling 26); `update` applies at once and stores after. */

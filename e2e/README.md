@@ -41,7 +41,7 @@ Account
 - `server-save`, `key-save`, `broker-status`, `broker-login`
 - `analyzer-toggle`, `analyzer-error`, `analyzer-semi-auto`
 - `pref-app-lock`, `pref-confirm-live`, `pref-hide-content`, `app-lock-unavailable`,
-  `lock-after-<ms>`, `theme-<mode>`
+  `confirm-live-unavailable`, `lock-after-<ms>`, `theme-<mode>`
 - `diagnostics-copy`, `diagnostics-refresh`, `cap-<feature>`, `lost-step-<n>`
 - `sign-out`, `sign-out-confirm`, `sign-out-delete`
 

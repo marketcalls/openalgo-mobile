@@ -1,6 +1,7 @@
 import * as LocalAuthentication from 'expo-local-authentication'
 import * as SecureStore from 'expo-secure-store'
 import type { SecureKV } from './keyStore'
+import type { PromptResult } from './lock'
 
 /** Native bindings for credentials: the only file here that touches expo modules. */
 
@@ -15,13 +16,23 @@ export const expoSecureKV: SecureKV = {
   del: (key) => SecureStore.deleteItemAsync(key, THIS_DEVICE),
 }
 
-/** Biometrics, falling back to the device passcode. */
-export async function expoAuthenticate(): Promise<boolean> {
+/**
+ * Biometrics, falling back to the device passcode, titled `promptMessage` (ruling 5: a live
+ * write names itself; only the unlock reads "Unlock OpenAlgo"). Only the user's own cancel is
+ * `cancelled`; a lockout, a missing passcode or a system cancel is `failed`.
+ */
+export async function expoConfirm(promptMessage: string): Promise<PromptResult> {
   const r = await LocalAuthentication.authenticateAsync({
-    promptMessage: 'Unlock OpenAlgo',
+    promptMessage,
     disableDeviceFallback: false,
   })
-  return r.success
+  if (r.success) return 'ok'
+  return r.error === 'user_cancel' ? 'cancelled' : 'failed'
+}
+
+/** The unlock prompt. */
+export async function expoAuthenticate(): Promise<boolean> {
+  return (await expoConfirm('Unlock OpenAlgo')) === 'ok'
 }
 
 /** False when the device has no passcode or biometrics, so there is nothing to lock with. */

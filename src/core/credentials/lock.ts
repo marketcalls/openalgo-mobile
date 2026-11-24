@@ -141,16 +141,31 @@ export function createLockController(d: LockDeps) {
 
 export type LockController = ReturnType<typeof createLockController>
 
-/** The optional biometric check before a live write; a prompt that throws refuses the write. */
+/** How a confirmation prompt ended: confirmed, cancelled by the user, or refused. */
+export type PromptResult = 'ok' | 'cancelled' | 'failed'
+
+/**
+ * The optional biometric check before a live write. Off, or on a phone with no passcode or
+ * biometrics to confirm with (as for the app lock, ruling 5), the write goes ahead without a
+ * prompt. A device check that throws still prompts; a prompt that throws refuses the write.
+ */
 export async function confirmLiveWrite(d: {
   enabled: boolean
-  authenticate: () => Promise<boolean>
-}): Promise<boolean> {
-  if (!d.enabled) return true
+  available: () => Promise<boolean>
+  prompt: () => Promise<PromptResult>
+}): Promise<PromptResult> {
+  if (!d.enabled) return 'ok'
+  let usable = true
   try {
-    return await d.authenticate()
+    usable = await d.available()
+  } catch (e) {
+    log.warn(TAG, 'app lock check failed', e)
+  }
+  if (!usable) return 'ok'
+  try {
+    return await d.prompt()
   } catch (e) {
     log.warn(TAG, 'live-write confirmation failed', e)
-    return false
+    return 'failed'
   }
 }

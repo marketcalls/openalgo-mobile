@@ -112,6 +112,7 @@ function setup(o: SetupOptions = {}) {
       settings: () => ({ enabled: o.lockEnabled ?? false, lockAfterMs: 300_000 }),
       authenticate,
       available: async () => true,
+      confirm: async () => 'ok',
     },
   }
   const s = createServices(profile, deps)
