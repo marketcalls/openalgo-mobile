@@ -29,7 +29,12 @@ npm run mock          # starts the mock and prints MOCK_READY rest=... ws=...
 
 Point the app's server step at the printed REST URL. `npm run test:compat` runs the
 integration tests against it. `npm run real-server-check` runs the same checks against a
-real OpenAlgo server you configure through the environment.
+real OpenAlgo test server: the openalgo checkout on your Mac, in analyzer mode and logged in to
+the broker, never the live trading server. Copy `.env.test.example` to `.env.test.local` (git
+ignores it) and fill in `OPENALGO_TEST_URL`, `OPENALGO_TEST_APIKEY` and, for the live-feed
+checks, `OPENALGO_TEST_WS_URL`. The test server needs `FLASK_HOST_IP='0.0.0.0'` and
+`WEBSOCKET_HOST='0.0.0.0'`. Without the file the suite skips itself; in live mode every test
+fails, and the suite never toggles the mode.
 
 ## Checks
 
