@@ -293,7 +293,7 @@ const HANDLERS = {
     const error = symbolError(b.symbol, b.exchange)
     return error
       ? [400, { status: 'error', message: error }]
-      : ok(quote(prices.get(b.symbol, b.exchange)))
+      : ok(quote(prices.read(b.symbol, b.exchange)))
   },
   multiquotes(b, { prices }) {
     const checked = b.symbols.map((s) => ({
@@ -313,7 +313,7 @@ const HANDLERS = {
       ...good.map(({ s }) => ({
         symbol: s.symbol,
         exchange: s.exchange,
-        data: fixed2(quote(prices.get(s.symbol, s.exchange))),
+        data: fixed2(quote(prices.read(s.symbol, s.exchange))),
       })),
     ]
     return [200, { status: 'success', results }]
@@ -321,7 +321,7 @@ const HANDLERS = {
   depth(b, { prices }) {
     const error = symbolError(b.symbol, b.exchange)
     if (error) return [400, { status: 'error', message: error }]
-    const st = prices.get(b.symbol, b.exchange)
+    const st = prices.read(b.symbol, b.exchange)
     const side = (s) => depthLevels(st, s, 5).map(({ price, quantity }) => ({ price, quantity }))
     const bids = side('buy')
     const asks = side('sell')

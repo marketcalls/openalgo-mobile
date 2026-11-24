@@ -169,13 +169,22 @@ describe('budgets', () => {
 
       const keys = WATCHLIST.map((w) => `${w.exchange}:${w.symbol}`)
       app.polling.register({ kind: 'quotes', keys: () => keys }, true)
-      await sleep(10_000)
+      // what the rows show, sampled each second: polling must keep them moving
+      const seen = new Map(keys.map((k) => [k, new Set<number>()]))
+      for (let i = 0; i < 10; i++) {
+        await sleep(1000)
+        for (const k of keys) {
+          const ltp = app.store.get(k)?.ltp
+          if (ltp !== undefined) seen.get(k)?.add(ltp)
+        }
+      }
 
       const sent = diff(before, (await m.stats()).requests)
       expect(Object.keys(sent)).toEqual(['multiquotes'])
       expect(sent.multiquotes).toBeGreaterThanOrEqual(3)
       expect(sent.multiquotes).toBeLessThanOrEqual(6)
       expect(app.store.get(keys[0] as string)?.source).toBe('poll')
+      expect([...seen.values()].some((prices) => prices.size > 1)).toBe(true)
     },
   )
 

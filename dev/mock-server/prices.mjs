@@ -1,5 +1,7 @@
 // Deterministic per-symbol random walk, ported from spike/mock-feed/server.mjs. REST quotes
-// and WS ticks read the same book, so a seed from multiquotes agrees with the first tick.
+// and WS ticks read the same book, so a seed from multiquotes agrees with the first tick. WS
+// ticks walk it; so do REST quote reads, at most once a second per symbol, as a real server's
+// REST quotes move with no socket open (polling mode, WS_PORT=off).
 // The spike keeps its own frozen copy (Task 5: "spike/mock-feed stays as it is"); this is
 // the maintained one.
 
@@ -55,7 +57,10 @@ function basePrice(symbol, exchange, rng) {
   return 100 + rng() * 4900
 }
 
-function seed(symbol, exchange) {
+/** A REST read walks a symbol whose last step (a tick or a read) is at least this old. */
+export const REST_STEP_MS = 1000
+
+function seed(symbol, exchange, at) {
   const rng = mulberry32(hash32(`${exchange}:${symbol}`))
   const close = r05(basePrice(symbol, exchange, rng))
   const open = r05(close * (1 + (rng() - 0.5) * 0.01))
@@ -73,17 +78,25 @@ function seed(symbol, exchange) {
     // Equities have no open interest: the field is absent from their ticks.
     oi: isDeriv ? 75 * Math.floor(rng() * 100_000) : undefined,
     isDeriv,
+    steppedAt: at,
   }
 }
 
 /** One walk per "EXCHANGE:SYMBOL", created on first use. */
-export function createPriceBook() {
+export function createPriceBook({ now = Date.now } = {}) {
   const book = new Map()
+  const get = (symbol, exchange) => {
+    const key = `${exchange}:${symbol}`
+    if (!book.has(key)) book.set(key, seed(symbol, exchange, now()))
+    return book.get(key)
+  }
   return {
-    get(symbol, exchange) {
-      const key = `${exchange}:${symbol}`
-      if (!book.has(key)) book.set(key, seed(symbol, exchange))
-      return book.get(key)
+    get,
+    /** For a REST quote, multiquotes or depth read: walks first if the last step is 1 s old. */
+    read(symbol, exchange) {
+      const st = get(symbol, exchange)
+      if (now() - st.steppedAt >= REST_STEP_MS) step(st, now())
+      return st
     },
     reset() {
       book.clear()
@@ -91,7 +104,8 @@ export function createPriceBook() {
   }
 }
 
-export function step(st) {
+export function step(st, at = Date.now()) {
+  st.steppedAt = at
   const tick = Math.max(0.05, st.close * 0.0005)
   st.ltp = r05(st.ltp + (st.rng() - 0.5) * 2 * tick)
   if (st.ltp > st.high) st.high = st.ltp
