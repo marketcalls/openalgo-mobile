@@ -42,6 +42,8 @@ export type PollingDeps = {
 
 const TAG = 'poll'
 const BATCH = 100
+/** How often a function-form `active` is re-read to start or stop loops. */
+const WATCH_MS = 1000
 
 const defaultTimer: SetTimer = (fn, ms) => {
   const h = setTimeout(fn, ms)
@@ -59,7 +61,7 @@ export function createPollingEngine(d: PollingDeps) {
   const setTimer = d.setTimer ?? defaultTimer
   const entries = new Set<Entry>()
   /** Running loops: 'quotes' for the merged call, an Entry for each depth or custom consumer. */
-  const loops = new Map<string | Entry, () => void>()
+  const loops = new Map<string | Entry, { cancel: () => void; token: object }>()
   let appActive = true
   const calls = { quotes: 0, depth: 0, custom: 0 }
   let errors = 0
@@ -105,34 +107,51 @@ export function createPollingEngine(d: PollingDeps) {
     d.store.put(key, depthRestToPatch(data), 'poll')
   }
 
-  /** Runs `step` every `ms()` after the previous one finished, until cancelled. */
-  const loop = (id: string | Entry, ms: () => number, step: () => Promise<void> | void) => {
+  const wantsQuotes = () => Array.from(entries).some((e) => e.c.kind === 'quotes' && isActive(e))
+
+  /**
+   * Runs `step` every `ms()` after the previous one finished, until cancelled. Each loop owns a
+   * token; a step that outlives its loop (stopped, or stopped and restarted meanwhile) finds
+   * another token in the map and does not re-arm. `alive` is read at every tick: a loop whose
+   * consumer went inactive ends itself instead of polling.
+   */
+  const loop = (
+    id: string | Entry,
+    ms: () => number,
+    alive: () => boolean,
+    step: () => Promise<void> | void,
+  ) => {
+    const token = {}
     const arm = () => {
-      loops.set(
-        id,
-        setTimer(async () => {
-          try {
-            await step()
-          } catch (e) {
-            errors++
-            log.warn(TAG, `poll failed: ${e instanceof Error ? e.name : 'error'}`)
-          }
-          if (loops.has(id)) arm()
-        }, ms()),
-      )
+      const cancel = setTimer(async () => {
+        if (loops.get(id)?.token !== token) return
+        if (!alive()) {
+          stop(id)
+          return
+        }
+        try {
+          await step()
+        } catch (e) {
+          errors++
+          log.warn(TAG, `poll failed: ${e instanceof Error ? e.name : 'error'}`)
+        }
+        if (loops.get(id)?.token === token) arm()
+      }, ms())
+      loops.set(id, { cancel, token })
     }
     arm()
   }
 
   const stop = (id: string | Entry) => {
-    loops.get(id)?.()
+    loops.get(id)?.cancel()
     loops.delete(id)
   }
 
   /** Starts the loops that should run and stops the rest. */
   const sync = () => {
-    const wantQuotes = Array.from(entries).some((e) => e.c.kind === 'quotes' && isActive(e))
-    if (wantQuotes && !loops.has('quotes')) loop('quotes', () => interval('quotes'), pollQuotes)
+    const wantQuotes = wantsQuotes()
+    if (wantQuotes && !loops.has('quotes'))
+      loop('quotes', () => interval('quotes'), wantsQuotes, pollQuotes)
     if (!wantQuotes) stop('quotes')
     for (const e of entries) {
       const c = e.c
@@ -143,15 +162,38 @@ export function createPollingEngine(d: PollingDeps) {
           loop(
             e,
             () => interval('depth'),
+            () => isActive(e),
             () => pollDepth(c.key()),
           )
         else {
-          loop(e, c.intervalMs, async () => {
-            calls.custom++
-            await c.run()
-          })
+          loop(
+            e,
+            c.intervalMs,
+            () => isActive(e),
+            async () => {
+              calls.custom++
+              await c.run()
+            },
+          )
         }
       }
+    }
+    updateWatch()
+  }
+
+  /** A function-form `active` can flip at any time: re-sync periodically while any exists. */
+  let cancelWatch: (() => void) | undefined
+  const updateWatch = () => {
+    const need = appActive && Array.from(entries).some((e) => typeof e.active === 'function')
+    if (!need) {
+      cancelWatch?.()
+      cancelWatch = undefined
+    } else if (!cancelWatch) {
+      const tick = () => {
+        cancelWatch = undefined
+        sync() // re-arms the watch through updateWatch
+      }
+      cancelWatch = setTimer(tick, WATCH_MS)
     }
   }
 

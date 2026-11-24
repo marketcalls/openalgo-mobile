@@ -180,4 +180,50 @@ describe('polling engine', () => {
     expect(h.api.call).toHaveBeenCalledTimes(2)
     expect(h.engine.stats().errors).toBe(1)
   })
+
+  test('stop then restart while a step is in flight leaves exactly one loop', async () => {
+    const h = setup()
+    let release: () => void = () => {}
+    h.api.call.mockImplementationOnce(
+      () =>
+        new Promise((res) => {
+          release = () => res([{ symbol: 'A', exchange: 'NSE', data: { ltp: 1 } }] as never)
+        }),
+    )
+    h.engine.register(quotes('NSE:A'), true)
+    await h.advance(2000) // step now awaiting
+    h.engine.setAppActive(false)
+    h.engine.setAppActive(true) // new loop for 'quotes'
+    release()
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(h.engine.stats().loops).toBe(1)
+    expect(h.timers.size).toBe(1)
+    const before = h.calls.length
+    await h.advance(2000)
+    expect(h.calls.length - before).toBe(1)
+  })
+
+  test('function-form active: inactive consumers stop polling and active ones start', async () => {
+    const h = setup()
+    const flag = { on: true }
+    const run = jest.fn(async () => {})
+    h.engine.register({ kind: 'custom', intervalMs: () => 1000, run }, () => flag.on)
+    h.engine.register({ kind: 'depth', key: () => 'NSE:A' }, () => flag.on)
+    await h.advance(2000)
+    expect(run).toHaveBeenCalledTimes(2)
+    const depthCalls = h.calls.filter((c) => c.id === 'depth').length
+    expect(depthCalls).toBeGreaterThan(0)
+    flag.on = false
+    await h.advance(3000)
+    expect(run.mock.calls.length).toBeLessThanOrEqual(3)
+    const settled = run.mock.calls.length
+    const depthSettled = h.calls.filter((c) => c.id === 'depth').length
+    await h.advance(5000)
+    expect(run).toHaveBeenCalledTimes(settled)
+    expect(h.calls.filter((c) => c.id === 'depth').length).toBe(depthSettled)
+    expect(h.engine.stats().loops).toBe(0)
+    flag.on = true
+    await h.advance(3000)
+    expect(run.mock.calls.length).toBeGreaterThan(settled)
+  })
 })
