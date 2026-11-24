@@ -32,9 +32,15 @@ export type KeyStepResult =
   | { kind: 'invalid' }
   | { kind: 'error'; error: unknown }
 
+type HandshakeFailure = Extract<HandshakeResult, { ok: false }>['reason']
+
 export type FeedStepResult =
-  | { mode: 'live'; broker: string | null }
-  | { mode: 'polling'; reason: Extract<HandshakeResult, { ok: false }>['reason'] }
+  /**
+   * `reason` is set when the feed answered with a broker error: the socket and key work, and
+   * prices stream once the user logs in to the broker.
+   */
+  | { mode: 'live'; broker: string | null; reason?: 'broker_logged_out' }
+  | { mode: 'polling'; reason: Exclude<HandshakeFailure, 'broker_error'> }
 
 /** What onboarding saves: the probed server, the checked key and the tested feed. */
 export type OnboardingResult = {
@@ -113,14 +119,22 @@ export async function keyStep(
   return { kind: 'ok', key, brokerSession, broker }
 }
 
-/** The live-feed test (design 7.1 step 4): three handshakes, then polling. */
+/**
+ * The live-feed test (design 7.1 step 4): three handshakes, then polling. A BROKER_* answer to
+ * authenticate proves the socket reaches OpenAlgo and the key works, so it is live with the
+ * broker logged out: polling would keep the feed off for 10 minutes after the broker login.
+ */
 export async function feedStep(
   wsUrl: string,
   key: string,
   d: Omit<HandshakeOptions, 'attempts'>,
 ): Promise<FeedStepResult> {
   const r = await testLiveFeed(wsUrl, key, { ...d, attempts: FEED_ATTEMPTS })
-  return r.ok ? { mode: 'live', broker: r.broker } : { mode: 'polling', reason: r.reason }
+  if (r.ok) return { mode: 'live', broker: r.broker }
+  if (r.reason === 'broker_error') {
+    return { mode: 'live', broker: null, reason: 'broker_logged_out' }
+  }
+  return { mode: 'polling', reason: r.reason }
 }
 
 /**

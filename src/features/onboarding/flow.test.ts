@@ -238,6 +238,45 @@ describe('feedStep', () => {
     await expect(p).resolves.toEqual({ mode: 'polling', reason: 'auth_error' })
     expect(ws.sockets).toHaveLength(1)
   })
+
+  // The socket reached OpenAlgo and the key was accepted: the feed goes live once the user
+  // logs in to the broker, so it is saved live (Task 19 follow-up ruling).
+  test.each([
+    ['BROKER_ERROR', 'No broker configuration found for user'],
+    ['BROKER_INIT_ERROR', 'Failed to initialize broker adapter'],
+    ['BROKER_CONNECTION_ERROR', 'Failed to connect to broker'],
+  ])('a %s on authenticate is live, with the broker logged out', async (code, message) => {
+    const ws = fakeSockets()
+    const p = feedStep(WS_URL, KEY, { WebSocketImpl: ws.WebSocketImpl })
+    ws.last().serverOpen()
+    ws.last().serverSend(wsError(code, message))
+    await expect(p).resolves.toEqual({ mode: 'live', broker: null, reason: 'broker_logged_out' })
+    expect(ws.sockets).toHaveLength(1)
+  })
+
+  test('a broker-logged-out feed saves live, with no live-feed retry recorded', async () => {
+    const ws = fakeSockets()
+    const p = feedStep(WS_URL, KEY, { WebSocketImpl: ws.WebSocketImpl })
+    ws.last().serverOpen()
+    ws.last().serverSend(wsError('BROKER_ERROR', 'No broker configuration found for user'))
+    const feed = await p
+    const kv = memoryKV()
+    const profile = await saveOnboarding(
+      {
+        url: ORIGIN,
+        caps: CAPS,
+        key: KEY,
+        broker: null,
+        wsUrl: WS_URL,
+        feedMode: feed.mode,
+        httpWarningAcked: false,
+      },
+      { kv, secureKV: memoryKV(), uuid: () => UUID, now: () => T0 },
+    )
+    expect(profile).toMatchObject({ feedMode: 'live', lastFeedRetryAt: null, wsUrl: WS_URL })
+    const { profiles } = JSON.parse(kv.data.get('oa.profiles.v1') ?? '{}')
+    expect(profiles[0]).toMatchObject({ feedMode: 'live', lastFeedRetryAt: null })
+  })
 })
 
 describe('saveOnboarding', () => {

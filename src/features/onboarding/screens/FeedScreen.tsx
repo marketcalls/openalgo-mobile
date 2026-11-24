@@ -1,5 +1,6 @@
 // Onboarding steps 4 and 5 (design 7.1): the live-feed address, derived and editable, its test,
-// then the save. The key goes only to a host the user confirmed; a failed test saves polling.
+// then the save. The key goes only to a host the user confirmed; a failed test saves polling,
+// and a logged-out broker saves live with the broker message.
 import { Redirect, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
@@ -16,6 +17,8 @@ import { COPY, urlErrorText, wsHostDiffers } from '../copy'
 import { type FeedStepResult, feedStep, saveOnboarding } from '../flow'
 
 type Tested = { url: string; result: FeedStepResult }
+
+const outcomeOf = (r: FeedStepResult) => (r.mode === 'polling' ? 'polling' : (r.reason ?? 'live'))
 
 export function FeedScreen() {
   const { deps, draft } = useOnboarding()
@@ -35,6 +38,7 @@ export function FeedScreen() {
   const [error, setError] = useState<string | null>(null)
 
   if (!server || !key) return <Redirect href="/server" />
+  const outcome = tested ? outcomeOf(tested.result) : null
 
   const run = async (url: string) => {
     setTesting(true)
@@ -139,9 +143,11 @@ export function FeedScreen() {
           onPress={test}
         />
       )}
-      {tested?.result.mode === 'live' ? (
-        <Text testID="feed-live">{COPY.feedLive}</Text>
-      ) : tested ? (
+      {outcome === 'live' ? <Text testID="feed-live">{COPY.feedLive}</Text> : null}
+      {outcome === 'broker_logged_out' ? (
+        <Banner testID="feed-broker" tone="warning" text={COPY.brokerLoggedOut} />
+      ) : null}
+      {outcome === 'polling' ? (
         <>
           <Banner tone="warning" text={COPY.feedFailed} />
           <Button

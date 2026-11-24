@@ -381,13 +381,44 @@ describe('feed', () => {
     await userEvent.press(screen.getByTestId('feed-test'))
     await act(async () => {
       ws.last().serverOpen()
-      ws.last().serverSend(wsError('BROKER_ERROR', 'No broker configuration found for user'))
+      ws.last().serverSend(wsError('AUTHENTICATION_ERROR', 'Invalid API key'))
     })
     expect(await screen.findByText(COPY.feedFailed)).toBeOnTheScreen()
+    expect(screen.getByTestId('feed-help')).toBeOnTheScreen()
     await userEvent.press(screen.getByTestId('onboarding-save'))
     await waitFor(() => expect(useSession.getState().status).toBe('ready'))
     const { profiles } = JSON.parse(kv.data.get('oa.profiles.v1') ?? '{}')
     expect(profiles[0]).toMatchObject({ feedMode: 'polling', lastFeedRetryAt: T0 })
+  })
+
+  test('with the broker logged out, BROKER_ERROR shows the broker message and saves live', async () => {
+    const { ws, kv } = setup({ 'POST /api/v1/funds': BAD_KEY, 'POST /api/v1/ping': BAD_KEY })
+    await toKey()
+    await fireEvent.changeText(screen.getByTestId('key-input'), KEY)
+    await userEvent.press(screen.getByTestId('key-continue'))
+    await screen.findByText(COPY.brokerLoggedOut)
+    await userEvent.press(screen.getByTestId('key-continue'))
+    await screen.findByTestId('feed-url')
+    await userEvent.press(screen.getByTestId('feed-test'))
+    await act(async () => {
+      ws.last().serverOpen()
+      ws.last().serverSend(wsError('BROKER_ERROR', 'No broker configuration found for user'))
+    })
+    const banner = await screen.findByTestId('feed-broker')
+    expect(banner).toHaveTextContent(COPY.brokerLoggedOut)
+    expect(screen.queryByText(COPY.feedFailed)).toBeNull()
+    expect(screen.queryByTestId('feed-help')).toBeNull()
+    expect(screen.queryByTestId('feed-live')).toBeNull()
+    expect(ws.sockets).toHaveLength(1)
+    await userEvent.press(screen.getByTestId('onboarding-save'))
+    await waitFor(() => expect(useSession.getState().status).toBe('ready'))
+    const { profiles } = JSON.parse(kv.data.get('oa.profiles.v1') ?? '{}')
+    expect(profiles[0]).toMatchObject({
+      wsUrl: 'wss://algo.example.com/ws',
+      feedMode: 'live',
+      lastFeedRetryAt: null,
+      broker: null,
+    })
   })
 
   test('Setup help opens the help screen', async () => {
