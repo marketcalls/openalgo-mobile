@@ -50,7 +50,12 @@ const OrderRow = z
   })
   .transform(({ order_status, ...r }) => ({
     ...r,
-    status: order_status.trim().toLowerCase(),
+    /** Lowercased and trimmed, each run of spaces or underscores one space: Firstock sends
+     *  `trigger_pending` (stock server broker/firstock/mapping/order_data.py:167-168). */
+    status: order_status
+      .replace(/[\s_]+/g, ' ')
+      .trim()
+      .toLowerCase(),
     /** Epoch ms of an `08-Apr-2025 13:58:03` IST timestamp; null for any other format. */
     placedAt: dmyHms(r.timestamp),
   }))

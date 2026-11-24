@@ -104,6 +104,25 @@ describe('OrderbookSchema', () => {
     expect(row?.quantity).toBe(1)
   })
 
+  test("an underscored status reads as spaced: Firstock's trigger_pending stop is working", () => {
+    // broker/firstock/mapping/order_data.py:167-168 (stock server c8b2896) sends 'trigger_pending'.
+    const book = OrderbookSchema.parse(
+      ok({
+        orders: [
+          { ...ORDER, order_status: 'TRIGGER_PENDING' },
+          { ...ORDER, order_status: 'trigger_pending' },
+          { ...ORDER, order_status: ' Trigger \t Pending ' },
+        ],
+      }),
+    )
+    expect(book.orders.map((o) => o.status)).toEqual([
+      'trigger pending',
+      'trigger pending',
+      'trigger pending',
+    ])
+    expect(book.orders.map(isWorking)).toEqual([true, true, true])
+  })
+
   test('missing orders and statistics read as an empty book', () => {
     expect(OrderbookSchema.parse(ok({}))).toEqual({ orders: [], stats: {}, dropped: 0 })
   })
