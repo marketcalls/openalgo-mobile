@@ -95,6 +95,17 @@ describe('userMessage', () => {
   ])('%s (server message %p)', (kind, serverMessage, text) => {
     expect(userMessage(err(kind, serverMessage))).toBe(text)
   })
+
+  test('an order refused behind a 429 gate says when to try again', () => {
+    const e = new ApiError({
+      kind: 'RateLimited',
+      status: 0,
+      endpoint: 'placeorder',
+      retryInSec: 7,
+    })
+    expect(e.retryInSec).toBe(7)
+    expect(userMessage(e)).toBe('The server is busy. Try again in 7 s.')
+  })
 })
 
 test('ApiError carries its fields and is an Error', () => {

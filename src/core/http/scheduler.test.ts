@@ -2,12 +2,21 @@ import { z } from 'zod'
 import { type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { createHttpClient } from './client'
 import type { EndpointId, Lane } from './endpoints'
-import { ApiError } from './errors'
+import { ApiError, userMessage } from './errors'
 import { createScheduler, type SchedulerOptions } from './scheduler'
 import { envelope } from './schemas'
 
-beforeEach(() => jest.useFakeTimers({ now: 0 }))
-afterEach(() => jest.useRealTimers())
+beforeEach(() => {
+  jest.useFakeTimers({ now: 0 })
+  // the real client logs each request under __DEV__
+  for (const m of ['debug', 'info', 'warn', 'error'] as const) {
+    jest.spyOn(console, m).mockImplementation(() => {})
+  }
+})
+afterEach(() => {
+  jest.useRealTimers()
+  jest.restoreAllMocks()
+})
 
 /** Moves the fake clock to `ms`, running the timers due and the promises they settle. */
 const until = (ms: number) => jest.advanceTimersByTimeAsync(ms - Date.now())
@@ -191,6 +200,107 @@ test('429s from requests already in flight when the gate closes count as one str
   // three 429s from one burst gate for 2 s, not 8 s
   expect(h.startOf('d4')).toBe(2100)
   expect(h.outcomes.get('d1')?.error).toBe(limited)
+})
+
+describe('Orders never wait behind a 429 gate (ruling 3a)', () => {
+  const OK: ScriptedReply = { status: 200, body: { status: 'success', data: {} } }
+  const LIMITED: ScriptedReply = {
+    status: 429,
+    body: { status: 'error', message: 'Rate limit exceeded.', retry_after: 60 },
+  }
+
+  /** A real client on `routes`, each endpoint answering its replies in turn, then OK. */
+  function setup(replies: Partial<Record<EndpointId, ScriptedReply[]>>) {
+    const starts: Record<string, number[]> = {}
+    const routes = Object.fromEntries(
+      Object.entries(replies).map(([id, list]) => [
+        `POST /api/v1/${id}`,
+        () => {
+          starts[id] = [...(starts[id] ?? []), Date.now()]
+          return list.shift() ?? OK
+        },
+      ]),
+    )
+    const http = createHttpClient({
+      origin: 'https://algo.example.com',
+      getKey: () => 'ab'.repeat(32),
+      fetch: scriptedFetch(routes),
+      resolveAuth403: async () => 'key_invalid',
+    })
+    const s = createScheduler()
+    const call = (id: EndpointId, lane: Lane) => {
+      const outcome: Outcome & { settled?: boolean } = {}
+      const p = s.run({
+        endpoint: id,
+        lane,
+        exec: (signal) => http.request(id, {}, envelope(z.unknown()), { signal }),
+      })
+      p.then(
+        (value) => Object.assign(outcome, { settled: true, value }),
+        (error) => Object.assign(outcome, { settled: true, error }),
+      )
+      return outcome
+    }
+    const sentAt = (id: EndpointId) => starts[id] ?? []
+    return { s, call, sentAt }
+  }
+
+  test('a gated placeorder rejects at once with RateLimited, and nothing is sent', async () => {
+    const { call, sentAt } = setup({ placeorder: [LIMITED] })
+    const first = call('placeorder', 'order')
+    await until(0)
+    expect(first.error).toMatchObject({ kind: 'RateLimited', status: 429 })
+
+    await until(500)
+    const tap = call('placeorder', 'order')
+    // refused without the clock moving: until(500) now only flushes the promise callbacks
+    await until(500)
+    expect(tap.settled).toBe(true)
+    expect(tap.error).toMatchObject({ kind: 'RateLimited', status: 0, retryInSec: 2 })
+    expect(userMessage(tap.error as ApiError)).toBe('The server is busy. Try again in 2 s.')
+    await until(1999)
+    expect(sentAt('placeorder')).toEqual([0])
+
+    // once the gate opens, the next tap goes out
+    await until(2000)
+    const after = call('placeorder', 'order')
+    await until(2000)
+    expect(after.value).toEqual({})
+    expect(sentAt('placeorder')).toEqual([0, 2000])
+  })
+
+  test('a smart order waiting for its gap fails as soon as its endpoint is gated', async () => {
+    const { call, sentAt } = setup({ placesmartorder: [LIMITED] })
+    const first = call('placesmartorder', 'smart')
+    // queued: smart sends are 500 ms apart
+    const second = call('placesmartorder', 'smart')
+    await until(0)
+    // the first 429 closed a 2 s gate, so the second is refused now, not held until 2 s
+    expect(first.error).toMatchObject({ kind: 'RateLimited', status: 429 })
+    expect(second.error).toMatchObject({ kind: 'RateLimited', status: 0, retryInSec: 2 })
+    await until(10_000)
+    expect(sentAt('placesmartorder')).toEqual([0])
+  })
+
+  test('a read on a gated endpoint still waits, then sends after the gate', async () => {
+    const { s, call, sentAt } = setup({ quotes: [LIMITED], history: [] })
+    const first = call('quotes', 'read')
+    await until(0)
+    expect(first.error).toMatchObject({ kind: 'RateLimited' })
+
+    const waiting = call('quotes', 'read')
+    const history = call('history', 'history')
+    await until(1999)
+    expect(waiting.settled).toBeUndefined()
+    expect(sentAt('quotes')).toEqual([0])
+    expect(s.stats().gated).toEqual(['quotes'])
+    // another endpoint is not held
+    expect(history.value).toEqual({})
+
+    await until(2000)
+    expect(sentAt('quotes')).toEqual([0, 2000])
+    expect(waiting.value).toEqual({})
+  })
 })
 
 test('B7 Pause', async () => {

@@ -1,5 +1,6 @@
 // The request scheduler (design 7.5), one per server. It keeps the app near 5 req/s so the
 // user's shared rate limits stay with their strategies. It never retries anything itself.
+import { noReplyError } from './client'
 import type { EndpointId, Lane } from './endpoints'
 import { ApiError } from './errors'
 
@@ -23,7 +24,13 @@ export type ScheduledRequest<T> = {
   lane: Lane
   /** Reads with the same key share one exec. Ignored on the order, smart and control lanes. */
   dedupeKey?: string
-  exec: () => Promise<T>
+  /**
+   * This caller's abort. It rejects this caller alone, at once; the shared exec is dropped
+   * (queued) or aborted (sent) only when every caller sharing it has aborted.
+   */
+  signal?: AbortSignal
+  /** Sends the request. `signal` aborts once every caller has. */
+  exec: (signal: AbortSignal) => Promise<T>
 }
 
 export type SchedulerStats = {
@@ -39,6 +46,10 @@ export type SchedulerStats = {
 }
 
 export type Scheduler = {
+  /**
+   * Queues `r`. An order or smart order whose endpoint a 429 is holding back rejects at once,
+   * unsent, with RateLimited (`retryInSec` says when the gate opens); other lanes wait.
+   */
   run<T>(r: ScheduledRequest<T>): Promise<T>
   /** Holds the read and history lanes; orders and controls still go. */
   pause(): void
@@ -49,13 +60,18 @@ export type Scheduler = {
   stats(): SchedulerStats
 }
 
+/** One `run` waiting on a job. `off` removes its abort listener. */
+type Caller = { resolve: (v: unknown) => void; reject: (e: unknown) => void; off?: () => void }
+
 type Job = {
   endpoint: EndpointId
   lane: Lane
   key?: string
-  exec: () => Promise<unknown>
-  resolve: (v: unknown) => void
-  reject: (e: unknown) => void
+  exec: (signal: AbortSignal) => Promise<unknown>
+  /** Everyone still waiting for this job's result; deduped reads add to it. */
+  callers: Set<Caller>
+  /** Aborted when the last caller aborts. */
+  ctrl: AbortController
 }
 
 /** A 429 back-off. `afterStart` is the start count when it closed. */
@@ -63,6 +79,9 @@ type Gate = { strikes: number; until: number; afterStart: number }
 
 // Order, smart and control skip the bucket and go ahead of queued reads.
 const PRIORITY: ReadonlySet<Lane> = new Set(['order', 'smart', 'control'])
+// An order that waited out a 429 gate would go out later than the user's tap, so these
+// fail fast instead (controller ruling 3a).
+const NEVER_WAIT_FOR_GATE: ReadonlySet<Lane> = new Set(['order', 'smart'])
 
 const defaultTimer: SetTimer = (fn, ms) => {
   const h = setTimeout(fn, ms)
@@ -106,7 +125,7 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
   const bucket = createBucket(ratePerSec, ratePerSec)
   const priority: Job[] = []
   const paced: Job[] = []
-  const shares = new Map<string, Promise<unknown>>()
+  const shares = new Map<string, Job>()
   const gates = new Map<EndpointId, Gate>()
   let lastSmartAt = Number.NEGATIVE_INFINITY
   let lastHistoryAt = Number.NEGATIVE_INFINITY
@@ -118,6 +137,41 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
   let paused = false
   let haltedBy: Error | undefined
   let cancelWake: (() => void) | undefined
+
+  const queueOf = (job: Job) => (PRIORITY.has(job.lane) ? priority : paced)
+
+  /** Takes `job` out of its queue; false when it was not queued (it has been sent). */
+  function dequeue(job: Job): boolean {
+    const q = queueOf(job)
+    const i = q.indexOf(job)
+    if (i < 0) return false
+    q.splice(i, 1)
+    return true
+  }
+
+  /** Stops new runs joining `job`. */
+  function unshare(job: Job) {
+    if (job.key !== undefined && shares.get(job.key) === job) shares.delete(job.key)
+  }
+
+  /** Settles every caller still waiting on `job`. */
+  function settle(job: Job, fn: (c: Caller) => void) {
+    for (const c of job.callers) {
+      c.off?.()
+      fn(c)
+    }
+    job.callers.clear()
+  }
+
+  /** `caller` aborted: it rejects alone; the last one out drops or aborts the job. */
+  function leave(job: Job, caller: Caller) {
+    if (!job.callers.delete(caller)) return
+    caller.off?.()
+    caller.reject(noReplyError(job.endpoint, job.lane))
+    if (job.callers.size > 0) return
+    unshare(job)
+    if (!dequeue(job)) job.ctrl.abort()
+  }
 
   /** Notes how a request ended. A reply to one sent before the gate closed is stale. */
   function noteGate(endpoint: EndpointId, startNo: number, outcome: 'ok' | 'limited' | 'other') {
@@ -131,29 +185,34 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
     gates.set(endpoint, { strikes, until: now() + ms, afterStart: started })
   }
 
-  function start(job: Job, from: Job[]) {
-    from.splice(from.indexOf(job), 1)
+  function start(job: Job) {
+    dequeue(job)
     const startNo = ++started
     inFlight += 1
     if (job.lane === 'history') historyInFlight += 1
     const finish = (outcome: 'ok' | 'limited' | 'other') => {
       inFlight -= 1
       if (job.lane === 'history') historyInFlight -= 1
-      if (job.key !== undefined) shares.delete(job.key)
+      unshare(job)
       noteGate(job.endpoint, startNo, outcome)
       pump()
     }
+    const { signal } = job.ctrl
     // A microtask keeps exec (and anything it schedules) out of pump's loop.
     Promise.resolve()
-      .then(() => job.exec())
+      .then(() => {
+        // every caller left before it went out
+        if (signal.aborted) throw noReplyError(job.endpoint, job.lane)
+        return job.exec(signal)
+      })
       .then(
         (v) => {
           finish('ok')
-          job.resolve(v)
+          settle(job, (c) => c.resolve(v))
         },
         (e: unknown) => {
           finish(e instanceof ApiError && e.kind === 'RateLimited' ? 'limited' : 'other')
-          job.reject(e)
+          settle(job, (c) => c.reject(e))
         },
       )
   }
@@ -171,8 +230,21 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
     const gatedUntil = (job: Job) => gates.get(job.endpoint)?.until ?? 0
 
     for (const job of [...priority]) {
-      if (gatedUntil(job) > t) {
-        wakeBy(gatedUntil(job))
+      const gate = gatedUntil(job)
+      if (gate > t) {
+        if (!NEVER_WAIT_FOR_GATE.has(job.lane)) {
+          wakeBy(gate)
+          continue
+        }
+        dequeue(job)
+        const retryInSec = Math.max(1, Math.ceil((gate - t) / 1000))
+        const e = new ApiError({
+          kind: 'RateLimited',
+          status: 0,
+          endpoint: job.endpoint,
+          retryInSec,
+        })
+        settle(job, (c) => c.reject(e))
         continue
       }
       if (job.lane === 'smart') {
@@ -182,7 +254,7 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
         }
         lastSmartAt = t
       }
-      start(job, priority)
+      start(job)
     }
 
     if (!paused) {
@@ -206,7 +278,7 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
         }
         bucket.take(t)
         if (history) lastHistoryAt = t
-        start(job, paced)
+        start(job)
       }
     }
 
@@ -216,17 +288,34 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
   return {
     run<T>(r: ScheduledRequest<T>): Promise<T> {
       if (haltedBy) return Promise.reject(haltedBy)
+      const { signal } = r
+      // the client's answer to an aborted signal, without queueing anything
+      if (signal?.aborted) return Promise.reject(noReplyError(r.endpoint, r.lane))
       const key = PRIORITY.has(r.lane) ? undefined : r.dedupeKey
       const shared = key === undefined ? undefined : shares.get(key)
-      if (shared) {
-        deduped += 1
-        return shared as Promise<T>
+      const job: Job = shared ?? {
+        endpoint: r.endpoint,
+        lane: r.lane,
+        key,
+        exec: r.exec,
+        callers: new Set(),
+        ctrl: new AbortController(),
       }
       const promise = new Promise<unknown>((resolve, reject) => {
-        const job: Job = { endpoint: r.endpoint, lane: r.lane, key, exec: r.exec, resolve, reject }
-        ;(PRIORITY.has(r.lane) ? priority : paced).push(job)
+        const caller: Caller = { resolve, reject }
+        if (signal) {
+          const onAbort = () => leave(job, caller)
+          signal.addEventListener('abort', onAbort, { once: true })
+          caller.off = () => signal.removeEventListener('abort', onAbort)
+        }
+        job.callers.add(caller)
       })
-      if (key !== undefined) shares.set(key, promise)
+      if (shared) {
+        deduped += 1
+        return promise as Promise<T>
+      }
+      if (key !== undefined) shares.set(key, job)
+      queueOf(job).push(job)
       pump()
       return promise as Promise<T>
     },
@@ -245,8 +334,8 @@ export function createScheduler(o: SchedulerOptions = {}): Scheduler {
       cancelWake?.()
       cancelWake = undefined
       for (const job of [...priority.splice(0), ...paced.splice(0)]) {
-        if (job.key !== undefined) shares.delete(job.key)
-        job.reject(e)
+        unshare(job)
+        settle(job, (c) => c.reject(e))
       }
     },
 

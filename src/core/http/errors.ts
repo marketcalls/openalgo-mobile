@@ -24,6 +24,8 @@ export type ApiErrorInit = {
   serverMessage?: string
   unknownFields?: string[]
   banForm?: BanForm
+  /** A RateLimited order the scheduler refused unsent: the seconds until its 429 gate opens. */
+  retryInSec?: number
 }
 
 export class ApiError extends Error {
@@ -33,6 +35,7 @@ export class ApiError extends Error {
   readonly serverMessage?: string
   readonly unknownFields?: string[]
   readonly banForm?: BanForm
+  readonly retryInSec?: number
 
   constructor(init: ApiErrorInit) {
     super(`${init.endpoint}: ${init.kind} (${init.status})`)
@@ -43,6 +46,7 @@ export class ApiError extends Error {
     this.serverMessage = init.serverMessage
     this.unknownFields = init.unknownFields
     this.banForm = init.banForm
+    this.retryInSec = init.retryInSec
   }
 }
 
@@ -93,10 +97,16 @@ const FIXED: Record<ApiErrorKind, string> = {
   Validation: 'The server did not accept this request.',
 }
 
-/** The text to show for `e`. SemiAutoBlocked and Validation show the server's reason. */
+/**
+ * The text to show for `e`. SemiAutoBlocked and Validation show the server's reason; an order
+ * refused behind a 429 gate says when to try again.
+ */
 export function userMessage(e: ApiError): string {
   if ((e.kind === 'SemiAutoBlocked' || e.kind === 'Validation') && e.serverMessage) {
     return e.serverMessage
+  }
+  if (e.kind === 'RateLimited' && e.retryInSec !== undefined) {
+    return `The server is busy. Try again in ${e.retryInSec} s.`
   }
   return FIXED[e.kind]
 }

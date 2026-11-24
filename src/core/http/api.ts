@@ -59,7 +59,10 @@ export function createApi({ http, scheduler, fields }: ApiDeps): Api {
       lane: ENDPOINTS[id].lane,
       // The body never holds the key: the client adds it. The scheduler skips orders.
       dedupeKey: `${id} ${stableJson(body)}`,
-      exec: () => http.request(id, body, schema, o),
+      // The caller's abort rejects only this call; the request itself aborts on the
+      // scheduler's signal, once every caller sharing it has aborted.
+      signal: o?.signal,
+      exec: (signal) => http.request(id, body, schema, { ...o, signal }),
     })
   }
 

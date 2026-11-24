@@ -37,10 +37,15 @@ function memoryGate() {
 
 function setup(routes: Record<string, Route>) {
   const fetch = scriptedFetch(routes)
+  /** The signal each fetch got, in call order. */
+  const signals: (AbortSignal | null | undefined)[] = []
   const http = createHttpClient({
     origin: 'https://algo.example.com',
     getKey: () => KEY,
-    fetch,
+    fetch: (input, init) => {
+      signals.push(init?.signal)
+      return fetch(input, init)
+    },
     resolveAuth403: async () => 'key_invalid',
   })
   const scheduler = createScheduler()
@@ -55,7 +60,17 @@ function setup(routes: Record<string, Route>) {
         const { apikey: _, ...rest } = body as Record<string, unknown>
         return rest
       })
-  return { api, fetch, fields, run, sent }
+  return { api, fetch, fields, run, sent, signals, scheduler }
+}
+
+/** Records how `p` settles, so a test can look without awaiting it. */
+function track<T>(p: Promise<T>) {
+  const out: { settled: boolean; value?: T; error?: unknown } = { settled: false }
+  p.then(
+    (value) => Object.assign(out, { settled: true, value }),
+    (error) => Object.assign(out, { settled: true, error }),
+  )
+  return out
 }
 
 /** Awaits `assertion` while the fake clock runs 1 s: history starts are 334 ms apart. */
@@ -106,6 +121,99 @@ test('B4 Dedupe', async () => {
   await jest.advanceTimersByTimeAsync(100)
   await again
   expect(sent('quotes')).toHaveLength(3)
+})
+
+describe('Deduped callers abort on their own (ruling 3b)', () => {
+  const quote = { symbol: 'RELIANCE', exchange: 'NSE' }
+  // what the client gives a caller abort on a read (client.test.ts)
+  const ABORTED = { kind: 'Network', status: 0, endpoint: 'quotes' }
+
+  test('the first caller aborting leaves a joiner its response', async () => {
+    const { api, sent, signals } = setup({ 'POST /api/v1/quotes': later(100, OK) })
+    const first = new AbortController()
+    const a = track(api.call('quotes', quote, ANY, { signal: first.signal }))
+    const b = track(api.call('quotes', quote, ANY, { signal: new AbortController().signal }))
+    await jest.advanceTimersByTimeAsync(50)
+    expect(sent('quotes')).toHaveLength(1)
+
+    first.abort()
+    await jest.advanceTimersByTimeAsync(0)
+    expect(a.error).toMatchObject(ABORTED)
+    expect(b.settled).toBe(false)
+    expect(signals[0]?.aborted).toBe(false)
+
+    await jest.advanceTimersByTimeAsync(50)
+    expect(b.value).toEqual({ ok: true })
+    expect(sent('quotes')).toHaveLength(1)
+  })
+
+  test('callers that all abort before the start send nothing', async () => {
+    const { api, sent, scheduler } = setup({ 'POST /api/v1/quotes': later(100, OK) })
+    // five other quotes take the bucket, so the shared one queues for the next token
+    for (let i = 1; i <= 5; i++) api.call('quotes', { symbol: `S${i}`, exchange: 'NSE' }, ANY)
+    const [x, y] = [new AbortController(), new AbortController()]
+    const a = track(api.call('quotes', quote, ANY, { signal: x.signal }))
+    const b = track(api.call('quotes', quote, ANY, { signal: y.signal }))
+    // a signal that is already aborted never queues
+    const c = track(api.call('quotes', quote, ANY, { signal: AbortSignal.abort() }))
+    await jest.advanceTimersByTimeAsync(50)
+    expect(scheduler.stats().queued.read).toBe(1)
+    x.abort()
+    y.abort()
+    // dropped from the queue at once: it never takes a token or counts as started
+    expect(scheduler.stats().queued.read).toBe(0)
+    await jest.advanceTimersByTimeAsync(2000)
+    expect(scheduler.stats().started).toBe(5)
+
+    for (const r of [a, b, c]) expect(r.error).toMatchObject(ABORTED)
+    expect(sent('quotes')).not.toContainEqual(quote)
+    expect(sent('quotes')).toHaveLength(5)
+
+    // the dropped job is gone: the same read later goes out afresh
+    const again = track(api.call('quotes', quote, ANY))
+    await jest.advanceTimersByTimeAsync(100)
+    expect(again.value).toEqual({ ok: true })
+    expect(sent('quotes')).toHaveLength(6)
+  })
+
+  test('a caller that aborts as its request starts sends nothing', async () => {
+    const { api, fetch } = setup({ 'POST /api/v1/quotes': later(100, OK) })
+    const x = new AbortController()
+    // the bucket is full, so run() starts it at once; exec waits for a microtask
+    const a = track(api.call('quotes', quote, ANY, { signal: x.signal }))
+    x.abort()
+    await jest.advanceTimersByTimeAsync(1000)
+    expect(a.error).toMatchObject(ABORTED)
+    expect(fetch.calls).toHaveLength(0)
+  })
+
+  test('callers that all abort in flight abort the request', async () => {
+    const { api, sent, signals } = setup({ 'POST /api/v1/quotes': later(1000, OK) })
+    const [x, y] = [new AbortController(), new AbortController()]
+    const a = track(api.call('quotes', quote, ANY, { signal: x.signal }))
+    const b = track(api.call('quotes', quote, ANY, { signal: y.signal }))
+    await jest.advanceTimersByTimeAsync(10)
+    expect(sent('quotes')).toHaveLength(1)
+
+    x.abort()
+    await jest.advanceTimersByTimeAsync(0)
+    expect(a.error).toMatchObject(ABORTED)
+    expect(signals[0]?.aborted).toBe(false)
+
+    y.abort()
+    // a read queued right after the last abort does not join the aborted request,
+    // and that request's end does not unshare the new one
+    const c = track(api.call('quotes', quote, ANY))
+    await jest.advanceTimersByTimeAsync(0)
+    expect(b.error).toMatchObject(ABORTED)
+    expect(signals[0]?.aborted).toBe(true)
+    const d = track(api.call('quotes', quote, ANY))
+
+    await jest.advanceTimersByTimeAsync(1000)
+    expect(c.value).toEqual({ ok: true })
+    expect(d.value).toEqual({ ok: true })
+    expect(sent('quotes')).toHaveLength(2)
+  })
 })
 
 test('B6 No retry', async () => {

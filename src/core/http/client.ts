@@ -3,7 +3,13 @@
 import type { z } from 'zod'
 import { NGROK_HEADER } from '~/core/config/constants'
 import { log } from '~/core/log/logger'
-import { DEFAULT_TIMEOUT_MS, ENDPOINTS, type EndpointDef, type EndpointId } from './endpoints'
+import {
+  DEFAULT_TIMEOUT_MS,
+  ENDPOINTS,
+  type EndpointDef,
+  type EndpointId,
+  type Lane,
+} from './endpoints'
 import { ApiError, type ApiErrorInit, type BanForm, isRecord, unknownFields } from './errors'
 
 export type RawResponse = { status: number; contentType: string; text: string; json?: unknown }
@@ -47,6 +53,15 @@ function parseJson(text: string): unknown {
   } catch {
     return undefined
   }
+}
+
+/**
+ * What a request that got no reply rejects with: a dropped connection, a timeout or the
+ * caller's abort. On an order lane the order may still have gone.
+ */
+export function noReplyError(id: EndpointId, lane: Lane = ENDPOINTS[id].lane): ApiError {
+  const kind = ORDER_LANES.has(lane) ? 'MaybePlaced' : 'Network'
+  return new ApiError({ kind, status: 0, endpoint: id })
 }
 
 /** A reply counts only if it is JSON with a string `status` (S6). */
@@ -168,8 +183,7 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
           o?.signal,
         )
       } catch {
-        const kind = ORDER_LANES.has(def.lane) ? 'MaybePlaced' : 'Network'
-        throw new ApiError({ kind, status: 0, endpoint: id })
+        throw noReplyError(id, def.lane)
       }
       d.onResponse?.(id, raw)
       const failure = await failureOf(id, def, raw)
