@@ -11,6 +11,7 @@ import { checkKey } from '~/core/credentials/status'
 import { createHttpClient, type HttpClient } from '~/core/http/client'
 import { AnalyzerSchema, DepthSchema, MultiQuotesSchema } from '~/core/http/schemas'
 import { isExchangeOpen } from '~/core/realtime/marketHours'
+import { type Inbound, parseInbound } from '~/core/realtime/protocol'
 import { createTickStore } from '~/core/realtime/tickStore'
 import { createRealtime, type WebSocketCtor } from '~/core/realtime/wsClient'
 import { capabilityReport } from '~/features/account/diagnostics'
@@ -19,6 +20,7 @@ import { memoryKV } from '../helpers/memoryKV'
 import { loadTestEnv, type TestEnv } from './env'
 
 const LIVE_MODE = 'Test server is in LIVE mode. Switch it to the analyzer on the web first.'
+type AckEntry = Extract<Inbound, { t: 'sub_ack' }>['entries'][number]
 const TICK_WITHIN_MS = 10_000
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
@@ -108,7 +110,7 @@ function suite({ url, key, wsUrl }: TestEnv) {
       expect(depth.bids).toHaveLength(5)
     })
 
-    async function makeRealtime() {
+    async function makeRealtime(WebSocketImpl = WebSocket as unknown as WebSocketCtor) {
       const store = createTickStore((flush) => void setTimeout(flush, 16))
       const capStore = createCapabilityStore(profileStorage(memoryKV(), 'p0123456789ab'))
       await capStore.save(caps)
@@ -116,7 +118,7 @@ function suite({ url, key, wsUrl }: TestEnv) {
         url: () => wsUrl,
         feedMode: () => 'live',
         getKey: () => key,
-        WebSocketImpl: WebSocket as unknown as WebSocketCtor,
+        WebSocketImpl,
         lastFeedRetryAt: () => null,
         store,
         caps: capStore,
@@ -143,9 +145,21 @@ function suite({ url, key, wsUrl }: TestEnv) {
         expect('reason' in r).toBe(false)
       })
 
-      test('a mode-3, depth-5 subscription is acked, with a tick while NSE is open', async () => {
+      test('a mode-3, depth-5 subscription is acked, with 5 levels in a tick while NSE is open', async () => {
         safe()
-        const { realtime, store } = await makeRealtime()
+        // ws's WebSocket, also keeping the subscribe acks the client receives: the ack comes at
+        // any hour, but a depth tick (and so confirmedDepth) only while the broker sends ticks.
+        const acks: AckEntry[] = []
+        class Recording extends WebSocket {
+          constructor(address: string) {
+            super(address)
+            this.addEventListener('message', (ev) => {
+              const m = typeof ev.data === 'string' ? parseInbound(ev.data) : null
+              if (m?.t === 'sub_ack') acks.push(...m.entries)
+            })
+          }
+        }
+        const { realtime, store } = await makeRealtime(Recording as unknown as WebSocketCtor)
         try {
           realtime.start()
           const release = realtime.acquire({
@@ -154,14 +168,18 @@ function suite({ url, key, wsUrl }: TestEnv) {
             mode: 3,
             depth: 5,
           })
-          await until(
-            () => realtime.confirmedDepth('NSE', 'RELIANCE') !== undefined,
-            10_000,
-            'the subscription ack',
-          )
-          expect(realtime.confirmedDepth('NSE', 'RELIANCE')).toBe(5)
+          const reliance = () => acks.find((e) => e.exchange === 'NSE' && e.symbol === 'RELIANCE')
+          await until(() => reliance() !== undefined, 10_000, 'the subscription ack')
+          expect(reliance()).toMatchObject({ ok: true, depth: 5 })
+          expect(realtime.isLive('NSE', 'RELIANCE')).toBe(true)
           if (isExchangeOpen('NSE', Date.now())) {
-            await until(() => store.get('NSE:RELIANCE')?.source === 'ws', TICK_WITHIN_MS, 'a tick')
+            await until(
+              () => realtime.confirmedDepth('NSE', 'RELIANCE') !== undefined,
+              TICK_WITHIN_MS,
+              'a depth tick',
+            )
+            expect(realtime.confirmedDepth('NSE', 'RELIANCE')).toBe(5)
+            expect(store.get('NSE:RELIANCE')?.source).toBe('ws')
           }
           release()
         } finally {
