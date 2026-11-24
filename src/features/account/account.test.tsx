@@ -83,13 +83,16 @@ let kv = memoryKV()
 let secureKV = memoryKV()
 let sockets = fakeSockets()
 let fetchFake = scriptedFetch({})
+/** The routes `fetchFake` answers from; a test may change them. */
+let liveRoutes: Record<string, Route> = {}
 
 async function setup(
   routes: Record<string, Route> = {},
   profile: ServerProfile = PROFILE,
   unlockApp = false,
 ) {
-  fetchFake = scriptedFetch({ ...OK_ROUTES, ...routes })
+  liveRoutes = { ...OK_ROUTES, ...routes }
+  fetchFake = scriptedFetch(liveRoutes)
   sockets = fakeSockets()
   kv = memoryKV()
   secureKV = memoryKV({ [`oa.${profile.id}.apikey`]: KEY })
@@ -177,6 +180,29 @@ describe('useAnalyzer', () => {
     const { result } = await renderHook(() => useAnalyzer(), { wrapper })
     await waitFor(() => expect(result.current).toBe(mode))
     expect(useConnection.getState().analyzer).toBe(mode)
+  })
+
+  test('a replaced key refetches the mode, and the broker is checked again', async () => {
+    const BAD_KEY: Route = {
+      status: 403,
+      body: { status: 'error', message: 'Invalid openalgo apikey' },
+    }
+    // the key was regenerated on the web: every keyed call is refused, search included
+    await setup({ 'POST /api/v1/analyzer': BAD_KEY, 'POST /api/v1/search': BAD_KEY }, PROFILE, true)
+    const { result } = await renderHook(() => useAnalyzer(), { wrapper })
+    await waitFor(() => expect(useConnection.getState().keyState).toBe('invalid'))
+    await waitFor(() => expect(services?.queryClient.isFetching()).toBe(0))
+    expect(result.current).toBe('unknown')
+    const funds = calls('/funds').length
+
+    // the user saves the new key on /account/key
+    liveRoutes['POST /api/v1/analyzer'] = analyzer('live')
+    liveRoutes['POST /api/v1/search'] = OK_ROUTES['POST /api/v1/search'] as Route
+    await act(async () => services?.vault.replace(KEY2))
+    await waitFor(() => expect(result.current).toBe('live'))
+    expect(calls('/analyzer').at(-1)?.body).toMatchObject({ apikey: KEY2 })
+    await waitFor(() => expect(calls('/funds').length).toBe(funds + 1))
+    expect(useConnection.getState()).toMatchObject({ keyState: 'ok', brokerSession: 'active' })
   })
 
   test('an error is unknown', async () => {

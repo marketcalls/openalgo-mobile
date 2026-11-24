@@ -419,13 +419,20 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
 
   const vault: KeyVault = {
     ...keys,
-    /** The wiring row for a new key: forget the old split, then let traffic go again. */
+    /**
+     * The wiring row for a new key: forget the old split, then let traffic go again. As after a
+     * ban, what failed with the old key is stale: the broker is checked and this profile's
+     * queries (the analyzer badge among them) are fetched again.
+     */
     async replace(next) {
       await keys.replace(next)
       broker.reset()
       conn.getState().set({ keyState: 'ok' })
       if (conn.getState().banned === null) scheduler.unhalt()
       startFeed()
+      if (!talking() || lock.isLocked()) return
+      void broker.check()
+      void queryClient.invalidateQueries({ queryKey: qk.root(pid) })
     },
   }
 
