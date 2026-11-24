@@ -39,23 +39,6 @@ runs:
         cache: gradle
         cache-dependency-path: package-lock.json
 
-    - name: Prepare the release keystore
-      if: inputs.has-keystore == 'true'
-      shell: bash
-      env:
-        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
-        KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
-        KEY_ALIAS: ${{ inputs.key-alias }}
-        KEY_PASSWORD: ${{ inputs.key-password }}
-      run: |
-        printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-        {
-          echo "OA_KEYSTORE_PATH=$RUNNER_TEMP/release.jks"
-          echo "OA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
-          echo "OA_KEY_ALIAS=$KEY_ALIAS"
-          echo "OA_KEY_PASSWORD=$KEY_PASSWORD"
-        } >> "$GITHUB_ENV"
-
     - name: Generate the Android project
       shell: bash
       run: npx expo prebuild --platform android --no-install
@@ -64,7 +47,27 @@ runs:
       shell: bash
       working-directory: android
       # The release plugin picks the key: OA_KEYSTORE_PATH set -> release key, else the debug key.
-      run: ./gradlew assembleRelease -PreactNativeArchitectures=${{ inputs.abis }} --no-daemon
+      # The keystore and its passwords exist only inside this step: they are never written to
+      # GITHUB_ENV, so no later step (or third-party action) sees them, and the .jks is deleted
+      # however gradle ends.
+      env:
+        HAS_KEYSTORE: ${{ inputs.has-keystore }}
+        KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
+        KEY_ALIAS: ${{ inputs.key-alias }}
+        KEY_PASSWORD: ${{ inputs.key-password }}
+        ABIS: ${{ inputs.abis }}
+      run: |
+        if [ "$HAS_KEYSTORE" = "true" ]; then
+          trap 'rm -f "$RUNNER_TEMP/release.jks"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          export OA_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          export OA_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export OA_KEY_ALIAS="$KEY_ALIAS"
+          export OA_KEY_PASSWORD="$KEY_PASSWORD"
+        fi
+        unset KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD
+        ./gradlew assembleRelease -PreactNativeArchitectures="$ABIS" --no-daemon
 
     - name: Verify signature and rename APK
       shell: bash

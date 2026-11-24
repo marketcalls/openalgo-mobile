@@ -235,17 +235,12 @@ jobs:
         run: npm ci
 
       - name: Build APK (x86_64)
+        # A test APK for a fresh emulator: the debug key installs fine, so the release keystore
+        # never reaches this job (its later steps run third-party actions and the mock server).
         uses: ./.github/actions/android-build
-        env:
-          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         with:
           abis: x86_64
           artifact: android-apk-e2e-${{ matrix.PROFILE }}
-          has-keystore: ${{ env.HAS_KEYSTORE }}
-          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
-          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Install Maestro
         run: |
