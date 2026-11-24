@@ -18,3 +18,13 @@ dist/
 # OS and editor noise
 .DS_Store
 *.swp
+
+# Expo app
+/android/
+/ios/
+/openalgo/
+.expo/
+dist-export/
+coverage/
+*.tgz
+!.env.test.example
