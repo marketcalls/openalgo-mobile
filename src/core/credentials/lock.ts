@@ -10,7 +10,7 @@ export type AppStateName = 'active' | 'background' | 'inactive' | 'unknown' | 'e
 export type LockState = 'locked' | 'unlocked' | 'no-key'
 
 export interface LockSettings {
-  /** The appLock pref and canUseAppLock() together; when false, unlock() never prompts. */
+  /** The appLock pref. When false, unlock() never prompts and the app never locks. */
   enabled: boolean
   lockAfterMs: number
 }
@@ -20,14 +20,20 @@ export interface LockDeps {
   /** Read at every decision, so a changed pref applies from the next unlock or return. */
   settings: () => LockSettings
   authenticate: () => Promise<boolean>
+  /**
+   * Whether the phone has a passcode or biometrics to lock with (bind it to `canUseAppLock`).
+   * Asked at every unlock while the lock is on, so a passcode removed or set mid-session counts.
+   */
+  available: () => Promise<boolean>
   vault: KeyVault
 }
 
 /**
- * Starts locked. `unlock()` prompts (unless the lock is off), then reads the key into the vault;
- * `LockOverlay` calls it on mount, so with the lock off or unusable the vault opens at start with
- * no prompt. Coming back to `active` after at least `lockAfterMs` in the background locks and
- * drops the key; `inactive` (Face ID, Control Center, a call) never locks.
+ * Starts locked. `unlock()` prompts, then reads the key into the vault. It skips the prompt when
+ * the lock is off, or on but unusable (no passcode or biometrics, where every prompt would fail).
+ * `LockOverlay` calls it on mount, so in both cases the vault opens at start with no prompt.
+ * Coming back to `active` after at least `lockAfterMs` in the background locks and drops the key;
+ * `inactive` (Face ID, Control Center, a call) never locks.
  */
 export function createLockController(d: LockDeps) {
   let state: LockState = 'locked'
@@ -48,9 +54,20 @@ export function createLockController(d: LockDeps) {
     }
   }
 
+  /** Fails closed: if the device check itself fails, the prompt still runs. */
+  async function lockUsable(): Promise<boolean> {
+    try {
+      return await d.available()
+    } catch (e) {
+      log.warn(TAG, 'app lock check failed', e)
+      return true
+    }
+  }
+
   async function attempt(): Promise<boolean> {
     try {
-      if (d.settings().enabled && !(await d.authenticate())) return false
+      const prompt = d.settings().enabled && (await lockUsable())
+      if (prompt && !(await d.authenticate())) return false
       const found = await d.vault.unlock()
       setState(found ? 'unlocked' : 'no-key')
       return found

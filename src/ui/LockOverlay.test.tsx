@@ -1,4 +1,10 @@
-import { isHiddenFromAccessibility, render, screen, userEvent } from '@testing-library/react-native'
+import {
+  isHiddenFromAccessibility,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native'
 import { StyleSheet, Text, View } from 'react-native'
 import { createKeyStore } from '~/core/credentials/keyStore'
 import { createLockController } from '~/core/credentials/lock'
@@ -9,7 +15,7 @@ import { tokens } from './tokens'
 
 const KEY = 'ab'.repeat(32)
 
-function setup() {
+function setup(o: { usable?: boolean } = {}) {
   const store = createKeyStore(
     memoryKV({ 'oa.p1.apikey': KEY }),
     memoryKV({ 'oa.p1.hasKey': '1' }),
@@ -21,6 +27,7 @@ function setup() {
     now: () => 0,
     settings: () => ({ enabled: true, lockAfterMs: 300_000 }),
     authenticate,
+    available: async () => o.usable ?? true,
     vault,
   })
   const unlock = jest.spyOn(controller, 'unlock')
@@ -74,5 +81,13 @@ test('the button calls controller.unlock, which can open the vault', async () =>
   expect(unlock).toHaveBeenCalledTimes(2)
   expect(authenticate).toHaveBeenCalledTimes(2)
   expect(controller.isLocked()).toBe(false)
+  expect(vault.get()).toBe(KEY)
+})
+
+test('on a phone with no passcode or biometrics, mounting opens the vault with no prompt', async () => {
+  const { controller, vault, authenticate } = setup({ usable: false })
+  await render(<LockOverlay controller={controller} />)
+  await waitFor(() => expect(controller.isLocked()).toBe(false))
+  expect(authenticate).not.toHaveBeenCalled()
   expect(vault.get()).toBe(KEY)
 })

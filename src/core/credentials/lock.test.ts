@@ -8,17 +8,23 @@ const KEY = 'ab'.repeat(32)
 const T0 = Date.UTC(2026, 10, 24, 4, 0)
 const S = 1000
 
-function setup(o: { enabled?: boolean; lockAfterMs?: number; stored?: boolean } = {}) {
+function setup(
+  o: { enabled?: boolean; usable?: boolean; lockAfterMs?: number; stored?: boolean } = {},
+) {
   let t = T0
   const settings = { enabled: o.enabled ?? true, lockAfterMs: o.lockAfterMs ?? 300 * S }
   const secure = memoryKV(o.stored === false ? {} : { 'oa.p1.apikey': KEY })
   const kv = memoryKV({ 'oa.p1.hasKey': '1' })
   const vault = createKeyVault(createKeyStore(secure, kv, 'p1'))
   const authenticate = jest.fn(async () => true)
+  /** Stands in for canUseAppLock(): false when the phone has no passcode or biometrics. */
+  const device = { usable: o.usable ?? true }
+  const available = jest.fn(async () => device.usable)
   const lock = createLockController({
     now: () => t,
     settings: () => settings,
     authenticate,
+    available,
     vault,
   })
   const states: LockState[] = []
@@ -32,7 +38,19 @@ function setup(o: { enabled?: boolean; lockAfterMs?: number; stored?: boolean } 
     advance(ms)
     lock.handleAppState('active')
   }
-  return { lock, vault, secure, kv, authenticate, settings, states, advance, awayFor }
+  return {
+    lock,
+    vault,
+    secure,
+    kv,
+    authenticate,
+    available,
+    device,
+    settings,
+    states,
+    advance,
+    awayFor,
+  }
 }
 
 afterEach(() => jest.restoreAllMocks())
@@ -95,12 +113,10 @@ describe('start and unlock', () => {
   test('concurrent unlock() calls share one prompt', async () => {
     const { lock, authenticate } = setup()
     let answer: (ok: boolean) => void = () => {}
-    authenticate.mockImplementationOnce(
-      () =>
-        new Promise<boolean>((r) => {
-          answer = r
-        }),
-    )
+    const prompt = new Promise<boolean>((r) => {
+      answer = r
+    })
+    authenticate.mockImplementationOnce(() => prompt)
     const calls = [lock.unlock(), lock.unlock(), lock.unlock()]
     answer(true)
     expect(await Promise.all(calls)).toEqual([true, true, true])
@@ -238,6 +254,69 @@ describe('app lock off or unusable', () => {
     settings.enabled = true
     awayFor(300 * S)
     expect(lock.isLocked()).toBe(true)
+  })
+
+  test('off: whether the device can lock is not even asked', async () => {
+    const { lock, available } = setup({ enabled: false })
+    await lock.unlock()
+    expect(available).not.toHaveBeenCalled()
+  })
+
+  test('enabled but unusable (no passcode or biometrics): unlock() opens the vault with no prompt', async () => {
+    const { lock, vault, authenticate, available, states } = setup({ usable: false })
+    expect(lock.isLocked()).toBe(true)
+    expect(await lock.unlock()).toBe(true)
+    expect(available).toHaveBeenCalledTimes(1)
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(lock.isLocked()).toBe(false)
+    expect(vault.get()).toBe(KEY)
+    expect(states).toEqual(['unlocked'])
+  })
+
+  test('enabled but unusable: concurrent unlock() calls share one check and open the vault', async () => {
+    const { lock, authenticate, available } = setup({ usable: false })
+    expect(await Promise.all([lock.unlock(), lock.unlock()])).toEqual([true, true])
+    expect(available).toHaveBeenCalledTimes(1)
+    expect(authenticate).not.toHaveBeenCalled()
+  })
+
+  test('passcode removed mid-session: the next lock reopens with no prompt', async () => {
+    const { lock, vault, authenticate, device, awayFor, states } = setup()
+    await lock.unlock()
+    expect(authenticate).toHaveBeenCalledTimes(1)
+    device.usable = false
+    awayFor(300 * S)
+    expect(lock.isLocked()).toBe(true)
+    expect(await lock.unlock()).toBe(true)
+    expect(authenticate).toHaveBeenCalledTimes(1)
+    expect(vault.get()).toBe(KEY)
+    expect(states).toEqual(['unlocked', 'locked', 'unlocked'])
+  })
+
+  test('passcode set mid-session: availability is asked again, so the next unlock prompts', async () => {
+    const { lock, authenticate, available, device, awayFor } = setup({ usable: false })
+    await lock.unlock()
+    device.usable = true
+    awayFor(300 * S)
+    expect(lock.isLocked()).toBe(true)
+    authenticate.mockResolvedValueOnce(false)
+    expect(await lock.unlock()).toBe(false)
+    expect(available).toHaveBeenCalledTimes(2)
+    expect(authenticate).toHaveBeenCalledTimes(1)
+    expect(lock.isLocked()).toBe(true)
+  })
+
+  test('an availability check that throws still prompts (fails closed), and is logged', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    clearLogs()
+    const { lock, vault, authenticate, available } = setup()
+    available.mockRejectedValueOnce(new Error('getEnrolledLevelAsync failed'))
+    authenticate.mockResolvedValueOnce(false)
+    expect(await lock.unlock()).toBe(false)
+    expect(authenticate).toHaveBeenCalledTimes(1)
+    expect(lock.isLocked()).toBe(true)
+    expect(vault.has()).toBe(false)
+    expect(getLogLines().filter((l) => l.includes('app lock check failed'))).toHaveLength(1)
   })
 })
 
