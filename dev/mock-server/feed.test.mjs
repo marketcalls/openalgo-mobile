@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { randomBytes } from 'node:crypto'
 import net from 'node:net'
 import { test } from 'node:test'
 import WebSocket from 'ws'
@@ -122,9 +123,11 @@ function resetAfterRefusal(url) {
     const socket = net.connect({ host: hostname, port: Number(port), allowHalfOpen: true })
     socket.on('error', reject)
     socket.once('connect', () => {
+      // RFC 6455 4.1: the key is a random 16-byte nonce, base64-encoded.
+      const nonce = randomBytes(16).toString('base64')
       socket.write(
         `GET ${pathname} HTTP/1.1\r\nHost: ${hostname}:${port}\r\nUpgrade: websocket\r\n` +
-          'Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n' +
+          `Connection: Upgrade\r\nSec-WebSocket-Key: ${nonce}\r\n` +
           'Sec-WebSocket-Version: 13\r\n\r\n',
       )
     })
