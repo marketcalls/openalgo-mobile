@@ -121,7 +121,10 @@ function toBool(v) {
   return null
 }
 
-// validate.OneOf(VALID_EXCHANGES), with the profile's C2 set.
+// validate.OneOf(VALID_EXCHANGES), with the profile's C2 set, on every profile as plan C2 says.
+// Plan-mandated divergence: openalgo added this OneOf in 4da5fbcd0 (2026-03-05). Earlier trees
+// (90c3d2caf) type exchange as a plain Str, so a real 2.0.0.0 search answers an unknown exchange
+// with 200 []. No app code may depend on this 400 on 2.0.0.0.
 const exchangeField = (b, v) =>
   b.exchange != null && !v.exchanges.includes(b.exchange)
     ? { exchange: [`Must be one of: ${v.exchanges.join(', ')}.`] }
@@ -221,6 +224,7 @@ function validationErrors(schema, body, version) {
 // --- Data -------------------------------------------------------------------------
 
 // services/quotes_service.py:14-38: the exchange, then the master contract (instruments.mjs).
+// History runs the same check before the broker call (services/history_service.py:56-80,132-134).
 function symbolError(symbol, exchange, { exchanges }) {
   if (!symbol || !exchange) return 'Missing symbol or exchange in request'
   if (!exchanges.includes(String(exchange).toUpperCase())) {

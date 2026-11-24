@@ -122,6 +122,9 @@ const QUANTITY = {
 const quantity = (v, rule) =>
   v.fractionalQty ? req('float', QUANTITY[rule][0]) : req('int', QUANTITY[rule][1])
 
+// The exchange OneOf applies on every profile (plan C2). Trees before openalgo 4da5fbcd0 have a
+// plain Str here and refuse a bad exchange in the service instead, as "Invalid exchange. Must be
+// one of: …" (90c3d2caf services/place_order_service.py:99); see exchangeField in rest.mjs.
 const instrument = (v) => ({
   apikey: req('str'),
   strategy: req('str'),

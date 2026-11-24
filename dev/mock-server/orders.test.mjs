@@ -179,7 +179,7 @@ test('symbol returns the C1 metadata for an NSE and an NFO instrument', async (t
   }
 })
 
-test('an expired contract gets the C1 404 and the quotes, depth and multiquotes 400s', async (t) => {
+test('an expired contract gets the C1 404 and the quotes, depth, history and multiquotes 400s', async (t) => {
   const m = await mock(t)
   const gone = { symbol: 'NIFTY25NOV25FUT', exchange: 'NFO' }
   const sym = await post(m, 'symbol', gone)
@@ -201,6 +201,11 @@ test('an expired contract gets the C1 404 and the quotes, depth and multiquotes 
     assert.equal(r.status, 400, endpoint)
     assert.deepEqual(r.json, { status: 'error', message: error }, endpoint)
   }
+  // History runs the same master-contract check (services/history_service.py:56-80,132-134).
+  const range = { interval: 'D', start_date: '2026-11-02', end_date: '2026-11-20' }
+  const history = await post(m, 'history', { ...gone, ...range })
+  assert.equal(history.status, 400)
+  assert.deepEqual(history.json, { status: 'error', message: error })
   // A listed contract beside it still gets its quote.
   const mixed = await post(m, 'multiquotes', {
     symbols: [gone, { symbol: 'NIFTY30DEC26FUT', exchange: 'NFO' }],
