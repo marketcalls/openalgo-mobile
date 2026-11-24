@@ -30,6 +30,7 @@ export type BrokerStatusDeps = {
 
 export function createBrokerStatus({ api, http, conn, now }: BrokerStatusDeps) {
   let inFlight: Promise<'key_invalid' | 'broker_logged_out'> | null = null
+  let generation = 0
   let cached: { at: number; result: 'key_invalid' | 'broker_logged_out' } | null = null
 
   function record(result: 'key_invalid' | 'broker_logged_out') {
@@ -48,6 +49,7 @@ export function createBrokerStatus({ api, http, conn, now }: BrokerStatusDeps) {
       const set = conn.getState().set
       try {
         await api.call('funds', {}, FundsSchema)
+        cached = null // the broker is logged in again, so a cached "logged out" split is stale
         set({ keyState: 'ok', brokerSession: 'active' })
         return 'active'
       } catch (e) {
@@ -72,10 +74,14 @@ export function createBrokerStatus({ api, http, conn, now }: BrokerStatusDeps) {
     resolveAuth403(): Promise<'key_invalid' | 'broker_logged_out'> {
       if (cached && now() - cached.at < CACHE_MS) return Promise.resolve(cached.result)
       if (inFlight) return inFlight
+      const gen = generation
       const run = (async () => {
         const result = (await checkKey(http)) === 'invalid' ? 'key_invalid' : 'broker_logged_out'
-        record(result)
-        cached = { at: now(), result }
+        // A reset() while the search ran means the key was replaced: drop the old answer.
+        if (gen === generation) {
+          record(result)
+          cached = { at: now(), result }
+        }
         return result
       })()
       const mine = run.finally(() => {
@@ -87,6 +93,7 @@ export function createBrokerStatus({ api, http, conn, now }: BrokerStatusDeps) {
 
     /** Forgets the cached split (after the key is replaced). */
     reset(): void {
+      generation++
       cached = null
       inFlight = null
     },

@@ -168,3 +168,40 @@ test('the serialized state never contains the key', async () => {
     expect.arrayContaining(Object.keys(CONNECTION_DEFAULTS)),
   )
 })
+
+test('a search that finishes after reset() is dropped', async () => {
+  let release: (() => void) | undefined
+  const gate = new Promise<void>((r) => {
+    release = r
+  })
+  const { status, searches } = setup({
+    'POST /api/v1/search': async () => {
+      await gate
+      return BAD_KEY
+    },
+  })
+  const old = status.resolveAuth403()
+  await Promise.resolve()
+  status.reset()
+  release?.()
+  await expect(old).resolves.toBe('key_invalid')
+  expect(useConnection.getState().keyState).toBe(CONNECTION_DEFAULTS.keyState)
+  clock = 1
+  // Nothing was cached, so the next call searches again.
+  await status.resolveAuth403().catch(() => {})
+  expect(searches()).toHaveLength(2)
+})
+
+test('funds 200 clears the cached broker_logged_out split', async () => {
+  let funds = 0
+  const { status, searches } = setup({
+    'POST /api/v1/search': SEARCH_OK,
+    'POST /api/v1/funds': () => (funds++ === 0 ? FUNDS_OK : BAD_KEY),
+  })
+  await expect(status.resolveAuth403()).resolves.toBe('broker_logged_out')
+  expect(searches()).toHaveLength(1)
+  await expect(status.check()).resolves.toBe('active')
+  clock = 5_000 // still inside the 30 s window
+  await status.resolveAuth403()
+  expect(searches()).toHaveLength(2)
+})
