@@ -103,9 +103,10 @@ describe('createRealtime', () => {
   test('B2 no URL, or the polling feed mode, gives polling and opens no socket', () => {
     const a = setup({ deps: { url: () => null } })
     a.rt.start()
-    const b = setup({ profile: { feedMode: 'polling', lastFeedRetryAt: null } })
+    // a retry 0 ms ago: the next is 10 minutes off (B8)
+    const b = setup({ profile: { feedMode: 'polling', lastFeedRetryAt: 0 } })
     b.rt.start()
-    jest.advanceTimersByTime(30 * MIN)
+    jest.advanceTimersByTime(10 * MIN - 1)
     expect(a.rt.status().state).toBe('polling')
     expect(b.rt.status().state).toBe('polling')
     expect(a.f.sockets).toHaveLength(0)
@@ -461,7 +462,7 @@ describe('createRealtime', () => {
     expect(f.sockets).toHaveLength(8)
   })
 
-  test('B7 after 10 consecutive failures the state is polling for the rest of the session', () => {
+  test('B7 after 10 consecutive failures the state is polling; start() does not reconnect', () => {
     const { rt, f, d } = setup()
     rt.start()
     failEach(f, 10)
@@ -469,10 +470,115 @@ describe('createRealtime', () => {
     expect(rt.status()).toMatchObject({ state: 'polling', failures: 10 })
     expect(d.onPollingRetry).toHaveBeenCalledTimes(1)
     expect(d.onPollingRetry).toHaveBeenCalledWith(false) // ruling 7
-    jest.advanceTimersByTime(60 * MIN)
+    jest.advanceTimersByTime(9 * MIN)
     rt.start()
     expect(f.sockets).toHaveLength(10)
     expect(rt.status().state).toBe('polling')
+  })
+
+  test('B7 a feed that was live this session never hands off: it waits out the outage at 30 s', () => {
+    const { rt, f, d } = setup()
+    rt.start()
+    live(f.last())
+    f.last().serverClose(1006) // the server restarts for an update
+    for (let i = 0; i < 12; i++) {
+      jest.advanceTimersToNextTimer()
+      f.last().serverClose(1006)
+    }
+    expect(rt.status()).toMatchObject({ state: 'reconnecting', failures: 13 })
+    expect(d.onPollingRetry).not.toHaveBeenCalled()
+    const at = Date.now()
+    jest.advanceTimersToNextTimer()
+    expect(Date.now() - at).toBe(30_000)
+    live(f.last())
+    expect(rt.status()).toMatchObject({ state: 'live', failures: 0 })
+  })
+
+  test('B7 a socket that fails while the phone is offline is not counted; the network back reconnects at once', () => {
+    const net = { online: true }
+    const { rt, f, d } = setup({ deps: { isOnline: () => net.online } })
+    rt.start()
+    net.online = false // a lift, a train, a Wi-Fi handover
+    failEach(f, 15)
+    expect(rt.status()).toMatchObject({ state: 'reconnecting', failures: 0 })
+    expect(d.onPollingRetry).not.toHaveBeenCalled()
+    net.online = true
+    const sockets = f.sockets.length
+    rt.networkBack()
+    expect(f.sockets).toHaveLength(sockets + 1)
+    live(f.last())
+    expect(rt.status().state).toBe('live')
+  })
+
+  test('B7 while REST gets no reply either, the reconnects do not hand off to polling', () => {
+    const reach = { v: false as boolean | null }
+    const { rt, f, d } = setup({ deps: { serverReachable: () => reach.v } })
+    rt.start()
+    failEach(f, 12) // the home server is out of reach, not its feed
+    expect(rt.status().state).toBe('reconnecting')
+    expect(d.onPollingRetry).not.toHaveBeenCalled()
+    reach.v = null // nothing to go on: RF 4 applies
+    jest.advanceTimersToNextTimer()
+    f.last().serverClose(1006)
+    expect(rt.status().state).toBe('polling')
+    expect(d.onPollingRetry).toHaveBeenCalledWith(false)
+  })
+
+  test('B8 polling in the foreground retries on its own every 10 min (RF 4), and not in the background', async () => {
+    const { rt, f, d } = setup()
+    rt.start()
+    failEach(f, 10)
+    expect(rt.status().state).toBe('polling')
+    await jest.advanceTimersByTimeAsync(10 * MIN - 1)
+    expect(f.sockets).toHaveLength(10)
+    await jest.advanceTimersByTimeAsync(1)
+    expect(f.sockets).toHaveLength(11)
+    f.last().serverClose(1006)
+    await jest.advanceTimersByTimeAsync(0)
+    expect(d.onPollingRetry).toHaveBeenLastCalledWith(false)
+    rt.setAppState('background')
+    await jest.advanceTimersByTimeAsync(60 * MIN)
+    expect(f.sockets).toHaveLength(11)
+    rt.setAppState('active') // overdue: it retries at once
+    expect(f.sockets).toHaveLength(12)
+  })
+
+  test('B8 the network back retries from polling only once the 10 minutes are up', async () => {
+    const { rt, f } = setup()
+    rt.start()
+    failEach(f, 10)
+    rt.networkBack()
+    expect(f.sockets).toHaveLength(10)
+    rt.setAppState('background')
+    await jest.advanceTimersByTimeAsync(10 * MIN)
+    rt.networkBack()
+    expect(f.sockets).toHaveLength(11)
+  })
+
+  test('B8 (ruling 188) a retry answered with BROKER_* proves the feed: stored live, and it connects', async () => {
+    const onBrokerError = jest.fn(async (): Promise<BrokerSession> => 'logged_out')
+    const { rt, f, d, profile } = setup({
+      profile: { feedMode: 'polling', lastFeedRetryAt: null },
+      deps: { onBrokerError },
+    })
+    rt.start()
+    rt.setAppState('background')
+    rt.setAppState('active')
+    const probe = f.last()
+    probe.serverOpen()
+    probe.serverSend(wsError('BROKER_ERROR', 'No broker configuration found for user'))
+    await jest.advanceTimersByTimeAsync(0)
+    expect(d.onPollingRetry).toHaveBeenCalledWith(true)
+    expect(profile.feedMode).toBe('live')
+    expect(f.sockets).toHaveLength(2)
+    f.last().serverOpen()
+    f.last().serverSend(wsError('BROKER_ERROR', 'No broker configuration found for user'))
+    await jest.advanceTimersByTimeAsync(0)
+    expect(rt.status().state).toBe('broker_logged_out')
+    rt.start() // the broker login: the feed comes back at once, not 10 minutes later
+    expect(f.sockets).toHaveLength(3)
+    live(f.last())
+    expect(rt.status().state).toBe('live')
   })
 
   test('B8 (RF 4) 10 sockets, then polling; one retry per 10 min on foreground, counted across cold starts', async () => {

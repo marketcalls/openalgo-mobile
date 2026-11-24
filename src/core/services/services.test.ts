@@ -1,3 +1,4 @@
+import { onlineManager } from '@tanstack/react-query'
 import type { Capabilities } from '~/core/capabilities/gates'
 import type { ServerProfile } from '~/core/config/profile'
 import type { SecureKV } from '~/core/credentials/keyStore'
@@ -514,6 +515,49 @@ describe('services', () => {
     h.s.realtime.start()
     expect(h.s.realtime.status().state).toBe('polling')
     expect(h.ws.sockets).toHaveLength(sockets)
+  })
+
+  test('a lost network is not counted toward the handoff, and its return reconnects at once', async () => {
+    const h = setup()
+    await h.s.lifecycle.coldStart()
+    await h.s.lock.unlock()
+    await flush()
+    onlineManager.setOnline(false)
+    try {
+      for (let i = 0; i < 15; i++) {
+        h.ws.last().serverClose(1006)
+        expect(h.s.realtime.status()).toMatchObject({ state: 'reconnecting', failures: 0 })
+        await jest.advanceTimersByTimeAsync(30_000)
+      }
+      expect(h.s.profile.get().feedMode).toBe('live')
+      h.ws.last().serverClose(1006)
+      const sockets = h.ws.sockets.length
+      onlineManager.setOnline(true)
+      expect(h.ws.sockets).toHaveLength(sockets + 1)
+      h.ws.last().serverOpen()
+      h.ws.last().serverSend(AUTH_OK)
+      expect(h.s.realtime.status().state).toBe('live')
+    } finally {
+      onlineManager.setOnline(true)
+    }
+  })
+
+  test('a server that REST cannot reach either keeps the feed reconnecting, not polling', async () => {
+    const h = setup()
+    await h.s.lifecycle.coldStart()
+    await h.s.lock.unlock()
+    await flush()
+    // the home server is out of reach while the watchlist polls it
+    h.routes['POST /api/v1/multiquotes'] = 'throw'
+    h.s.polling.register({ kind: 'quotes', keys: () => ['NSE:RELIANCE'] }, true)
+    for (let i = 1; i <= 12; i++) {
+      h.ws.last().serverClose(1006)
+      await jest.advanceTimersByTimeAsync(30_000)
+    }
+    expect(h.count('POST /api/v1/multiquotes')).toBeGreaterThan(50)
+    expect(h.s.realtime.status().failures).toBeGreaterThanOrEqual(12)
+    expect(h.s.realtime.status().state).not.toBe('polling')
+    expect(h.s.profile.get()).toMatchObject({ feedMode: 'live', lastFeedRetryAt: null })
   })
 
   test('polling mode shows the polling banner, whose link opens the setup help', async () => {

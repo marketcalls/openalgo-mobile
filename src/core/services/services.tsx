@@ -2,7 +2,7 @@
 // and disposed when it unmounts. It owns the wiring between the layers: bans and a bad key stop
 // all traffic, lock and unlock start and stop the feed, and the feed reports to the connection
 // store. It imports no native module, so the compat suite builds it with Node's fetch and `ws`.
-import type { QueryClient } from '@tanstack/react-query'
+import { onlineManager, type QueryClient } from '@tanstack/react-query'
 import { createContext, type ReactNode, useContext } from 'react'
 import { create } from 'zustand'
 import { probeServer, readAppVersion } from '~/core/capabilities/probe'
@@ -159,6 +159,13 @@ function createProfileHandle(kv: KV, initial: ServerProfile): ProfileHandle {
 
 const KEY_INVALID = () => new ApiError({ kind: 'KeyInvalid', status: 403, endpoint: 'search' })
 
+/** How long a REST outcome says whether the server can be reached (the reconnects take ~3 min). */
+const REST_EVIDENCE_MS = 300_000
+
+/** A request that got no reply: a dropped connection or a timeout, not a refusal. */
+const noReply = (e: unknown) =>
+  e instanceof ApiError && e.status === 0 && (e.kind === 'Network' || e.kind === 'MaybePlaced')
+
 // Node (the compat suite) has no requestAnimationFrame; the store then flushes on a timer.
 const tickSchedule =
   typeof requestAnimationFrame === 'function'
@@ -184,6 +191,11 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
 
   let appActive = true
   let probing: Promise<void> | null = null
+  /** The last REST exchange: whether the server replied (with anything) or not. */
+  let rest: { at: number; replied: boolean } | null = null
+  const noteRest = (replied: boolean) => {
+    rest = { at: deps.now(), replied }
+  }
 
   /** Neither a ban nor a bad key has stopped all traffic. */
   const talking = () => {
@@ -210,11 +222,29 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     getKey: () => keys.get(),
     fetch: deps.fetch,
     resolveAuth403: () => broker.resolveAuth403(),
-    onResponse: (_id, res) => markSemiAuto(res.json),
+    onResponse: (_id, res) => {
+      noteRest(true)
+      markSemiAuto(res.json)
+    },
   })
   const http: HttpClient = {
-    request: (id, body, schema, o) => raw.request(id, body, schema, o).catch(guard),
-    getPublic: (path) => raw.getPublic(path).catch(guard),
+    request: (id, body, schema, o) =>
+      raw.request(id, body, schema, o).catch((e: unknown) => {
+        // A caller's abort says nothing about the server.
+        if (noReply(e) && !o?.signal?.aborted) noteRest(false)
+        return guard(e)
+      }),
+    getPublic: (path) =>
+      raw.getPublic(path).then(
+        (r) => {
+          noteRest(true)
+          return r
+        },
+        (e: unknown) => {
+          if (noReply(e)) noteRest(false)
+          return guard(e)
+        },
+      ),
     probe: (id) => raw.probe(id).catch(guard),
   }
   const api = createApi({ http, scheduler, fields: caps })
@@ -262,6 +292,8 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     // Ruling 7: the in-memory profile reads the new mode at once.
     onPollingRetry: (ok) =>
       void profile.update({ lastFeedRetryAt: deps.now(), feedMode: ok ? 'live' : 'polling' }),
+    isOnline: () => onlineManager.isOnline(),
+    serverReachable: () => (rest && deps.now() - rest.at < REST_EVIDENCE_MS ? rest.replied : null),
     now: deps.now,
   })
 
@@ -302,6 +334,9 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
         realtime.stop()
       }
       if (st.brokerSession === 'active' && prev.brokerSession !== 'active') startFeed()
+    }),
+    onlineManager.subscribe((online) => {
+      if (online) realtime.networkBack()
     }),
     lock.subscribe((st) => {
       if (st === 'unlocked') onUnlocked()

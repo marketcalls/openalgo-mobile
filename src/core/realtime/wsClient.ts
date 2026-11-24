@@ -85,6 +85,17 @@ export type RealtimeDeps = {
   onResync: () => void
   /** A retry from polling ended, or (ruling 7) the reconnects ran out: store it on the profile. */
   onPollingRetry: (ok: boolean) => void
+  /**
+   * The phone's network (NetInfo, through TanStack's onlineManager). A socket that fails while
+   * offline says nothing about the feed, so it is not counted. Defaults to online.
+   */
+  isOnline?: () => boolean
+  /**
+   * Whether REST reached the server lately. False (its requests got no reply) means the server is
+   * out of reach, not just its feed, so the reconnects never hand off to polling. True, or null
+   * with nothing to go on, lets them (RF 4).
+   */
+  serverReachable?: () => boolean | null
   /** Must agree with the clock the tick store stamps ticks with (Date.now). */
   now?: () => number
   setTimer?: SetTimer
@@ -97,6 +108,8 @@ export type Realtime = {
   /** Closes the socket and cancels everything; start() connects afresh. */
   stop(): void
   setAppState(s: 'active' | 'background'): void
+  /** The network is back: a reconnect waiting out its backoff goes now; polling may retry (B8). */
+  networkBack(): void
   acquire(r: SubRequest): () => void
   /** The feed is live and carries this symbol. */
   isLive(exchange: string, symbol: string): boolean
@@ -118,7 +131,7 @@ const RUNNING: ReadonlySet<FeedState> = new Set([
   'reconnecting',
 ])
 
-type TimerName = 'auth' | 'ping' | 'pong' | 'watchdog' | 'reconnect' | 'drop'
+type TimerName = 'auth' | 'ping' | 'pong' | 'watchdog' | 'reconnect' | 'drop' | 'retry'
 const SOCKET_TIMERS = ['auth', 'ping', 'pong', 'watchdog'] as const
 
 export function createRealtime(d: RealtimeDeps): Realtime {
@@ -204,6 +217,7 @@ export function createRealtime(d: RealtimeDeps): Realtime {
 
   function open() {
     cancel('reconnect')
+    cancel('retry')
     release(true)
     const url = d.url()
     if (!url) {
@@ -244,15 +258,29 @@ export function createRealtime(d: RealtimeDeps): Realtime {
     }
   }
 
-  /** Counts a failed connection, then reconnects with backoff (B7) or hands off to polling. */
+  /**
+   * Counts a failed connection, then reconnects with backoff (B7) or hands off to polling. RF 4's
+   * handoff is for a feed that does not work: one that was live this session, a phone that is
+   * offline and a server REST cannot reach either are waited out at the 30 s cap instead.
+   */
   function fail() {
+    if (d.isOnline?.() === false) {
+      update({ state: 'reconnecting' })
+      arm('reconnect', open, BACKOFF_MAX_MS)
+      return
+    }
     const failures = status.failures + 1
-    if (failures >= cfg.maxReconnectsBeforePolling) {
+    if (
+      failures >= cfg.maxReconnectsBeforePolling &&
+      !status.everLive &&
+      d.serverReachable?.() !== false
+    ) {
       handedOff = true
       lastRetryAt = now()
       update({ state: 'polling', failures })
       log.warn(TAG, `no live feed after ${failures} attempts; polling`)
       d.onPollingRetry(false) // ruling 7: the handoff is stored like a failed retry
+      armRetry()
       return
     }
     update({ state: 'reconnecting', failures })
@@ -442,13 +470,28 @@ export function createRealtime(d: RealtimeDeps): Realtime {
     update({ state: 'idle' })
   }
 
+  /** Since the last live-feed retry, this session's or the profile's; a clock set back is due. */
+  function retryAge(): number {
+    const last = Math.max(lastRetryAt ?? -Infinity, d.lastFeedRetryAt() ?? -Infinity)
+    const age = now() - last
+    return age >= 0 ? age : Infinity
+  }
+
+  /** B8 in the foreground: polling's next retry comes due on its own, at RF 4's rate. */
+  function armRetry() {
+    cancel('retry')
+    if (appState !== 'active' || status.state !== 'polling' || !d.url()) return
+    arm('retry', maybeRetry, Math.max(0, cfg.pollingRetryMs - retryAge()))
+  }
+
   /** B8: from polling, one handshake at most every `pollingRetryMs`, counted from the profile. */
   function maybeRetry() {
     const url = d.url()
-    if (retrying || !url) return
-    const last = Math.max(lastRetryAt ?? -Infinity, d.lastFeedRetryAt() ?? -Infinity)
-    const age = now() - last
-    if (age >= 0 && age < cfg.pollingRetryMs) return // a clock set back does not block it
+    if (retrying || !url || status.state !== 'polling') return
+    if (retryAge() < cfg.pollingRetryMs) {
+      armRetry()
+      return
+    }
     let key: string
     try {
       key = d.getKey()
@@ -467,8 +510,15 @@ export function createRealtime(d: RealtimeDeps): Realtime {
       setTimer,
     }).then((r) => {
       retrying = false
-      d.onPollingRetry(r.ok)
-      if (!r.ok || at !== epoch || status.state !== 'polling') return
+      // Ruling 188: a BROKER_* answer proves the socket reaches OpenAlgo and takes the key, so
+      // the feed is live with the broker logged out; the broker login then starts it at once.
+      const reached = r.ok || r.reason === 'broker_error'
+      d.onPollingRetry(reached)
+      if (at !== epoch || status.state !== 'polling') return
+      if (!reached) {
+        armRetry()
+        return
+      }
       handedOff = false
       update({ failures: 0 })
       open()
@@ -481,6 +531,7 @@ export function createRealtime(d: RealtimeDeps): Realtime {
       silenceFires = 0
       if (!d.url() || handedOff || d.feedMode() === 'polling') {
         update({ state: 'polling' })
+        armRetry()
         return
       }
       update({ failures: 0 })
@@ -490,6 +541,7 @@ export function createRealtime(d: RealtimeDeps): Realtime {
     stop() {
       cancel('reconnect')
       cancel('drop')
+      cancel('retry')
       release(true)
       suspended = false
       handedOff = false
@@ -500,6 +552,7 @@ export function createRealtime(d: RealtimeDeps): Realtime {
     setAppState(s) {
       appState = s
       if (s === 'background') {
+        cancel('retry')
         if (!suspended && !timers.has('drop')) arm('drop', suspend, cfg.backgroundDropMs)
         return
       }
@@ -511,6 +564,11 @@ export function createRealtime(d: RealtimeDeps): Realtime {
       } else if (status.state === 'polling') {
         maybeRetry()
       }
+    },
+
+    networkBack() {
+      if (status.state === 'reconnecting' && timers.has('reconnect')) open()
+      else if (status.state === 'polling') maybeRetry()
     },
 
     acquire: (r) => subs.acquire(r),
