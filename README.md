@@ -3,6 +3,10 @@
 The OpenAlgo mobile app, built with **React Native + Expo** (SDK 58) for Android and iOS.
 It talks to an unmodified OpenAlgo server over its REST API and WebSocket feed.
 
+**OpenAlgo Desktop** (the Rust/Tauri engine) is not supported yet: it was not tested in M1,
+and it may lack `/auth/app-info` and `swagger.json` or number its versions differently from
+the Flask server the app's feature gates follow.
+
 > The previous Flutter app is preserved, unchanged, on the
 > [`backup/flutter-main-2026-11-23`](https://github.com/marketcalls/openalgo-mobile/tree/backup/flutter-main-2026-11-23)
 > branch.
