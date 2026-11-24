@@ -1,4 +1,7 @@
+import { createHttpClient } from '~/core/http/client'
 import { ApiError, type ApiErrorKind } from '~/core/http/errors'
+import { FundsSchema } from '~/core/http/schemas'
+import { scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { createQueryClient } from './queryClient'
 
 const err = (kind: ApiErrorKind, status = 500) => new ApiError({ kind, status, endpoint: 'funds' })
@@ -35,6 +38,28 @@ describe('createQueryClient', () => {
 
   it.each([401, 403, 404])('never retries a Server-classified %i page', (status) => {
     expect(retry(0, err('Server', status))).toBe(false)
+  })
+
+  it('never retries a 403 read whose key check failed at the network (GC: never 401/403/404)', async () => {
+    jest.spyOn(console, 'info').mockImplementation(() => {})
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const http = createHttpClient({
+      origin: 'https://algo.example.com',
+      getKey: () => 'ab'.repeat(32),
+      fetch: scriptedFetch({
+        'POST /api/v1/funds': {
+          status: 403,
+          body: { status: 'error', message: 'Invalid openalgo apikey' },
+        },
+      }),
+      resolveAuth403: async () => {
+        throw new ApiError({ kind: 'Network', status: 0, endpoint: 'search' })
+      },
+    })
+    const e = await http.request('funds', {}, FundsSchema).catch((x: unknown) => x)
+    expect(e).toBeInstanceOf(ApiError)
+    expect(retry(0, e)).toBe(false)
+    jest.restoreAllMocks()
   })
 
   it('never retries a non-ApiError', () => {

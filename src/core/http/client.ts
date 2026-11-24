@@ -157,7 +157,15 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
     if (s === 403 && serverMessage?.includes('Semi-Auto')) return fail('SemiAutoBlocked')
     if (s === 403 && serverMessage === INVALID_KEY) {
       if (def.keyOnly) return fail('KeyInvalid')
-      const split = await d.resolveAuth403()
+      let split: 'key_invalid' | 'broker_logged_out'
+      try {
+        split = await d.resolveAuth403()
+      } catch (e) {
+        if (e instanceof ApiError && e.kind === 'IpBanned') return e
+        // The key check got no answer: the 403 stands (status 403), so it is never retried.
+        log.warn(TAG, `${id} 403: the key check failed`)
+        return fail('Server')
+      }
       return fail(split === 'key_invalid' ? 'KeyInvalid' : 'BrokerLoggedOut')
     }
     const unknown = s === 400 ? unknownFields(raw.json) : undefined

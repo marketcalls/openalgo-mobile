@@ -270,6 +270,27 @@ describe('request', () => {
     expect(resolveAuth403).toHaveBeenCalledTimes(1)
   })
 
+  test.each([
+    ['Network', new ApiError({ kind: 'Network', status: 0, endpoint: 'search' })],
+    ['Server', new ApiError({ kind: 'Server', status: 503, endpoint: 'search' })],
+    ['a plain Error', new Error('boom')],
+  ])(
+    'a key check that fails with %s keeps the 403, so the read is never retried',
+    async (_name, rejection) => {
+      const { http, resolveAuth403 } = setup({ 'POST /api/v1/funds': INVALID_KEY })
+      resolveAuth403.mockRejectedValueOnce(rejection)
+      const e = await failure(http.request('funds', {}, FundsSchema))
+      expect(e).toMatchObject({ kind: 'Server', status: 403, endpoint: 'funds' })
+    },
+  )
+
+  test('a key check that hits a ban passes the ban on', async () => {
+    const { http, resolveAuth403 } = setup({ 'POST /api/v1/funds': INVALID_KEY })
+    const ban = new ApiError({ kind: 'IpBanned', status: 403, endpoint: 'search', banForm: 'text' })
+    resolveAuth403.mockRejectedValueOnce(ban)
+    expect(await failure(http.request('funds', {}, FundsSchema))).toBe(ban)
+  })
+
   test('onResponse sees every response before classification', async () => {
     const { http, onResponse } = setup({
       'POST /api/v1/cancelorder': err(403, SEMI_AUTO),
