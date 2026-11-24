@@ -29,6 +29,7 @@ import { Text } from '~/ui/Text'
 import { toast } from '~/ui/Toast'
 import { useTheme } from '~/ui/theme'
 import { createAndOpen, newListId, useSeedQuotes } from '../api'
+import { IndexStrip } from '../components/IndexStrip'
 import { ListNameSheet, ListTabs } from '../components/ListTabs'
 import { ROW_HEIGHT, useReduceMotion, WatchRow } from '../components/WatchRow'
 
@@ -210,6 +211,7 @@ export function WatchlistScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: c.background }]}>
+      <IndexStrip />
       {loaded && list ? (
         <View style={styles.header}>
           <ListTabs

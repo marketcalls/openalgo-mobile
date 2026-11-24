@@ -150,6 +150,14 @@ function AppShell({ s }: { s: Services }) {
                       headerShadowVisible: false,
                     }}
                   />
+                  <Stack.Screen
+                    name="instrument/[key]"
+                    options={{
+                      presentation: 'formSheet',
+                      sheetAllowedDetents: [0.6, 1],
+                      sheetGrabberVisible: true,
+                    }}
+                  />
                 </Stack>
                 <ToastHost />
               </View>

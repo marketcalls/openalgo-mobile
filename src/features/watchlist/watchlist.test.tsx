@@ -22,6 +22,13 @@ import { WatchlistScreen } from './screens/WatchlistScreen'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
 const screenActive = useScreenActive as jest.Mock
+// The strip has its own tests (indexStrip.test.tsx); here it would add feed holds and poll consumers.
+jest.mock('./components/IndexStrip', () => ({
+  IndexStrip: () => {
+    const { View } = require('react-native')
+    return <View testID="index-strip" />
+  },
+}))
 const mockPush = jest.fn()
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }))
 
@@ -366,6 +373,13 @@ describe('useSeedQuotes', () => {
 })
 
 describe('WatchlistScreen', () => {
+  test('the index strip sits above the lists', async () => {
+    const h = setup()
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.getByTestId('index-strip')).toBeOnTheScreen()
+  })
+
   test('lists the default symbols and, with a live feed, makes no REST call after the seed', async () => {
     const h = setup({ live: true })
     await render(h.wrap(<WatchlistScreen />))
