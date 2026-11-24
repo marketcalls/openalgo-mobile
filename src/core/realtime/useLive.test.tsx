@@ -42,7 +42,7 @@ const setup = () => {
     isLive: () => false,
     network: () => 'home',
     now: Date.now,
-    isAnyMarketOpen: () => true,
+    isExchangeOpen: () => true,
   })
   const register = jest.spyOn(polling, 'register')
   const live = { realtime, polling, store } as unknown as LiveServices

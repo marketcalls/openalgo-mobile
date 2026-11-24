@@ -20,7 +20,7 @@ export const POLL_RATES = {
   funds: 60_000,
   orderbookWorking: 5000,
   orderbookIdle: 30_000,
-  /** Quotes and depth slow down by this factor while every market is closed. */
+  /** Quotes and depth slow down by this factor while every polled symbol's market is closed. */
   offHoursFactor: 5,
 } as const satisfies Record<string, Rate | number>
 
@@ -42,7 +42,8 @@ export type PollingDeps = {
   network: () => 'home' | 'tunnel'
   now: () => number
   setTimer?: SetTimer
-  isAnyMarketOpen: (now: number) => boolean
+  /** The rate follows the polled symbols' exchanges (CRYPTO never closes, NSE does). */
+  isExchangeOpen: (exchange: string, now: number) => boolean
 }
 
 const TAG = 'poll'
@@ -74,20 +75,28 @@ export function createPollingEngine(d: PollingDeps) {
   const isActive = (e: Entry) =>
     appActive && (typeof e.active === 'function' ? e.active() : e.active)
 
-  const interval = (kind: 'quotes' | 'depth'): number => {
+  /** The next call's wait: slower while no market of the `keys` it polls is open. */
+  const interval = (kind: 'quotes' | 'depth', keys: string[]): number => {
     const base = POLL_RATES[kind][d.network()]
-    return d.isAnyMarketOpen(d.now()) ? base : base * POLL_RATES.offHoursFactor
+    const t = d.now()
+    const open = keys.some((k) => d.isExchangeOpen(split(k).exchange, t))
+    return open ? base : base * POLL_RATES.offHoursFactor
   }
 
-  const pollQuotes = async () => {
+  /** The merged keys of the active quote consumers that the socket does not carry. */
+  const quoteKeys = (): string[] => {
     const keys = new Set<string>()
     for (const e of entries) {
       if (e.c.kind === 'quotes' && isActive(e)) for (const k of e.c.keys()) keys.add(k)
     }
-    const todo = Array.from(keys).filter((k) => {
+    return Array.from(keys).filter((k) => {
       const { exchange, symbol } = split(k)
       return !d.isLive(exchange, symbol)
     })
+  }
+
+  const pollQuotes = async () => {
+    const todo = quoteKeys()
     for (let i = 0; i < todo.length; i += BATCH) {
       const symbols = todo
         .slice(i, i + BATCH)
@@ -156,7 +165,7 @@ export function createPollingEngine(d: PollingDeps) {
   const sync = () => {
     const wantQuotes = wantsQuotes()
     if (wantQuotes && !loops.has('quotes'))
-      loop('quotes', () => interval('quotes'), wantsQuotes, pollQuotes)
+      loop('quotes', () => interval('quotes', quoteKeys()), wantsQuotes, pollQuotes)
     if (!wantQuotes) stop('quotes')
     for (const e of entries) {
       const c = e.c
@@ -166,7 +175,7 @@ export function createPollingEngine(d: PollingDeps) {
         if (c.kind === 'depth')
           loop(
             e,
-            () => interval('depth'),
+            () => interval('depth', [c.key()]),
             () => isActive(e),
             () => pollDepth(c.key()),
           )

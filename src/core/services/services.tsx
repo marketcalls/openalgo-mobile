@@ -27,7 +27,7 @@ import { log } from '~/core/log/logger'
 import { type BookInvalidator, createBookInvalidator } from '~/core/query/invalidate'
 import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
-import { isAnyMarketOpen, isExchangeOpen } from '~/core/realtime/marketHours'
+import { isExchangeOpen } from '~/core/realtime/marketHours'
 import { createPollingEngine, type PollingEngine } from '~/core/realtime/polling'
 import { createTickStore, type TickStore } from '~/core/realtime/tickStore'
 import { createRealtime, type Realtime, type WebSocketCtor } from '~/core/realtime/wsClient'
@@ -274,7 +274,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
       realtime.isLive(ex, sym) && realtime.confirmedDepth(ex, sym) !== undefined,
     network: () => pollNetwork(profile.get().restOrigin),
     now: deps.now,
-    isAnyMarketOpen,
+    isExchangeOpen,
   })
 
   /** Ruling 5: the key is in memory again, so everything that needs it starts. */

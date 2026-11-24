@@ -1,3 +1,4 @@
+import { isExchangeOpen } from './marketHours'
 import { createPollingEngine, POLL_RATES, type PollConsumer } from './polling'
 import { createTickStore } from './tickStore'
 
@@ -5,6 +6,7 @@ import { createTickStore } from './tickStore'
 // 2025-01-06 is a Monday; 04:00 UTC is 09:30 IST, inside the NSE session.
 const OPEN = Date.UTC(2025, 0, 6, 4, 0, 0)
 const CLOSED = Date.UTC(2025, 0, 6, 14, 0, 0) // 19:30 IST
+const SATURDAY_10_IST = Date.UTC(2025, 0, 11, 4, 30, 0)
 
 const setup = (
   o: {
@@ -13,6 +15,8 @@ const setup = (
     depthLive?: (ex: string, sym: string) => boolean
     network?: 'home' | 'tunnel'
     depth?: unknown
+    /** Uses the app's real market hours instead of "NSE is open for the first hour". */
+    realHours?: boolean
   } = {},
 ) => {
   let t = o.start ?? OPEN
@@ -57,7 +61,7 @@ const setup = (
     network: () => net.v,
     now: () => t,
     setTimer,
-    isAnyMarketOpen: (n) => n === OPEN || (n > OPEN && n < OPEN + 3_600_000),
+    isExchangeOpen: o.realHours ? isExchangeOpen : (_ex, n) => n >= OPEN && n < OPEN + 3_600_000,
   })
   return { engine, store, api, calls, advance, net, timers }
 }
@@ -116,6 +120,28 @@ describe('polling engine', () => {
     expect(off.calls).toHaveLength(0)
     await off.advance(1)
     expect(off.calls).toHaveLength(1)
+  })
+
+  test('B3 off hours with the real market hours: CRYPTO does not keep NSE polling fast', async () => {
+    const nse = setup({ start: SATURDAY_10_IST, realHours: true })
+    nse.engine.register(quotes('NSE:A', 'NSE:B'), true)
+    await nse.advance(9999)
+    expect(nse.calls).toHaveLength(0)
+    await nse.advance(1)
+    expect(nse.calls).toHaveLength(1)
+    await nse.advance(60_000)
+    expect(nse.calls).toHaveLength(7) // every 10 s, not every 2 s
+
+    const depth = setup({ start: SATURDAY_10_IST, realHours: true, depth: { bids: [], asks: [] } })
+    depth.engine.register({ kind: 'depth', key: () => 'NFO:X' }, true)
+    await depth.advance(10_000)
+    expect(depth.calls).toHaveLength(1)
+
+    // a polled CRYPTO key is open around the clock, so its call keeps the home rate
+    const crypto = setup({ start: SATURDAY_10_IST, realHours: true })
+    crypto.engine.register(quotes('NSE:A', 'CRYPTO:BTCUSDT'), true)
+    await crypto.advance(2000)
+    expect(crypto.calls).toHaveLength(1)
   })
 
   test('B4 inactive consumer or inactive app makes zero calls', async () => {

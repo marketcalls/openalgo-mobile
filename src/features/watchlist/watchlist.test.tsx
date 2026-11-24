@@ -60,7 +60,7 @@ const setup = (o: { live?: boolean } = {}) => {
     isLive: () => o.live ?? true,
     network: () => 'home',
     now: Date.now,
-    isAnyMarketOpen: () => true,
+    isExchangeOpen: () => true,
   })
   const realtime = { acquire: () => () => {}, confirmedDepth: () => undefined }
   const live = { realtime, polling, store } as unknown as LiveServices
