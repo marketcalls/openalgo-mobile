@@ -2,7 +2,6 @@
 // with a confirmation. The mode is install-wide, so the web app and strategies change with it.
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Alert } from 'react-native'
 import { usePrefs } from '~/core/config/prefs'
 import { confirmLiveWrite } from '~/core/credentials/lock'
 import { ApiError, userMessage } from '~/core/http/errors'
@@ -12,6 +11,7 @@ import { qk } from '~/core/query/keys'
 import { useConnection } from '~/core/services/connection'
 import { defaultDeps } from '~/core/services/deps'
 import { useServices } from '~/core/services/services'
+import { confirm } from '~/ui/confirm'
 
 export type AnalyzerMode = 'live' | 'analyze'
 
@@ -41,17 +41,7 @@ export function confirmAction(o: {
   message: string
   confirmLabel: string
 }): Promise<boolean> {
-  return new Promise((resolve) => {
-    Alert.alert(
-      o.title,
-      o.message,
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-        { text: o.confirmLabel, onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) },
-    )
-  })
+  return confirm(o.title, o.message, o.confirmLabel)
 }
 
 /**

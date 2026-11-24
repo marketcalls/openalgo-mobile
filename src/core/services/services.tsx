@@ -208,6 +208,9 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     return c.banned === null && c.keyState !== 'invalid'
   }
   const syncPause = () => (appActive && !lock.isLocked() ? scheduler.resume() : scheduler.pause())
+  /** Ruling 7: price polls stop in the background and while the broker is logged out. */
+  const syncPolling = () =>
+    polling.setAppActive(appActive && conn.getState().brokerSession !== 'logged_out')
   const startFeed = () => {
     if (!lock.isLocked() && talking()) realtime.start()
   }
@@ -344,7 +347,10 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     }),
     polling.onHealth(syncStale),
     conn.subscribe((st, prev) => {
-      if (st.brokerSession !== prev.brokerSession) syncStale()
+      if (st.brokerSession !== prev.brokerSession) {
+        syncStale()
+        syncPolling()
+      }
       if (st.keyState === 'invalid' && prev.keyState !== 'invalid') {
         scheduler.halt(KEY_INVALID())
         realtime.stop()
@@ -388,7 +394,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
       appActive = next === 'active'
       syncPause()
       realtime.setAppState(next)
-      polling.setAppActive(appActive)
+      syncPolling()
       // Ruling 6: no traffic at all while banned or with a bad key.
       if (!appActive || !talking()) return
       // The re-probe is keyless, so it runs even when this resume has just locked the app: after
@@ -488,27 +494,29 @@ export function useServices(): Services {
 }
 
 export type ShellBanner = {
-  testID: 'banner-banned' | 'banner-key' | 'banner-broker' | 'banner-polling'
+  testID: 'banner-banned' | 'banner-key' | 'banner-polling'
   tone: 'danger' | 'warning'
   text: string
   action: { label: string; onPress: () => void }
 }
 
-/** How a banner leaves the shell: a route in the app, or a page in the system browser. */
+/** How a banner leaves the shell: a route in the app. */
 export type ShellNav = {
   go: (href: '/help' | '/account/key') => void
-  openUrl: (url: string) => void
 }
 
 export const POLLING_BANNER = 'Live feed unavailable: prices refresh every few seconds'
 
-const copyOf = (kind: 'IpBanned' | 'KeyInvalid' | 'BrokerLoggedOut') =>
+const copyOf = (kind: 'IpBanned' | 'KeyInvalid') =>
   userMessage(new ApiError({ kind, status: 0, endpoint: 'app' }))
 
-/** The banners the connection state calls for, most serious first. None can be dismissed. */
+/**
+ * The banners the connection state calls for, most serious first. None can be dismissed. A
+ * logged-out broker has its own banner, market's `BrokerBanner` (ruling 9).
+ */
 export function shellBanners(
   c: ConnectionState,
-  s: Pick<Services, 'profile' | 'lifecycle'>,
+  s: Pick<Services, 'lifecycle'>,
   nav: ShellNav,
 ): ShellBanner[] {
   const out: ShellBanner[] = []
@@ -526,15 +534,6 @@ export function shellBanners(
       tone: 'danger',
       text: copyOf('KeyInvalid'),
       action: { label: 'Enter key', onPress: () => nav.go('/account/key') },
-    })
-  }
-  if (c.brokerSession === 'logged_out') {
-    const login = `${s.profile.get().restOrigin.replace(/\/+$/, '')}/login`
-    out.push({
-      testID: 'banner-broker',
-      tone: 'danger',
-      text: copyOf('BrokerLoggedOut'),
-      action: { label: 'Log in to your broker', onPress: () => nav.openUrl(login) },
     })
   }
   if (c.feed === 'polling') {

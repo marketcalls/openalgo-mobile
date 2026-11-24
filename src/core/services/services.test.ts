@@ -117,7 +117,7 @@ function setup(o: SetupOptions = {}) {
   }
   const s = createServices(profile, deps)
   made.push(s)
-  const nav = { go: jest.fn(), openUrl: jest.fn() }
+  const nav = { go: jest.fn() }
   const count = (key: string) =>
     fetch.calls.filter((c) => `${c.method} ${c.url.slice(ORIGIN.length)}` === key).length
   const keyed = () =>
@@ -374,7 +374,7 @@ describe('services', () => {
     expect(h.ws.sockets).toHaveLength(1)
   })
 
-  test('BROKER_ERROR with funds 403 and search 200 is logged_out with banner-broker; active again restarts realtime', async () => {
+  test('BROKER_ERROR with funds 403 and search 200 is logged_out; active again restarts realtime', async () => {
     const h = setup()
     const sock = await ready(h)
     h.routes['POST /api/v1/funds'] = BAD_KEY
@@ -382,20 +382,14 @@ describe('services', () => {
     await flush()
     expect(conn()).toMatchObject({ keyState: 'ok', brokerSession: 'logged_out' })
     expect(h.s.realtime.status().state).toBe('broker_logged_out')
-    const b = h.banner('banner-broker')
-    expect(b?.text).toBe(
-      'Your broker session has ended. Log in to your broker on the OpenAlgo web.',
-    )
-    expect(b?.action.label).toBe('Log in to your broker')
-    b?.action.onPress()
-    expect(h.nav.openUrl).toHaveBeenCalledWith(`${ORIGIN}/login`)
+    // The tabs layout shows the one broker banner, market's BrokerBanner (ruling 9).
+    expect(h.banners()).toEqual([])
     expect(h.ws.sockets).toHaveLength(1)
 
     h.routes['POST /api/v1/funds'] = FUNDS_OK
     await h.s.lifecycle.appState('background')
     await h.s.lifecycle.appState('active')
     expect(conn().brokerSession).toBe('active')
-    expect(h.banner('banner-broker')).toBeUndefined()
     expect(h.ws.sockets).toHaveLength(2)
   })
 
@@ -405,7 +399,6 @@ describe('services', () => {
     sock.serverSend(wsError('BROKER_CONNECTION_ERROR', 'Failed to connect to broker'))
     await flush()
     expect(conn().brokerSession).toBe('active')
-    expect(h.banner('banner-broker')).toBeUndefined()
     expect(h.s.realtime.status().state).toBe('reconnecting')
     await jest.advanceTimersByTimeAsync(999)
     expect(h.ws.sockets).toHaveLength(1)
@@ -600,6 +593,36 @@ describe('services', () => {
     await h.s.broker.check()
     expect(h.s.realtime.status().state).toBe('live')
     expect(h.s.store.isStale()).toBe(true)
+  })
+
+  test('ruling 7: nothing polls prices while the broker is logged out, even on a foreground', async () => {
+    const h = setup({
+      profile: { wsUrl: null, feedMode: 'polling' },
+      routes: { 'POST /api/v1/multiquotes': MULTIQUOTES_OK },
+    })
+    await h.s.lifecycle.coldStart()
+    await h.s.lock.unlock()
+    await flush()
+    watch(h)
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.count('POST /api/v1/multiquotes')).toBeGreaterThan(0)
+
+    h.routes['POST /api/v1/funds'] = BAD_KEY // search still takes the key: the broker logged out
+    await h.s.broker.check()
+    expect(conn().brokerSession).toBe('logged_out')
+    const before = h.count('POST /api/v1/multiquotes')
+    await jest.advanceTimersByTimeAsync(10_000)
+    expect(h.count('POST /api/v1/multiquotes')).toBe(before)
+    await h.s.lifecycle.appState('background')
+    await h.s.lifecycle.appState('active') // checks the broker again: still logged out
+    await jest.advanceTimersByTimeAsync(10_000)
+    expect(h.count('POST /api/v1/multiquotes')).toBe(before)
+
+    h.routes['POST /api/v1/funds'] = FUNDS_OK
+    await h.s.broker.check()
+    expect(conn().brokerSession).toBe('active')
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(h.count('POST /api/v1/multiquotes')).toBeGreaterThan(before)
   })
 
   test('in polling mode a failing poll dims prices, and the next good poll lifts it', async () => {

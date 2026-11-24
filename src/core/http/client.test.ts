@@ -63,7 +63,9 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks())
 
 describe('classification (first match wins)', () => {
-  type Expected = Partial<Pick<ApiError, 'kind' | 'banForm' | 'serverMessage' | 'unknownFields'>>
+  type Expected = Partial<
+    Pick<ApiError, 'kind' | 'banForm' | 'serverMessage' | 'unknownFields' | 'invalidSymbols'>
+  >
   test.each<[string, EndpointId, ScriptedReply | 'throw', Expected, Auth?]>([
     ['fetch throws on the order lane', 'placeorder', 'throw', { kind: 'MaybePlaced' }],
     ['fetch throws on the smart lane', 'placesmartorder', 'throw', { kind: 'MaybePlaced' }],
@@ -173,6 +175,26 @@ describe('classification (first match wins)', () => {
       'search',
       err(400, { query: ['Missing data for required field.'] }),
       { kind: 'Validation', serverMessage: 'query: Missing data for required field.' },
+    ],
+    [
+      '400 multiquotes with no valid symbol (quotes_service.py:237-253)',
+      'multiquotes',
+      json(400, {
+        status: 'error',
+        message: 'Symbol NIFTY25NOV25FUT not found in exchange NFO',
+        invalid_symbols: [
+          {
+            symbol: 'NIFTY25NOV25FUT',
+            exchange: 'NFO',
+            error: 'Symbol NIFTY25NOV25FUT not found in exchange NFO',
+          },
+        ],
+      }),
+      {
+        kind: 'Validation',
+        serverMessage: 'Symbol NIFTY25NOV25FUT not found in exchange NFO',
+        invalidSymbols: [{ exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }],
+      },
     ],
     ['401', 'multioptiongreeks', err(401, 'Unauthorized'), { kind: 'Validation' }],
     ['409', 'analyzer/toggle', err(409, BUSY), { kind: 'Validation', serverMessage: BUSY }],

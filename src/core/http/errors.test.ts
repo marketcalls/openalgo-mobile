@@ -1,4 +1,4 @@
-import { ApiError, type ApiErrorKind, unknownFields, userMessage } from './errors'
+import { ApiError, type ApiErrorKind, invalidSymbols, unknownFields, userMessage } from './errors'
 
 describe('unknownFields reads the four S7 shapes', () => {
   test.each([
@@ -53,6 +53,48 @@ describe('unknownFields reads the four S7 shapes', () => {
     [null],
     [undefined],
   ])('no unknown field in %p → undefined', (body) => expect(unknownFields(body)).toBeUndefined())
+})
+
+describe('invalidSymbols reads a multiquotes 400 with no valid symbol', () => {
+  // services/quotes_service.py:237-253
+  const error = 'Symbol NIFTY25NOV25FUT not found in exchange NFO'
+
+  test('each entry as {exchange, symbol}, without its error text', () => {
+    const body = {
+      status: 'error',
+      message: error,
+      invalid_symbols: [
+        { symbol: 'NIFTY25NOV25FUT', exchange: 'NFO', error },
+        { symbol: 'TYPO', exchange: 'NSE', error: 'Symbol TYPO not found in exchange NSE' },
+      ],
+    }
+    expect(invalidSymbols(body)).toEqual([
+      { exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' },
+      { exchange: 'NSE', symbol: 'TYPO' },
+    ])
+  })
+
+  test('an entry without a string symbol and exchange is skipped', () => {
+    const body = {
+      status: 'error',
+      message: 'Missing symbol or exchange in request',
+      invalid_symbols: [
+        { symbol: null, exchange: 'NSE' },
+        'NSE:X',
+        { symbol: 'A', exchange: 'NSE' },
+      ],
+    }
+    expect(invalidSymbols(body)).toEqual([{ exchange: 'NSE', symbol: 'A' }])
+  })
+
+  test.each([
+    [{ status: 'error', message: error }],
+    [{ status: 'error', message: error, invalid_symbols: [] }],
+    [{ status: 'error', message: error, invalid_symbols: 'NFO:NIFTY25NOV25FUT' }],
+    [{ status: 'error', message: error, invalid_symbols: [{ symbol: null, exchange: null }] }],
+    [null],
+    ['invalid_symbols'],
+  ])('none in %p → undefined', (body) => expect(invalidSymbols(body)).toBeUndefined())
 })
 
 describe('userMessage', () => {
@@ -119,4 +161,11 @@ test('ApiError carries its fields and is an Error', () => {
   expect(e).toMatchObject({ name: 'ApiError', kind: 'Unsupported', status: 400 })
   expect(e.unknownFields).toEqual(['source'])
   expect(e.message).toBe('history: Unsupported (400)')
+  const v = new ApiError({
+    kind: 'Validation',
+    status: 400,
+    endpoint: 'multiquotes',
+    invalidSymbols: [{ exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }],
+  })
+  expect(v.invalidSymbols).toEqual([{ exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }])
 })

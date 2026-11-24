@@ -15,6 +15,9 @@ export type ApiErrorKind =
 /** Which of the two ban replies the server sent (S4). */
 export type BanForm = 'text' | 'json'
 
+/** One contract a request named. */
+export type SymbolRef = { exchange: string; symbol: string }
+
 export type ApiErrorInit = {
   kind: ApiErrorKind
   /** The HTTP status, or 0 when no response arrived. */
@@ -23,6 +26,8 @@ export type ApiErrorInit = {
   endpoint: string
   serverMessage?: string
   unknownFields?: string[]
+  /** A multiquotes 400 when no symbol was valid: the contracts the server does not list. */
+  invalidSymbols?: SymbolRef[]
   banForm?: BanForm
   /** A RateLimited order the scheduler refused unsent: the seconds until its 429 gate opens. */
   retryInSec?: number
@@ -34,6 +39,7 @@ export class ApiError extends Error {
   readonly endpoint: string
   readonly serverMessage?: string
   readonly unknownFields?: string[]
+  readonly invalidSymbols?: SymbolRef[]
   readonly banForm?: BanForm
   readonly retryInSec?: number
 
@@ -45,6 +51,7 @@ export class ApiError extends Error {
     this.endpoint = init.endpoint
     this.serverMessage = init.serverMessage
     this.unknownFields = init.unknownFields
+    this.invalidSymbols = init.invalidSymbols
     this.banForm = init.banForm
     this.retryInSec = init.retryInSec
   }
@@ -79,6 +86,21 @@ export function unknownFields(body: unknown): string[] | undefined {
       if (list.includes(`'${UNKNOWN_FIELD}'`)) out.push(field)
     }
   } else fromDict(body.message, out)
+  return out.length ? out : undefined
+}
+
+/**
+ * The contracts a multiquotes 400 names when none was valid (services/quotes_service.py:237-253):
+ * `invalid_symbols[{symbol, exchange, error}]`. Entries without both strings are skipped.
+ */
+export function invalidSymbols(body: unknown): SymbolRef[] | undefined {
+  if (!isRecord(body) || !Array.isArray(body.invalid_symbols)) return undefined
+  const out: SymbolRef[] = []
+  for (const x of body.invalid_symbols) {
+    if (isRecord(x) && typeof x.exchange === 'string' && typeof x.symbol === 'string') {
+      out.push({ exchange: x.exchange, symbol: x.symbol })
+    }
+  }
   return out.length ? out : undefined
 }
 

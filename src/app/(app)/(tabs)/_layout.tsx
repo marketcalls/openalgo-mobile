@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router'
 import { NativeTabs } from 'expo-router/native-tabs'
-import { Linking, StyleSheet, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { log } from '~/core/log/logger'
 import { useConnection } from '~/core/services/connection'
-import { shellBanners, useServices } from '~/core/services/services'
+import { type ShellBanner, shellBanners, useServices } from '~/core/services/services'
 import { useAnalyzer } from '~/features/account/api'
+import { BrokerBanner } from '~/market/components/SessionBanners'
 import { Banner } from '~/ui/Banner'
 import { StatusBadges } from '~/ui/StatusBadges'
 import { useTheme } from '~/ui/theme'
@@ -27,12 +27,10 @@ export default function TabsLayout() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { c } = useTheme()
-  const banners = shellBanners(conn, s, {
-    go: (href) => router.push(href),
-    openUrl: (url) => {
-      Linking.openURL(url).catch((e) => log.warn('shell', 'could not open the browser', e))
-    },
-  })
+  const banners = shellBanners(conn, s, { go: (href) => router.push(href) })
+  const show = (b: ShellBanner) => (
+    <Banner key={b.testID} testID={b.testID} tone={b.tone} text={b.text} action={b.action} />
+  )
 
   return (
     <View style={[styles.fill, { backgroundColor: c.background }]}>
@@ -44,9 +42,10 @@ export default function TabsLayout() {
           analyzer={conn.analyzer}
         />
       </View>
-      {banners.map((b) => (
-        <Banner key={b.testID} testID={b.testID} tone={b.tone} text={b.text} action={b.action} />
-      ))}
+      {/* Most serious first: the ban and the key, the broker (ruling 9), then polling. */}
+      {banners.filter((b) => b.tone === 'danger').map(show)}
+      <BrokerBanner />
+      {banners.filter((b) => b.tone !== 'danger').map(show)}
       <View style={styles.fill}>
         <NativeTabs backgroundColor={c.background} tintColor={c.foreground}>
           {TABS.map((t) => (

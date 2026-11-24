@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
+import { useStore } from 'zustand'
 import { qk } from '~/core/query/keys'
+import { quoteKey } from '~/core/realtime/protocol'
 import { useServices } from '~/core/services/services'
 import { useTrading } from '../trading'
 import type { InstrumentMeta } from './meta'
@@ -29,4 +31,15 @@ export function useInstrument(
     unknown: d === 'unknown',
     loading: d === undefined && q.isPending,
   }
+}
+
+/**
+ * An expired or mistyped contract (ruling 8): the server refused its quote this session, or
+ * today's metadata cache marks it unknown. It never fetches `/symbol`; callers show "Expired or
+ * unknown" and call no live hook for it.
+ */
+export function useIsUnknown(exchange: string, symbol: string): boolean {
+  const { instruments, unknown } = useTrading()
+  const refused = useStore(unknown, (st) => st.keys.has(quoteKey(exchange, symbol)))
+  return refused || instruments.peek(exchange, symbol) === 'unknown'
 }

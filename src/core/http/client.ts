@@ -10,7 +10,14 @@ import {
   type EndpointId,
   type Lane,
 } from './endpoints'
-import { ApiError, type ApiErrorInit, type BanForm, isRecord, unknownFields } from './errors'
+import {
+  ApiError,
+  type ApiErrorInit,
+  type BanForm,
+  invalidSymbols,
+  isRecord,
+  unknownFields,
+} from './errors'
 
 export type RawResponse = { status: number; contentType: string; text: string; json?: unknown }
 
@@ -170,7 +177,9 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
     }
     const unknown = s === 400 ? unknownFields(raw.json) : undefined
     if (unknown || s === 404 || s === 501) return fail('Unsupported', { unknownFields: unknown })
-    if ((s >= 400 && s < 500) || (ok && raw.json.status === 'error')) return fail('Validation')
+    if ((s >= 400 && s < 500) || (ok && raw.json.status === 'error')) {
+      return fail('Validation', s === 400 ? { invalidSymbols: invalidSymbols(raw.json) } : {})
+    }
     if (s === 502 && orderLane) return fail('MaybePlaced')
     if (!ok) return fail('Server')
     return null

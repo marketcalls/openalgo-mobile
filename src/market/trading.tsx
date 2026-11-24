@@ -2,14 +2,35 @@
 // context. Later tasks add fields. It imports no feature.
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
 import { useStore } from 'zustand'
+import { createStore, type StoreApi } from 'zustand/vanilla'
 import { type Services, useServices } from '~/core/services/services'
 import { createInstrumentCache, type InstrumentCache } from './instruments/cache'
 import type { Watchlists } from './watchlists/model'
 import { createWatchlistsStore, type WatchlistsStore } from './watchlists/store'
 
+/**
+ * Quote keys (`EX:SYM`) the server refused this session: a multiquotes entry with `error`, or a
+ * 400's `invalid_symbols` (ruling 8). Such keys take no feed slot and no poll.
+ */
+export type UnknownKeys = StoreApi<{
+  keys: ReadonlySet<string>
+  add(keys: readonly string[]): void
+}>
+
+function createUnknownKeys(): UnknownKeys {
+  return createStore((set, get) => ({
+    keys: new Set<string>(),
+    add(keys) {
+      const fresh = keys.filter((k) => !get().keys.has(k))
+      if (fresh.length) set({ keys: new Set([...get().keys, ...fresh]) })
+    },
+  }))
+}
+
 export type Trading = {
   instruments: InstrumentCache
   watchlists: WatchlistsStore
+  unknown: UnknownKeys
 }
 
 export function createTrading(
@@ -19,6 +40,7 @@ export function createTrading(
   return {
     instruments: createInstrumentCache({ api: s.api, storage: s.storage, now: o.now }),
     watchlists: createWatchlistsStore(s.storage),
+    unknown: createUnknownKeys(),
   }
 }
 
