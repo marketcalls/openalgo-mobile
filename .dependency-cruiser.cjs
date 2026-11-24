@@ -31,6 +31,18 @@ module.exports = {
       to: { path: [`${SRC}core/(credentials|http)/`, `${SRC}dom/gateway/`] },
     },
     {
+      name: 'dom-content-no-secrets-reachable',
+      severity: 'error',
+      comment:
+        'Nor through any chain of imports: WebView content never reaches the key, the HTTP client ' +
+        '(and so no socket), the services container or the gateway.',
+      from: { path: `${SRC}dom/(chart|tools)/` },
+      to: {
+        reachable: true,
+        path: [`${SRC}core/(credentials|http|services)/`, `${SRC}dom/gateway/`],
+      },
+    },
+    {
       name: 'features-dom-bridge-only',
       severity: 'error',
       comment: 'features reach src/dom only through dom/bridge.',
