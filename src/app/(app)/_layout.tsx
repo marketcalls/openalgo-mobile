@@ -21,6 +21,7 @@ import { TradingProvider } from '~/market/trading'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
 import { LockOverlay } from '~/ui/LockOverlay'
+import { ToastHost } from '~/ui/Toast'
 import { useTheme } from '~/ui/theme'
 
 const TAG = 'app'
@@ -136,7 +137,21 @@ function AppShell({ s }: { s: Services }) {
                     headerShown: false,
                     contentStyle: { backgroundColor: c.background },
                   }}
-                />
+                >
+                  {/* Each task that adds a route declares its options here (search first). */}
+                  <Stack.Screen
+                    name="search"
+                    options={{
+                      presentation: 'modal',
+                      headerShown: true,
+                      title: 'Search',
+                      headerStyle: { backgroundColor: c.background },
+                      headerTintColor: c.foreground,
+                      headerShadowVisible: false,
+                    }}
+                  />
+                </Stack>
+                <ToastHost />
               </View>
               {locked ? (
                 <LockOverlay controller={s.lock} onForgetKey={() => void s.lifecycle.forgetKey()} />
