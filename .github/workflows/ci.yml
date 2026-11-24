@@ -106,6 +106,10 @@ jobs:
       - name: Secret scan (exported bundles)
         run: gitleaks dir --redact --config .gitleaks.toml dist-export
 
+      - name: Key scan (exported bundles)
+        # gitleaks' key rule needs "apikey" and a separator; Hermes stores strings back to back.
+        run: node scripts/check-bundle-keys.mjs dist-export
+
   android:
     name: Android APK
     needs: checks

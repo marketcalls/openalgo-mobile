@@ -49,8 +49,10 @@ fails, and the suite never toggles the mode.
 | `npm run tokens:check` | Generated theme tokens match the pinned openalgo web source |
 | `npm run export` then `npm run bundles` | Production bundles build and stay inside the size budgets |
 
-CI also runs `expo install --check`, `expo-doctor` and gitleaks (git history and the
-exported bundles). `.githooks` runs a fast subset before each commit.
+CI also runs `expo install --check`, `expo-doctor`, gitleaks (git history and the
+exported bundles) and `scripts/check-bundle-keys.mjs`, which fails on any 64-hex run in the
+Hermes bundles (gitleaks cannot see a key there). `.githooks` runs a fast subset before each
+commit.
 
 ## CI and artifacts
 
