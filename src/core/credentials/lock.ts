@@ -16,7 +16,13 @@ export interface LockSettings {
 }
 
 export interface LockDeps {
+  /** The wall clock, which the user can set (Settings > Date & Time asks for no passcode). */
   now: () => number
+  /**
+   * A clock the user cannot set (bind it to `performance.now`). It may stand still while the
+   * phone sleeps, so it only adds a reason to lock, never removes one.
+   */
+  monotonicNow?: () => number
   /** Read at every decision, so a changed pref applies from the next unlock or return. */
   settings: () => LockSettings
   authenticate: () => Promise<boolean>
@@ -33,11 +39,13 @@ export interface LockDeps {
  * the lock is off, or on but unusable (no passcode or biometrics, where every prompt would fail).
  * `LockOverlay` calls it on mount, so in both cases the vault opens at start with no prompt.
  * Coming back to `active` after at least `lockAfterMs` in the background locks and drops the key;
- * `inactive` (Face ID, Control Center, a call) never locks.
+ * `inactive` (Face ID, Control Center, a call) never locks. A wall clock that went back while away
+ * locks too (it fails closed), and so does `lockAfterMs` on the monotonic clock.
  */
 export function createLockController(d: LockDeps) {
   let state: LockState = 'locked'
   let backgroundSince: number | null = null
+  let monotonicSince: number | null = null
   let pending: Promise<boolean> | null = null
   /** Secure reads that failed in a row; a cancelled prompt neither counts nor resets it. */
   let readFailures = 0
@@ -99,15 +107,22 @@ export function createLockController(d: LockDeps) {
     },
     handleAppState(next: AppStateName): void {
       if (next === 'background') {
-        backgroundSince ??= d.now()
+        if (backgroundSince === null) {
+          backgroundSince = d.now()
+          monotonicSince = d.monotonicNow?.() ?? null
+        }
         return
       }
       if (next !== 'active') return
       const since = backgroundSince
+      const monoSince = monotonicSince
       backgroundSince = null
+      monotonicSince = null
       if (since === null || state !== 'unlocked') return
       const { enabled, lockAfterMs } = d.settings()
-      if (enabled && d.now() - since >= lockAfterMs) {
+      const away = d.now() - since
+      const monoAway = monoSince !== null && d.monotonicNow ? d.monotonicNow() - monoSince : 0
+      if (enabled && (away < 0 || away >= lockAfterMs || monoAway >= lockAfterMs)) {
         d.vault.lock()
         setState('locked')
       }

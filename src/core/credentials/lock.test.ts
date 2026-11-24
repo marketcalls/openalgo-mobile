@@ -9,9 +9,18 @@ const T0 = Date.UTC(2026, 10, 24, 4, 0)
 const S = 1000
 
 function setup(
-  o: { enabled?: boolean; usable?: boolean; lockAfterMs?: number; stored?: boolean } = {},
+  o: {
+    enabled?: boolean
+    usable?: boolean
+    lockAfterMs?: number
+    stored?: boolean
+    /** Gives the controller a monotonic clock, which a date change does not move. */
+    monotonic?: boolean
+  } = {},
 ) {
   let t = T0
+  /** The monotonic clock: it moves with `advance`, never with `setClock`. */
+  let mono = 0
   const settings = { enabled: o.enabled ?? true, lockAfterMs: o.lockAfterMs ?? 300 * S }
   const secure = memoryKV(o.stored === false ? {} : { 'oa.p1.apikey': KEY })
   const kv = memoryKV({ 'oa.p1.hasKey': '1' })
@@ -22,6 +31,7 @@ function setup(
   const available = jest.fn(async () => device.usable)
   const lock = createLockController({
     now: () => t,
+    ...(o.monotonic ? { monotonicNow: () => mono } : {}),
     settings: () => settings,
     authenticate,
     available,
@@ -31,6 +41,11 @@ function setup(
   lock.subscribe((s) => states.push(s))
   const advance = (ms: number) => {
     t += ms
+    mono += ms
+  }
+  /** Moves the device's date and time, as the user can in Settings, without time passing. */
+  const setClock = (by: number) => {
+    t += by
   }
   /** Spends `ms` in the background, then comes back to the foreground. */
   const awayFor = (ms: number) => {
@@ -49,6 +64,7 @@ function setup(
     settings,
     states,
     advance,
+    setClock,
     awayFor,
   }
 }
@@ -240,6 +256,43 @@ describe('lock timing', () => {
     expect(authenticate).toHaveBeenCalledTimes(2)
     expect(vault.get()).toBe(KEY)
     expect(states).toEqual(['unlocked', 'locked', 'unlocked'])
+  })
+
+  test('a clock set back while away locks (fails closed)', async () => {
+    const { lock, vault, advance, setClock } = setup()
+    await lock.unlock()
+    lock.handleAppState('background')
+    advance(301 * S)
+    setClock(-3600 * S)
+    lock.handleAppState('active')
+    expect(lock.isLocked()).toBe(true)
+    expect(vault.has()).toBe(false)
+  })
+
+  test('a clock set back by exactly the time away is caught by the monotonic clock', async () => {
+    const { lock, advance, setClock } = setup({ monotonic: true })
+    await lock.unlock()
+    lock.handleAppState('background')
+    advance(301 * S)
+    setClock(-300 * S) // the wall clock shows 1 s away
+    lock.handleAppState('active')
+    expect(lock.isLocked()).toBe(true)
+  })
+
+  test('a monotonic clock that stopped while the phone slept does not keep it unlocked', async () => {
+    const { lock, setClock } = setup({ monotonic: true })
+    await lock.unlock()
+    lock.handleAppState('background')
+    setClock(301 * S) // the wall clock moved; the monotonic one did not
+    lock.handleAppState('active')
+    expect(lock.isLocked()).toBe(true)
+  })
+
+  test('with the monotonic clock, a short time away still stays unlocked', async () => {
+    const { lock, awayFor } = setup({ monotonic: true })
+    await lock.unlock()
+    awayFor(299 * S)
+    expect(lock.isLocked()).toBe(false)
   })
 
   test('lockAfterMs is read on each return', async () => {

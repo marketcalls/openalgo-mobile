@@ -50,8 +50,8 @@ export type AppDeps = {
   now: () => number
   uuid: () => string
   allowDevHosts: boolean
-  /** The app lock's prompt, device check and settings (ruling 6: the lock lives in Services). */
-  lock: Pick<LockDeps, 'settings' | 'authenticate' | 'available'>
+  /** The app lock's prompt, device check, settings and clock (ruling 6: the lock lives in Services). */
+  lock: Pick<LockDeps, 'settings' | 'authenticate' | 'available' | 'monotonicNow'>
 }
 
 /** The active profile in memory (ruling 26); `update` applies at once and stores after. */

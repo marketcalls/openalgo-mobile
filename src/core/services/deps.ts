@@ -23,5 +23,7 @@ export const defaultDeps: AppDeps = {
     },
     authenticate: expoAuthenticate,
     available: canUseAppLock,
+    // Not moved by a date change, so a clock set back cannot skip the lock.
+    monotonicNow: () => performance.now(),
   },
 }
