@@ -149,7 +149,9 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
     if (!hasStatus(raw.json)) {
       if (ok && def.expect !== 'json') return null
       if ((s === 200 || s === 404) && isHtml(raw)) return fail('Unsupported')
-      if (s === 502 && orderLane) return fail('MaybePlaced')
+      // A proxy's page (nginx 502/504, Cloudflare 520/524) or a crash page: the order may have
+      // reached the broker. 501 and 503 mean the request was never forwarded.
+      if (orderLane && s >= 500 && s !== 501 && s !== 503) return fail('MaybePlaced')
       return fail('Server')
     }
     if (s === 403 && serverMessage?.includes('Semi-Auto')) return fail('SemiAutoBlocked')

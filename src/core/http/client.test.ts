@@ -91,7 +91,35 @@ describe('classification (first match wins)', () => {
     ['no status: 200 html', 'multioptiongreeks', html(200), { kind: 'Unsupported' }],
     ['no status: 404 html', 'ping', html(404), { kind: 'Unsupported' }],
     ['no status: 502 on an order lane', 'placesmartorder', html(502), { kind: 'MaybePlaced' }],
+    // A proxy's own page on an order lane: the order may have reached the broker (design 7.5).
+    ['no status: nginx 504 on an order lane', 'placeorder', html(504), { kind: 'MaybePlaced' }],
+    [
+      'no status: Cloudflare 520 on an order lane',
+      'placeorder',
+      html(520),
+      { kind: 'MaybePlaced' },
+    ],
+    [
+      'no status: Cloudflare 524 on an order lane',
+      'placeorder',
+      html(524),
+      { kind: 'MaybePlaced' },
+    ],
+    [
+      'no status: 500 text/plain on an order lane',
+      'placeorder',
+      { status: 500, body: 'An unexpected error occurred' },
+      { kind: 'MaybePlaced' },
+    ],
+    [
+      'no status: 503 on an order lane (not forwarded)',
+      'placeorder',
+      html(503),
+      { kind: 'Server' },
+    ],
+    ['no status: 501 on an order lane', 'placeorder', html(501), { kind: 'Server' }],
     ['no status: 502 on a read', 'funds', html(502), { kind: 'Server' }],
+    ['no status: 504 on a read', 'funds', html(504), { kind: 'Server' }],
     [
       'no status: 500 text/plain',
       'search',
