@@ -1,0 +1,191 @@
+# Quality gates and builds for the app at the repo root.
+# Golden regeneration is added in M4 and TestFlight in M6.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "26"
+  CI: "1"
+  EXPO_NO_TELEMETRY: "1"
+  BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read the pinned openalgo commit
+        id: ref
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (frontend source only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo
+          sparse-checkout: frontend/src
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npx jest --ci
+
+      - name: Script tests
+        run: npm run test:scripts
+
+      - name: Compat tests
+        run: npm run test:compat
+
+      - name: Import boundaries
+        run: npm run boundaries
+
+      - name: Theme tokens match the web
+        run: OPENALGO_DIR=$GITHUB_WORKSPACE/openalgo npm run tokens:check
+
+      - name: Expo dependency versions
+        run: npx expo install --check
+
+      - name: Expo doctor
+        run: npx expo-doctor
+
+      - name: Export bundles
+        run: npm run export
+
+      - name: Bundle budgets
+        run: npm run bundles
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          rm gitleaks.tgz
+
+      - name: Secret scan (git history)
+        run: gitleaks git --redact .
+
+      - name: Secret scan (exported bundles)
+        run: gitleaks dir --redact dist-export
+
+  android:
+    name: Android APK
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Free disk space
+        # NDK, Gradle caches and two ABIs of native builds need roughly 10 GB.
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build APK
+        uses: ./.github/actions/android-build
+        with:
+          artifact: android-apk
+
+  ios-simulator:
+    name: iOS Simulator app
+    needs: checks
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build simulator app
+        uses: ./.github/actions/ios-build
+        with:
+          sdk: iphonesimulator
+          destination: generic/platform=iOS Simulator
+          artifact: ios-simulator-app
+
+  ios-device:
+    name: iOS IPA (unsigned)
+    needs: checks
+    if: github.event_name != 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build unsigned IPA
+        uses: ./.github/actions/ios-build
+        with:
+          sdk: iphoneos
+          destination: generic/platform=iOS
+          artifact: ios-ipa-unsigned

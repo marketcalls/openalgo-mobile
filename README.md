@@ -1,71 +1,86 @@
 # OpenAlgo Mobile
 
-The OpenAlgo mobile app is being rebuilt with **React Native + Expo** for Android and iOS.
+The OpenAlgo mobile app, built with **React Native + Expo** (SDK 58) for Android and iOS.
+It talks to an unmodified OpenAlgo server over its REST API and WebSocket feed.
 
-> **Current state: performance spike.** `main` holds a throwaway spike that measures
-> whether React Native + Expo, reusing the OpenAlgo web frontend's charts and `/tools`
-> pages, is smooth enough on a budget Android phone. It is not the finished app and it
-> never places real orders. The production app will be designed from its results.
->
 > The previous Flutter app is preserved, unchanged, on the
 > [`backup/flutter-main-2026-11-23`](https://github.com/marketcalls/openalgo-mobile/tree/backup/flutter-main-2026-11-23)
 > branch.
 
-## What's here
+## Layout
 
 | Path | What it is |
 |---|---|
-| `spike/app` | The Expo app (SDK 58, React Native 0.88, New Architecture). Tabs: Chart, Watchlist, Chain, Tool, Results |
-| `spike/mock-feed` | A local WebSocket server that speaks the OpenAlgo market-data protocol, for testing without a broker |
-| `spike/README.md` | Pass criteria, local build steps and the on-device test procedure |
-| `spike/CHANGES.md` | What reusing the web frontend's code would take in the real app |
-| `.github/workflows/build.yml` | CI that builds the Android APK, an unsigned iOS IPA and an iOS Simulator app |
+| `src/` | App code (Expo Router screens, features, core services, UI) |
+| `assets/` | Icons and splash images |
+| `dev/mock-server/` | A local OpenAlgo-compatible server (REST and WebSocket) for development and tests |
+| `scripts/` | Build helpers: theme token generation, openalgo sync, bundle budgets, pre-commit check |
+| `test/` | Test helpers, fixtures, `compat` tests (against the mock) and `real` tests (against a real server) |
+| `openalgo.ref` | The pinned `marketcalls/openalgo` commit the theme tokens come from |
+| `spike/` | The earlier performance spike, kept for reference; it has its own README |
+| `docs/superpowers/` | The design and plans |
 
-The app imports the OpenAlgo web frontend's source directly, so it expects
-[marketcalls/openalgo](https://github.com/marketcalls/openalgo) checked out next to this repo:
-
-```
-openmobile/
-├── openalgo/          # marketcalls/openalgo
-└── openalgo-mobile/   # this repo
-```
-
-## Builds
-
-Every push and pull request to `main` runs **Build apps** in GitHub Actions. Open the run
-under the **Actions** tab and download from **Artifacts**:
-
-- **`android-apk`**: a release APK for arm64 and armv7 phones. It is signed with the
-  React Native debug key, so install it by sideloading (`adb install -r <file>.apk`, or open
-  the file on the phone). It is not suitable for the Play Store.
-- **`ios-ipa-unsigned`**: a release build for iPhone with no signature. An iPhone will not
-  install it as is; re-sign it with your own Apple ID (for example with Sideloadly or
-  AltStore), or add Apple signing to CI (below).
-- **`ios-simulator-app`**: the same app for the iOS Simulator on an Apple Silicon Mac.
-  Unzip it, start a simulator, then
-  `xcrun simctl install booted OpenAlgoSpike.app && xcrun simctl launch booted in.openalgo.spike`.
-
-To build against a different openalgo commit, run the workflow by hand
-(**Actions › Build apps › Run workflow**) and set `openalgo_ref`.
-
-### Not set up yet
-
-- **Store signing.** A Play upload key, and an Apple Developer certificate with a
-  provisioning profile, would be stored as GitHub secrets so CI can produce store-ready
-  builds. None are configured.
-- **Store upload** (Play Console, TestFlight).
-
-## Local development
-
-See [`spike/README.md`](spike/README.md). In short:
+## Mock server
 
 ```bash
-cd spike/app
 npm ci
-npx expo prebuild --platform android
-cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+npm run mock          # starts the mock and prints MOCK_READY rest=... ws=...
 ```
+
+Point the app's server step at the printed REST URL. `npm run test:compat` runs the
+integration tests against it. `npm run real-server-check` runs the same checks against a
+real OpenAlgo server you configure through the environment.
+
+## Checks
+
+| Command | What it checks |
+|---|---|
+| `npm run lint` | Biome |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Unit and component tests (jest) |
+| `npm run test:scripts` | Tests for `scripts/` and `dev/` (node test runner) |
+| `npm run test:compat` | App services against the mock server |
+| `npm run boundaries` | Import boundaries (dependency-cruiser) |
+| `npm run tokens:check` | Generated theme tokens match the pinned openalgo web source |
+| `npm run export` then `npm run bundles` | Production bundles build and stay inside the size budgets |
+
+CI also runs `expo install --check`, `expo-doctor` and gitleaks (git history and the
+exported bundles). `.githooks` runs a fast subset before each commit.
+
+## CI and artifacts
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`. The `checks`
+job gates the builds. Open the run under the **Actions** tab and download from
+**Artifacts**:
+
+- **`android-apk`**: `openalgo-<version>-b<run>-<sha7>.apk`, a release APK for arm64 and
+  armv7. It is signed with the React Native debug key, so sideload it
+  (`adb install -r <file>.apk`). It is not suitable for the Play Store.
+- **`ios-simulator-app`**: the app for the iOS Simulator on an Apple Silicon Mac. Unzip it,
+  then `xcrun simctl install booted <name>.app`.
+- **`ios-ipa-unsigned`** (not built for pull requests): an unsigned iPhone build. Re-sign it
+  with your own Apple ID (for example Sideloadly or AltStore) to install it.
+
+`.github/workflows/spike.yml` (**Spike builds**) builds the old spike and runs only when
+`spike/**` or the workflow itself changes. Store signing, golden-image regeneration and
+TestFlight upload are not set up yet.
+
+## Bumping the openalgo ref
+
+The theme tokens are generated from the OpenAlgo web frontend at the commit in
+`openalgo.ref`. To move to a newer commit:
+
+1. Put the new commit SHA in `openalgo.ref`.
+2. Run `npm run sync-openalgo` (finds the commit in your local `../openalgo` checkout), then
+   `npm run tokens` to regenerate the tokens.
+3. Commit `openalgo.ref` and the regenerated files together. CI fetches only
+   `frontend/src` at that commit and runs `tokens:check`.
+
+Renovate (`renovate.json`) proposes weekly dependency updates, grouping `expo`, `expo-*`
+and `react-native*`, and pins GitHub Actions to digests.
 
 ## License
 
-[AGPL-3.0](LICENSE)
+[AGPL-3.0](LICENSE). The app reuses OpenAlgo web frontend code, which is AGPL-3.0, so this
+repository and any build you distribute must stay AGPL-3.0 with source available. The
+Flutter app remains available on the backup branch above.

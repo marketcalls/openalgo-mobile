@@ -1,0 +1,76 @@
+name: iOS build
+description: Prebuild the iOS project and run an unsigned xcodebuild (ARCHS=arm64).
+inputs:
+  sdk:
+    description: iphoneos or iphonesimulator
+    required: true
+  destination:
+    description: xcodebuild destination
+    required: true
+  artifact:
+    description: Name of the uploaded artifact
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Show Xcode version
+      shell: bash
+      run: xcodebuild -version
+
+    - name: Generate the iOS project (runs pod install)
+      shell: bash
+      run: npx expo prebuild --platform ios
+
+    - name: Build without signing
+      shell: bash
+      working-directory: ios
+      env:
+        SDK: ${{ inputs.sdk }}
+        DESTINATION: ${{ inputs.destination }}
+      run: |
+        set -- ./*.xcworkspace
+        WORKSPACE="${1#./}"
+        SCHEME="${WORKSPACE%.xcworkspace}"
+        echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+        # arm64 only: every iPhone, and the simulator on Apple Silicon Macs.
+        xcodebuild build \
+          -workspace "$WORKSPACE" \
+          -scheme "$SCHEME" \
+          -configuration Release \
+          -sdk "$SDK" \
+          -destination "$DESTINATION" \
+          -derivedDataPath build \
+          -quiet \
+          ARCHS=arm64 \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY=""
+
+    - name: Package IPA
+      if: inputs.sdk == 'iphoneos'
+      shell: bash
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        APP="ios/build/Build/Products/Release-iphoneos/$SCHEME.app"
+        test -d "$APP"
+        mkdir -p dist/Payload
+        cp -R "$APP" dist/Payload/
+        (cd dist && zip -qry "openalgo-${VERSION}-b${BUILD_NUMBER}-${GITHUB_SHA::7}-unsigned.ipa" Payload)
+
+    - name: Package simulator app
+      if: inputs.sdk == 'iphonesimulator'
+      shell: bash
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        APP="ios/build/Build/Products/Release-iphonesimulator/$SCHEME.app"
+        test -d "$APP"
+        mkdir -p dist
+        ditto -c -k --keepParent "$APP" "dist/openalgo-${VERSION}-b${BUILD_NUMBER}-${GITHUB_SHA::7}-simulator.zip"
+
+    - name: Upload
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ${{ inputs.artifact }}
+        path: dist/*.${{ inputs.sdk == 'iphoneos' && 'ipa' || 'zip' }}
+        if-no-files-found: error
+        retention-days: 30
