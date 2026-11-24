@@ -104,7 +104,7 @@ jobs:
         run: gitleaks git --redact .
 
       - name: Secret scan (exported bundles)
-        run: gitleaks dir --redact dist-export
+        run: gitleaks dir --redact --config .gitleaks.toml dist-export
 
   android:
     name: Android APK
