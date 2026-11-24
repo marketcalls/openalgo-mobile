@@ -1,5 +1,7 @@
 // Deterministic per-symbol random walk, ported from spike/mock-feed/server.mjs. REST quotes
 // and WS ticks read the same book, so a seed from multiquotes agrees with the first tick.
+// The spike keeps its own frozen copy (Task 5: "spike/mock-feed stays as it is"); this is
+// the maintained one.
 
 function hash32(str) {
   let h = 0x811c9dc5 // FNV-1a

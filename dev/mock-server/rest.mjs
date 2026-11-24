@@ -66,6 +66,9 @@ function send(res, r) {
 
 /** Writes a whole HTTP response on a raw socket, as when refusing a WebSocket upgrade. */
 export function writeRaw(socket, r) {
+  // Node drops its own 'error' listener from an upgraded socket, so without this a client
+  // reset (read ECONNRESET) would be an unhandled 'error' and take the whole mock down.
+  socket.on('error', () => socket.destroy())
   const body = Buffer.from(r.body)
   const head =
     `HTTP/1.1 ${r.status} ${STATUS_CODES[r.status]}\r\nContent-Type: ${r.contentType}\r\n` +

@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { createInterface } from 'node:readline'
 import { test } from 'node:test'
 import { PROFILES } from './profiles.mjs'
 import { startMockServer } from './server.mjs'
+import { runMain } from './test-helpers.mjs'
 
 const KEY = 'ab'.repeat(32)
 const WRONG_KEY = 'cd'.repeat(32)
@@ -73,7 +72,13 @@ async function call(m, method, path, body, contentType = 'application/json') {
 const post = (m, endpoint, body, contentType) =>
   call(m, 'POST', `/api/v1/${endpoint}`, body, contentType)
 const withKey = (endpoint, apikey = KEY) => ({ apikey, ...BODIES[endpoint] })
-const control = (m, patch) => call(m, 'POST', '/__mock/control', patch)
+const patchControl = (m, patch) => call(m, 'POST', '/__mock/control', patch)
+/** Applies a control patch, which must be accepted. */
+async function control(m, patch) {
+  const r = await patchControl(m, patch)
+  assert.equal(r.status, 200, `${JSON.stringify(patch)}: ${r.text}`)
+  return r
+}
 
 function assertHtml(r, status) {
   assert.equal(r.status, status)
@@ -350,11 +355,13 @@ test('control brokerLoggedOut: 403 everywhere except search', async (t) => {
 
 test('control semiAuto: analyzer/toggle still succeeds (the server bug, spec 5.9)', async (t) => {
   const m = await mock(t)
-  await control(m, { semiAuto: true })
+  assert.equal((await call(m, 'GET', '/__mock/control')).json.semiAuto, false)
+  assert.equal((await control(m, { semiAuto: true })).json.semiAuto, true)
   const r = await post(m, 'analyzer/toggle', { apikey: KEY, mode: true })
   assert.equal(r.status, 200)
   assert.equal(r.json.data.mode, 'analyze')
   assert.equal(r.json.data.message, 'Analyzer mode switched to analyze')
+  assert.equal((await call(m, 'GET', '/__mock/control')).json.semiAuto, true)
 })
 
 test('control analyzer: sets the mode that analyzer reports and toggle changes', async (t) => {
@@ -462,7 +469,7 @@ test('control rejects an unknown field or a bad value with 400', async (t) => {
     { failNext: { status: 500 } },
     { closeSockets: 1005 },
   ]) {
-    const r = await control(m, patch)
+    const r = await patchControl(m, patch)
     assert.equal(r.status, 400, JSON.stringify(patch))
     assert.equal(typeof r.json.error, 'string')
   }
@@ -484,29 +491,6 @@ test('POST /__mock/reset restores the start state and clears the stats', async (
 })
 
 // --- main.mjs ---------------------------------------------------------------------
-
-function within(promise, ms, what) {
-  let timer
-  const limit = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${what}: nothing within ${ms} ms`)), ms)
-  })
-  return Promise.race([promise, limit]).finally(() => clearTimeout(timer))
-}
-
-function runMain(t, env) {
-  const child = spawn(process.execPath, [new URL('./main.mjs', import.meta.url).pathname], {
-    env: { ...process.env, ...env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  t.after(() => child.kill())
-  const readyLine = async () => {
-    for await (const line of createInterface({ input: child.stdout })) {
-      if (line.startsWith('MOCK_READY')) return line
-    }
-    throw new Error('main.mjs exited without MOCK_READY')
-  }
-  return within(readyLine(), 5000, 'MOCK_READY')
-}
 
 test('main.mjs reads the env and prints MOCK_READY with a loopback origin', async (t) => {
   const off = await runMain(t, { PORT: '0', WS_PORT: 'off', HOST: '0.0.0.0' })

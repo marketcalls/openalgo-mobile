@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { createInterface } from 'node:readline'
+import net from 'node:net'
 import { test } from 'node:test'
 import WebSocket from 'ws'
 import { PROFILES } from './profiles.mjs'
 import { startMockServer } from './server.mjs'
+import { runMain, within } from './test-helpers.mjs'
 
 const KEY = 'ab'.repeat(32)
 const HTML =
@@ -14,14 +14,7 @@ const ALL = Object.keys(PROFILES)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// Every wait is bounded, so a regression fails its test instead of hanging the run.
-function within(promise, ms, what) {
-  let timer
-  const limit = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${what}: nothing within ${ms} ms`)), ms)
-  })
-  return Promise.race([promise, limit]).finally(() => clearTimeout(timer))
-}
+// Every wait is bounded (within), so a regression fails its test instead of hanging the run.
 const isTick = (f) => f.type === 'market_data'
 
 async function mock(t, o = {}) {
@@ -119,6 +112,28 @@ function refused(url) {
     ws.on('error', () => {})
   })
   return within(refusal, 2000, 'upgrade refusal')
+}
+
+// Sends a raw upgrade request and resets the connection (RST) as soon as the answer arrives,
+// before the client half-closes. Resolves with the answer's status line.
+function resetAfterRefusal(url) {
+  const { hostname, port, pathname } = new URL(url)
+  const reset = new Promise((resolve, reject) => {
+    const socket = net.connect({ host: hostname, port: Number(port), allowHalfOpen: true })
+    socket.on('error', reject)
+    socket.once('connect', () => {
+      socket.write(
+        `GET ${pathname} HTTP/1.1\r\nHost: ${hostname}:${port}\r\nUpgrade: websocket\r\n` +
+          'Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n' +
+          'Sec-WebSocket-Version: 13\r\n\r\n',
+      )
+    })
+    socket.once('data', (chunk) => {
+      socket.resetAndDestroy()
+      resolve(chunk.toString('latin1').split('\r\n')[0])
+    })
+  })
+  return within(reset, 2000, 'upgrade refusal')
 }
 
 const inParallel = (profiles, fn) => Promise.all(profiles.map(fn))
@@ -453,6 +468,18 @@ test('a WS upgrade on the REST port gets the 404 html page', async (t) => {
   assert.equal(r.body, HTML)
 })
 
+test('a client reset after an upgrade refusal (REST-port 404, ban 403) leaves the mock up', async (t) => {
+  const m = await mock(t)
+  assert.match(await resetAfterRefusal(`${m.origin.replace('http', 'ws')}/ws`), / 404 /)
+  await control(m, { banned: 'json' })
+  assert.match(await resetAfterRefusal(m.wsUrl), / 403 /)
+  // The server sees the RST on its next read; an unhandled 'error' there would throw here.
+  await sleep(100)
+  await control(m, { banned: false })
+  const c = await authed(m)
+  assert.equal(c.ws.readyState, WebSocket.OPEN)
+})
+
 test('GET /__mock/control returns the state plus request and WS stats', async (t) => {
   const m = await mock(t)
   const c = await authed(m)
@@ -474,18 +501,13 @@ test('GET /__mock/control returns the state plus request and WS stats', async (t
 })
 
 test('main.mjs reads AUTH_GRACE_MS', async (t) => {
-  const child = spawn(process.execPath, [new URL('./main.mjs', import.meta.url).pathname], {
-    env: { ...process.env, PORT: '0', WS_PORT: '0', PROFILE: '2.0.1.6', AUTH_GRACE_MS: '100' },
-    stdio: ['ignore', 'pipe', 'pipe'],
+  const ready = await runMain(t, {
+    PORT: '0',
+    WS_PORT: '0',
+    PROFILE: '2.0.1.6',
+    AUTH_GRACE_MS: '100',
   })
-  t.after(() => child.kill())
-  const readyLine = async () => {
-    for await (const line of createInterface({ input: child.stdout })) {
-      if (line.startsWith('MOCK_READY')) return line
-    }
-    throw new Error('main.mjs exited without MOCK_READY')
-  }
-  const wsUrl = / ws=(\S+)$/.exec(await within(readyLine(), 5000, 'MOCK_READY'))[1]
+  const wsUrl = / ws=(\S+)$/.exec(ready)[1]
   const c = await open(wsUrl)
   const outcome = await c.outcome(1000)
   assert.deepEqual(outcome, { code: 4401, reason: 'auth timeout' })
