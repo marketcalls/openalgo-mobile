@@ -394,8 +394,9 @@ describe('change key', () => {
 })
 
 describe('server settings', () => {
-  test('a new URL keeps the id, watchlist and key, and forces a re-probe', async () => {
-    await setup()
+  test('a new URL keeps the id, watchlist and key, and stores the probe it ran', async () => {
+    // the old server was a tunnel: polling, with a live-feed retry a moment ago
+    await setup({}, { ...PROFILE, feedMode: 'polling', lastFeedRetryAt: T0 })
     const NEW = 'https://algo2.example.com'
     await services?.storage.setJSON('caps', { stale: true })
     await renderRouter(ROUTES, { initialUrl: '/account/server' })
@@ -407,9 +408,26 @@ describe('server settings', () => {
     expect(kv.data.has(`oa.${PID}.watchlists`)).toBe(true)
     expect(secureKV.data.get(`oa.${PID}.apikey`)).toBe(KEY)
     expect(kv.data.has(`oa.${PID}.hasKey`)).toBe(true)
-    // no stored capabilities: the next start probes the server again
-    expect(kv.data.has(`oa.${PID}.caps`)).toBe(false)
+    // the new server's feed is tried afresh: live, with no retry clock from the old one
+    expect(saved).toMatchObject({
+      wsUrl: 'wss://algo2.example.com/ws',
+      feedMode: 'live',
+      lastFeedRetryAt: null,
+      serverVersion: '2.0.3.5',
+    })
+    // the probe just run is kept, so the next start does not probe the new server again
+    const caps = JSON.parse(kv.data.get(`oa.${PID}.caps`) ?? '{}')
+    expect(caps).toMatchObject({ host: NEW, version: '2.0.3.5' })
     await waitFor(() => expect(useSession.getState().status).toBe('ready'))
+    const probes = () => fetchFake.calls.filter((c) => c.url.endsWith('/swagger.json')).length
+    const before = probes()
+    const next = createServices(saved as ServerProfile, mockDeps)
+    try {
+      await next.lifecycle.coldStart()
+      expect(probes()).toBe(before)
+    } finally {
+      disposeServices(next)
+    }
   })
 
   test('ws:// to a public host shows the cleartext_public error and opens no socket', async () => {

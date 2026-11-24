@@ -60,7 +60,7 @@ export function ServerSettingsScreen() {
         if (!profile.httpWarningAcked && urlCheck.scheme === 'http') {
           await s.profile.update({ httpWarningAcked: true })
         }
-        await applyServerUrl(s, r.url, r.caps.version)
+        await applyServerUrl(s, r.url, r.caps)
       } else if (r.kind === 'too_old') {
         setUrlErrors([`${COPY.tooOld}: ${COPY.tooOldNative} ${COPY.tooOldDocker}`])
       } else {
