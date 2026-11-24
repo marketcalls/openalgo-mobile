@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "prepare": "git config core.hooksPath .githooks || true",
     "lint": "biome ci .",
     "typecheck": "tsc --noEmit",
     "test": "jest",

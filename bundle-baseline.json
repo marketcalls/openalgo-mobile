@@ -1,0 +1,15 @@
+{
+  "growth": 0.05,
+  "limits": {
+    "android": 4340000,
+    "ios": 4340000,
+    "chartDom": 2330000,
+    "toolDom": 1900000
+  },
+  "baseline": {
+    "android": 2548042,
+    "ios": 2441966,
+    "chartDom": null,
+    "toolDom": null
+  }
+}
