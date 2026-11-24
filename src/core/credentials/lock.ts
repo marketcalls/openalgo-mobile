@@ -1,0 +1,112 @@
+import { log } from '~/core/log/logger'
+import type { KeyVault } from './vault'
+
+const TAG = 'lock'
+
+/** React Native's AppStateStatus, restated so this file stays free of react-native. */
+export type AppStateName = 'active' | 'background' | 'inactive' | 'unknown' | 'extension'
+
+/** `no-key` is final: the stored key is gone and the session goes to onboarding. */
+export type LockState = 'locked' | 'unlocked' | 'no-key'
+
+export interface LockSettings {
+  /** The appLock pref and canUseAppLock() together; when false, unlock() never prompts. */
+  enabled: boolean
+  lockAfterMs: number
+}
+
+export interface LockDeps {
+  now: () => number
+  /** Read at every decision, so a changed pref applies from the next unlock or return. */
+  settings: () => LockSettings
+  authenticate: () => Promise<boolean>
+  vault: KeyVault
+}
+
+/**
+ * Starts locked. `unlock()` prompts (unless the lock is off), then reads the key into the vault;
+ * `LockOverlay` calls it on mount, so with the lock off or unusable the vault opens at start with
+ * no prompt. Coming back to `active` after at least `lockAfterMs` in the background locks and
+ * drops the key; `inactive` (Face ID, Control Center, a call) never locks.
+ */
+export function createLockController(d: LockDeps) {
+  let state: LockState = 'locked'
+  let backgroundSince: number | null = null
+  let pending: Promise<boolean> | null = null
+  const listeners = new Set<(s: LockState) => void>()
+
+  function setState(next: LockState) {
+    if (next === state) return
+    state = next
+    // One failing listener must not keep the others (the overlay among them) from hearing.
+    for (const fn of [...listeners]) {
+      try {
+        fn(next)
+      } catch (e) {
+        log.error(TAG, 'a lock listener failed', e)
+      }
+    }
+  }
+
+  async function attempt(): Promise<boolean> {
+    try {
+      if (d.settings().enabled && !(await d.authenticate())) return false
+      const found = await d.vault.unlock()
+      setState(found ? 'unlocked' : 'no-key')
+      return found
+    } catch (e) {
+      log.warn(TAG, 'unlock failed', e)
+      return false
+    }
+  }
+
+  return {
+    isLocked: (): boolean => state !== 'unlocked',
+    subscribe(fn: (s: LockState) => void): () => void {
+      listeners.add(fn)
+      return () => {
+        listeners.delete(fn)
+      }
+    },
+    handleAppState(next: AppStateName): void {
+      if (next === 'background') {
+        backgroundSince ??= d.now()
+        return
+      }
+      if (next !== 'active') return
+      const since = backgroundSince
+      backgroundSince = null
+      if (since === null || state !== 'unlocked') return
+      const { enabled, lockAfterMs } = d.settings()
+      if (enabled && d.now() - since >= lockAfterMs) {
+        d.vault.lock()
+        setState('locked')
+      }
+    },
+    /** Concurrent calls share one prompt. Resolves true once the vault holds the key. */
+    unlock(): Promise<boolean> {
+      if (state === 'unlocked') return Promise.resolve(true)
+      if (state === 'no-key') return Promise.resolve(false)
+      pending ??= attempt().finally(() => {
+        pending = null
+      })
+      return pending
+    },
+  }
+}
+
+export type LockController = ReturnType<typeof createLockController>
+
+/** The optional biometric check before a live write; a prompt that throws refuses the write. */
+export async function confirmLiveWrite(d: {
+  enabled: boolean
+  authenticate: () => Promise<boolean>
+}): Promise<boolean> {
+  if (!d.enabled) return true
+  try {
+    return await d.authenticate()
+  } catch (e) {
+    log.warn(TAG, 'live-write confirmation failed', e)
+    return false
+  }
+}
