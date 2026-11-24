@@ -77,8 +77,19 @@ export const tokens = {
       onBuy: '#ffffff',
       onSell: '#ffffff'
     }
+  },
+  status: {
+    light: {
+      warning: '#fd9a00',
+      onWarning: '#7b3306'
+    },
+    dark: {
+      warning: '#7b3306',
+      onWarning: '#fee685'
+    }
   }
 } as const
 
 export type Palette = typeof tokens.light
 export type TradePalette = typeof tokens.trade.light
+export type StatusPalette = typeof tokens.status.light

@@ -81,6 +81,14 @@ const TRADE_MAP = {
   dark: { profit: 'green-400', loss: 'red-400', buy: 'green-600', sell: 'red-600' },
 }
 
+// Warning alerts on the web use Tailwind amber (frontend/src/index.css:360-368 and the
+// border-amber-500/600, text-amber-900 (light), text-amber-200 (dark) classes). Light: amber-500
+// fill with amber-900 text. Dark: amber-900 fill with amber-200 text, as the web's dark alerts.
+const STATUS_MAP = {
+  light: { warning: 'amber-500', onWarning: 'amber-900' },
+  dark: { warning: 'amber-900', onWarning: 'amber-200' },
+}
+
 function palette(vars) {
   const p = {}
   for (const k of PALETTE_KEYS) {
@@ -100,11 +108,17 @@ export function buildTokens({ indexCss, themeCss }) {
     for (const [k, name] of Object.entries(map)) out[k] = toHex(tailwindColor(themeCss, name))
     return { ...out, onBuy: '#ffffff', onSell: '#ffffff' }
   }
+  const status = (map) => {
+    const out = {}
+    for (const [k, name] of Object.entries(map)) out[k] = toHex(tailwindColor(themeCss, name))
+    return out
+  }
   return {
     light: palette(v.root),
     dark: palette(dark),
     analyzer: palette({ ...dark, ...v.analyzer }),
     trade: { light: trade(TRADE_MAP.light), dark: trade(TRADE_MAP.dark) },
+    status: { light: status(STATUS_MAP.light), dark: status(STATUS_MAP.dark) },
   }
 }
 
@@ -117,5 +131,6 @@ export const tokens = ${body} as const
 
 export type Palette = typeof tokens.light
 export type TradePalette = typeof tokens.trade.light
+export type StatusPalette = typeof tokens.status.light
 `
 }

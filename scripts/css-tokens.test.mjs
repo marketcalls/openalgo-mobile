@@ -78,4 +78,8 @@ test('buildTokens', () => {
     onBuy: '#ffffff',
     onSell: '#ffffff',
   })
+  assert.deepEqual(t.status, {
+    light: { warning: '#fd9a00', onWarning: '#7b3306' },
+    dark: { warning: '#7b3306', onWarning: '#fee685' },
+  })
 })
