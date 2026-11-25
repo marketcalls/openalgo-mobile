@@ -42,10 +42,10 @@ appId: in.openalgo.mobile
 - tapOn:
     id: ticket-confirm
 - extendedWaitUntil:
-    visible:
-      id: order-result
-      text: ".*Order placed.*"
+    visible: "Order placed"
     timeout: 15000
+- assertVisible:
+    id: order-result
 - tapOn:
     id: ticket-done
 
@@ -92,10 +92,10 @@ appId: in.openalgo.mobile
 - tapOn:
     id: ticket-confirm
 - extendedWaitUntil:
-    visible:
-      id: order-result
-      text: ".*Order placed.*"
+    visible: "Order placed"
     timeout: 15000
+- assertVisible:
+    id: order-result
 - tapOn:
     id: ticket-done
 
