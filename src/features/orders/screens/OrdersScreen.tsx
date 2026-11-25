@@ -3,8 +3,8 @@
 // Cancel all cancels every open order in the account. The books refresh on order events, after the
 // app's own writes and from a poll while the tab is in front; while the broker is blocked they
 // show what was last read, dimmed. The broker banner is the tabs layout's (ruling 9).
-import { type Href, useRouter } from 'expo-router'
-import { type ReactElement, useMemo, useState } from 'react'
+import { type Href, useLocalSearchParams, useRouter } from 'expo-router'
+import { type ReactElement, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, View } from 'react-native'
 import { type BookName, useBookPolling, useOrderbook, useTradebook } from '~/market/books/queries'
 import {
@@ -83,6 +83,15 @@ export function OrdersScreen() {
   const blocked = useBrokerBlocked()
   const [segment, setSegment] = useState<Segment>('open')
   const [expanded, setExpanded] = useState<string | null>(null)
+  // A link may name the segment (`ordersHref`): the ticket's result opens All orders, where a
+  // filled or rejected order shows, which Open would leave out.
+  const param = useLocalSearchParams<{ segment?: string }>().segment
+  useEffect(() => {
+    const linked = SEGMENTS.find((x) => x.id === param)
+    if (!linked) return
+    setSegment(linked.id)
+    setExpanded(null)
+  }, [param])
   const book = useOrderbook()
   const writes = useOrderWrites()
   useBookPolling(true, BOOKS)

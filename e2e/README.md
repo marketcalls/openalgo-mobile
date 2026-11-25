@@ -61,8 +61,8 @@ Order ticket and review
   `ticket-refused`, `ticket-split-note`, `ticket-issue-{ISSUE}`
 - `ticket-review-step`, `review-mode-badge` *, `review-summary`, `review-split`, `review-notice`,
   `review-wait`, `review-earlier`, `ticket-confirm` *, `split-summary`, `split-child-{N}`
-- `order-result` *, `order-result-id`, `result-reconcile`, `result-sandbox`, `view-orderbook`,
-  `open-action-center` *, `ticket-done` *
+- `order-result` *, `order-result-id`, `order-result-status`, `result-reconcile`, `result-wait`,
+  `result-sandbox`, `view-orderbook`, `open-action-center` *, `ticket-done` *
 
 Orders
 - `orders-screen`, `orders-list`, `orders-stats`, `orders-cancel-all`, `orders-seg-{SEGMENT}`,

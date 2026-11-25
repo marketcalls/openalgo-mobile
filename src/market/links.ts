@@ -55,7 +55,9 @@ export const modifyHref = (orderid: string) => `/order/${enc(orderid)}/modify`
 export const toolHref = (toolId: string, o: { u?: string } = {}) =>
   o.u === undefined ? `/tools/${enc(toolId)}` : `/tools/${enc(toolId)}?u=${enc(o.u)}`
 
-export const ordersHref = () => '/orders'
+/** The Orders tab; `segment` 'all' opens All orders, where a filled or rejected order shows. */
+export const ordersHref = (o: { segment?: 'open' | 'all' | 'trades' } = {}) =>
+  o.segment === undefined ? '/orders' : `/orders?segment=${o.segment}`
 export const backupHref = () => '/account/backup'
 
 type Raw = Record<string, string | string[] | undefined>

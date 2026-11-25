@@ -122,6 +122,7 @@ describe('other links', () => {
     expect(decodeURIComponent(lastSegment(href.split('?')[0] ?? ''))).toBe('option-chain')
     expect(query(href)).toEqual({ u: 'NFO:NIFTY' })
     expect(ordersHref()).toBe('/orders')
+    expect(ordersHref({ segment: 'all' })).toBe('/orders?segment=all')
     expect(backupHref()).toBe('/account/backup')
   })
 })

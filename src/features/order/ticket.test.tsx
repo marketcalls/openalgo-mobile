@@ -100,7 +100,9 @@ const PLACED = ok({ status: 'success', orderid: '250408000989443' })
 const BAD_GATEWAY: ScriptedReply = { status: 502, contentType: 'text/html', body: 'Bad Gateway' }
 
 const NOT_FOUND =
-  'Not found in the order book. It was probably not placed. Check the order book before trying again.'
+  'Not in the order book yet. The server may still be sending it, so check the order book before placing it again.'
+/** Every read of the check after no reply (`NO_REPLY_DELAYS_MS`, 127 s), and a little more. */
+const NO_REPLY_CHECK_MS = 127_100
 const MAYBE_EARLIER =
   'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
 
@@ -505,6 +507,87 @@ describe('review and send', () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(1)
   })
 
+  test('after "Order placed" the book says what became of it: a broker rejection in danger', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
+    let placed = false
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        placed = true
+        return PLACED
+      },
+      'POST /api/v1/orderbook': () =>
+        book(
+          placed
+            ? [row({ orderid: '250408000989443', quantity: 1, status: 'rejected', sec: 1 })]
+            : [],
+        ),
+    })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    expect(screen.getByText('Order placed')).toBeTruthy()
+    expect(screen.queryByTestId('order-result-status')).toBeNull()
+    expect(error).not.toHaveBeenCalled()
+    await pass(1_600)
+    expect(text('order-result-status')).toBe(
+      'Rejected by the broker. See the order book for the reason.',
+    )
+    expect(error).toHaveBeenCalledTimes(1)
+    // a rejected order is not in Open: the link opens All orders
+    await press('view-orderbook')
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/orders?segment=all')
+    // a status it cannot leave ends the reads
+    const reads = requests('orderbook').length
+    await pass(10_000)
+    expect(requests('orderbook')).toHaveLength(reads)
+  })
+
+  test('an order event for the placed order reads its status at once', async () => {
+    let placed = false
+    await setup(
+      {
+        'POST /api/v1/placeorder': () => {
+          placed = true
+          return PLACED
+        },
+        'POST /api/v1/orderbook': () =>
+          book(
+            placed
+              ? [row({ orderid: '250408000989443', quantity: 1, status: 'complete', sec: 1 })]
+              : [],
+          ),
+      },
+      { live: true },
+    )
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    const reads = requests('orderbook').length
+    await act(async () => {
+      ;(services as Services).orderEvents.emit({
+        t: 'order_update',
+        user_id: 'u',
+        mode: 'live',
+        broker: 'zerodha',
+        orderid: '250408000989443',
+        symbol: 'RELIANCE',
+        exchange: 'NSE',
+        action: 'BUY',
+        quantity: 1,
+        price: 0,
+        trigger_price: 0,
+        pricetype: 'MARKET',
+        product: 'CNC',
+        order_status: 'complete',
+        filled_quantity: 1,
+        pending_quantity: 0,
+      } as never)
+    })
+    await pass(10)
+    expect(requests('orderbook').length).toBeGreaterThan(reads)
+    expect(text('order-result-status')).toBe('Status: complete')
+  })
+
   test('an analyze reply shows "Analyzer (sandbox)"; the SELL confirm reads so', async () => {
     const error = jest.spyOn(haptics, 'notifyError')
     const success = jest.spyOn(haptics, 'notifySuccess')
@@ -748,7 +831,7 @@ describe('split orders', () => {
       expect(screen.queryByTestId(id)).toBeNull()
     }
     await press('view-orderbook')
-    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/orders')
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/orders?segment=all')
   })
 
   test('a split timeout reconciles: "Found 2 of 2 child orders", never "probably not placed"', async () => {
@@ -822,7 +905,7 @@ describe('status unknown', () => {
     await open(RELIANCE)
     await toReview()
     await confirm()
-    await pass(2_100 + 5_000 + 10_000)
+    await pass(NO_REPLY_CHECK_MS)
     expect(screen.queryByText(/Found in the order book/)).toBeNull()
     expect(screen.getByText(NOT_FOUND)).toBeTruthy()
     expect(requests('placeorder')).toHaveLength(1)
@@ -861,7 +944,7 @@ describe('status unknown', () => {
     await pass(10)
     expect(disabled('ticket-confirm')).toBe(false)
     await confirm()
-    await pass(2_100 + 5_000 + 10_000)
+    await pass(NO_REPLY_CHECK_MS)
     expect(screen.queryByText(/Found in the order book/)).toBeNull()
     expect(screen.getByText(NOT_FOUND)).toBeTruthy()
     expect(requests('placeorder')).toHaveLength(2)
@@ -902,7 +985,7 @@ describe('status unknown', () => {
     await pass(10)
     expect(disabled('ticket-confirm')).toBe(false)
     await confirm()
-    await pass(2_100 + 5_000 + 10_000)
+    await pass(NO_REPLY_CHECK_MS)
     // the first order is in this review's book, so it is not taken for the second
     expect(screen.queryByText(/Found in the order book/)).toBeNull()
     expect(screen.getByText(NOT_FOUND)).toBeTruthy()
@@ -1033,11 +1116,95 @@ describe('status unknown', () => {
     await open(RELIANCE)
     await toReview()
     await confirm()
-    await pass(2_100 + 5_000 + 10_000)
+    await pass(NO_REPLY_CHECK_MS)
     expect(
       screen.getByText("Couldn't check the order book. Check it before trying again."),
     ).toBeTruthy()
-    expect(screen.queryByText(/probably not placed/)).toBeNull()
+    expect(screen.queryByText(/not placed/)).toBeNull()
+  })
+
+  test("no reply: the check reads on past the server's 120 s broker timeout, and the hold stays", async () => {
+    let sentAt: number | null = null
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        sentAt ??= Date.now()
+        return new Promise<never>(() => {})
+      },
+      // the broker answers the server only 70 s after the send: the book lists it then
+      'POST /api/v1/orderbook': () =>
+        book(
+          sentAt !== null && Date.now() >= sentAt + 70_000
+            ? [row({ orderid: 'LATE1', quantity: 1, status: 'open', sec: 70 })]
+            : [],
+        ),
+    })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    await pass(ENDPOINTS.placeorder.timeoutMs)
+    expect(screen.getByText('Status unknown: checking order book')).toBeTruthy()
+    expect(text('result-wait')).toBe(
+      'The server may still be sending it to the broker, so this reads the order book for up to 2 minutes.',
+    )
+    // the reads at 2, 5 and 10 s (17 s after the timeout) find nothing: still checking
+    await pass(17_100)
+    expect(screen.queryByTestId('result-reconcile')).toBeNull()
+    expect(screen.queryByText(NOT_FOUND)).toBeNull()
+    // another ticket waits through the whole check
+    await press('ticket-done')
+    await closeSheet()
+    await open(RELIANCE)
+    await toReview()
+    expect(text('review-wait')).toBe(OTHER_OUT)
+    expect(disabled('ticket-confirm')).toBe(true)
+    // the 20 s read finds nothing yet; the 30 s one, 67 s after the timeout, finds it
+    await pass(20_000 + 30_000)
+    expect(text('toast')).toBe('Found in the order book: open')
+    expect(disabled('ticket-confirm')).toBe(false)
+    expect(requests('placeorder')).toHaveLength(1)
+  })
+
+  test('a 500 from the server itself is checked for the 17 s the book lags, and never says "not placed"', async () => {
+    await setup({
+      'POST /api/v1/placeorder': { status: 500, body: { status: 'error', message: 'boom' } },
+    })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    expect(screen.queryByTestId('result-wait')).toBeNull()
+    await pass(2_100 + 5_000 + 10_000)
+    expect(text('result-reconcile')).toBe(NOT_FOUND)
+    expect(screen.queryByText(/not placed/)).toBeNull()
+    expect(requests('orderbook').length).toBeLessThanOrEqual(4)
+  })
+
+  test('a split that got no reply reads on longer, and "Found 1 of 2" says more may follow', async () => {
+    let sent = false
+    await setup({
+      'POST /api/v1/splitorder': () => {
+        sent = true
+        return BAD_GATEWAY
+      },
+      'POST /api/v1/orderbook': () =>
+        book(
+          sent
+            ? [row({ orderid: 'C1', symbol: FUT, exchange: 'NFO', quantity: 1755, sec: 1 })]
+            : [],
+        ),
+    })
+    await open(NIFTY_FUT)
+    await type('ticket-qty', '28')
+    await toReview()
+    await confirm()
+    // 127 s, and 30 s for the children the server may still be placing
+    expect(text('result-wait')).toContain('up to 3 minutes')
+    await pass(NO_REPLY_CHECK_MS)
+    expect(screen.queryByTestId('result-reconcile')).toBeNull()
+    await pass(30_000)
+    expect(text('result-reconcile')).toBe(
+      'Found 1 of 2 child orders in the order book. The server may still be sending the rest, so check the order book before placing any again.',
+    )
+    expect(requests('splitorder')).toHaveLength(1)
   })
 })
 
@@ -1158,7 +1325,7 @@ describe('the sheet while the order is out', () => {
 
     // the book was read again once the first order's outcome was known, so it is not this one
     await confirm()
-    await pass(2_100 + 5_000 + 10_000)
+    await pass(NO_REPLY_CHECK_MS)
     expect(screen.queryByText(/Found in the order book/)).toBeNull()
     expect(screen.queryByText(MAYBE_EARLIER)).toBeNull()
     expect(screen.getByText(NOT_FOUND)).toBeTruthy()

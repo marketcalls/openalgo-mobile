@@ -354,6 +354,14 @@ describe('the books', () => {
     expect(text('order-status-C1')).toBe('Complete')
   })
 
+  test("a link naming the segment opens it: the ticket's result opens All orders", async () => {
+    await setup({ 'POST /api/v1/orderbook': BOOK })
+    mockParams = { segment: 'all' }
+    await show(['orders'])
+    expect(screen.getByTestId('orders-seg-all').props.accessibilityState?.selected).toBe(true)
+    expect(rowIds()).toEqual(['T1', 'C1', 'A1'])
+  })
+
   test('Trades lists the tradebook', async () => {
     await setup()
     await show(['orders'])

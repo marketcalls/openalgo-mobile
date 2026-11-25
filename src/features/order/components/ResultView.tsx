@@ -1,5 +1,6 @@
-// What came of the order (design 7.10). Placed shows its id, and the sandbox mark for an
-// analyzer reply; an order the server took LIVE after an ANALYZE review leads with the danger
+// What came of the order (design 7.10). Placed shows its id, the sandbox mark for an analyzer
+// reply, and then its status as the order book shows it (a broker can reject a placed order a
+// moment later); an order the server took LIVE after an ANALYZE review leads with the danger
 // notice; queued points to the web Action Center; an unknown outcome says what the order book
 // shows. Nothing here sends the order again: the way on is the order book.
 import { StyleSheet, View } from 'react-native'
@@ -27,11 +28,19 @@ export type TicketResult =
   | { kind: 'placed'; orderid: string; analyze: boolean; liveSurprise?: true }
   | { kind: 'queued' }
   | { kind: 'split'; reply: SplitPlaced; liveSurprise?: true }
-  /** It may have gone (MaybePlaced, a 5xx, a success without an id); `check` once the book says. */
-  | { kind: 'maybe'; check: Reconcile | null }
+  /**
+   * It may have gone (MaybePlaced, a 5xx, a success without an id); `check` once the book says.
+   * `waitSec`: how long the check may read, when the server may still be sending the order.
+   */
+  | { kind: 'maybe'; check: Reconcile | null; waitSec?: number }
 
-const NOT_FOUND =
-  'Not found in the order book. It was probably not placed. Check the order book before trying again.'
+/** Never "not placed": the server may still be sending it to the broker (design 7.10). */
+const NOT_YET =
+  'Not in the order book yet. The server may still be sending it, so check the order book before placing it again.'
+const waitText = (sec: number) =>
+  `The server may still be sending it to the broker, so this reads the order book for up to ${
+    sec >= 90 ? `${Math.round(sec / 60)} minutes` : `${sec} s`
+  }.`
 const MAYBE_EARLIER =
   'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
 const SANDBOX = 'Analyzer (sandbox)'
@@ -39,11 +48,14 @@ const SANDBOX = 'Analyzer (sandbox)'
 function reconciled(r: Reconcile): string {
   if (!r.checked) return NOT_CHECKED
   if (r.kind === 'split') {
-    return r.earlier && r.found > 0
-      ? `Found ${r.found} of ${r.of} matching orders in the order book, but they may be earlier ones. Check the order book before trying again.`
+    if (r.earlier && r.found > 0) {
+      return `Found ${r.found} of ${r.of} matching orders in the order book, but they may be earlier ones. Check the order book before trying again.`
+    }
+    return r.found < r.of
+      ? `Found ${r.found} of ${r.of} child orders in the order book. The server may still be sending the rest, so check the order book before placing any again.`
       : `Found ${r.found} of ${r.of} child orders in the order book.`
   }
-  if (r.status === null) return NOT_FOUND
+  if (r.status === null) return NOT_YET
   return r.earlier ? MAYBE_EARLIER : `Found in the order book: ${r.status || '--'}`
 }
 
@@ -71,11 +83,12 @@ export function resultLine(r: TicketResult): string {
       if (c === null) return CHECKING
       if (!c.checked) return "Couldn't check the order book"
       if (c.kind === 'split') {
-        return c.earlier && c.found > 0
-          ? `Unclear: ${c.found} of ${c.of} matches may be older`
+        if (c.earlier && c.found > 0) return `Unclear: ${c.found} of ${c.of} matches may be older`
+        return c.found < c.of
+          ? `Found ${c.found} of ${c.of} child orders; more may follow`
           : `Found ${c.found} of ${c.of} child orders`
       }
-      if (c.status === null) return 'Not found in the order book'
+      if (c.status === null) return 'Not in the order book yet'
       return c.earlier
         ? 'Unclear: the match may be an older order'
         : `Found in the order book: ${c.status || '--'}`
@@ -83,8 +96,22 @@ export function resultLine(r: TicketResult): string {
   }
 }
 
+/** A placed order's status, as the order book or its order event showed it: rejected in danger. */
+function PlacedStatus({ status }: { status: string }) {
+  const rejected = status === 'rejected'
+  return (
+    <Text testID="order-result-status" tone={rejected ? 'loss' : 'muted'}>
+      {rejected
+        ? 'Rejected by the broker. See the order book for the reason.'
+        : `Status: ${status || '--'}`}
+    </Text>
+  )
+}
+
 export function ResultView(p: {
   result: TicketResult
+  /** The placed order's status once the book shows it; null until then. */
+  placedStatus?: string | null
   onDone: () => void
   onViewOrderbook: () => void
   onOpenActionCenter: () => void
@@ -108,6 +135,8 @@ export function ResultView(p: {
           <Text variant="heading">Order placed</Text>
           <Text variant="mono" testID="order-result-id">{`Order ID ${r.orderid}`}</Text>
           {r.analyze ? <Badge testID="result-sandbox" label={SANDBOX} tone="analyze" /> : null}
+          {p.placedStatus ? <PlacedStatus status={p.placedStatus} /> : null}
+          {orderbook}
         </>
       ) : r.kind === 'queued' ? (
         <>
@@ -131,7 +160,14 @@ export function ResultView(p: {
         <>
           <Text variant="heading">{CHECKING}</Text>
           {r.check === null ? (
-            <Skeleton rows={1} />
+            <>
+              {r.waitSec !== undefined ? (
+                <Text testID="result-wait" tone="muted">
+                  {waitText(r.waitSec)}
+                </Text>
+              ) : null}
+              <Skeleton rows={1} />
+            </>
           ) : (
             <Text testID="result-reconcile">{reconciled(r.check)}</Text>
           )}

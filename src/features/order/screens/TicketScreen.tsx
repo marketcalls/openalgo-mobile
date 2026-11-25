@@ -30,7 +30,7 @@ import {
   useOtherOrderOut,
   useUnseenOutcome,
 } from '~/market/orders/pending'
-import { reconcilePlacement, reconcileSplit } from '~/market/orders/reconcile'
+import { noReplyDelays, reconcilePlacement, reconcileSplit } from '~/market/orders/reconcile'
 import type { PlaceReply, SplitReply } from '~/market/orders/schemas'
 import { type Outcome, submitOrderAction } from '~/market/orders/submit'
 import {
@@ -65,6 +65,14 @@ type Step =
   | { kind: 'result'; result: TicketResult }
 
 const SPLIT_WAIT_SEC = Math.round(ENDPOINTS.splitorder.timeoutMs / 1000)
+
+/**
+ * After "Order placed", the reads of the order book for its status: a broker's RMS can reject a
+ * placed order a moment later (funds, price band), and that comes back only in the book. An order
+ * event for it reads at once. They stop at a status the order cannot leave.
+ */
+export const PLACED_STATUS_DELAYS_MS: readonly number[] = [1500, 3000, 6000]
+const FINAL: readonly string[] = ['complete', 'rejected', 'cancelled']
 
 /** The toast when the sheet goes while the order is on its way. */
 export const STILL_SENDING = 'Your order is still being sent. Its outcome will show here.'
@@ -189,6 +197,49 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   }, [onReview, unseen, trading])
   /** Each mode read; one for an earlier opening, or before a retry, is dropped. */
   const modeReads = useRef(0)
+  /** The placed order's status, once the book or its order event shows it. */
+  const [placedStatus, setPlacedStatus] = useState<string | null>(null)
+  const placedId =
+    step.kind === 'result' && step.result.kind === 'placed' ? step.result.orderid : null
+  useEffect(() => {
+    if (placedId === null) return
+    let on = true
+    let wake = () => {}
+    const seen = (status: string) => {
+      if (!on) return
+      setPlacedStatus(status)
+      if (status === 'rejected') notifyError()
+    }
+    const off = s.orderEvents.subscribe((u) => {
+      if (u.orderid === placedId) wake()
+    })
+    void (async () => {
+      for (const ms of PLACED_STATUS_DELAYS_MS) {
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, ms)
+          wake = () => {
+            clearTimeout(t)
+            resolve()
+          }
+        })
+        if (!on) return
+        let status: string | undefined
+        try {
+          const b = await trading.orders.orderbook({ fresh: true })
+          status = b.orders.find((r) => r.orderid === placedId)?.status
+        } catch {
+          continue
+        }
+        if (status === undefined) continue
+        seen(status)
+        if (FINAL.includes(status)) return
+      }
+    })()
+    return () => {
+      on = false
+      off()
+    }
+  }, [placedId, s, trading])
 
   const caps = s.caps.get()
   // Ruling 25: allowed unless the server is known to lack it.
@@ -265,10 +316,15 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
    * It may have gone: the order book says what happened. Nothing is sent again. The check runs
    * to its end even when the sheet has closed, and then shows as a toast.
    */
-  const reconcile = async (p: OrderPlan, sent: Sent) => {
+  const reconcile = async (p: OrderPlan, sent: Sent, noReply: boolean) => {
     phase.current = 'checking'
     notifyWarning()
-    show({ kind: 'maybe', check: null })
+    // No reply: the server may still be sending it, so the check reads on past its broker timeout.
+    const delaysMs = noReply
+      ? noReplyDelays(p.kind === 'split' ? p.children.length : undefined)
+      : undefined
+    const waitSec = delaysMs ? Math.round(delaysMs.reduce((a, b) => a + b, 0) / 1000) : undefined
+    show({ kind: 'maybe', check: null, waitSec })
     const common = {
       // Each check read goes out after the order, never joined to one sent before it.
       fetchOrders: () => trading.orders.orderbook({ fresh: true }),
@@ -276,6 +332,7 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
       sentAt: sent.at,
       knownIds: sent.knownIds,
       sleep,
+      delaysMs,
     }
     // Without the review's book, a match may be an earlier identical order (ruling 26).
     const earlier = !sent.complete
@@ -311,7 +368,7 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     switch (r.kind) {
       case 'ok': {
         const reply = r.reply
-        if (reply.kind === 'no_id') return reconcile(p, sent)
+        if (reply.kind === 'no_id') return reconcile(p, sent, false)
         if (reply.kind === 'queued') {
           show({ kind: 'queued' })
           return
@@ -331,7 +388,7 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
         return
       }
       case 'maybe':
-        return reconcile(p, sent)
+        return reconcile(p, sent, r.noReply)
       case 'refused':
         notifyWarning()
         refused(r.message)
@@ -446,8 +503,9 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
         return (
           <ResultView
             result={step.result}
+            placedStatus={placedStatus}
             onDone={() => router.back()}
-            onViewOrderbook={() => router.dismissTo(ordersHref() as Href)}
+            onViewOrderbook={() => router.dismissTo(ordersHref({ segment: 'all' }) as Href)}
             onOpenActionCenter={() => openServerPage(s.profile.get().restOrigin, '/action-center')}
           />
         )
