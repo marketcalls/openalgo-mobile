@@ -2,6 +2,7 @@
 // on each version profile.
 
 import { ApiError } from '~/core/http/errors'
+import { qk } from '~/core/query/keys'
 import { reconcileClose, reconcilePlacement, reconcileSplit } from '~/market/orders/reconcile'
 import type { OrderSpec } from '~/market/orders/schemas'
 import { PROFILE_IDS, until } from '../helpers/compatApp'
@@ -306,6 +307,34 @@ describe.each(PROFILE_IDS)('%s', (profile) => {
     const out = await t.submit('place', () => t.orders.place(market()), shown)
     expect(out).toEqual({ kind: 'mode_changed', now: 'analyze' })
     expect((await t.stats()).requests.placeorder).toBeUndefined()
+  })
+
+  test('an analyzer toggle between a book read and a close: the book read in LIVE is dropped, and nothing is sent', async () => {
+    const t = await start({ PROFILE: profile })
+    placedId(await t.submit('place', () => t.orders.place(market()), 'live'))
+    // the Portfolio tab's read of the books, in LIVE
+    const key = qk.positionbook(t.app.profile.get().id)
+    const live = await t.app.queryClient.fetchQuery({
+      queryKey: key,
+      queryFn: () => t.orders.positionbook({ fresh: true }),
+    })
+    const row = live.rows.find((r) => r.symbol === 'RELIANCE') ?? {
+      symbol: 'RELIANCE',
+      exchange: 'NSE',
+      product: 'MIS',
+      quantity: 10,
+    }
+    expect(t.gate.peek()).toBe('live')
+    // the web (or a strategy) switches the install to the analyzer
+    await t.control({ analyzer: true })
+    // the close's confirm reads the mode first (confirmInMode): not the mode the book was read in,
+    // so it asks nothing, and the LIVE book is dropped for a read in the new mode
+    expect(await t.gate.read()).toBe('analyze')
+    expect(t.app.queryClient.getQueryState(key)?.data).toBeUndefined()
+    // a close still sent with the LIVE badge never goes
+    const out = await t.submit('closeOne', () => t.orders.smartClose(row), 'live')
+    expect(out).toEqual({ kind: 'mode_changed', now: 'analyze' })
+    expect((await t.stats()).requests.placesmartorder).toBeUndefined()
   })
 
   test('an unknown symbol is asked for once, and is unknown', async () => {

@@ -21,6 +21,22 @@ export const NEW_ORDER: PendingScope = 'new'
 /** One order of the book: its modify and its cancel. */
 export const onOrder = (orderid: string): PendingScope => `order:${orderid}`
 
+/**
+ * One position: its close, until the positionbook shows it closed or the check of the close ends.
+ * A second close sent meanwhile would be sized from the position the first has not yet closed.
+ */
+export const onPosition = (r: {
+  exchange: string
+  symbol: string
+  product: string
+}): PendingScope => `position:${r.exchange}:${r.symbol}:${r.product}`
+
+/** Close all: every position waits for it. */
+export const ALL_POSITIONS: PendingScope = 'position:*'
+
+/** Whether a scope is a position's (or close all's): Close all waits while any is out. */
+export const isPositionScope = (scope: PendingScope) => scope.startsWith('position:')
+
 type Hold = { owner: object; scope: PendingScope }
 
 type Pending = {

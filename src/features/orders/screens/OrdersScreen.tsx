@@ -15,6 +15,7 @@ import {
 } from '~/market/books/schemas'
 import { DroppedNote } from '~/market/components/DroppedNote'
 import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
+import { OutcomeLine } from '~/market/components/OutcomeLine'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import { StaleNote } from '~/market/components/StaleNote'
 import { chartHref, depthHref, modifyHref } from '~/market/links'
@@ -96,6 +97,8 @@ export function OrdersScreen() {
   const writes = useOrderWrites()
   useBookPolling(true, BOOKS)
   const open = book.data?.orders.filter(isWorking).length ?? 0
+  // A write still out on an order (a modify or a cancel): cancel all waits for its outcome too.
+  const anyOrderOut = [...useScopesOut(useTrading())].some((x) => x.startsWith('order:'))
 
   return (
     <View style={[styles.fill, { backgroundColor: c.background }]} testID="orders-screen">
@@ -109,6 +112,9 @@ export function OrdersScreen() {
       ) : (
         <SemiAutoBanner />
       )}
+      {writes.outcome !== null ? (
+        <OutcomeLine outcome={writes.outcome} onDismiss={writes.dismissOutcome} />
+      ) : null}
       <View style={styles.segments}>
         {SEGMENTS.map((s) => (
           <SegmentTab
@@ -131,7 +137,7 @@ export function OrdersScreen() {
           testID="orders-cancel-all"
           title={`Cancel all (${open})`}
           variant="destructive"
-          disabled={open === 0 || blocked || writes.busy}
+          disabled={open === 0 || blocked || writes.busy || anyOrderOut}
           onPress={() => writes.cancelAll(open)}
         />
       </View>

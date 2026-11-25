@@ -6,6 +6,7 @@ import PortfolioTab from '~/app/(app)/(tabs)/portfolio'
 import type { Capabilities } from '~/core/capabilities/gates'
 import { usePrefs } from '~/core/config/prefs'
 import { createProfileRepo, type ServerProfile } from '~/core/config/profile'
+import { qk } from '~/core/query/keys'
 import { LiveContext } from '~/core/realtime/useLive'
 import { TickStoreContext } from '~/core/realtime/useQuote'
 import { useConnection } from '~/core/services/connection'
@@ -83,6 +84,25 @@ const pos = (o: Record<string, unknown> = {}) => ({
   ...o,
 })
 const posBook = (rows: unknown[]) => ok({ status: 'success', data: rows })
+/** An orderbook row as the stock server sends it. */
+const order = (o: Record<string, unknown> = {}) => ({
+  action: 'SELL',
+  symbol: 'RELIANCE',
+  exchange: 'NSE',
+  orderid: 'X1',
+  product: 'CNC',
+  quantity: '10',
+  price: 0,
+  pricetype: 'MARKET',
+  order_status: 'open',
+  trigger_price: 0,
+  timestamp: '24-Nov-2026 09:30:01',
+  ...o,
+})
+const orderBook = (rows: unknown[]) =>
+  ok({ status: 'success', data: { orders: rows, statistics: {} } })
+/** Every read of a check after no reply (`NO_REPLY_DELAYS_MS`, 127 s), and a little more. */
+const NO_REPLY_CHECK_MS = 127_500
 
 const BASE_ROUTES: Record<string, Route> = {
   'POST /api/v1/funds': ok(funds),
@@ -90,6 +110,7 @@ const BASE_ROUTES: Record<string, Route> = {
   'POST /api/v1/multiquotes': ok({ status: 'success', results: [] }),
   'POST /api/v1/positionbook': posBook([pos()]),
   'POST /api/v1/holdings': ok(holdings),
+  'POST /api/v1/orderbook': orderBook([]),
 }
 
 let services: Services | null = null
@@ -332,19 +353,163 @@ describe('close one', () => {
     expect(requests('placesmartorder')).toHaveLength(1)
   })
 
-  test('a 502 whose check shows the position open says how much', async () => {
+  test('a 502, the position still open and a closing order working: never "try Close again"', async () => {
+    let sent = false
     await setup({
-      'POST /api/v1/placesmartorder': {
-        status: 502,
-        contentType: 'text/html',
-        body: 'Bad Gateway',
+      'POST /api/v1/placesmartorder': () => {
+        sent = true
+        return { status: 502, contentType: 'text/html', body: 'Bad Gateway' }
+      },
+      // the exit was accepted but does not fill (a circuit): the position stays at 10
+      'POST /api/v1/orderbook': () => orderBook(sent ? [order()] : []),
+    })
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    // no reply: the server may still be sending it, so the check reads on past 120 s
+    await pass(17_500)
+    expect(text('write-outcome-text')).toBe('Close may have gone through: checking positions.')
+    // the row's Close waits for the check
+    expect(screen.getByTestId('pos-close-NSE-RELIANCE-CNC')).toBeDisabled()
+    expect(screen.getByTestId('pf-close-all')).toBeDisabled()
+    await pass(NO_REPLY_CHECK_MS - 17_500)
+    expect(text('write-outcome-text')).toBe(
+      'A closing order is working (open). Check the order book before closing again.',
+    )
+    expect(screen.queryByText(/try Close again/)).toBeNull()
+    expect(requests('placesmartorder')).toHaveLength(1)
+    // the line stays once the toast has gone, and links to the order book
+    await pass(5_000)
+    expect(screen.queryByTestId('toast')).toBeNull()
+    await press('write-outcome-orderbook')
+    expect(mockRouter.push).toHaveBeenCalledWith('/orders?segment=all')
+    await press('write-outcome-dismiss')
+    expect(screen.queryByTestId('write-outcome')).toBeNull()
+  })
+
+  test('a 500, still open and no closing order in the book: says so, and points to the book', async () => {
+    await setup({
+      'POST /api/v1/placesmartorder': { status: 500, body: { status: 'error', message: 'boom' } },
+    })
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    await pass(17_500)
+    expect(text('write-outcome-text')).toBe(
+      'Still open: 10. No closing order is working in the order book. Check it before closing again.',
+    )
+    expect(screen.getByTestId('write-outcome-orderbook')).toBeTruthy()
+  })
+
+  test('the orderbook unreadable as well: a closing order may still be working', async () => {
+    let sent = false
+    await setup({
+      'POST /api/v1/placesmartorder': () => {
+        sent = true
+        return { status: 500, body: { status: 'error', message: 'boom' } }
+      },
+      'POST /api/v1/orderbook': () => (sent ? 'throw' : orderBook([])),
+    })
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    await pass(17_500)
+    expect(text('write-outcome-text')).toBe(
+      'Still open: 10. A closing order may still be working. Check the order book before closing again.',
+    )
+  })
+
+  test('a positionbook with an unreadable row and the position missing is not "closed"', async () => {
+    let sent = false
+    await setup({
+      'POST /api/v1/positionbook': () => posBook(sent ? [pos({ symbol: undefined })] : [pos()]),
+      'POST /api/v1/placesmartorder': () => {
+        sent = true
+        return { status: 500, body: { status: 'error', message: 'boom' } }
       },
     })
     await show()
     await press('pos-close-NSE-RELIANCE-CNC')
     await pass(17_500)
-    expect(text('toast')).toBe('Still open: 10. You can try Close again.')
+    expect(text('write-outcome-text')).toBe(
+      "Couldn't check the positions. Check the order book before closing again.",
+    )
+    expect(screen.queryByText('Position is closed')).toBeNull()
+  })
+
+  test('"Close order sent": the row\'s Close waits until the positionbook shows it closed', async () => {
+    let sent = false
+    let filled = false
+    await setup({
+      'POST /api/v1/positionbook': () => posBook([pos({ quantity: filled ? '0' : '10' })]),
+      'POST /api/v1/placesmartorder': () => {
+        sent = true
+        return placed
+      },
+      'POST /api/v1/orderbook': () =>
+        orderBook(sent ? [order({ orderid: '250408000989443', order_status: 'open' })] : []),
+    })
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    expect(text('toast')).toBe('Close order sent')
+    expect(screen.getByTestId('pos-close-NSE-RELIANCE-CNC')).toBeDisabled()
+    // still 10 after every read: the close order is working, so Close stays a pointer to the book
+    await pass(17_500)
+    expect(text('write-outcome-text')).toBe(
+      'A closing order is working (open). Check the order book before closing again.',
+    )
     expect(requests('placesmartorder')).toHaveLength(1)
+    // a fill the positionbook shows ends it at the next close's first read
+    filled = true
+  })
+
+  test('the close order rejected: says so, with what is still open', async () => {
+    let sent = false
+    await setup({
+      'POST /api/v1/placesmartorder': () => {
+        sent = true
+        return placed
+      },
+      'POST /api/v1/orderbook': () =>
+        orderBook(sent ? [order({ orderid: '250408000989443', order_status: 'rejected' })] : []),
+    })
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    await pass(17_500)
+    expect(text('write-outcome-text')).toBe('The closing order was rejected. Still open: 10.')
+    expect(screen.getByTestId('pos-close-NSE-RELIANCE-CNC')).not.toBeDisabled()
+  })
+
+  test('in analyzer mode the outcome carries the sandbox mark', async () => {
+    await setup({
+      'POST /api/v1/analyzer': analyzer('analyze'),
+      'POST /api/v1/placesmartorder': ok({
+        status: 'success',
+        message: 'No OpenPosition Found. Not placing Exit order.',
+        mode: 'analyze',
+      }),
+    })
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    expect(text('toast')).toBe('Sandbox · Already flat')
+  })
+
+  test('the server flipped mode since the book was read: nothing is asked or sent, and the books are read again', async () => {
+    let mode: 'live' | 'analyze' = 'live'
+    await setup({ 'POST /api/v1/analyzer': () => analyzer(mode) })
+    await show()
+    // the header badge read the mode when the live book showed
+    services?.queryClient.setQueryData(qk.analyzer(PID), {
+      mode: 'live',
+      analyze_mode: false,
+      total_logs: 0,
+    })
+    await pass(6_000)
+    mode = 'analyze'
+    const reads = requests('positionbook').length
+    await press('pos-close-NSE-RELIANCE-CNC')
+    expect(asked).toEqual([])
+    expect(requests('placesmartorder')).toHaveLength(0)
+    expect(text('write-outcome-text')).toBe('The server is now in ANALYZE mode. Nothing was sent.')
+    await pass(100)
+    expect(requests('positionbook').length).toBeGreaterThan(reads)
   })
 
   test('a check that cannot read the book says so', async () => {
@@ -359,7 +524,9 @@ describe('close one', () => {
     await show()
     await press('pos-close-NSE-RELIANCE-CNC')
     await pass(17_500)
-    expect(text('toast')).toBe("Couldn't check. Pull to refresh.")
+    expect(text('toast')).toBe(
+      "Couldn't check the positions. Check the order book before closing again.",
+    )
   })
 
   test('a double tap sends one call', async () => {
@@ -431,9 +598,26 @@ describe('close all', () => {
     await show()
     await press('pf-close-all')
     expect(text('toast')).toBe('Status unknown: checking order book')
-    await pass(17_500)
-    expect(text('toast')).toBe('Status unknown. 2 positions still open.')
+    await pass(NO_REPLY_CHECK_MS)
+    expect(text('write-outcome-text')).toBe(
+      'Status unknown. 2 positions still open. Check the order book before closing again.',
+    )
     expect(requests('closeposition')).toHaveLength(1)
+  })
+
+  test('a 500 whose check shows none open says all are closed, never "0 positions still open"', async () => {
+    let sent = false
+    await setup({
+      'POST /api/v1/positionbook': () => (sent ? posBook([pos({ quantity: '0' })]) : two),
+      'POST /api/v1/closeposition': () => {
+        sent = true
+        return { status: 500, body: { status: 'error', message: 'boom' } }
+      },
+    })
+    await show()
+    await press('pf-close-all')
+    await pass(2_500)
+    expect(text('write-outcome-text')).toBe('All positions are closed')
   })
 })
 

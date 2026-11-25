@@ -21,9 +21,11 @@ import type {
 import { useLiveLtps } from '~/market/books/useLiveLtps'
 import { DroppedNote } from '~/market/components/DroppedNote'
 import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
+import { OutcomeLine } from '~/market/components/OutcomeLine'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import { StaleNote } from '~/market/components/StaleNote'
-import { chartHref, ticketHref } from '~/market/links'
+import { chartHref, ordersHref, ticketHref } from '~/market/links'
+import { ALL_POSITIONS, isPositionScope, onPosition, useScopesOut } from '~/market/orders/pending'
 import { useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { Button } from '~/ui/Button'
@@ -85,6 +87,10 @@ export function PortfolioScreen() {
   const positions = usePositionbook()
   const holdings = useHoldings()
   const writes = usePositionWrites()
+  // A close still out (its check included) holds its position's Close, and close all every one,
+  // whichever screen sent it: a second close would be sized from the unclosed position.
+  const out = useScopesOut(trading)
+  const anyCloseOut = [...out].some(isPositionScope)
   const go = (href: string) => router.push(href as Href)
   useBookPolling(segment !== 'funds', BOOKS)
   usePositionsPoll(segment === 'positions' && screenActive && !blocked)
@@ -138,6 +144,13 @@ export function PortfolioScreen() {
       ) : (
         <SemiAutoBanner />
       )}
+      {writes.outcome !== null ? (
+        <OutcomeLine
+          outcome={writes.outcome}
+          onDismiss={writes.dismissOutcome}
+          onViewOrderbook={() => go(ordersHref({ segment: 'all' }))}
+        />
+      ) : null}
       <View style={styles.segments}>
         {SEGMENTS.map((s) => (
           <Pressable
@@ -175,7 +188,7 @@ export function PortfolioScreen() {
               testID="pf-close-all"
               title={`Close all (${open})`}
               variant="destructive"
-              disabled={open === 0 || blocked || writes.busy}
+              disabled={open === 0 || blocked || writes.busy || anyCloseOut}
               onPress={() => writes.closeAll(open)}
             />
           </View>
@@ -185,12 +198,14 @@ export function PortfolioScreen() {
             rows={posLive}
             empty="No positions today"
             keyOf={(p) => `${p.row.exchange}-${p.row.symbol}-${p.row.product}`}
-            extra={`${blocked}|${writes.busy}`}
+            extra={`${blocked}|${writes.busy}|${[...out].join(',')}`}
             render={({ row, live }) => (
               <PositionRow
                 row={row}
                 live={live}
-                closeDisabled={blocked || writes.busy}
+                closeDisabled={
+                  blocked || writes.busy || out.has(onPosition(row)) || out.has(ALL_POSITIONS)
+                }
                 onClose={() => writes.closeOne(row)}
                 onChart={() => go(chartHref(row.exchange, row.symbol))}
               />

@@ -181,8 +181,8 @@ export const SplitReplySchema = z.union([Queued, Split])
 
 /** A close of a position that is already flat (place_smart_order_service.py:227, sandbox:508). */
 const Flat = z
-  .object({ status: success, message: z.string().regex(/Already Matched|No OpenPosition/i) })
-  .transform((r) => ({ kind: 'flat' as const, message: r.message }))
+  .object({ status: success, message: z.string().regex(/Already Matched|No OpenPosition/i), mode })
+  .transform((r) => ({ kind: 'flat' as const, message: r.message, analyze: r.mode === 'analyze' }))
 
 /**
  * The service answers `{status:'success', orderid: null}` when the adapter returns 200 without an

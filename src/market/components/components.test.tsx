@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
-import { Linking } from 'react-native'
+import { AccessibilityInfo, Linking, Platform } from 'react-native'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
 import { DroppedNote } from './DroppedNote'
+import { LiveSurpriseNotice } from './LiveSurpriseNotice'
+import { OutcomeLine } from './OutcomeLine'
 import {
   BrokerBanner,
   QUEUED_COPY,
@@ -120,5 +122,44 @@ describe('StaleNote', () => {
     // 21:31:02 UTC is 03:01:02 IST the next day.
     await render(<StaleNote at={Date.UTC(2026, 10, 24, 21, 31, 2)} />)
     expect(screen.getByTestId('stale-note')).toHaveTextContent('Last updated 03:01:02')
+  })
+})
+
+describe('LiveSurpriseNotice', () => {
+  test('VoiceOver reads it out as it appears (the alert role alone does not on iOS)', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios')
+    const say = jest
+      .spyOn(AccessibilityInfo, 'announceForAccessibility')
+      .mockImplementation(() => {})
+    await render(<LiveSurpriseNotice text="This order was placed in LIVE mode." />)
+    expect(say).toHaveBeenCalledWith('This order was placed in LIVE mode.')
+  })
+})
+
+describe('OutcomeLine', () => {
+  test('the line, its order book link when the way on is the book, and Dismiss', async () => {
+    const dismiss = jest.fn()
+    const view = jest.fn()
+    await render(
+      <OutcomeLine
+        outcome={{ text: 'A closing order is working (open).', tone: 'warning', orderbook: true }}
+        onDismiss={dismiss}
+        onViewOrderbook={view}
+      />,
+    )
+    expect(screen.getByTestId('write-outcome-text')).toHaveTextContent(
+      'A closing order is working (open).',
+    )
+    await fireEvent.press(screen.getByTestId('write-outcome-orderbook'))
+    expect(view).toHaveBeenCalledTimes(1)
+    await fireEvent.press(screen.getByTestId('write-outcome-dismiss'))
+    expect(dismiss).toHaveBeenCalledTimes(1)
+  })
+
+  test('no link without an order book way on', async () => {
+    await render(
+      <OutcomeLine outcome={{ text: 'Order cancelled', tone: 'neutral' }} onDismiss={() => {}} />,
+    )
+    expect(screen.queryByTestId('write-outcome-orderbook')).toBeNull()
   })
 })

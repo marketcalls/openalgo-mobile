@@ -1,10 +1,13 @@
 // The danger notice for a write the server took LIVE after the user reviewed it in ANALYZE mode
 // (`Outcome.liveSurprise`): a real order went to the broker, without the live confirm. Design
 // 7.10 never lets the mode pass unsaid, so it shows above everything else on the screen, in the
-// danger colours, and is read out at once.
+// danger colours, and is read out at once: TalkBack through the assertive live region, VoiceOver
+// (which ignores live regions and the alert role) through `announce` when it appears.
+import { useEffect } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useToneColors } from '~/ui/Badge'
 import { Text } from '~/ui/Text'
+import { announce } from '~/ui/Toast'
 
 export function LiveSurpriseNotice({
   text,
@@ -15,6 +18,7 @@ export function LiveSurpriseNotice({
   onDismiss?: () => void
 }) {
   const { bg, fg } = useToneColors('danger')
+  useEffect(() => announce(text), [text])
   return (
     <View
       testID="live-surprise"

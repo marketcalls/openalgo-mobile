@@ -25,7 +25,11 @@ import { createHttpClient, type HttpClient } from '~/core/http/client'
 import { ApiError, userMessage } from '~/core/http/errors'
 import { createScheduler, type Scheduler } from '~/core/http/scheduler'
 import { log } from '~/core/log/logger'
-import { type BookInvalidator, createBookInvalidator } from '~/core/query/invalidate'
+import {
+  type BookInvalidator,
+  createBookInvalidator,
+  resetBooksOnModeChange,
+} from '~/core/query/invalidate'
 import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
 import { isExchangeOpen } from '~/core/realtime/marketHours'
@@ -347,6 +351,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
   })
   const unsubs = [
     orderEvents.subscribe(() => books.poke()),
+    resetBooksOnModeChange(queryClient, pid),
     realtime.onStatus((st) => {
       conn.getState().set({ feed: st.state })
       syncStale()

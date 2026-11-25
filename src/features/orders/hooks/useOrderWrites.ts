@@ -8,6 +8,7 @@ import type { EndpointId } from '~/core/http/endpoints'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { useServices } from '~/core/services/services'
 import type { OrderRow } from '~/market/books/schemas'
+import type { WriteOutcome } from '~/market/components/OutcomeLine'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { confirmInMode } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
@@ -17,6 +18,7 @@ import {
   errorText,
   modeChanged,
   NOT_CHECKED,
+  sandboxed,
   settle,
   sleep,
 } from '~/market/orders/outcome'
@@ -64,6 +66,7 @@ type Write<R> = {
  * order waits for it, even after this screen remounts. `semiBlocked` is the reason of a write
  * Semi-Auto refused, until the next write starts. `liveSurprise` is the notice for a write the
  * server took LIVE after an ANALYZE confirm, until it is dismissed or the next write starts.
+ * `outcome` is the last write's line, kept on the tab until dismissed or the next write starts.
  */
 export function useOrderWrites() {
   const s = useServices()
@@ -72,17 +75,30 @@ export function useOrderWrites() {
   const readBook = useFreshBook()
   const [semiBlocked, setSemiBlocked] = useState<string | null>(null)
   const [liveSurprise, setLiveSurprise] = useState<string | null>(null)
+  const [outcome, setOutcome] = useState<WriteOutcome | null>(null)
   /** This screen, as the session's writes still out know it. */
   const [me] = useState(() => ({}))
+
+  /** The line on the tab, and as a toast (which a screen reader hears). */
+  const tell = (text: string, tone: WriteOutcome['tone'] = 'warning') => {
+    setOutcome({ text, tone })
+    toast(text)
+  }
 
   const write = <R>(w: Write<R>) =>
     void guard.run(async () => {
       setSemiBlocked(null)
       setLiveSurprise(null)
+      setOutcome(null)
       const c = await confirmInMode(trading.analyzer, { ...w.confirm, destructive: true })
       if (c.kind === 'error') {
         notifyWarning()
         toast(errorText(c.error))
+        return
+      }
+      if (c.kind === 'mode_changed') {
+        notifyWarning()
+        tell(modeChanged(c.now))
         return
       }
       if (c.kind === 'declined') return
@@ -111,17 +127,17 @@ export function useOrderWrites() {
               setLiveSurprise(liveSurpriseText(w.kind))
             } else if (d.ok) notifySuccess()
             else notifyWarning()
-            toast(d.line)
+            tell(d.line, d.ok ? 'neutral' : 'warning')
             return
           }
           case 'maybe':
             notifyWarning()
-            toast(CHECKING)
-            toast(await w.check())
+            tell(CHECKING)
+            tell(await w.check())
             return
           case 'refused':
             notifyWarning()
-            toast(r.message)
+            tell(r.message)
             return
           case 'semi_auto_blocked':
             notifyWarning()
@@ -129,7 +145,7 @@ export function useOrderWrites() {
             return
           case 'mode_changed':
             notifyWarning()
-            toast(modeChanged(r.now))
+            tell(modeChanged(r.now))
             return
           case 'cancelled':
             if (r.message) toast(r.message)
@@ -150,7 +166,10 @@ export function useOrderWrites() {
       confirm: { title: 'Cancel this order?', body: summary, ok: 'Cancel order' },
       send: () => trading.orders.cancel(row.orderid),
       unknown: (reply) => reply.kind === 'no_id',
-      done: () => ({ line: CANCELLED, ok: true }),
+      done: (reply) => ({
+        line: sandboxed(CANCELLED, reply.kind === 'ok' && reply.analyze),
+        ok: true,
+      }),
       check: () => checkOrder({ readBook, before: row }),
     })
 
@@ -166,7 +185,10 @@ export function useOrderWrites() {
       },
       send: () => trading.orders.cancelAll(),
       done: (reply) => ({
-        line: `Cancelled ${reply.canceled.length}. Failed ${reply.failed.length}.`,
+        line: sandboxed(
+          `Cancelled ${reply.canceled.length}. Failed ${reply.failed.length}.`,
+          reply.analyze,
+        ),
         ok: reply.failed.length === 0,
       }),
       // The book lags the write: it is read after each of T10's delays until none is open.
@@ -185,5 +207,7 @@ export function useOrderWrites() {
     semiBlocked,
     liveSurprise,
     dismissLiveSurprise: () => setLiveSurprise(null),
+    outcome,
+    dismissOutcome: () => setOutcome(null),
   }
 }

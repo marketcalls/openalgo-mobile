@@ -70,6 +70,8 @@ Orders
   `order-time-{ID}`, `trade-row-{ID}`
 - `order-modify` *, `order-cancel` *, `order-depth`, `order-chart`, `order-pending`
 - `stale-note`, `books-dropped`, `live-surprise`, `live-surprise-dismiss`
+- `write-outcome`, `write-outcome-text`, `write-outcome-orderbook`, `write-outcome-dismiss` (the
+  last write's line on the Orders and Portfolio tabs)
 
 Modify
 - `modify-screen`, `modify-price` *, `modify-trigger`, `modify-qty`, `modify-qty-units`,

@@ -87,7 +87,11 @@ const CASES: Case[] = [
     id: 'placesmartorder',
     body: expect.objectContaining({ symbol: 'YESBANK', action: 'BUY', position_size: '0' }),
     reply: { status: 'success', message: 'Positions Already Matched. No Action needed.' },
-    result: { kind: 'flat', message: 'Positions Already Matched. No Action needed.' },
+    result: {
+      kind: 'flat',
+      message: 'Positions Already Matched. No Action needed.',
+      analyze: false,
+    },
   },
   {
     name: 'modify',

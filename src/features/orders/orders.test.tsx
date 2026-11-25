@@ -504,8 +504,8 @@ describe('cancel', () => {
     await press('order-cancel')
     expect(asked[0]?.title).toMatch(/^ANALYZE/)
     expect(requests('cancelorder')).toHaveLength(1)
-    // the sandbox answered, as the confirm said: no LIVE notice
-    expect(text('toast')).toBe('Order cancelled')
+    // the sandbox answered, as the confirm said: no LIVE notice, and the sandbox mark (7.10)
+    expect(text('toast')).toBe('Sandbox · Order cancelled')
     expect(screen.queryByTestId('live-surprise')).toBeNull()
     expect(error).not.toHaveBeenCalled()
   })
@@ -537,14 +537,22 @@ describe('cancel', () => {
     await press('live-surprise-dismiss')
     expect(screen.queryByTestId('live-surprise')).toBeNull()
 
-    // within 5 s of the ANALYZE reading, the next confirm asks the server and says LIVE
+    // within 5 s of the ANALYZE reading, the next tap asks the server: it is LIVE now, so the
+    // rows on screen were read in ANALYZE, and nothing is asked until the books are read again
     const reads = requests('analyzer').length
+    const books = requests('orderbook').length
     answer = false
     await pass(200)
     await press('order-cancel')
     await pass(1_000)
     expect(Date.now() - T0).toBeLessThan(5_600)
     expect(requests('analyzer').length).toBe(reads + 1)
+    expect(asked).toHaveLength(1)
+    expect(text('write-outcome-text')).toBe('The server is now in LIVE mode. Nothing was sent.')
+    expect(requests('orderbook').length).toBeGreaterThan(books)
+    // the next tap, on the books as LIVE shows them, says LIVE
+    await pass(1_000)
+    await press('order-cancel')
     expect(asked[1]?.title).toMatch(/^LIVE/)
   })
 

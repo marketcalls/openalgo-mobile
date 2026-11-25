@@ -179,6 +179,8 @@ describe('SmartReplySchema', () => {
     expect(SmartReplySchema.parse({ status: 'success', message, mode: 'analyze' })).toEqual({
       kind: 'flat',
       message,
+      // the sandbox tags its flat reply too (sandbox_service.py), so the screen marks it
+      analyze: true,
     })
   })
 

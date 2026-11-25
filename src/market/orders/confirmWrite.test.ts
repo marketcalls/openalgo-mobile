@@ -24,7 +24,10 @@ afterEach(() => {
   jest.restoreAllMocks()
 })
 
-const gate = (read: () => Promise<AnalyzerMode>) => ({ read: jest.fn(read) })
+const gate = (read: () => Promise<AnalyzerMode>, known: AnalyzerMode | null = null) => ({
+  read: jest.fn(read),
+  peek: () => known,
+})
 
 test('the mode read now heads the confirm; yes is that mode', async () => {
   const g = gate(async () => 'live')
@@ -68,6 +71,7 @@ test('a read that fails asks nothing', async () => {
 test('a read still out after the deadline asks nothing (ruling 6)', async () => {
   jest.useFakeTimers()
   const g = {
+    peek: () => null,
     read: jest.fn(
       ({ signal }: { signal?: AbortSignal } = {}) =>
         new Promise<AnalyzerMode>((_resolve, reject) => {
@@ -81,4 +85,35 @@ test('a read still out after the deadline asks nothing (ruling 6)', async () => 
   await jest.advanceTimersByTimeAsync(READ_DEADLINE_MS)
   await expect(out).resolves.toMatchObject({ kind: 'error' })
   expect(Alert.alert).not.toHaveBeenCalled()
+})
+
+test("the server in another mode than the screen last knew asks nothing: its rows may be the other mode's", async () => {
+  await expect(
+    confirmInMode(
+      gate(async () => 'analyze', 'live'),
+      COPY,
+    ),
+  ).resolves.toEqual({
+    kind: 'mode_changed',
+    now: 'analyze',
+  })
+  await expect(
+    confirmInMode(
+      gate(async () => 'live', 'analyze'),
+      COPY,
+    ),
+  ).resolves.toEqual({
+    kind: 'mode_changed',
+    now: 'live',
+  })
+  expect(Alert.alert).not.toHaveBeenCalled()
+  // the same mode, or none known yet, asks
+  await expect(
+    confirmInMode(
+      gate(async () => 'live', 'live'),
+      COPY,
+    ),
+  ).resolves.toMatchObject({
+    kind: 'confirmed',
+  })
 })

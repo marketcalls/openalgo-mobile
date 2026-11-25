@@ -27,6 +27,10 @@ export const modeChanged = (now: AnalyzerMode) =>
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
+/** Design 7.10: an analyzer reply shows a sandbox mark, on every outcome a screen tells. */
+export const sandboxed = (line: string, analyze: boolean | undefined) =>
+  analyze ? `Sandbox · ${line}` : line
+
 export const errorText = (e: unknown) =>
   e instanceof ApiError ? userMessage(e) : 'Something went wrong.'
 

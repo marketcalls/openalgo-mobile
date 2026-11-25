@@ -35,7 +35,7 @@ import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { useSubmitGuard } from '~/market/orders/guard'
-import { CHECKING, checkOrder, modeChanged, settle } from '~/market/orders/outcome'
+import { CHECKING, checkOrder, modeChanged, sandboxed, settle } from '~/market/orders/outcome'
 import {
   holdOrder,
   onOrder,
@@ -269,7 +269,7 @@ type Step =
   /** After an unknown outcome: `line` once the book says, null while it is read. */
   | { kind: 'check'; line: string | null }
   /** Modified: the sheet closes once it is no longer held. */
-  | { kind: 'closing' }
+  | { kind: 'closing'; line: string }
   /** Modified, but LIVE though the sheet showed ANALYZE: it stays, with the notice, until Done. */
   | { kind: 'modified_live' }
 
@@ -390,11 +390,15 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
               show({ kind: 'modified_live' }, MODIFIED_LIVE_LINE)
               return
             }
-            notifySuccess()
-            toast(MODIFIED)
-            if (alive.current) setStep({ kind: 'closing' })
-            else goneLine.current = MODIFIED
-            return
+            {
+              notifySuccess()
+              // design 7.10: an analyzer reply shows the sandbox mark
+              const line = sandboxed(MODIFIED, r.reply.kind === 'ok' && r.reply.analyze)
+              toast(line)
+              if (alive.current) setStep({ kind: 'closing', line })
+              else goneLine.current = line
+              return
+            }
           case 'maybe': {
             phase.current = 'checking'
             notifyWarning()
@@ -445,7 +449,7 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
         <Skeleton rows={1} />
       ) : null}
       {step.kind === 'closing' ? (
-        <Text testID="modify-closing">{MODIFIED}</Text>
+        <Text testID="modify-closing">{step.line}</Text>
       ) : step.kind === 'modified_live' ? (
         <View style={styles.form}>
           <LiveSurpriseNotice text={MODIFIED_LIVE} />
