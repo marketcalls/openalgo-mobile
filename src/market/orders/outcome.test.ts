@@ -53,11 +53,16 @@ const NOW = [0, 0, 0]
 
 describe('settle', () => {
   test('MaybePlaced, a Server error from the write itself, and a success without an id: maybe', () => {
-    expect(settle({ kind: 'maybe' }, 'modifyorder', noId)).toEqual({ kind: 'maybe' })
+    // no reply from the server's order logic: it may still be sending, so the check reads longer
+    expect(settle({ kind: 'maybe' }, 'modifyorder', noId)).toEqual({ kind: 'maybe', noReply: true })
     expect(settle({ kind: 'error', error: SERVER }, 'modifyorder', noId)).toEqual({
       kind: 'maybe',
+      noReply: false,
     })
-    expect(settle({ kind: 'done', reply: NO_ID }, 'modifyorder', noId)).toEqual({ kind: 'maybe' })
+    expect(settle({ kind: 'done', reply: NO_ID }, 'modifyorder', noId)).toEqual({
+      kind: 'maybe',
+      noReply: false,
+    })
   })
 
   test('a Server error from another endpoint, or any other error, is refused with its message', () => {
@@ -122,7 +127,7 @@ describe('settle', () => {
         books: { poke: jest.fn() },
       })
       const r: Settled<IdReply> = settle(out, 'modifyorder', noId)
-      expect(r).toEqual({ kind: 'maybe' })
+      expect(r).toMatchObject({ kind: 'maybe' })
       // what a screen does with maybe: it reads the book, and only reads it
       const readBook = reads(book(raw()), book(raw({ price: 17 })))
       const line = await checkOrder({

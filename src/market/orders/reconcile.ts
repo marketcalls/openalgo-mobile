@@ -3,12 +3,40 @@
 import { isWorking, type OrderRow, type PositionRow } from '../books/schemas'
 import type { OrderSpec, PositionToClose } from './schemas'
 
+/** The books lag a write the server answered: each check reads after 2, 5 and 10 s. */
 export const RECONCILE_DELAYS_MS: readonly number[] = [2000, 5000, 10000]
+
+/**
+ * After a write that got no reply (a timeout, a 502, a reply that could not be read), the server
+ * may still be waiting on the broker: the stock server gives a broker request up to 120 s
+ * (utils/httpx_client.py REQUEST_TIMEOUT_SECONDS), and a proxy in front of it can give up on the
+ * app first. So the check reads on past that: its last read lands 127 s after the failure, which
+ * is itself at least the endpoint's timeout after the send. A check that ends earlier would tell
+ * "not in the book" while the order may still reach it (design 7.10: never re-sends).
+ */
+export const NO_REPLY_DELAYS_MS: readonly number[] = [2000, 5000, 10000, 20000, 30000, 60000]
+
+/**
+ * What one split child may take at the server, which places the children one after another for
+ * the whole run (split_order_service.py): its rate-limit gap (ORDER_RATE_LIMIT, 10 per second by
+ * default) and the broker's reply.
+ */
+export const SPLIT_CHILD_MS = 1000
+
+/**
+ * The reads after a write that got no reply: `NO_REPLY_DELAYS_MS`, and for a split of `children`
+ * orders, 30 s more per 30 children the server may still be placing.
+ */
+export function noReplyDelays(children?: number): number[] {
+  const extra = children === undefined ? 0 : Math.ceil((children * SPLIT_CHILD_MS) / 30_000)
+  return [...NO_REPLY_DELAYS_MS, ...Array.from({ length: extra }, () => 30_000)]
+}
 
 /** An order stamped up to this long before the send can still be ours (a broker clock behind). */
 const WINDOW_MS = 120_000
 
-type FetchOrders = () => Promise<{ orders: readonly OrderRow[] }>
+/** `dropped`: rows of the book that could not be read (`lenientRows`); one could be ours. */
+type FetchOrders = () => Promise<{ orders: readonly OrderRow[]; dropped?: number }>
 
 /** The books lag the write, so each check waits, then reads once, per delay. */
 type Polling = {
@@ -26,8 +54,9 @@ type Placement = Polling & {
 }
 
 /**
- * `checked` is false when no fetch got the book, so an empty `found` means "could not check",
- * not "not placed".
+ * `checked` is false when no fetch got the book, or the last one that did had rows it could not
+ * read and none of what was sought (the row sought may be one of them), so an empty `found` means
+ * "could not check", not "not placed".
  */
 export type Reconciled<T> = { found: T; checked: boolean }
 
@@ -55,13 +84,14 @@ const newestFirst = (rows: readonly OrderRow[]) =>
   [...rows].sort((a, b) => (timeOf(a) === timeOf(b) ? 0 : timeOf(b) > timeOf(a) ? 1 : -1))
 
 /**
- * After each delay, one fetch; `read` what the book says, and stop once `done` says so.
- * A fetch that fails is skipped. The answer is the last fetch that worked.
+ * After each delay, one fetch; `read` what the book says (`checked` false when its unreadable
+ * rows leave it open), and stop once a sure read is `done`. A fetch that fails is skipped. The
+ * answer is the last fetch that worked.
  */
 async function poll<B, T>(
   { sleep, delaysMs = RECONCILE_DELAYS_MS }: Polling,
   fetch: () => Promise<B>,
-  read: (book: B) => T,
+  read: (book: B) => Reconciled<T>,
   done: (found: T) => boolean,
   none: T,
 ): Promise<Reconciled<T>> {
@@ -74,33 +104,42 @@ async function poll<B, T>(
     } catch {
       continue
     }
-    last = { found: read(book), checked: true }
-    if (done(last.found)) return last
+    last = read(book)
+    if (last.checked && done(last.found)) return last
   }
   return last
 }
 
-/** Polls the orderbook; `pick` gets the rows that could be ours, newest first. */
+/**
+ * Polls the orderbook; `pick` gets the rows that could be ours, newest first, and `sure` says
+ * whether what it found settles it even when some rows could not be read.
+ */
 const pollOrders = <T>(
   p: Placement,
   pick: (candidates: OrderRow[]) => T,
+  sure: (found: T) => boolean,
   done: (found: T) => boolean,
   none: T,
 ) =>
   poll(
     p,
     p.fetchOrders,
-    ({ orders }) => pick(newestFirst(orders.filter((r) => isCandidate(r, p)))),
+    ({ orders, dropped = 0 }) => {
+      const found = pick(newestFirst(orders.filter((r) => isCandidate(r, p))))
+      return { found, checked: dropped === 0 || sure(found) }
+    },
     done,
     none,
   )
 
 /** The order a single placement made, if the book shows one. */
 export function reconcilePlacement(p: Placement): Promise<Reconciled<OrderRow | null>> {
+  const found = (r: OrderRow | null) => r !== null
   return pollOrders(
     p,
     (rows) => rows.find((r) => r.quantity === p.spec.quantity) ?? null,
-    (found) => found !== null,
+    found,
+    found,
     null,
   )
 }
@@ -124,7 +163,8 @@ export function reconcileSplit(
     }
     return found
   }
-  return pollOrders(p, pick, (found) => found.length >= p.children.length, [])
+  const all = (found: OrderRow[]) => found.length >= p.children.length
+  return pollOrders(p, pick, all, all, [])
 }
 
 /**
@@ -133,25 +173,66 @@ export function reconcileSplit(
  * lags the close: a read at once can still show the old quantity, and "still open" then invites
  * a second close while the first may be working (a resend after a maybe, rulings 5). It stops
  * at the first read that shows the position closed. `open` is what the last read that worked
- * showed after every delay; `unknown` is no read working at all.
+ * showed after every delay; `unknown` is no read working at all, or a last read whose row is
+ * missing while some rows could not be read (the position may be one of them).
  */
 export async function reconcileClose({
   fetchPositions,
   row,
   ...polling
 }: Polling & {
-  fetchPositions: () => Promise<{ rows: readonly PositionRow[] }>
+  fetchPositions: () => Promise<{ rows: readonly PositionRow[]; dropped?: number }>
   row: Pick<PositionToClose, 'symbol' | 'exchange' | 'product'>
 }): Promise<'closed' | 'open' | 'unknown'> {
-  const isClosed = ({ rows }: { rows: readonly PositionRow[] }) => {
+  const isClosed = ({ rows, dropped = 0 }: { rows: readonly PositionRow[]; dropped?: number }) => {
     const now = rows.find(
       (r) => r.symbol === row.symbol && r.exchange === row.exchange && r.product === row.product,
     )
-    return !now || now.quantity === 0
+    return { found: !now || now.quantity === 0, checked: now !== undefined || dropped === 0 }
   }
   const { found: closed, checked } = await poll(polling, fetchPositions, isClosed, (c) => c, false)
   if (!checked) return 'unknown'
   return closed ? 'closed' : 'open'
+}
+
+/**
+ * After a close whose position the book still shows open: an order working to close it, if the
+ * orderbook shows one. That is a working order on the contract and product, on the side that
+ * closes the position (`side`), placed no earlier than the close was sent (less a broker clock
+ * behind); its quantity is not compared, since the server sizes a close from the position. One
+ * read, at once: the close was sent long enough ago for the book to list it. `checked` false
+ * when the book could not be read, or had unreadable rows and no such order.
+ */
+export async function findWorkingExit({
+  fetchOrders,
+  row,
+  side,
+  sentAt,
+}: {
+  fetchOrders: FetchOrders
+  row: Pick<PositionToClose, 'symbol' | 'exchange' | 'product'>
+  side: 'BUY' | 'SELL'
+  sentAt: number
+}): Promise<Reconciled<OrderRow | null>> {
+  let book: Awaited<ReturnType<FetchOrders>>
+  try {
+    book = await fetchOrders()
+  } catch {
+    return { found: null, checked: false }
+  }
+  const found =
+    newestFirst(
+      book.orders.filter(
+        (r) =>
+          r.symbol === row.symbol &&
+          r.exchange === row.exchange &&
+          r.product === row.product &&
+          r.action === side &&
+          isWorking(r) &&
+          (r.placedAt === null || r.placedAt >= sentAt - WINDOW_MS),
+      ),
+    )[0] ?? null
+  return { found, checked: found !== null || (book.dropped ?? 0) === 0 }
 }
 
 /** The order's row as the book shows it now; null when it is not there. A failed read rejects. */
@@ -188,7 +269,11 @@ export function reconcileRowChange({
   return poll(
     polling,
     fetchOrders,
-    ({ orders }) => orders.find((r) => r.orderid === before.orderid) ?? null,
+    ({ orders, dropped = 0 }) => {
+      const now = orders.find((r) => r.orderid === before.orderid) ?? null
+      // gone is sure only when every row could be read: the order may be one that could not
+      return { found: now, checked: now !== null || dropped === 0 }
+    },
     (now) => now === null || !sameOrder(now, before),
     null,
   )
@@ -197,7 +282,7 @@ export function reconcileRowChange({
 /**
  * After a cancel all whose outcome is unknown: how many orders the book shows still working,
  * read after each delay until it shows none. Otherwise the count the last read that worked
- * showed; `checked` is false when no read worked.
+ * showed; `checked` is false when no read worked, or the last one had rows it could not read.
  */
 export function reconcileCancelAll({
   fetchOrders,
@@ -206,7 +291,10 @@ export function reconcileCancelAll({
   return poll(
     polling,
     fetchOrders,
-    ({ orders }) => orders.filter(isWorking).length,
+    ({ orders, dropped = 0 }) => ({
+      found: orders.filter(isWorking).length,
+      checked: dropped === 0,
+    }),
     (open) => open === 0,
     0,
   )

@@ -34,8 +34,12 @@ export const errorText = (e: unknown) =>
 export type Settled<R> =
   /** `liveSurprise`: the confirm said ANALYZE, but the server took it LIVE (`Outcome`). */
   | { kind: 'ok'; reply: R; liveSurprise?: true }
-  /** It may have gone: check the book, never send again. */
-  | { kind: 'maybe' }
+  /**
+   * It may have gone: check the book, never send again. `noReply`: no reply came from the
+   * server's order logic (a timeout, a 502, an unreadable reply, a send that threw), so the server
+   * may still be sending it to the broker and the check reads on longer (`noReplyDelays`).
+   */
+  | { kind: 'maybe'; noReply: boolean }
   | { kind: 'refused'; message: string }
   | { kind: 'semi_auto_blocked'; message: string }
   | { kind: 'mode_changed'; now: AnalyzerMode }
@@ -53,14 +57,16 @@ export function settle<R>(
 ): Settled<R> {
   switch (out.kind) {
     case 'done':
-      if (unknown(out.reply)) return { kind: 'maybe' }
+      if (unknown(out.reply)) return { kind: 'maybe', noReply: false }
       return out.liveSurprise
         ? { kind: 'ok', reply: out.reply, liveSurprise: true }
         : { kind: 'ok', reply: out.reply }
     case 'error':
       return out.error.kind === 'Server' && out.error.endpoint === endpoint
-        ? { kind: 'maybe' }
+        ? { kind: 'maybe', noReply: false }
         : { kind: 'refused', message: userMessage(out.error) }
+    case 'maybe':
+      return { kind: 'maybe', noReply: true }
     default:
       return out
   }

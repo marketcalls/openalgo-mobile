@@ -7,6 +7,9 @@ import {
   PositionbookSchema,
 } from '../books/schemas'
 import {
+  findWorkingExit,
+  NO_REPLY_DELAYS_MS,
+  noReplyDelays,
   RECONCILE_DELAYS_MS,
   reconcileCancelAll,
   reconcileClose,
@@ -49,6 +52,8 @@ const raw = (o: Record<string, unknown> = {}) => ({
 /** Parsed the way the app reads it, so placedAt comes from the real timestamp parse. */
 const book = (...rows: object[]): Orderbook =>
   OrderbookSchema.parse({ status: 'success', data: { orders: rows, statistics: {} } })
+/** A row the app cannot read (no order id): dropped and counted. */
+const unreadable = () => raw({ orderid: undefined })
 
 /** A fetch answering each call with the next book (the last one repeats); an Error rejects. */
 function answers<B>(books: (B | Error)[]) {
@@ -68,9 +73,62 @@ const network = () => new ApiError({ kind: 'Network', status: 0, endpoint: 'orde
 
 beforeEach(() => sleep.mockClear())
 
-describe('reconcilePlacement', () => {
+describe('the delays', () => {
+  const sum = (ms: readonly number[]) => ms.reduce((a, b) => a + b, 0)
+
   test('waits 2, 5 and 10 s by default', () => {
     expect(RECONCILE_DELAYS_MS).toEqual([2000, 5000, 10000])
+  })
+
+  test("after no reply, the last read lands past the stock server's 120 s broker timeout", () => {
+    expect(NO_REPLY_DELAYS_MS.slice(0, 3)).toEqual(RECONCILE_DELAYS_MS)
+    expect(sum(NO_REPLY_DELAYS_MS)).toBeGreaterThan(120_000)
+    expect(noReplyDelays()).toEqual(NO_REPLY_DELAYS_MS)
+  })
+
+  test('a split reads on 30 s more per 30 children the server may still be placing', () => {
+    expect(sum(noReplyDelays(2))).toBe(sum(NO_REPLY_DELAYS_MS) + 30_000)
+    expect(sum(noReplyDelays(100))).toBe(sum(NO_REPLY_DELAYS_MS) + 4 * 30_000)
+    // 100 children at 1 s each, after the 120 s a broker request may take
+    expect(sum(noReplyDelays(100))).toBeGreaterThan(120_000 + 100 * 1_000)
+  })
+})
+
+describe('reconcilePlacement', () => {
+  test('the delays it is given: the no-reply series reads six times before it gives up', async () => {
+    const fetchOrders = fetches(book())
+    const out = await reconcilePlacement({
+      fetchOrders,
+      spec: SPEC,
+      sentAt: SENT_AT,
+      knownIds: NONE,
+      sleep,
+      delaysMs: noReplyDelays(),
+    })
+    expect(out).toEqual({ found: null, checked: true })
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([...NO_REPLY_DELAYS_MS])
+  })
+
+  test('a book with an unreadable row and no match could not check: the row may be ours', async () => {
+    const fetchOrders = fetches(book(raw({ symbol: 'SBIN' }), unreadable()))
+    const args = { spec: SPEC, sentAt: SENT_AT, knownIds: NONE, sleep }
+    expect(await reconcilePlacement({ fetchOrders, ...args })).toEqual({
+      found: null,
+      checked: false,
+    })
+    expect(fetchOrders).toHaveBeenCalledTimes(3)
+    // a match is a match, whatever else could not be read
+    const matched = fetches(book(raw(), unreadable()))
+    expect(await reconcilePlacement({ fetchOrders: matched, ...args })).toMatchObject({
+      found: { orderid: 'NEW1' },
+      checked: true,
+    })
+    // the last read decides: unreadable rows, then a clean book with no match
+    const cleared = fetches(book(unreadable()), book())
+    expect(await reconcilePlacement({ fetchOrders: cleared, ...args })).toEqual({
+      found: null,
+      checked: true,
+    })
   })
 
   test('an order that appears on the 2nd fetch is found after 2 fetches', async () => {
@@ -317,6 +375,29 @@ describe('reconcileSplit', () => {
   })
 })
 
+describe('reconcileSplit and unreadable rows', () => {
+  const SPLIT: OrderSpec = { ...SPEC, exchange: 'NFO', symbol: 'NIFTY30DEC26FUT', quantity: 1820 }
+  const child = (o: Record<string, unknown>) =>
+    raw({ exchange: 'NFO', symbol: 'NIFTY30DEC26FUT', ...o })
+
+  test('some children found and a row unreadable: not checked; all found: checked', async () => {
+    const args = { spec: SPLIT, children: [1755, 65], sentAt: SENT_AT, knownIds: NONE, sleep }
+    const some = fetches(book(child({ orderid: 'C1', quantity: '1755' }), unreadable()))
+    expect(await reconcileSplit({ fetchOrders: some, ...args })).toMatchObject({
+      found: [{ orderid: 'C1' }],
+      checked: false,
+    })
+    const all = fetches(
+      book(
+        child({ orderid: 'C1', quantity: '1755' }),
+        child({ orderid: 'C2', quantity: '65' }),
+        unreadable(),
+      ),
+    )
+    expect((await reconcileSplit({ fetchOrders: all, ...args })).checked).toBe(true)
+  })
+})
+
 describe('reconcileClose', () => {
   const positions = PositionbookSchema.parse(positionbook)
   const fetchPositions = async () => positions
@@ -389,6 +470,28 @@ describe('reconcileClose', () => {
     const never = positionReads(network())
     expect(await reconcileClose({ fetchPositions: never, row: NHPC, sleep })).toBe('unknown')
     expect(never).toHaveBeenCalledTimes(3)
+  })
+
+  test('the row missing while a row could not be read is unknown, never closed', async () => {
+    const withUnreadable = PositionbookSchema.parse({
+      status: 'success',
+      data: [{ exchange: 'NSE', product: 'MIS', quantity: '-1' }],
+    })
+    expect(withUnreadable.dropped).toBe(1)
+    const fetchPositions = positionReads(withUnreadable)
+    expect(await reconcileClose({ fetchPositions, row: NHPC, sleep })).toBe('unknown')
+    expect(fetchPositions).toHaveBeenCalledTimes(3)
+    // the row there at 0 is closed, whatever else could not be read
+    const zero = PositionbookSchema.parse({
+      status: 'success',
+      data: [
+        { symbol: 'NHPC', exchange: 'NSE', product: 'MIS', quantity: '0' },
+        { exchange: 'NSE', product: 'MIS', quantity: '-1' },
+      ],
+    })
+    expect(await reconcileClose({ fetchPositions: positionReads(zero), row: NHPC, sleep })).toBe(
+      'closed',
+    )
   })
 
   test('takes the delays it is given', async () => {
@@ -479,6 +582,55 @@ describe('reconcileRowChange', () => {
       checked: false,
     })
     expect(down).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('findWorkingExit', () => {
+  const ROW = { symbol: 'RELIANCE', exchange: 'NSE', product: 'MIS' }
+  const run = (b: Orderbook | Error, side: 'BUY' | 'SELL' = 'SELL') =>
+    findWorkingExit({ fetchOrders: fetches(b), row: ROW, side, sentAt: SENT_AT })
+
+  test('a working order on the closing side, after the send, whatever its quantity', async () => {
+    const exit = raw({ orderid: 'X1', action: 'SELL', pricetype: 'MARKET', quantity: '7' })
+    expect(await run(book(exit))).toMatchObject({ found: { orderid: 'X1' }, checked: true })
+    // the sandbox stamps a time that does not parse: it cannot be ruled out
+    const sandbox = raw({ orderid: 'S1', action: 'SELL', timestamp: '2026-11-25 09:30:01' })
+    expect((await run(book(sandbox))).found?.orderid).toBe('S1')
+  })
+
+  test.each([
+    ['the other side', { action: 'BUY' }],
+    ['another product', { product: 'CNC', action: 'SELL' }],
+    ['a filled order', { order_status: 'complete', action: 'SELL' }],
+    ['a rejected order', { order_status: 'rejected', action: 'SELL' }],
+    ['an order from before the send', { action: 'SELL', timestamp: '25-Nov-2026 09:27:00' }],
+  ])('%s is not a working exit', async (_what, change) => {
+    expect(await run(book(raw(change)))).toEqual({ found: null, checked: true })
+  })
+
+  test('a book that cannot be read, or has unreadable rows and no exit, could not check', async () => {
+    expect(await run(network())).toEqual({ found: null, checked: false })
+    expect(await run(book(unreadable()))).toEqual({ found: null, checked: false })
+  })
+})
+
+describe('reconcileRowChange and reconcileCancelAll with unreadable rows', () => {
+  const BEFORE = book(raw({ orderid: 'A' })).orders[0] as NonNullable<Orderbook['orders'][number]>
+
+  test('an order missing while a row could not be read is not "gone"', async () => {
+    const fetchOrders = fetches(book(raw({ orderid: 'B' }), unreadable()))
+    expect(await reconcileRowChange({ fetchOrders, before: BEFORE, sleep })).toEqual({
+      found: null,
+      checked: false,
+    })
+    expect(fetchOrders).toHaveBeenCalledTimes(3)
+  })
+
+  test('none working while a row could not be read is not "all cancelled"', async () => {
+    const fetchOrders = fetches(
+      book(raw({ orderid: 'A', order_status: 'cancelled' }), unreadable()),
+    )
+    expect(await reconcileCancelAll({ fetchOrders, sleep })).toEqual({ found: 0, checked: false })
   })
 })
 
