@@ -2,6 +2,11 @@
 // in analyzer mode and logged in to the broker, never the live trading server. The suite reads
 // the mode and never toggles it. `.env.test.local` holds the address and key; the key is never
 // printed.
+//
+// The server is logged in to a real broker, and its mode can flip from the web or a strategy at
+// any moment (Review Focus 2), so every write reads the mode just before it goes and refuses in
+// LIVE, and every write reply must carry the sandbox tag: one that does not went to the broker,
+// and is undone at once (the order cancelled, the buy sold back).
 import { WebSocket } from 'ws'
 import { type Capabilities, VERSION_GATES } from '~/core/capabilities/gates'
 import { createCapabilityStore } from '~/core/capabilities/store'
@@ -54,6 +59,16 @@ function suite({ url, key, wsUrl }: TestEnv) {
     const safe = () => {
       if (mode !== 'analyze') throw new Error(LIVE_MODE)
     }
+
+    /** Just before each write: the mode read now, never the first test's reading. */
+    const stillAnalyzer = async () => {
+      const a = await http.request('analyzer', {}, AnalyzerSchema)
+      mode = a.mode
+      if (mode !== 'analyze') throw new Error(LIVE_MODE)
+    }
+
+    /** A write reply without the sandbox tag went to the broker (C4). */
+    const LIVE_REPLY = 'A write reply had no sandbox tag: it went to the broker.'
 
     beforeAll(async () => {
       const step = await serverStep(url, { fetch, allowDevHosts: true, now: Date.now })
@@ -273,6 +288,7 @@ function suite({ url, key, wsUrl }: TestEnv) {
         const api = orders()
         const { tick, ltp } = await reliance()
         const price = snapTick(ltp * 0.9, tick, ltp)
+        await stillAnalyzer()
         const placed = await api.place({
           exchange: 'NSE',
           symbol: 'RELIANCE',
@@ -285,19 +301,26 @@ function suite({ url, key, wsUrl }: TestEnv) {
         })
         if (placed.kind !== 'placed') throw new Error(`place answered ${placed.kind}`)
         const id = placed.orderid
+        if (!placed.analyze) {
+          // a real order at the broker: cancel it before anything else
+          await api.cancel(id).catch(() => {})
+          throw new Error(LIVE_REPLY)
+        }
         try {
           const open = await untilOrder(id, (o) => o.status === 'open', 'the order is open')
           expect(open.price).toBe(price)
 
           const next = snapTick(ltp * 0.91, tick, ltp)
           expect(next).not.toBe(price)
+          await stillAnalyzer()
           const m = await api.modify(open, { price: next })
-          expect(m.kind).toBe('ok')
+          expect(m).toMatchObject({ kind: 'ok', analyze: true })
           const changed = await untilOrder(id, (o) => o.price === next, 'the price changes')
           expect(changed.price).toBe(next)
 
+          await stillAnalyzer()
           const c = await api.cancel(id)
-          expect(c.kind).toBe('ok')
+          expect(c).toMatchObject({ kind: 'ok', analyze: true })
           const gone = await untilOrder(
             id,
             (o) => o.status === 'cancelled',
@@ -305,8 +328,15 @@ function suite({ url, key, wsUrl }: TestEnv) {
           )
           expect(gone.status).toBe('cancelled')
         } catch (e) {
-          // Leave nothing working in the sandbox.
-          await api.cancel(id).catch(() => {})
+          // Leave nothing working in the sandbox; in LIVE the order is not the sandbox's to touch.
+          if (
+            await stillAnalyzer().then(
+              () => true,
+              () => false,
+            )
+          ) {
+            await api.cancel(id).catch(() => {})
+          }
           throw e
         }
       })
@@ -329,24 +359,51 @@ function suite({ url, key, wsUrl }: TestEnv) {
           (await api.positionbook({ fresh: true })).rows.find(
             (r) => r.symbol === 'RELIANCE' && r.exchange === 'NSE' && r.product === 'CNC',
           )
+        await stillAnalyzer()
         const placed = await api.place(spec)
-        expect(placed.kind).toBe('placed')
+        if (placed.kind !== 'placed') throw new Error(`place answered ${placed.kind}`)
+        if (!placed.analyze) {
+          // a real buy at the broker: sell exactly that back at once (a smart close would act on
+          // the whole net position, which may hold quantity that is not this test's)
+          await api.place({ ...spec, action: 'SELL' }).catch(() => {})
+          throw new Error(LIVE_REPLY)
+        }
         let row: Awaited<ReturnType<typeof position>>
-        const end = Date.now() + 15_000
-        while (Date.now() < end) {
-          row = await position()
-          if (row && row.quantity > 0) break
-          await wait(500)
+        let closed = false
+        try {
+          const end = Date.now() + 15_000
+          while (Date.now() < end) {
+            row = await position()
+            if (row && row.quantity > 0) break
+            await wait(500)
+          }
+          if (!row || !(row.quantity > 0)) throw new Error('the position did not open')
+          await stillAnalyzer()
+          const close = await api.smartClose(row)
+          closed = true
+          expect(close).toMatchObject({ kind: 'placed', analyze: true })
+          const flatEnd = Date.now() + 15_000
+          let qty = row.quantity
+          while (Date.now() < flatEnd && qty !== 0) {
+            await wait(500)
+            qty = (await position())?.quantity ?? 0
+          }
+          expect(qty).toBe(0)
+        } finally {
+          // Leave no sandbox position open: close it if this test did not get to. Only in the
+          // analyzer: in LIVE the close would act on the broker's position instead.
+          const open = await position().catch(() => undefined)
+          if (!closed && open && open.quantity !== 0) {
+            if (
+              await stillAnalyzer().then(
+                () => true,
+                () => false,
+              )
+            ) {
+              await api.smartClose(open).catch(() => {})
+            } else console.warn('the server is in LIVE mode: a sandbox RELIANCE position is left')
+          }
         }
-        if (!row || !(row.quantity > 0)) throw new Error('the position did not open')
-        await api.smartClose(row)
-        const flatEnd = Date.now() + 15_000
-        let qty = row.quantity
-        while (Date.now() < flatEnd && qty !== 0) {
-          await wait(500)
-          qty = (await position())?.quantity ?? 0
-        }
-        expect(qty).toBe(0)
       })
     })
 
