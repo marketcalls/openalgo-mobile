@@ -4,8 +4,11 @@ import { AppState, Text } from 'react-native'
 import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { qk } from '~/core/query/keys'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
+import analyzeFixture from '../../test/fixtures/openalgo-docs/analyzer-analyze.json'
+import orderbookFixture from '../../test/fixtures/openalgo-docs/orderbook.json'
 import { memoryKV } from '../../test/helpers/memoryKV'
 import { SymbolSchema } from './instruments/meta'
 import { useInstrument } from './instruments/useInstrument'
@@ -16,7 +19,9 @@ const NOW = Date.UTC(2026, 10, 24, 5, 0)
 function fakeServices() {
   const calls: unknown[] = []
   const api: Api = {
-    async call(_id, body) {
+    async call(id, body, schema) {
+      if (id === 'analyzer') return schema.parse(analyzeFixture)
+      if (id === 'orderbook') return schema.parse(orderbookFixture)
       calls.push(body)
       if (body.symbol === 'GONE') {
         throw new ApiError({
@@ -36,6 +41,9 @@ function fakeServices() {
     api,
     storage: profileStorage(memoryKV(), 'p1'),
     profile: { get: () => ({ id: 'p1' }) },
+    queryClient: new QueryClient({
+      defaultOptions: { queries: { gcTime: Number.POSITIVE_INFINITY } },
+    }),
   } as unknown as Services
   return { s, calls }
 }
@@ -76,6 +84,17 @@ describe('Trading', () => {
     const { s } = fakeServices()
     const t = createTrading(s, { now: () => NOW })
     expect(typeof t.instruments.get).toBe('function')
+  })
+
+  test('createTrading holds the order api and the analyzer gate, on the services query cache', async () => {
+    const { s } = fakeServices()
+    const t = createTrading(s, { now: () => NOW })
+    expect((await t.orders.orderbook()).orders).toHaveLength(2)
+    expect(t.analyzer.peek()).toBeNull()
+    expect(await t.analyzer.read()).toBe('analyze')
+    // the query the header badge reads (useAnalyzer), so the two never disagree
+    expect(s.queryClient.getQueryData(qk.analyzer('p1'))).toMatchObject({ mode: 'analyze' })
+    s.queryClient.clear()
   })
 
   test('useTrading outside the provider throws', async () => {

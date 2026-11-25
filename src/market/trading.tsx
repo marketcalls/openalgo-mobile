@@ -8,6 +8,8 @@ import { istDate } from '~/core/realtime/marketHours'
 import { useConnection } from '~/core/services/connection'
 import { type Services, useServices } from '~/core/services/services'
 import { createInstrumentCache, type InstrumentCache } from './instruments/cache'
+import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
+import { createOrderApi, type OrderApi } from './orders/api'
 import type { Watchlists } from './watchlists/model'
 import { createWatchlistsStore, type WatchlistsStore } from './watchlists/store'
 
@@ -89,10 +91,14 @@ export type Trading = {
   watchlists: WatchlistsStore
   unknown: UnknownKeys
   depthDowngrades: DepthDowngrades
+  /** Every order write and book read. */
+  orders: OrderApi
+  /** The analyzer mode each order write is checked against, on useAnalyzer's query. */
+  analyzer: AnalyzerGate
 }
 
 export function createTrading(
-  s: Pick<Services, 'api' | 'storage'>,
+  s: Pick<Services, 'api' | 'storage' | 'queryClient' | 'profile'>,
   o: { now: () => number },
 ): Trading {
   return {
@@ -100,6 +106,12 @@ export function createTrading(
     watchlists: createWatchlistsStore(s.storage),
     unknown: createUnknownKeys(o.now),
     depthDowngrades: createDepthDowngrades(),
+    orders: createOrderApi(s.api),
+    analyzer: createAnalyzerGate({
+      queryClient: s.queryClient,
+      pid: s.profile.get().id,
+      api: s.api,
+    }),
   }
 }
 
