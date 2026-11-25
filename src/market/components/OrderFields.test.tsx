@@ -1,4 +1,5 @@
-import { numberOf, qtyOf } from './OrderFields'
+import { render, screen } from '@testing-library/react-native'
+import { Field, Input, numberOf, qtyOf, Segments } from './OrderFields'
 
 describe('numberOf (a price or trigger field)', () => {
   test('a plain number, a point decimal, blank and junk', () => {
@@ -45,5 +46,39 @@ describe('qtyOf (a quantity field)', () => {
     expect(qtyOf('')).toBeNaN()
     // a decimal comma is not read as a group: "10,5" is not 105
     expect(qtyOf('10,5')).toBeNaN()
+  })
+})
+
+describe('accessible names', () => {
+  test("an input is named by its field's label, so price and trigger can be told apart", async () => {
+    await render(
+      <>
+        <Field label="Price">
+          <Input testID="price" />
+        </Field>
+        <Field label="Trigger price">
+          <Input testID="trigger" />
+        </Field>
+      </>,
+    )
+    expect(screen.getByLabelText('Price').props.testID).toBe('price')
+    expect(screen.getByLabelText('Trigger price').props.testID).toBe('trigger')
+  })
+
+  test('a choice of a few is a radio group of radios, the chosen one checked', async () => {
+    await render(
+      <Segments
+        label="Side"
+        items={[
+          { id: 'buy', label: 'BUY', on: true, side: 'BUY', onPress: () => {} },
+          { id: 'sell', label: 'SELL', on: false, side: 'SELL', onPress: () => {} },
+        ]}
+      />,
+    )
+    // the group is not one element itself (iOS would then hide its radios inside it)
+    expect(screen.getByLabelText('Side').props.accessibilityRole).toBe('radiogroup')
+    expect(screen.getByTestId('buy').props.accessibilityRole).toBe('radio')
+    expect(screen.getByTestId('buy').props.accessibilityState).toMatchObject({ checked: true })
+    expect(screen.getByTestId('sell').props.accessibilityState).toMatchObject({ checked: false })
   })
 })

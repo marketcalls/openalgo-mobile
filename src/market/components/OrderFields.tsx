@@ -1,6 +1,6 @@
 // The order forms' fields (design 7.10), shared by the ticket and the modify sheet: a labelled
 // field, the number input, one choice of a few, and what a price or quantity field holds.
-import type { ReactNode } from 'react'
+import { createContext, type ReactNode, useContext } from 'react'
 import { Pressable, StyleSheet, TextInput, View } from 'react-native'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
@@ -63,21 +63,27 @@ export const qtyOf = (s: string): number => {
 export const fieldText = (n: number | undefined) =>
   n === undefined || !Number.isFinite(n) ? '' : String(n)
 
+/** The label of the field an input sits in: its accessible name, so a screen reader tells a
+ *  price from a trigger (the caption beside it is not linked to it). */
+const FieldLabel = createContext<string | undefined>(undefined)
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={styles.field}>
-      <Text variant="caption" tone="muted">
+      <Text variant="caption" tone="muted" importantForAccessibility="no">
         {label}
       </Text>
-      {children}
+      <FieldLabel.Provider value={label}>{children}</FieldLabel.Provider>
     </View>
   )
 }
 
 export function Input(p: React.ComponentProps<typeof TextInput>) {
   const { c } = useTheme()
+  const label = useContext(FieldLabel)
   return (
     <TextInput
+      accessibilityLabel={label}
       {...p}
       selectTextOnFocus
       placeholderTextColor={c.mutedForeground}
@@ -88,12 +94,19 @@ export function Input(p: React.ComponentProps<typeof TextInput>) {
 
 export type Segment = { id: string; label: string; on: boolean; side?: Side; onPress: () => void }
 
-/** One choice of a few, the chosen one filled; a side fills in its own colour. */
+/**
+ * One choice of a few, the chosen one filled; a side fills in its own colour. A screen reader
+ * hears a radio group named by `label`, each choice a radio, checked when chosen.
+ */
 export function Segments({ label, items }: { label: string; items: Segment[] }) {
   const { c, trade } = useTheme()
   return (
     <Field label={label}>
-      <View style={[styles.segments, { borderColor: c.border }]}>
+      <View
+        accessibilityRole="radiogroup"
+        accessibilityLabel={label}
+        style={[styles.segments, { borderColor: c.border }]}
+      >
         {items.map((s) => {
           const bg = !s.on
             ? 'transparent'
@@ -113,8 +126,8 @@ export function Segments({ label, items }: { label: string; items: Segment[] }) 
             <Pressable
               key={s.id}
               testID={s.id}
-              accessibilityRole="button"
-              accessibilityState={{ selected: s.on }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: s.on, checked: s.on }}
               onPress={s.onPress}
               style={[styles.segment, { backgroundColor: bg }]}
             >
