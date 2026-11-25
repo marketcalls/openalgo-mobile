@@ -1,5 +1,1 @@
-import { NotYetAvailable } from '~/ui/NotYetAvailable'
-
-export default function PortfolioTab() {
-  return <NotYetAvailable what="Positions and holdings" />
-}
+export { PortfolioScreen as default } from '~/features/portfolio/screens/PortfolioScreen'
