@@ -11,6 +11,10 @@ export type MockStats = {
   requests: Record<string, number>
   wsConnections: number
   wsAuthAttempts: number
+  /** Orders in the engine's book, by status. */
+  orders: Record<string, number>
+  /** The last body that reached each endpoint, without the apikey. */
+  lastBody: Record<string, Record<string, unknown>>
 }
 
 export type MockServerProcess = {
