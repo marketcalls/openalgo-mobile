@@ -99,6 +99,22 @@ describe('createAnalyzerGate', () => {
     expect(gate.peek()).toBe('analyze')
   })
 
+  test('invalidate drops a fresh reading: the next read asks the server, within the 5 s', async () => {
+    const { api, calls } = fakeApi(analyzeFixture, liveFixture)
+    const gate = createAnalyzerGate({ queryClient: qc, pid: PID, api })
+    expect(await gate.read()).toBe('analyze')
+    jest.setSystemTime(T0 + 1_000)
+    gate.invalidate()
+    expect(qc.getQueryState(qk.analyzer(PID))?.isInvalidated).toBe(true)
+    // nothing observes the query here, so nothing is read until the gate asks
+    expect(calls).toHaveLength(1)
+    expect(await gate.read()).toBe('live')
+    expect(calls).toHaveLength(2)
+    // the fresh reading counts for 5 s again
+    expect(await gate.read()).toBe('live')
+    expect(calls).toHaveLength(2)
+  })
+
   test('peek gives the last reading, however old, and never calls', async () => {
     const { api, calls } = fakeApi(analyzeFixture)
     const gate = createAnalyzerGate({ queryClient: qc, pid: PID, api })

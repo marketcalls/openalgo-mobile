@@ -14,6 +14,7 @@ import {
   type TradeRow as Trade,
 } from '~/market/books/schemas'
 import { DroppedNote } from '~/market/components/DroppedNote'
+import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import { StaleNote } from '~/market/components/StaleNote'
 import { chartHref, depthHref, modifyHref } from '~/market/links'
@@ -89,6 +90,11 @@ export function OrdersScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: c.background }]} testID="orders-screen">
+      {writes.liveSurprise !== null ? (
+        <View style={styles.notice}>
+          <LiveSurpriseNotice text={writes.liveSurprise} onDismiss={writes.dismissLiveSurprise} />
+        </View>
+      ) : null}
       {writes.semiBlocked !== null ? (
         <SemiAutoBlockedBanner message={writes.semiBlocked} />
       ) : (
@@ -276,6 +282,7 @@ function BookView<T>(p: {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  notice: { paddingHorizontal: 16, paddingTop: 8 },
   segments: { flexDirection: 'row', paddingHorizontal: 8 },
   segment: {
     flex: 1,

@@ -7,6 +7,7 @@ import type { Capabilities } from '~/core/capabilities/gates'
 import { usePrefs } from '~/core/config/prefs'
 import { createProfileRepo, type ServerProfile } from '~/core/config/profile'
 import { ENDPOINTS } from '~/core/http/endpoints'
+import * as haptics from '~/core/platform/haptics'
 import { LiveContext } from '~/core/realtime/useLive'
 import { TickStoreContext } from '~/core/realtime/useQuote'
 import { useConnection } from '~/core/services/connection'
@@ -18,6 +19,7 @@ import {
   ServicesProvider,
 } from '~/core/services/services'
 import { ticketHref } from '~/market/links'
+import { LIVE_SURPRISE } from '~/market/orders/submit'
 import { HOLD_COPY } from '~/market/orders/useHoldSheet'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
@@ -489,6 +491,8 @@ describe('review and send', () => {
   })
 
   test('an analyze reply shows "Analyzer (sandbox)"; the SELL confirm reads so', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
+    const success = jest.spyOn(haptics, 'notifySuccess')
     await setup({
       'POST /api/v1/analyzer': analyzer('analyze'),
       'POST /api/v1/placeorder': ok({ status: 'success', orderid: 'A1', mode: 'analyze' }),
@@ -500,6 +504,47 @@ describe('review and send', () => {
     await confirm()
     expect(screen.getByText('Order placed')).toBeTruthy()
     expect(screen.getByText('Analyzer (sandbox)')).toBeTruthy()
+    // the sandbox answered, as the review said: no LIVE notice
+    expect(screen.queryByTestId('live-surprise')).toBeNull()
+    expect(error).not.toHaveBeenCalled()
+    expect(success).toHaveBeenCalledTimes(1)
+  })
+
+  test('reviewed as ANALYZE, placed LIVE: the danger notice, the error haptic, and the next review reads the mode again', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
+    const success = jest.spyOn(haptics, 'notifySuccess')
+    let mode: 'live' | 'analyze' = 'analyze'
+    await setup({
+      'POST /api/v1/analyzer': () => analyzer(mode),
+      // no mode:'analyze': the server's own broker took it (C4)
+      'POST /api/v1/placeorder': PLACED,
+    })
+    await open(RELIANCE)
+    await toReview()
+    expect(text('review-mode-badge')).toBe('ANALYZE')
+    // the server switches to LIVE inside the gate's 5 s, so the send reads no mode
+    mode = 'live'
+    await confirm()
+    expect(requests('analyzer')).toHaveLength(1)
+    expect(requests('placeorder')).toHaveLength(1)
+    expect(text('live-surprise')).toBe(LIVE_SURPRISE)
+    expect(LIVE_SURPRISE).toBe(
+      'This order was placed in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(screen.getByText('Order ID 250408000989443')).toBeTruthy()
+    expect(screen.queryByText('Analyzer (sandbox)')).toBeNull()
+    expect(error).toHaveBeenCalledTimes(1)
+    expect(success).not.toHaveBeenCalled()
+
+    // still within 5 s of the ANALYZE reading: the next review asks the server, and shows LIVE
+    await press('ticket-done')
+    await open(RELIANCE)
+    await toReview()
+    // the read waits its turn in the read lane's bucket
+    await pass(1_000)
+    expect(Date.now() - T0).toBeLessThan(5_000)
+    expect(requests('analyzer')).toHaveLength(2)
+    expect(text('review-mode-badge')).toBe('LIVE')
   })
 
   test('back returns to the edit step with the ticket as it was', async () => {

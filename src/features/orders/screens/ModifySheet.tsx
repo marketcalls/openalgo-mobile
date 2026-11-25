@@ -13,11 +13,12 @@ import { useRouter } from 'expo-router'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { notifySuccess, notifyWarning } from '~/core/platform/haptics'
+import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { qk } from '~/core/query/keys'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import { useServices } from '~/core/services/services'
 import { isWorking, type OrderRow } from '~/market/books/schemas'
+import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { BrokerBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import type { InstrumentMeta } from '~/market/instruments/meta'
 import { fmtTick, snapTick } from '~/market/instruments/tick'
@@ -35,7 +36,7 @@ import {
   useUnseenOutcome,
 } from '~/market/orders/pending'
 import type { ModifyChange } from '~/market/orders/schemas'
-import { readMode, submitOrderAction } from '~/market/orders/submit'
+import { liveSurpriseText, readMode, submitOrderAction } from '~/market/orders/submit'
 import { issueText, planOrder, type TicketState, validateTicket } from '~/market/orders/ticket'
 import { useHoldSheet } from '~/market/orders/useHoldSheet'
 import { useBrokerBlocked } from '~/market/session'
@@ -74,6 +75,11 @@ const NO_TYPE = 'Choose an order type.'
 export const MODIFY_HOLD = 'The change is being sent. Wait for its outcome.'
 /** The sheet went while the change was on its way (an Android sheet can always be swiped away). */
 export const MODIFY_STILL_SENDING = 'The change is still being sent. Its outcome will show here.'
+
+/** The notice for a change the server took LIVE after the sheet showed ANALYZE. */
+const MODIFIED_LIVE = liveSurpriseText('modify')
+/** The same, in the one line a toast holds once the sheet has gone. */
+const MODIFIED_LIVE_LINE = 'Modified in LIVE mode. The server switched to LIVE after your review.'
 
 export function ModifySheet({ orderid }: { orderid: string }) {
   return (
@@ -265,6 +271,8 @@ type Step =
   | { kind: 'check'; line: string | null }
   /** Modified: the sheet closes once it is no longer held. */
   | { kind: 'closing' }
+  /** Modified, but LIVE though the sheet showed ANALYZE: it stays, with the notice, until Done. */
+  | { kind: 'modified_live' }
 
 /** `me` is this sheet, as the session's writes still out know it. */
 function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me: object }) {
@@ -371,6 +379,13 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
         const r = settle(out, 'modifyorder', (reply) => reply.kind === 'no_id')
         switch (r.kind) {
           case 'ok':
+            if (r.liveSurprise) {
+              notifyError()
+              // the gate's reading was dropped: the badge reads the server's mode again
+              if (alive.current) read()
+              show({ kind: 'modified_live' }, MODIFIED_LIVE_LINE)
+              return
+            }
             notifySuccess()
             toast(MODIFIED)
             if (alive.current) setStep({ kind: 'closing' })
@@ -427,6 +442,12 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
       ) : null}
       {step.kind === 'closing' ? (
         <Text testID="modify-closing">{MODIFIED}</Text>
+      ) : step.kind === 'modified_live' ? (
+        <View style={styles.form}>
+          <LiveSurpriseNotice text={MODIFIED_LIVE} />
+          <Text>{MODIFIED}</Text>
+          <Button testID="modify-done" title="Done" onPress={() => router.back()} />
+        </View>
       ) : step.kind === 'check' ? (
         <View style={styles.form}>
           <Text testID="modify-check">{step.line ?? CHECKING}</Text>

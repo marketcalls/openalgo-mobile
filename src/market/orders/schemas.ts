@@ -123,7 +123,10 @@ export function marginBody(o: OrderSpec) {
 // --- Replies ---------------------------------------------------------------------------
 
 const success = z.literal('success')
-/** `'analyze'` when the sandbox answered. */
+/**
+ * `'analyze'` when the sandbox answered: every sandbox success carries it (C4,
+ * services/sandbox_service.py and sandbox/order_manager.py), and a live one never does.
+ */
 const mode = z.unknown().optional()
 
 /** Semi-Auto routes place, smart and split orders to the web Action Center, in either mode. */
@@ -221,12 +224,17 @@ export const CancelAllReplySchema = z
     status: success,
     canceled_orders: readable(orderId),
     failed_cancellations: readable(FailedCancel),
+    mode,
   })
-  .transform((r) => ({ canceled: r.canceled_orders, failed: r.failed_cancellations }))
+  .transform((r) => ({
+    canceled: r.canceled_orders,
+    failed: r.failed_cancellations,
+    analyze: r.mode === 'analyze',
+  }))
 
 export const CloseAllReplySchema = z
-  .object({ status: success, message: z.string() })
-  .transform((r) => ({ message: r.message }))
+  .object({ status: success, message: z.string(), mode })
+  .transform((r) => ({ message: r.message, analyze: r.mode === 'analyze' }))
 
 export const MarginSchema = envelope(z.object({ total_margin_required: num })).transform((d) => ({
   total: d.total_margin_required,

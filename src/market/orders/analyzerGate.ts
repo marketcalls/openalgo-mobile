@@ -70,6 +70,15 @@ export function createAnalyzerGate({
         analyze_mode: true,
       }))
     },
+
+    /**
+     * Drops the reading at once, however fresh: the next `read` asks the server, and the header
+     * badge (useAnalyzer, on the same query) reads again now. For a write the server answered
+     * in a mode other than the one the reading gave.
+     */
+    invalidate(): void {
+      void queryClient.invalidateQueries({ queryKey })
+    },
   }
 }
 

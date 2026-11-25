@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics'
-import { notifySuccess, notifyWarning, tapLight } from './haptics'
+import { notifyError, notifySuccess, notifyWarning, tapLight } from './haptics'
 
 jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
@@ -17,12 +17,14 @@ test('tapLight is a light impact', () => {
   expect(h.impactAsync).toHaveBeenCalledWith(Haptics.ImpactFeedbackStyle.Light)
 })
 
-test('notifySuccess and notifyWarning are the matching notifications', () => {
+test('notifySuccess, notifyWarning and notifyError are the matching notifications', () => {
   notifySuccess()
   notifyWarning()
+  notifyError()
   expect(h.notificationAsync.mock.calls).toEqual([
     [Haptics.NotificationFeedbackType.Success],
     [Haptics.NotificationFeedbackType.Warning],
+    [Haptics.NotificationFeedbackType.Error],
   ])
 })
 
@@ -31,9 +33,11 @@ test('a device without haptics is ignored quietly', async () => {
   h.notificationAsync
     .mockRejectedValueOnce(new Error('no vibrator'))
     .mockRejectedValueOnce(new Error('no vibrator'))
+    .mockRejectedValueOnce(new Error('no vibrator'))
   expect(tapLight()).toBeUndefined()
   expect(notifySuccess()).toBeUndefined()
   expect(notifyWarning()).toBeUndefined()
+  expect(notifyError()).toBeUndefined()
   // Let the swallowed rejections settle; an unhandled one would fail the run.
   await new Promise((r) => setTimeout(r, 0))
 })

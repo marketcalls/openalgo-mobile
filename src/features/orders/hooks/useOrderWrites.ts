@@ -1,11 +1,12 @@
 // The order book's writes (design 7.10): cancel one and cancel all from the Orders tab, each behind
 // a confirm that names the server's mode, sent once through the order safety of T10 and one at a
 // time. An outcome that may hide the write is checked against the order book, never sent again.
-// The modify sheet shares the outcome reading and the check.
+// A write the server took LIVE after the confirm said ANALYZE is told as a danger notice, never as
+// a success. The modify sheet shares the outcome reading and the check.
 import { useCallback, useState } from 'react'
 import type { EndpointId } from '~/core/http/endpoints'
 import { ApiError, userMessage } from '~/core/http/errors'
-import { notifySuccess, notifyWarning } from '~/core/platform/haptics'
+import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { qk } from '~/core/query/keys'
 import { useServices } from '~/core/services/services'
 import { isWorking, type Orderbook, type OrderRow } from '~/market/books/schemas'
@@ -15,7 +16,12 @@ import { confirmInMode, MODE_LABEL } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
 import { holdOrder, onOrder, otherOrderOut, type PendingScope } from '~/market/orders/pending'
 import { RECONCILE_DELAYS_MS, reconcileRow } from '~/market/orders/reconcile'
-import { type ActionKind, type Outcome, submitOrderAction } from '~/market/orders/submit'
+import {
+  type ActionKind,
+  liveSurpriseText,
+  type Outcome,
+  submitOrderAction,
+} from '~/market/orders/submit'
 import { useTrading } from '~/market/trading'
 import { toast } from '~/ui/Toast'
 
@@ -54,7 +60,8 @@ export const errorText = (e: unknown) =>
 
 /** What came of a write, as a screen tells it. */
 export type Settled<R> =
-  | { kind: 'ok'; reply: R }
+  /** `liveSurprise`: the confirm said ANALYZE, but the server took it LIVE (`Outcome`). */
+  | { kind: 'ok'; reply: R; liveSurprise?: true }
   /** It may have gone: check the book, never send again. */
   | { kind: 'maybe' }
   | { kind: 'refused'; message: string }
@@ -73,7 +80,10 @@ export function settle<R>(
 ): Settled<R> {
   switch (out.kind) {
     case 'done':
-      return unknown(out.reply) ? { kind: 'maybe' } : { kind: 'ok', reply: out.reply }
+      if (unknown(out.reply)) return { kind: 'maybe' }
+      return out.liveSurprise
+        ? { kind: 'ok', reply: out.reply, liveSurprise: true }
+        : { kind: 'ok', reply: out.reply }
     case 'error':
       return out.error.kind === 'Server' && out.error.endpoint === endpoint
         ? { kind: 'maybe' }
@@ -124,7 +134,8 @@ type Write<R> = {
   confirm: { title: string; body: string; ok: string }
   send: () => Promise<R>
   unknown?: (reply: R) => boolean
-  done: (reply: R) => void
+  /** What the toast says once it went, and whether all of it went (else a warning). */
+  done: (reply: R) => { line: string; ok: boolean }
   /** The line to show after an unknown outcome, once the book says. */
   check: () => Promise<string>
 }
@@ -134,7 +145,8 @@ type Write<R> = {
  * cooldown; `busy` disables the order buttons meanwhile. A cancel is also held on its order for
  * the session (`market/orders/pending`) until its outcome is known, so a modify sheet for that
  * order waits for it, even after this screen remounts. `semiBlocked` is the reason of a write
- * Semi-Auto refused, until the next write starts.
+ * Semi-Auto refused, until the next write starts. `liveSurprise` is the notice for a write the
+ * server took LIVE after an ANALYZE confirm, until it is dismissed or the next write starts.
  */
 export function useOrderWrites() {
   const s = useServices()
@@ -142,12 +154,14 @@ export function useOrderWrites() {
   const guard = useSubmitGuard()
   const readBook = useFreshBook()
   const [semiBlocked, setSemiBlocked] = useState<string | null>(null)
+  const [liveSurprise, setLiveSurprise] = useState<string | null>(null)
   /** This screen, as the session's writes still out know it. */
   const [me] = useState(() => ({}))
 
   const write = <R>(w: Write<R>) =>
     void guard.run(async () => {
       setSemiBlocked(null)
+      setLiveSurprise(null)
       const c = await confirmInMode(trading.analyzer, { ...w.confirm, destructive: true })
       if (c.kind === 'error') {
         notifyWarning()
@@ -173,9 +187,16 @@ export function useOrderWrites() {
         })
         const r = settle(out, w.endpoint, w.unknown)
         switch (r.kind) {
-          case 'ok':
-            w.done(r.reply)
+          case 'ok': {
+            const d = w.done(r.reply)
+            if (r.liveSurprise) {
+              notifyError()
+              setLiveSurprise(liveSurpriseText(w.kind))
+            } else if (d.ok) notifySuccess()
+            else notifyWarning()
+            toast(d.line)
             return
+          }
           case 'maybe':
             notifyWarning()
             toast(CHECKING)
@@ -212,10 +233,7 @@ export function useOrderWrites() {
       confirm: { title: 'Cancel this order?', body: summary, ok: 'Cancel order' },
       send: () => trading.orders.cancel(row.orderid),
       unknown: (reply) => reply.kind === 'no_id',
-      done: () => {
-        notifySuccess()
-        toast(CANCELLED)
-      },
+      done: () => ({ line: CANCELLED, ok: true }),
       check: () => checkOrder(readBook, row.orderid),
     })
 
@@ -230,11 +248,10 @@ export function useOrderWrites() {
         ok: 'Cancel all',
       },
       send: () => trading.orders.cancelAll(),
-      done: (reply) => {
-        if (reply.failed.length > 0) notifyWarning()
-        else notifySuccess()
-        toast(`Cancelled ${reply.canceled.length}. Failed ${reply.failed.length}.`)
-      },
+      done: (reply) => ({
+        line: `Cancelled ${reply.canceled.length}. Failed ${reply.failed.length}.`,
+        ok: reply.failed.length === 0,
+      }),
       check: async () => {
         await sleep(CHECK_AFTER_MS)
         try {
@@ -246,5 +263,12 @@ export function useOrderWrites() {
       },
     })
 
-  return { cancel, cancelAll, busy: guard.busy(), semiBlocked }
+  return {
+    cancel,
+    cancelAll,
+    busy: guard.busy(),
+    semiBlocked,
+    liveSurprise,
+    dismissLiveSurprise: () => setLiveSurprise(null),
+  }
 }

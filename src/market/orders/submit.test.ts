@@ -8,10 +8,18 @@ import { createQueryClient } from '~/core/query/queryClient'
 import analyzeFixture from '../../../test/fixtures/openalgo-docs/analyzer-analyze.json'
 import liveFixture from '../../../test/fixtures/openalgo-docs/analyzer-live.json'
 import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
+import type { OrderRow } from '../books/schemas'
 import { createAnalyzerGate } from './analyzerGate'
 import { createOrderApi } from './api'
 import type { OrderSpec } from './schemas'
-import { type ActionKind, CONFIRM_FAILED, type Outcome, submitOrderAction } from './submit'
+import {
+  type ActionKind,
+  CONFIRM_FAILED,
+  LIVE_SURPRISE,
+  liveSurpriseText,
+  type Outcome,
+  submitOrderAction,
+} from './submit'
 
 const KEY = 'ab'.repeat(32)
 const SPEC: OrderSpec = {
@@ -24,6 +32,21 @@ const SPEC: OrderSpec = {
   price: 0,
   trigger_price: 0,
 }
+/** A working order the server lists, for modify. */
+const ORDER_ROW: OrderRow = {
+  orderid: 'L1',
+  symbol: 'RELIANCE',
+  exchange: 'NSE',
+  action: 'BUY',
+  product: 'MIS',
+  pricetype: 'LIMIT',
+  quantity: 1,
+  price: 1424.5,
+  trigger_price: 0,
+  status: 'open',
+  timestamp: '25-Nov-2026 09:30:00',
+  placedAt: null,
+}
 const LIVE: ScriptedReply = { status: 200, body: liveFixture }
 const ANALYZE: ScriptedReply = { status: 200, body: analyzeFixture }
 const PLACED: ScriptedReply = {
@@ -33,12 +56,26 @@ const PLACED: ScriptedReply = {
 const CANCEL_SEMI_AUTO =
   'Cancel order operation is not allowed in Semi-Auto mode. Please switch to Auto mode to cancel orders.'
 
+/**
+ * The logs these tests expect, and only those, are kept off the console: the http client's line
+ * for each request, and the order log's info lines (a write not sent). Any other call goes
+ * through, so an unexpected log or a library's error still shows.
+ */
+const EXPECTED_INFO = / INFO \[(http\] \w+ (\d{3}|failed|timeout) \d+ms|orders\] \w+: )/
+
+/** The order log's warnings a test expects; each test that expects one spies for it. */
+function expectWarn() {
+  return jest.spyOn(console, 'warn').mockImplementation(() => {})
+}
+
 let qc: QueryClient
 beforeEach(() => {
   jest.useFakeTimers({ now: Date.UTC(2026, 10, 25, 4, 0) })
-  for (const m of ['debug', 'info', 'warn', 'error'] as const) {
-    jest.spyOn(console, m).mockImplementation(() => {})
-  }
+  const info = console.info.bind(console)
+  jest.spyOn(console, 'info').mockImplementation((...args: unknown[]) => {
+    if (typeof args[0] === 'string' && EXPECTED_INFO.test(args[0])) return
+    info(...args)
+  })
 })
 afterEach(() => {
   qc?.clear()
@@ -145,6 +182,7 @@ describe('submitOrderAction: the live confirm', () => {
   })
 
   test('a failed check is cancelled with the biometrics copy; a throwing one too', async () => {
+    const warn = expectWarn()
     const t = setup({ 'POST /api/v1/analyzer': LIVE })
     const send = jest.fn(async () => 'never')
     t.confirmLive.mockResolvedValueOnce('failed')
@@ -159,6 +197,10 @@ describe('submitOrderAction: the live confirm', () => {
     })
     expect(CONFIRM_FAILED).toBe('Could not confirm with biometrics. Try again.')
     expect(send).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('WARN [orders] closeAll: the live confirm failed'),
+    )
   })
 
   test('in analyzer mode the confirm is never asked', async () => {
@@ -288,6 +330,7 @@ describe('submitOrderAction: replies and failures', () => {
   })
 
   test('a failure that is not an ApiError is maybe: the request may have gone', async () => {
+    const warn = expectWarn()
     const t = setup({ 'POST /api/v1/analyzer': LIVE })
     const send = jest.fn(async () => {
       throw new TypeError('undefined is not a function')
@@ -295,6 +338,10 @@ describe('submitOrderAction: replies and failures', () => {
     expect(await t.submit('modify', 'live', send)).toEqual({ kind: 'maybe' })
     expect(send).toHaveBeenCalledTimes(1)
     expect(t.books.poke).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('WARN [orders] modify: the send threw'),
+    )
   })
 
   test('a sandbox reply while LIVE was shown notes ANALYZE for the next read', async () => {
@@ -316,9 +363,9 @@ describe('submitOrderAction: replies and failures', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
-  test('a reply without a mode leaves the reading alone', async () => {
+  test('a reply without a mode while LIVE was shown is plain done, and the reading stays', async () => {
     const t = setup({
-      'POST /api/v1/analyzer': ANALYZE,
+      'POST /api/v1/analyzer': LIVE,
       'POST /api/v1/cancelallorder': {
         status: 200,
         body: {
@@ -329,10 +376,158 @@ describe('submitOrderAction: replies and failures', () => {
         },
       },
     })
-    expect(await t.submit('cancelAll', 'analyze', () => t.orders.cancelAll())).toEqual({
+    expect(await t.submit('cancelAll', 'live', () => t.orders.cancelAll())).toEqual({
       kind: 'done',
-      reply: { canceled: [], failed: [] },
+      reply: { canceled: [], failed: [], analyze: false },
     })
-    expect(t.gate.peek()).toBe('analyze')
+    expect(t.gate.peek()).toBe('live')
+    // the reading is still fresh: the next write reads no mode
+    await t.submit('cancelAll', 'live', () => t.orders.cancelAll())
+    expect(t.requests('analyzer')).toHaveLength(1)
+  })
+})
+
+describe('submitOrderAction: ANALYZE shown, the server answered LIVE', () => {
+  /** The first analyzer read says ANALYZE, every later one LIVE. */
+  const analyzeThenLive = () => {
+    let n = 0
+    return () => (n++ === 0 ? ANALYZE : LIVE)
+  }
+
+  test('a placed reply without the sandbox tag: done with liveSurprise; the next write reads again', async () => {
+    const warn = expectWarn()
+    const t = setup({
+      'POST /api/v1/analyzer': analyzeThenLive(),
+      'POST /api/v1/placeorder': PLACED,
+    })
+    expect(await t.submit('place', 'analyze', () => t.orders.place(SPEC))).toEqual({
+      kind: 'done',
+      reply: { kind: 'placed', orderid: '250408000989443', analyze: false },
+      liveSurprise: true,
+    })
+    expect(t.requests('analyzer')).toHaveLength(1)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('WARN [orders] place: the review showed ANALYZE'),
+    )
+    // within the 5 s the ANALYZE reading would still count; it was dropped, so the next write
+    // asks the server, finds LIVE, and sends nothing
+    const send = jest.fn(() => t.orders.place(SPEC))
+    expect(await t.submit('place', 'analyze', send)).toEqual({ kind: 'mode_changed', now: 'live' })
+    expect(t.requests('analyzer')).toHaveLength(2)
+    expect(send).not.toHaveBeenCalled()
+    expect(t.requests('placeorder')).toHaveLength(1)
+  })
+
+  test('a split reply without the tag is liveSurprise too', async () => {
+    expectWarn()
+    const t = setup({
+      'POST /api/v1/analyzer': ANALYZE,
+      'POST /api/v1/splitorder': {
+        status: 200,
+        body: {
+          status: 'success',
+          total_quantity: 1820,
+          split_size: 1755,
+          results: [
+            { order_num: 1, quantity: 1755, status: 'success', orderid: 'L1' },
+            { order_num: 2, quantity: 65, status: 'success', orderid: 'L2' },
+          ],
+        },
+      },
+    })
+    const out = await t.submit('split', 'analyze', () => t.orders.split(SPEC, 1755))
+    expect(out).toMatchObject({ kind: 'done', reply: { kind: 'split' }, liveSurprise: true })
+  })
+
+  test.each([
+    {
+      kind: 'modify' as const,
+      route: 'POST /api/v1/modifyorder',
+      body: { status: 'success', orderid: 'L1' },
+    },
+    {
+      kind: 'cancel' as const,
+      route: 'POST /api/v1/cancelorder',
+      body: { status: 'success', orderid: 'L1' },
+    },
+    {
+      kind: 'cancelAll' as const,
+      route: 'POST /api/v1/cancelallorder',
+      body: {
+        status: 'success',
+        message: 'Canceled 1 orders. Failed to cancel 0 orders.',
+        canceled_orders: ['L1'],
+        failed_cancellations: [],
+      },
+    },
+  ])('$kind: a reply without the tag is liveSurprise, and the reading is dropped', async (c) => {
+    expectWarn()
+    const t = setup({ 'POST /api/v1/analyzer': ANALYZE, [c.route]: { status: 200, body: c.body } })
+    const send = {
+      modify: () => t.orders.modify(ORDER_ROW, { price: 16.4 }),
+      cancel: () => t.orders.cancel('L1'),
+      cancelAll: () => t.orders.cancelAll(),
+    }[c.kind]
+    const out = await t.submit<unknown>(c.kind, 'analyze', send)
+    expect(out).toMatchObject({ kind: 'done', liveSurprise: true })
+    await t.submit(
+      c.kind,
+      'analyze',
+      jest.fn(async () => 'never'),
+    )
+    expect(t.requests('analyzer')).toHaveLength(2)
+  })
+
+  test("a reply with mode:'analyze': no liveSurprise, and the reading still counts", async () => {
+    const t = setup({
+      'POST /api/v1/analyzer': ANALYZE,
+      'POST /api/v1/placeorder': {
+        status: 200,
+        body: { status: 'success', orderid: 'A1', mode: 'analyze' },
+      },
+    })
+    const out = await t.submit('place', 'analyze', () => t.orders.place(SPEC))
+    expect(out).toEqual({ kind: 'done', reply: { kind: 'placed', orderid: 'A1', analyze: true } })
+    expect(out).not.toHaveProperty('liveSurprise')
+    await t.submit('place', 'analyze', () => t.orders.place(SPEC))
+    expect(t.requests('analyzer')).toHaveLength(1)
+  })
+
+  test('a queued reply or a success without an id proves no mode: no liveSurprise', async () => {
+    const t = setup({
+      'POST /api/v1/analyzer': ANALYZE,
+      'POST /api/v1/placeorder': {
+        status: 200,
+        body: {
+          status: 'success',
+          message: 'Order queued for approval in Action Center',
+          mode: 'semi_auto',
+          pending_order_id: 12,
+        },
+      },
+      'POST /api/v1/cancelorder': { status: 200, body: { status: 'success', orderid: null } },
+    })
+    expect(await t.submit('place', 'analyze', () => t.orders.place(SPEC))).toEqual({
+      kind: 'done',
+      reply: { kind: 'queued', pendingId: '12' },
+    })
+    expect(await t.submit('cancel', 'analyze', () => t.orders.cancel('L1'))).toEqual({
+      kind: 'done',
+      reply: { kind: 'no_id' },
+    })
+    expect(t.requests('analyzer')).toHaveLength(1)
+  })
+
+  test('the notice names what went: the ticket copy for an order, its own for the rest', () => {
+    expect(LIVE_SURPRISE).toBe(
+      'This order was placed in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(liveSurpriseText('split')).toBe(LIVE_SURPRISE)
+    expect(liveSurpriseText('cancel')).toBe(
+      'This cancellation was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(liveSurpriseText('modify')).toBe(
+      'This change was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
   })
 })

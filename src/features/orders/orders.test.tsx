@@ -7,6 +7,7 @@ import ModifyOrderRoute from '~/app/(app)/order/[id]/modify'
 import type { Capabilities } from '~/core/capabilities/gates'
 import { usePrefs } from '~/core/config/prefs'
 import { createProfileRepo, type ServerProfile } from '~/core/config/profile'
+import * as haptics from '~/core/platform/haptics'
 import { LiveContext } from '~/core/realtime/useLive'
 import { TickStoreContext } from '~/core/realtime/useQuote'
 import { useConnection } from '~/core/services/connection'
@@ -469,6 +470,7 @@ describe('cancel', () => {
   })
 
   test('in analyzer mode the confirm title starts with ANALYZE', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
     await setup({
       'POST /api/v1/analyzer': analyzer('analyze'),
       'POST /api/v1/cancelorder': ok({ status: 'success', orderid: 'A1', mode: 'analyze' }),
@@ -478,6 +480,46 @@ describe('cancel', () => {
     await press('order-cancel')
     expect(asked[0]?.title).toMatch(/^ANALYZE/)
     expect(requests('cancelorder')).toHaveLength(1)
+    // the sandbox answered, as the confirm said: no LIVE notice
+    expect(text('toast')).toBe('Order cancelled')
+    expect(screen.queryByTestId('live-surprise')).toBeNull()
+    expect(error).not.toHaveBeenCalled()
+  })
+
+  test('confirmed as ANALYZE, cancelled LIVE: the danger notice and the error haptic; the next confirm reads the mode again', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
+    const success = jest.spyOn(haptics, 'notifySuccess')
+    let mode: 'live' | 'analyze' = 'analyze'
+    await setup({
+      'POST /api/v1/analyzer': () => analyzer(mode),
+      // no mode:'analyze': the broker took it (C4)
+      'POST /api/v1/cancelorder': () => {
+        mode = 'live'
+        return ok({ status: 'success', orderid: 'A1' })
+      },
+    })
+    await show(['orders'])
+    await press('order-row-A1')
+    await press('order-cancel')
+    expect(asked[0]?.title).toMatch(/^ANALYZE/)
+    expect(requests('cancelorder')).toHaveLength(1)
+    expect(text('live-surprise')).toContain(
+      'This cancellation was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(error).toHaveBeenCalledTimes(1)
+    expect(success).not.toHaveBeenCalled()
+    await press('live-surprise-dismiss')
+    expect(screen.queryByTestId('live-surprise')).toBeNull()
+
+    // within 5 s of the ANALYZE reading, the next confirm asks the server and says LIVE
+    const reads = requests('analyzer').length
+    answer = false
+    await pass(200)
+    await press('order-cancel')
+    await pass(1_000)
+    expect(Date.now() - T0).toBeLessThan(5_600)
+    expect(requests('analyzer').length).toBe(reads + 1)
+    expect(asked[1]?.title).toMatch(/^LIVE/)
   })
 
   test('a 502: the order book is checked, and the row shows its new status', async () => {
@@ -566,6 +608,28 @@ describe('cancel all', () => {
     ])
     expect(bodyOf('cancelallorder')).toEqual({ apikey: KEY, strategy: 'mobile' })
     expect(text('toast')).toBe('Cancelled 2. Failed 0.')
+  })
+
+  test('confirmed as ANALYZE, a cancel all reply without the sandbox tag shows the LIVE notice', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
+    await setup({
+      'POST /api/v1/analyzer': analyzer('analyze'),
+      'POST /api/v1/orderbook': twoOpen(),
+      'POST /api/v1/cancelallorder': ok({
+        status: 'success',
+        message: 'Canceled 2 orders. Failed to cancel 0 orders.',
+        canceled_orders: ['A1', 'A2'],
+        failed_cancellations: [],
+      }),
+    })
+    await show(['orders'])
+    await press('orders-cancel-all')
+    expect(asked[0]?.title).toMatch(/^ANALYZE/)
+    expect(text('live-surprise')).toContain(
+      'Cancel all was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(text('toast')).toBe('Cancelled 2. Failed 0.')
+    expect(error).toHaveBeenCalledTimes(1)
   })
 
   test('a 502 refetches the order book: "Status unknown. 2 orders still open."', async () => {
@@ -660,6 +724,37 @@ describe('modify', () => {
     await type('modify-qty', '3')
     await press('modify-confirm')
     expect(bodyOf('modifyorder')).toMatchObject({ quantity: 195, price: 24100, product: 'NRML' })
+  })
+
+  test('shown as ANALYZE, modified LIVE: the sheet stays with the notice, and its badge reads the mode again', async () => {
+    const error = jest.spyOn(haptics, 'notifyError')
+    const success = jest.spyOn(haptics, 'notifySuccess')
+    let mode: 'live' | 'analyze' = 'analyze'
+    await setup({
+      'POST /api/v1/analyzer': () => analyzer(mode),
+      'POST /api/v1/modifyorder': () => {
+        mode = 'live'
+        return ok({ status: 'success', orderid: 'A1' })
+      },
+    })
+    await show(['orders'])
+    await openModify('A1')
+    expect(text('modify-mode-badge')).toBe('ANALYZE')
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    expect(requests('modifyorder')).toHaveLength(1)
+    expect(text('live-surprise')).toContain(
+      'This change was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(error).toHaveBeenCalledTimes(1)
+    expect(success).not.toHaveBeenCalled()
+    // it does not close by itself: the user reads it first
+    await pass(500)
+    expect(mockRouter.back).not.toHaveBeenCalled()
+    await pass(1_000)
+    expect(text('modify-mode-badge')).toBe('LIVE')
+    await press('modify-done')
+    expect(mockRouter.back).toHaveBeenCalledTimes(1)
   })
 
   test('a LIMIT row whose price could not be read cannot be sent until a price is given', async () => {

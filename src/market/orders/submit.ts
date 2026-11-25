@@ -1,7 +1,9 @@
 // One order write, sent at most once (design 7.10): the analyzer mode is read again and must
 // match the badge the user confirmed (Review Focus 2), a live write may ask for biometrics,
 // and the request goes out once, never retried. A reply that may hide a placed order is
-// `maybe`, which the caller reconciles against the books; it never re-sends.
+// `maybe`, which the caller reconciles against the books; it never re-sends. A reply that shows
+// the server went LIVE after an ANALYZE review is `done` with `liveSurprise`, which the caller
+// must show as a danger notice.
 import type { PromptResult } from '~/core/credentials/lock'
 import { ApiError, isRecord, userMessage } from '~/core/http/errors'
 import { log } from '~/core/log/logger'
@@ -20,7 +22,12 @@ export type ActionKind =
   | 'closeAll'
 
 export type Outcome<R> =
-  | { kind: 'done'; reply: R }
+  /**
+   * `liveSurprise` (present only when true): the review showed ANALYZE, but the reply carries no
+   * sandbox tag, so the server was LIVE and the write went to the broker, without the live
+   * confirm. The gate's reading is already dropped.
+   */
+  | { kind: 'done'; reply: R; liveSurprise?: true }
   /** The server is no longer in the mode the user confirmed; nothing was sent. */
   | { kind: 'mode_changed'; now: AnalyzerMode }
   /** The live confirm said no; `message` when the check failed rather than the user. */
@@ -39,13 +46,31 @@ export const READ_DEADLINE_MS = 5_000
 /** The account screen's copy for a biometric check that failed (ruling 4). */
 export const CONFIRM_FAILED = 'Could not confirm with biometrics. Try again.'
 
+/** What went to the broker, by the write's kind, for the LIVE notice. */
+const SENT_LIVE: Record<ActionKind, string> = {
+  place: 'This order was placed',
+  split: 'This order was placed',
+  closeOne: 'This closing order was placed',
+  modify: 'This change was sent',
+  cancel: 'This cancellation was sent',
+  cancelAll: 'Cancel all was sent',
+  closeAll: 'Close all was sent',
+}
+
+/** The danger notice for a `liveSurprise` outcome of a `kind` write. */
+export const liveSurpriseText = (kind: ActionKind) =>
+  `${SENT_LIVE[kind]} in LIVE mode. The server switched to LIVE after your review.`
+
+/** The notice for a placed order, as the ticket shows it. */
+export const LIVE_SURPRISE = liveSurpriseText('place')
+
 export type SubmitArgs<R> = {
   kind: ActionKind
   /** The mode on the badge the user confirmed. */
   shownMode: AnalyzerMode
   /** Sends the write; called at most once. */
   send: () => Promise<R>
-  gate: Pick<AnalyzerGate, 'read' | 'noteReply'>
+  gate: Pick<AnalyzerGate, 'read' | 'noteReply' | 'invalidate'>
   /** The biometric check for a live write (`confirmLiveOrder`). */
   confirmLive: () => Promise<PromptResult>
   books: Pick<BookInvalidator, 'poke'>
@@ -114,8 +139,16 @@ export async function submitOrderAction<R>({
   }
   books.poke()
   if (isRecord(reply)) {
-    if (reply.analyze === true) gate.noteReply({ mode: 'analyze' })
     if (reply.kind === 'queued') onSemiAuto?.()
+    if (reply.analyze === true) gate.noteReply({ mode: 'analyze' })
+    else if (reply.analyze === false && shownMode === 'analyze') {
+      // C4: every sandbox success says mode:'analyze', and this one did not, so the write went
+      // to the broker. The reading that said ANALYZE is dropped now: within its 5 s the next
+      // write would otherwise go live unchecked, without the live confirm.
+      gate.invalidate()
+      log.warn(TAG, `${kind}: the review showed ANALYZE, but the server answered LIVE`)
+      return { kind: 'done', reply, liveSurprise: true }
+    }
   }
   return { kind: 'done', reply }
 }

@@ -237,13 +237,15 @@ describe('CancelAllReplySchema', () => {
     expect(CancelAllReplySchema.parse(cancelAllPartial)).toEqual({
       canceled: ['250408001042620', '250408001042667', '250408001042642'],
       failed: [{ orderid: '250408001043015' }, { orderid: '250408001043386' }],
+      analyze: false,
     })
   })
 
-  test('analyzer partial: failures given as objects with a message', () => {
+  test('analyzer partial: failures given as objects with a message, and the sandbox tag', () => {
     expect(CancelAllReplySchema.parse(cancelAllAnalyze)).toEqual({
       canceled: ['SB-250408001042620'],
       failed: [{ orderid: 'SB-250408001043015', message: 'Failed to cancel' }],
+      analyze: true,
     })
   })
 
@@ -262,6 +264,7 @@ describe('CancelAllReplySchema', () => {
     expect(r).toEqual({
       canceled: ['250408001042620', '250408001042667'],
       failed: [{ orderid: '250408001043015' }, { orderid: 'SB-1' }],
+      analyze: false,
     })
     expect([r.canceled.length, r.failed.length]).toEqual([2, 2])
   })
@@ -272,10 +275,18 @@ describe('CancelAllReplySchema', () => {
 })
 
 describe('CloseAllReplySchema and MarginSchema', () => {
-  test('close all gives its message', () => {
+  test('close all gives its message, and the sandbox tag when the sandbox answered', () => {
     expect(CloseAllReplySchema.parse(closePosition)).toEqual({
       message: 'All Open Positions Squared Off',
+      analyze: false,
     })
+    expect(
+      CloseAllReplySchema.parse({
+        status: 'success',
+        message: 'No open positions to close',
+        mode: 'analyze',
+      }),
+    ).toEqual({ message: 'No open positions to close', analyze: true })
   })
 
   test('margin gives the total required', () => {

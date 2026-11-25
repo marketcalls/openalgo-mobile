@@ -11,21 +11,21 @@ export type SubmitGuard = {
   subscribe(cb: () => void): () => void
 }
 
-export function createSubmitGuard({
-  now,
-  cooldownMs = 120,
-}: {
-  now: () => number
-  cooldownMs?: number
-}): SubmitGuard {
+/**
+ * The cooldown is the timer's own: its callback clears the flag, and no clock is read. A
+ * wall-clock comparison (`Date.now() < settledAt + cooldownMs`) would stay true for as long as
+ * the clock was stepped back mid-cooldown, refusing every order until a restart; the timer
+ * runs on the runtime's monotonic scheduler, so a date change cannot hold it.
+ */
+export function createSubmitGuard({ cooldownMs = 120 }: { cooldownMs?: number } = {}): SubmitGuard {
   let inFlight = false
-  let freeAt = Number.NEGATIVE_INFINITY
+  let cooling = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const subs = new Set<() => void>()
   const notify = () => {
     for (const cb of [...subs]) cb()
   }
-  const busy = () => inFlight || now() < freeAt
+  const busy = () => inFlight || cooling
 
   return {
     busy,
@@ -44,10 +44,11 @@ export function createSubmitGuard({
         return await fn()
       } finally {
         inFlight = false
-        freeAt = now() + cooldownMs
+        cooling = true
         if (timer !== undefined) clearTimeout(timer)
         timer = setTimeout(() => {
           timer = undefined
+          cooling = false
           notify()
         }, cooldownMs)
         notify()
@@ -58,7 +59,7 @@ export function createSubmitGuard({
 
 /** One guard for the component's lifetime; the component re-renders when `busy()` changes. */
 export function useSubmitGuard(): SubmitGuard {
-  const [guard] = useState(() => createSubmitGuard({ now: Date.now }))
+  const [guard] = useState(() => createSubmitGuard())
   useSyncExternalStore(guard.subscribe, guard.busy)
   return guard
 }

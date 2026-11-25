@@ -14,3 +14,8 @@ export function notifySuccess(): void {
 export function notifyWarning(): void {
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(ignore)
 }
+
+/** The strongest: something happened that the user did not ask for (an order that went LIVE). */
+export function notifyError(): void {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(ignore)
+}

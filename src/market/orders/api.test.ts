@@ -119,7 +119,7 @@ const CASES: Case[] = [
     id: 'closeposition',
     body: { strategy: 'mobile' },
     reply: closePosition,
-    result: { message: 'All Open Positions Squared Off' },
+    result: { message: 'All Open Positions Squared Off', analyze: false },
   },
   {
     name: 'margin',
@@ -307,6 +307,7 @@ describe('through the HTTP client', () => {
     await expect(orders.cancelAll()).resolves.toEqual({
       canceled: ['250408001042620'],
       failed: [{ orderid: '250408001043015' }],
+      analyze: false,
     })
   })
 })

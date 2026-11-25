@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { hasEndpoint } from '~/core/capabilities/gates'
 import { ENDPOINTS } from '~/core/http/endpoints'
 import { userMessage } from '~/core/http/errors'
-import { notifySuccess, notifyWarning } from '~/core/platform/haptics'
+import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { qk } from '~/core/query/keys'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import { useServices } from '~/core/services/services'
@@ -310,17 +310,21 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
       case 'done': {
         const reply = out.reply
         if (reply.kind === 'no_id') return reconcile(p, sent)
+        if (reply.kind === 'queued') {
+          show({ kind: 'queued' })
+          return
+        }
+        // The review showed ANALYZE, but the server placed it LIVE: never told as a success.
+        const live = out.liveSurprise ? { liveSurprise: true as const } : {}
+        if (out.liveSurprise) notifyError()
+        else if (reply.kind === 'split' && !reply.children.every((c) => c.ok)) notifyWarning()
+        else notifySuccess()
         if (reply.kind === 'placed') {
-          notifySuccess()
           // Ruling 12 and T11: the app's own order, so its event should follow.
           if (isEvented()) trading.eventWatch.expect(reply.orderid)
-          show(reply)
-        } else if (reply.kind === 'split') {
-          if (reply.children.every((c) => c.ok)) notifySuccess()
-          else notifyWarning()
-          show({ kind: 'split', reply })
+          show({ ...reply, ...live })
         } else {
-          show({ kind: 'queued' })
+          show({ kind: 'split', reply, ...live })
         }
         return
       }
