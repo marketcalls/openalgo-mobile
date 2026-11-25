@@ -3,9 +3,11 @@ import { cleanup, fireEvent, renderHook, userEvent, waitFor } from '@testing-lib
 import { Stack } from 'expo-router'
 import { act, renderRouter, screen } from 'expo-router/testing-library'
 import { usePreventScreenCapture } from 'expo-screen-capture'
+import * as Sharing from 'expo-sharing'
 import type { ReactNode } from 'react'
 import { Alert, Linking } from 'react-native'
 import AccountTab from '~/app/(app)/(tabs)/account'
+import BackupRoute from '~/app/(app)/account/backup'
 import DiagnosticsRoute from '~/app/(app)/account/diagnostics'
 import KeyRoute from '~/app/(app)/account/key'
 import LostPhoneRoute from '~/app/(app)/account/lost-phone'
@@ -23,6 +25,7 @@ import {
   useSession,
 } from '~/core/services/services'
 import { COPY, wsHostDiffers } from '~/features/onboarding'
+import { TradingProvider } from '~/market/trading'
 import { type Route, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets, PONG } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
@@ -37,6 +40,26 @@ jest.mock('~/core/services/deps', () => ({
     return mockDeps
   },
 }))
+// the share sheet and the file system are the native edges of the backup
+jest.mock('expo-sharing', () => ({ shareAsync: jest.fn(async () => {}) }))
+jest.mock('expo-document-picker', () => ({ getDocumentAsync: jest.fn() }))
+jest.mock('expo-file-system', () => {
+  const written = new Map<string, string>()
+  class File {
+    uri: string
+    constructor(...parts: unknown[]) {
+      this.uri = parts.map((p) => (typeof p === 'string' ? p : 'cache')).join('/')
+    }
+    create() {}
+    async write(text: string) {
+      written.set(this.uri, text)
+    }
+    async text() {
+      return written.get(this.uri) ?? ''
+    }
+  }
+  return { File, Paths: { cache: 'cache' }, __written: written }
+})
 jest.mock('expo-screen-capture', () => ({ usePreventScreenCapture: jest.fn() }))
 jest.mock('expo-clipboard', () => ({
   getStringAsync: jest.fn(async () => ''),
@@ -132,9 +155,11 @@ function Layout() {
   if (!services) return null
   return (
     <ServicesProvider value={services}>
-      <QueryClientProvider client={services.queryClient}>
-        <Stack />
-      </QueryClientProvider>
+      <TradingProvider now={() => T0}>
+        <QueryClientProvider client={services.queryClient}>
+          <Stack />
+        </QueryClientProvider>
+      </TradingProvider>
     </ServicesProvider>
   )
 }
@@ -147,6 +172,7 @@ const ROUTES = {
   'account/diagnostics': DiagnosticsRoute,
   'account/lost-phone': LostPhoneRoute,
   'account/sign-out': SignOutRoute,
+  'account/backup': BackupRoute,
 }
 
 const calls = (path: string) =>
@@ -372,6 +398,13 @@ describe('account screen', () => {
     expect(sw.props.disabled).toBe(true)
   })
 
+  test('links to back up and restore', async () => {
+    await setup()
+    await renderRouter(ROUTES, { initialUrl: '/' })
+    await userEvent.press(await screen.findByText('Back up and restore'))
+    expect(screen).toHavePathname('/account/backup')
+  })
+
   test('links to the other screens', async () => {
     await setup()
     await renderRouter(ROUTES, { initialUrl: '/' })
@@ -406,6 +439,30 @@ describe('sign out', () => {
     await userEvent.press(screen.getByTestId('sign-out-confirm'))
     await waitFor(() => expect(useSession.getState().status).toBe('onboarding'))
     expect(kv.data.has(`oa.${PID}.watchlists`)).toBe(true)
+  })
+})
+
+describe('sign out backup', () => {
+  test('signout-backup shares the lists first and does not sign out', async () => {
+    await setup()
+    await renderRouter(ROUTES, { initialUrl: '/account/sign-out' })
+    await userEvent.press(await screen.findByTestId('signout-backup'))
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledTimes(1))
+    const [uri, options] = jest.mocked(Sharing.shareAsync).mock.calls[0] ?? []
+    expect(uri).toMatch(/^cache\/openalgo-backup-\d{8}-\d{4}\.json$/)
+    expect(options).toMatchObject({ mimeType: 'application/json', dialogTitle: 'Save backup' })
+    const written = (jest.requireMock('expo-file-system') as { __written: Map<string, string> })
+      .__written
+    expect(JSON.parse(written.get(uri ?? '') ?? '').kind).toBe('openalgo-mobile-backup')
+    expect(useSession.getState().status).not.toBe('onboarding')
+  })
+
+  test('a failed backup says so and leaves the sign-out button usable', async () => {
+    await setup()
+    jest.mocked(Sharing.shareAsync).mockRejectedValueOnce(new Error('no space'))
+    await renderRouter(ROUTES, { initialUrl: '/account/sign-out' })
+    await userEvent.press(await screen.findByTestId('signout-backup'))
+    expect(await screen.findByText(SIGN_OUT_COPY.backupFailed)).toBeOnTheScreen()
   })
 })
 

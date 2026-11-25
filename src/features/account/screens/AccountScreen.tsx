@@ -9,6 +9,7 @@ import { log } from '~/core/log/logger'
 import { useConnection } from '~/core/services/connection'
 import { defaultDeps } from '~/core/services/deps'
 import { useServices } from '~/core/services/services'
+import { backupHref } from '~/market/links'
 import { Button } from '~/ui/Button'
 import { ListRow } from '~/ui/ListRow'
 import { Text } from '~/ui/Text'
@@ -212,6 +213,11 @@ export function AccountScreen() {
           testID="link-diagnostics"
           title="Diagnostics"
           onPress={() => router.push('/account/diagnostics')}
+        />
+        <ListRow
+          testID="link-backup"
+          title="Back up and restore"
+          onPress={() => router.push(backupHref())}
         />
         <ListRow
           testID="link-lost-phone"
