@@ -24,8 +24,9 @@ appId: in.openalgo.mobile
       id: search-added-NSE-ITC
     timeout: 10000
 # Leave search with Back. On Android, Maestro's hideKeyboard is itself a Back key press, so
-# "hideKeyboard, back" pressed Back twice whether the keyboard was up or not. Back goes only
-# while the field is on screen: once to drop the keyboard if it is still up, once to close.
+# "hideKeyboard, back" pressed Back twice; in CI the keyboard is already down after the pick, so
+# the first Back closed search and the second left the app. Back goes only while the field is
+# on screen: once to drop the keyboard if it is up, once to close.
 - repeat:
     while:
       visible:

@@ -286,9 +286,18 @@ jobs:
             wait "$MOCK_PID" || true
           }
           reset_mock() { curl -sSf -X POST http://localhost:5000/__mock/reset > /dev/null; }
+          # A slow first boot can leave a system "isn't responding" dialog over every screen (seen:
+          # Pixel Launcher). With error dialogs hidden the system closes a hung app itself; one
+          # already up is closed before each flow.
+          close_system_dialogs() {
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
+          }
+          adb shell settings put global hide_error_dialogs 1
+          echo "Focus at start: $(adb shell dumpsys window | grep -m 1 mCurrentFocus | tr -d '\r')"
           # run_flow NAME: from a cleared app; a failure keeps the device log and the window stack
           run_flow() {
             adb shell pm clear in.openalgo.mobile
+            close_system_dialogs
             adb logcat -c || true
             if ! maestro test "e2e/$1.yaml"; then
               FAILED+=("$1")
