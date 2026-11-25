@@ -2,7 +2,14 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { Linking } from 'react-native'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
-import { BrokerBanner, QUEUED_COPY, SEMI_AUTO_COPY, SemiAutoBanner } from './SessionBanners'
+import { DroppedNote } from './DroppedNote'
+import {
+  BrokerBanner,
+  QUEUED_COPY,
+  SEMI_AUTO_COPY,
+  SemiAutoBanner,
+  SemiAutoBlockedBanner,
+} from './SessionBanners'
 import { StaleNote } from './StaleNote'
 
 const ORIGIN = 'https://algo.example.com'
@@ -69,6 +76,36 @@ describe('SemiAutoBanner', () => {
   test('the shared copy', () => {
     expect(SEMI_AUTO_COPY).toBe('Orders need approval in the web Action Center')
     expect(QUEUED_COPY).toBe('Queued for approval in the web Action Center')
+  })
+})
+
+describe('SemiAutoBlockedBanner', () => {
+  test("a write Semi-Auto refused: the server's reason, and its own Action Center link", async () => {
+    const h = setup()
+    const reason =
+      'Cancel order operation is not allowed in Semi-Auto mode. Please switch to Auto mode to cancel orders.'
+    await render(h.ui(<SemiAutoBlockedBanner message={reason} />))
+    expect(screen.getByTestId('banner-semi-auto-blocked')).toHaveTextContent(reason, {
+      exact: false,
+    })
+    // its own id, so it never clashes with SemiAutoBanner's (ruling 21)
+    expect(screen.queryByTestId('open-action-center')).toBeNull()
+    await fireEvent.press(screen.getByTestId('blocked-open-action-center'))
+    expect(Linking.openURL).toHaveBeenCalledWith(`${ORIGIN}/action-center`)
+  })
+})
+
+describe('DroppedNote', () => {
+  test('nothing when every row was read', async () => {
+    await render(<DroppedNote dropped={0} />)
+    expect(screen.queryByTestId('books-dropped')).toBeNull()
+  })
+
+  test('one row, or several', async () => {
+    await render(<DroppedNote dropped={1} />)
+    expect(screen.getByTestId('books-dropped')).toHaveTextContent('1 row could not be read')
+    await render(<DroppedNote dropped={3} />)
+    expect(screen.getByTestId('books-dropped')).toHaveTextContent('3 rows could not be read')
   })
 })
 

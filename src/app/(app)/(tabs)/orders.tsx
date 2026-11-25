@@ -1,5 +1,1 @@
-import { NotYetAvailable } from '~/ui/NotYetAvailable'
-
-export default function OrdersTab() {
-  return <NotYetAvailable what="Orders" />
-}
+export { OrdersScreen as default } from '~/features/orders/screens/OrdersScreen'

@@ -167,6 +167,14 @@ function AppShell({ s }: { s: Services }) {
                     }}
                   />
                   <Stack.Screen
+                    name="order/[id]/modify"
+                    options={{
+                      presentation: 'formSheet',
+                      sheetAllowedDetents: [1],
+                      sheetGrabberVisible: true,
+                    }}
+                  />
+                  <Stack.Screen
                     name="depth/[key]"
                     options={{
                       headerShown: true,

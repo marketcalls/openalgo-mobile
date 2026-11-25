@@ -1,5 +1,6 @@
-// The session banners trading screens share: the one broker banner (ruling 9) and the Semi-Auto
-// note, with the copy later tasks reuse for a queued order (ruling 14).
+// The session banners trading screens share: the one broker banner (ruling 9), the Semi-Auto
+// note and a write Semi-Auto refused, with the copy later tasks reuse for a queued order
+// (ruling 14).
 import { Pressable, StyleSheet, View } from 'react-native'
 import { ApiError, userMessage } from '~/core/http/errors'
 import { useConnection } from '~/core/services/connection'
@@ -58,6 +59,28 @@ export function SemiAutoBanner() {
       actions={[
         {
           testID: 'open-action-center',
+          label: 'Open Action Center',
+          onPress: () => openServerPage(profile.get().restOrigin, '/action-center'),
+        },
+      ]}
+    />
+  )
+}
+
+/**
+ * A write the server refused because it runs in Semi-Auto mode (C5), with its reason. Its link
+ * has its own id, and a screen showing it hides `SemiAutoBanner` meanwhile (ruling 21).
+ */
+export function SemiAutoBlockedBanner({ message }: { message: string }) {
+  const { profile } = useServices()
+  return (
+    <SessionBanner
+      testID="banner-semi-auto-blocked"
+      tone="danger"
+      text={message}
+      actions={[
+        {
+          testID: 'blocked-open-action-center',
           label: 'Open Action Center',
           onPress: () => openServerPage(profile.get().restOrigin, '/action-center'),
         },

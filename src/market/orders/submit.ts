@@ -53,7 +53,8 @@ export type SubmitArgs<R> = {
   onSemiAuto?: () => void
 }
 
-async function readMode(gate: SubmitArgs<unknown>['gate']): Promise<AnalyzerMode> {
+/** The server's mode, given up with a Network error after `READ_DEADLINE_MS` (ruling 6). */
+export async function readMode(gate: Pick<AnalyzerGate, 'read'>): Promise<AnalyzerMode> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), READ_DEADLINE_MS)
   try {
