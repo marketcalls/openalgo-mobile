@@ -66,7 +66,8 @@ type Write<R> = {
   endpoint: EndpointId
   /** What the write is on, which the session holds until its outcome is known. */
   scope: PendingScope
-  confirm: { title: string; body: string; ok: string }
+  /** `cancel`: the dismiss button, named for what it keeps ("Keep position"). */
+  confirm: { title: string; body: string; ok: string; cancel: string }
   send: () => Promise<R>
   unknown?: (reply: R) => boolean
   /** What it says once it went; `follow` is a check to run next, whose line replaces it. */
@@ -248,6 +249,7 @@ export function usePositionWrites() {
         title: `Close ${row.symbol} ${row.product}?`,
         body: closeOneBody(row),
         ok: 'Close position',
+        cancel: 'Keep position',
       },
       send: () => {
         sentAt = Date.now()
@@ -294,6 +296,7 @@ export function usePositionWrites() {
         title: `Close all ${n} open ${n === 1 ? 'position' : 'positions'}?`,
         body: CLOSE_ALL_BODY,
         ok: 'Close all',
+        cancel: 'Keep positions',
       },
       send: () => trading.orders.closeAll(),
       done: (reply) => ({ line: ok(sandboxed(reply.message, reply.analyze)), ok: true }),

@@ -27,6 +27,17 @@ describe('confirm', () => {
     )
   })
 
+  test('the dismiss button can be named for what it keeps', async () => {
+    const alert = answering((b) => b[0]?.onPress?.())
+    await expect(
+      confirm('LIVE · Cancel this order?', 'BUY LIMIT 1 ITC', 'Cancel order', {
+        destructive: true,
+        cancel: 'Keep order',
+      }),
+    ).resolves.toBe(false)
+    expect(alert.mock.calls[0]?.[2]?.map((b) => b.text)).toEqual(['Keep order', 'Cancel order'])
+  })
+
   test('false on Cancel or a dismissal', async () => {
     answering((b) => b[0]?.onPress?.())
     await expect(confirm('Title', 'Body', 'OK')).resolves.toBe(false)

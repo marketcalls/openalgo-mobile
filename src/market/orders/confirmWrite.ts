@@ -21,7 +21,7 @@ export type ModeConfirm =
 /** "LIVE · Cancel this order?": the confirm, once the mode is known. */
 export async function confirmInMode(
   gate: Pick<AnalyzerGate, 'read' | 'peek'>,
-  c: { title: string; body: string; ok: string; destructive?: boolean },
+  c: { title: string; body: string; ok: string; cancel?: string; destructive?: boolean },
 ): Promise<ModeConfirm> {
   const known = gate.peek()
   let mode: AnalyzerMode
@@ -33,6 +33,7 @@ export async function confirmInMode(
   if (known !== null && mode !== known) return { kind: 'mode_changed', now: mode }
   const yes = await confirm(`${MODE_LABEL[mode]} · ${c.title}`, c.body, c.ok, {
     destructive: c.destructive,
+    cancel: c.cancel,
   })
   return yes ? { kind: 'confirmed', mode } : { kind: 'declined' }
 }

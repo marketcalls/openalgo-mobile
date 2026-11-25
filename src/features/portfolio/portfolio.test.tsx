@@ -199,7 +199,7 @@ const HARNESS_LOGS = {
   warn: / WARN \[ws\] no auth_ok in time$/,
 }
 
-let asked: { title: string; body?: string; ok?: string }[] = []
+let asked: { title: string; body?: string; ok?: string; keep?: string }[] = []
 
 beforeEach(() => {
   jest.useFakeTimers({ now: T0 })
@@ -208,7 +208,12 @@ beforeEach(() => {
   asked = []
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
   jest.spyOn(Alert, 'alert').mockImplementation((title, body, buttons?: AlertButton[]) => {
-    asked.push({ title: String(title), body: body ?? undefined, ok: buttons?.[1]?.text })
+    asked.push({
+      title: String(title),
+      body: body ?? undefined,
+      ok: buttons?.[1]?.text,
+      keep: buttons?.[0]?.text,
+    })
     buttons?.find((x) => x.style !== 'cancel')?.onPress?.()
   })
   keepExpectedLogs(HARNESS_LOGS)
@@ -291,6 +296,7 @@ describe('close one', () => {
         title: 'LIVE · Close RELIANCE CNC?',
         body: 'This closes the whole net position (10) for RELIANCE CNC at market, including quantity opened by strategies or the web.',
         ok: 'Close position',
+        keep: 'Keep position',
       },
     ])
     expect(bodyOf('placesmartorder')).toEqual({
@@ -569,6 +575,7 @@ describe('close all', () => {
         title: 'LIVE · Close all 2 open positions?',
         body: 'This closes every open position in the account at market, across all strategies and the web.',
         ok: 'Close all',
+        keep: 'Keep positions',
       },
     ])
     expect(bodyOf('closeposition')).toEqual({ apikey: KEY, strategy: 'mobile' })

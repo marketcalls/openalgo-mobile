@@ -50,7 +50,8 @@ type Write<R> = {
   endpoint: EndpointId
   /** The order it is on, which the session holds until its outcome is known. */
   scope?: PendingScope
-  confirm: { title: string; body: string; ok: string }
+  /** `cancel`: the dismiss button, named for what it keeps ("Keep order"). */
+  confirm: { title: string; body: string; ok: string; cancel: string }
   send: () => Promise<R>
   unknown?: (reply: R) => boolean
   /** What the toast says once it went, and whether all of it went (else a warning). */
@@ -163,7 +164,12 @@ export function useOrderWrites() {
       kind: 'cancel',
       endpoint: 'cancelorder',
       scope: onOrder(row.orderid),
-      confirm: { title: 'Cancel this order?', body: summary, ok: 'Cancel order' },
+      confirm: {
+        title: 'Cancel this order?',
+        body: summary,
+        ok: 'Cancel order',
+        cancel: 'Keep order',
+      },
       send: () => trading.orders.cancel(row.orderid),
       unknown: (reply) => reply.kind === 'no_id',
       done: (reply) => ({
@@ -182,6 +188,7 @@ export function useOrderWrites() {
         title: `Cancel all ${n} open ${n === 1 ? 'order' : 'orders'}?`,
         body: CANCEL_ALL_BODY,
         ok: 'Cancel all',
+        cancel: 'Keep orders',
       },
       send: () => trading.orders.cancelAll(),
       done: (reply) => ({

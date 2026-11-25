@@ -270,7 +270,7 @@ const expectLiveSurprise = (kind: string) =>
   )
 
 /** Each native confirm asked: its title and body, answered with `answer`. */
-let asked: { title: string; body?: string; ok?: string }[] = []
+let asked: { title: string; body?: string; ok?: string; keep?: string }[] = []
 let answer = true
 
 beforeEach(() => {
@@ -282,7 +282,12 @@ beforeEach(() => {
   answer = true
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
   jest.spyOn(Alert, 'alert').mockImplementation((title, body, buttons?: AlertButton[]) => {
-    asked.push({ title: String(title), body: body ?? undefined, ok: buttons?.[1]?.text })
+    asked.push({
+      title: String(title),
+      body: body ?? undefined,
+      ok: buttons?.[1]?.text,
+      keep: buttons?.[0]?.text,
+    })
     const b = buttons?.find((x) => (answer ? x.style !== 'cancel' : x.style === 'cancel'))
     b?.onPress?.()
   })
@@ -481,6 +486,7 @@ describe('cancel', () => {
         title: 'LIVE · Cancel this order?',
         body: 'BUY LIMIT 1 YESBANK @ 16.50 · MIS',
         ok: 'Cancel order',
+        keep: 'Keep order',
       },
     ])
     expect(requests('cancelorder')).toHaveLength(0)
@@ -671,6 +677,7 @@ describe('cancel all', () => {
         title: 'LIVE · Cancel all 2 open orders?',
         body: 'This cancels every open order in the account, including ones placed by strategies or the web.',
         ok: 'Cancel all',
+        keep: 'Keep orders',
       },
     ])
     expect(bodyOf('cancelallorder')).toEqual({ apikey: KEY, strategy: 'mobile' })
