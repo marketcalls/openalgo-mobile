@@ -65,10 +65,30 @@ function forgetRefusals(unknown: UnknownKeys): () => void {
   }
 }
 
+/**
+ * The `broker:exchange` pairs (`downgradeKey`) whose deeper depth levels the feed did not deliver
+ * (ruling 10); they show 5 levels for the rest of the session. A session is one services
+ * container, so sign-out and a server change, which both build a new one, forget them.
+ */
+export type DepthDowngrades = StoreApi<{
+  keys: ReadonlySet<string>
+  add(key: string): void
+}>
+
+function createDepthDowngrades(): DepthDowngrades {
+  return createStore((set, get) => ({
+    keys: new Set<string>(),
+    add(key) {
+      if (!get().keys.has(key)) set({ keys: new Set([...get().keys, key]) })
+    },
+  }))
+}
+
 export type Trading = {
   instruments: InstrumentCache
   watchlists: WatchlistsStore
   unknown: UnknownKeys
+  depthDowngrades: DepthDowngrades
 }
 
 export function createTrading(
@@ -79,6 +99,7 @@ export function createTrading(
     instruments: createInstrumentCache({ api: s.api, storage: s.storage, now: o.now }),
     watchlists: createWatchlistsStore(s.storage),
     unknown: createUnknownKeys(o.now),
+    depthDowngrades: createDepthDowngrades(),
   }
 }
 

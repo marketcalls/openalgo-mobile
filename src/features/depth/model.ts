@@ -1,6 +1,7 @@
-// The depth ladder's model: rows with their bars, the ticket a level tap opens, and the
-// broker-and-exchange pairs that turned out to send 5 levels this session.
-import { createStore } from 'zustand/vanilla'
+// The depth ladder's model: rows with their bars, the ticket a level tap opens, and the timing
+// of the level check and of a book that does not come. The session's downgraded broker and
+// exchange pairs live on `Trading`, one set per services container.
+import { POLL_RATES } from '~/core/realtime/polling'
 import type { DepthLevel } from '~/core/realtime/protocol'
 import type { TicketParams } from '~/market/types'
 
@@ -12,6 +13,20 @@ export type LadderSide = 'bid' | 'ask'
  * out the socket's debounce, and the 5-level subscription's last ticks can still arrive.
  */
 export const CONFIRM_SETTLE_MS = 1500
+
+/**
+ * Ruling 10 judges the first two socket depth ticks after the subscribe. With them in, the
+ * verdict is final, so the check keeps no later tick until the next subscribe.
+ */
+export const LEVEL_TICKS = 2
+
+/**
+ * With the feed not live, a book that has not come in this long is a read error (design 7.11).
+ * The slowest depth poll (a tunnel while the market is closed) comes every 25 s, so this is two
+ * of those: the first poll has a whole interval to reply. Failing polls show sooner, through the
+ * polling engine's health.
+ */
+export const NO_BOOK_MS = 2 * POLL_RATES.depth.tunnel * POLL_RATES.offHoursFactor
 
 const rowsOf = (levels: readonly DepthLevel[], n: number): LadderRow[] => {
   const shown = levels.slice(0, n)
@@ -41,14 +56,3 @@ export function levelTicket(
 ): TicketParams {
   return { exchange, symbol, action: side === 'bid' ? 'SELL' : 'BUY', pricetype: 'LIMIT', price }
 }
-
-/** `downgradeKey`s whose deeper levels the feed did not deliver; kept until the app restarts. */
-export const depthDowngrades = createStore<{
-  keys: ReadonlySet<string>
-  add(key: string): void
-}>()((set, get) => ({
-  keys: new Set<string>(),
-  add(key) {
-    if (!get().keys.has(key)) set({ keys: new Set([...get().keys, key]) })
-  },
-}))

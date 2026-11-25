@@ -1,7 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
+import { StyleSheet } from 'react-native'
+import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import { profileStorage } from '~/core/config/storage'
+import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { createPollingEngine, POLL_RATES, type PollConsumer } from '~/core/realtime/polling'
 import type { DepthBook, QuotePatch } from '~/core/realtime/protocol'
 import { createSubscriptionManager, type SubRequest } from '~/core/realtime/subscriptions'
 import { createTickStore } from '~/core/realtime/tickStore'
@@ -10,11 +14,12 @@ import { TickStoreContext } from '~/core/realtime/useQuote'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
+import * as depthSupport from '~/market/instruments/depthSupport'
 import { chartHref, ticketHref } from '~/market/links'
 import { TradingProvider } from '~/market/trading'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import DepthRoute from '../../app/(app)/depth/[key]'
-import { CONFIRM_SETTLE_MS, depthDowngrades } from './model'
+import { CONFIRM_SETTLE_MS, NO_BOOK_MS } from './model'
 import { DepthScreen } from './screens/DepthScreen'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
@@ -33,9 +38,9 @@ beforeEach(() => {
   ;(useScreenActive as jest.Mock).mockReturnValue(true)
   useConnection.getState().reset()
   useConnection.getState().set({ feed: 'live' })
-  depthDowngrades.setState({ keys: new Set() })
 })
 afterEach(() => {
+  jest.restoreAllMocks()
   jest.clearAllMocks()
   jest.useRealTimers()
 })
@@ -45,6 +50,18 @@ const NOT_FOUND = new ApiError({
   status: 404,
   endpoint: 'symbol',
   serverMessage: 'Symbol GONE not found in exchange NFO',
+})
+const UNREACHABLE = new ApiError({ kind: 'Network', status: 0, endpoint: 'depth' })
+const SERVER_DOWN = "Can't reach the server. Check your connection and try again."
+
+/** A `/depth` reply's data (S2): `n` priced levels a side. */
+const depthReply = (n: number) => ({
+  ltp: 1424,
+  prev_close: 1410,
+  totalbuyqty: 5000,
+  totalsellqty: 6000,
+  bids: Array.from({ length: n }, (_, i) => ({ price: 1423.9 - i, quantity: 100 + i })),
+  asks: Array.from({ length: n }, (_, i) => ({ price: 1424 + i, quantity: 100 + i })),
 })
 
 /** `n` priced levels a side, the best bid and ask first. */
@@ -59,14 +76,24 @@ const pass = (ms: number) =>
     await jest.advanceTimersByTimeAsync(ms)
   })
 
-const setup = (broker: string | null = 'dhan') => {
+type SetupOptions = {
+  /** Answers `/depth` (by default it is not called). */
+  depth?: (body: Record<string, string>) => Promise<unknown>
+  /** 'real': the polling engine runs and polls `/depth`; by default its consumers are only counted. */
+  polling?: 'real'
+  /** The device's safe-area insets (none by default). */
+  insets?: Partial<EdgeInsets>
+}
+
+const setup = (broker: string | null = 'dhan', o: SetupOptions = {}) => {
   const store = createTickStore((fn) => fn())
   const kv = memoryKV()
-  const call = jest.fn(async (id: string, body: Record<string, string>) => {
+  const call = jest.fn(async (id: string, body: Record<string, string>): Promise<unknown> => {
     if (id === 'symbol') {
       if (body.symbol === 'GONE') throw NOT_FOUND
       return { symbol: body.symbol, exchange: body.exchange, name: `${body.symbol} FULL NAME` }
     }
+    if (id === 'depth' && o.depth) return o.depth(body)
     throw new Error(`unexpected ${id}`)
   })
   // The real subscription manager on a live socket: it decides what is on the wire, and its
@@ -81,13 +108,35 @@ const setup = (broker: string | null = 'dhan') => {
     status: () => ({ broker: null }),
     onStatus: () => () => {},
   }
-  const register = jest.fn((_c: { kind: string }, _active: boolean) => () => {})
-  const live = { realtime, polling: { register }, store } as unknown as LiveServices
+  // As services.tsx wires it: depth is polled until the socket delivers a book.
+  const engine =
+    o.polling === 'real'
+      ? createPollingEngine({
+          api: { call } as unknown as Pick<Api, 'call'>,
+          store,
+          isLive: (ex, sym) => subs.isWired(ex, sym),
+          isDepthLive: (ex, sym) =>
+            subs.isWired(ex, sym) && subs.confirmedDepth(ex, sym) !== undefined,
+          network: () => 'home',
+          now: Date.now,
+          isExchangeOpen: () => true,
+        })
+      : undefined
+  const register = jest.fn((c: PollConsumer, active: boolean) =>
+    engine ? engine.register(c, active) : () => {},
+  )
+  const polling = {
+    register,
+    health: () => engine?.health() ?? 'none',
+    onHealth: (fn: () => void) => engine?.onHealth(fn) ?? (() => {}),
+  }
+  const live = { realtime, polling, store } as unknown as LiveServices
   const check = jest.fn(async () => 'active')
   const services = {
     api: { call },
     store,
     realtime,
+    polling,
     broker: { check },
     storage: profileStorage(kv, 'p1'),
     profile: { get: () => ({ id: 'p1', broker, restOrigin: 'https://algo.example.com' }) },
@@ -96,31 +145,48 @@ const setup = (broker: string | null = 'dhan') => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
   })
+  const insets: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0, ...o.insets }
   const tree = (node: React.ReactElement) => (
-    <ServicesProvider value={services}>
-      <TradingProvider now={Date.now}>
-        <QueryClientProvider client={client}>
-          <TickStoreContext.Provider value={store}>
-            <LiveContext.Provider value={live}>{node}</LiveContext.Provider>
-          </TickStoreContext.Provider>
-        </QueryClientProvider>
-      </TradingProvider>
-    </ServicesProvider>
+    <SafeAreaInsetsContext.Provider value={insets}>
+      <ServicesProvider value={services}>
+        <TradingProvider now={Date.now}>
+          <QueryClientProvider client={client}>
+            <TickStoreContext.Provider value={store}>
+              <LiveContext.Provider value={live}>{node}</LiveContext.Provider>
+            </TickStoreContext.Provider>
+          </QueryClientProvider>
+        </TradingProvider>
+      </ServicesProvider>
+    </SafeAreaInsetsContext.Provider>
   )
   return { store, call, acquire, register, subs, tree }
 }
 
 type Harness = ReturnType<typeof setup>
 
+/** One screen per key, as the stack gives each pushed depth route its own. */
+const screenOf = (exchange: string, symbol: string) => (
+  <DepthScreen key={`${exchange}:${symbol}`} exchange={exchange} symbol={symbol} />
+)
+
+/**
+ * Renders the screen inside one services container: a harness is one signed-in session, and
+ * its providers stay mounted while `goTo` shows other symbols, as the app shell's do.
+ */
 const open = async (exchange: string, symbol: string, h: Harness = setup()) => {
-  const r = await render(h.tree(<DepthScreen exchange={exchange} symbol={symbol} />))
+  const r = await render(h.tree(screenOf(exchange, symbol)))
   // the /symbol lookup, then react-query's notify timer
   await pass(10)
   const key = `${exchange}:${symbol}`
   return {
     ...h,
     ...r,
-    rerender: () => r.rerender(h.tree(<DepthScreen exchange={exchange} symbol={symbol} />)),
+    rerender: () => r.rerender(h.tree(screenOf(exchange, symbol))),
+    /** Another symbol's depth screen in place of this one, in the same session. */
+    goTo: async (ex: string, sym: string) => {
+      await r.rerender(h.tree(screenOf(ex, sym)))
+      await pass(10)
+    },
     tick: (patch: QuotePatch, source: 'ws' | 'poll' = 'ws') =>
       act(async () => {
         // a later tick carries a later time
@@ -236,14 +302,28 @@ describe('confirming deeper levels (ruling 10)', () => {
     await pass(ON_WIRE_MS)
     a.ack({ ok: false, depth: 20 })
     await pass(CONFIRM_SETTLE_MS)
-    await a.unmount()
 
-    const b = await open('NSE', 'SBIN')
+    await a.goTo('NSE', 'SBIN')
     expect(screen.queryByTestId('depth-levels-20')).toBeNull()
     expect(screen.getByText(FIVE_ONLY)).toBeTruthy()
-    await b.unmount()
 
-    await open('NFO', 'NIFTY25NOV25FUT')
+    await a.goTo('NFO', 'NIFTY25NOV25FUT')
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+  })
+
+  test('a downgrade ends with its session: after sign-out or a server change, 20 is offered again', async () => {
+    const a = await open('NSE', 'RELIANCE')
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
+    a.ack({ ok: false, depth: 20 })
+    await pass(CONFIRM_SETTLE_MS)
+    expect(screen.getByText(FIVE_ONLY)).toBeTruthy()
+    await a.unmount()
+
+    // Signing out, or changing the server, unmounts the app group and its services container;
+    // signing in again builds a new one (test/app/appLayout.test.tsx shows the shell doing so).
+    await open('NSE', 'RELIANCE', setup('dhan'))
+    expect(screen.queryByText(FIVE_ONLY)).toBeNull()
     expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
   })
 
@@ -375,6 +455,41 @@ describe('confirming deeper levels (ruling 10)', () => {
     expect(screen.queryByText(FIVE_ONLY)).toBeNull()
     expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
   })
+
+  test('once the first two ticks are judged, later ticks are neither kept nor judged', async () => {
+    const judge = jest.spyOn(depthSupport, 'confirmLevels')
+    const h = await open('NSE', 'RELIANCE')
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 20 })
+    await pass(CONFIRM_SETTLE_MS)
+    await h.tick({ depth: book(20) })
+    await h.tick({ depth: book(20) })
+    // the verdict: 20 levels stay
+    expect(judge).toHaveBeenLastCalledWith(expect.objectContaining({ wsLevels: [20, 20] }))
+    const judged = judge.mock.calls.length
+
+    // the rest of a trading session's ticks
+    for (let i = 0; i < 50; i++) await h.tick({ depth: book(20), ltp: 1424 + i })
+    expect(judge).toHaveBeenCalledTimes(judged)
+    const kept = judge.mock.calls.map(([f]) => f.wsLevels.length)
+    expect(Math.max(...kept)).toBe(2)
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+    expect(bids()).toHaveLength(20)
+
+    // a fresh subscribe (the screen comes back) starts a fresh check
+    ;(useScreenActive as jest.Mock).mockReturnValue(false)
+    await h.rerender()
+    ;(useScreenActive as jest.Mock).mockReturnValue(true)
+    await h.rerender()
+    await pass(ON_WIRE_MS)
+    h.ack({ depth: 20 })
+    await pass(CONFIRM_SETTLE_MS)
+    await h.tick({ depth: book(5) })
+    await h.tick({ depth: book(5) })
+    expect(judge).toHaveBeenLastCalledWith(expect.objectContaining({ wsLevels: [5, 5] }))
+    expect(screen.getByText(FIVE_ONLY)).toBeTruthy()
+  })
 })
 
 describe('ladder', () => {
@@ -428,11 +543,113 @@ describe('ladder', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
-  test('a skeleton until the first book', async () => {
+  test('a skeleton until the first book; on the live feed a quiet book is no error', async () => {
     const h = await open('NSE', 'RELIANCE')
     expect(screen.getByTestId('skeleton')).toBeTruthy()
+    await pass(NO_BOOK_MS * 2)
+    expect(screen.getByTestId('skeleton')).toBeTruthy()
+    expect(screen.queryByTestId('depth-error')).toBeNull()
     await h.tick({ depth: book(5) })
     expect(screen.queryByTestId('skeleton')).toBeNull()
+  })
+
+  test('the BUY and SELL footer clears the home indicator: its bottom padding adds the inset', async () => {
+    const a = await open('NSE', 'RELIANCE', setup('dhan', { insets: { bottom: 34 } }))
+    const pad = () => StyleSheet.flatten(screen.getByTestId('depth-footer').props.style)
+    expect(pad().paddingBottom).toBe(12 + 34)
+    expect(pad().paddingTop).toBe(12)
+    await a.unmount()
+    await open('NSE', 'RELIANCE', setup('dhan'))
+    expect(pad().paddingBottom).toBe(12)
+  })
+})
+
+describe('a book that does not come (design 7.11)', () => {
+  beforeEach(() => {
+    useConnection.getState().set({ feed: 'polling' })
+    // the engine logs each failed poll
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  test('failing /depth polls: an error with "Try again", which polls /depth at once', async () => {
+    let up = false
+    const depth = jest.fn(async () => {
+      if (!up) throw UNREACHABLE
+      return depthReply(5)
+    })
+    await open('NSE', 'RELIANCE', setup('dhan', { polling: 'real', depth }))
+    expect(screen.getByTestId('skeleton')).toBeTruthy()
+    expect(screen.queryByTestId('depth-error')).toBeNull()
+    // the first poll fails
+    await pass(POLL_RATES.depth.home)
+    expect(depth).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('depth-error')).toBeTruthy()
+    expect(screen.queryByTestId('skeleton')).toBeNull()
+    // BUY and SELL stay: a MARKET ticket needs no book
+    expect(screen.getByTestId('depth-buy')).toBeTruthy()
+
+    // the server is back: "Try again" polls now, not at the next interval
+    up = true
+    await fireEvent.press(screen.getByText('Try again'))
+    await pass(0)
+    expect(depth).toHaveBeenCalledTimes(2)
+    expect(depth).toHaveBeenLastCalledWith({ symbol: 'RELIANCE', exchange: 'NSE' })
+    expect(screen.queryByTestId('depth-error')).toBeNull()
+    expect(bids()).toHaveLength(5)
+    expect(screen.getByTestId('depth-total-buy')).toHaveTextContent('5,000')
+  })
+
+  test("a retry that fails says why; the polls' next reply clears it", async () => {
+    let up = false
+    const depth = jest.fn(async () => {
+      if (!up) throw UNREACHABLE
+      return depthReply(5)
+    })
+    await open('NSE', 'RELIANCE', setup('dhan', { polling: 'real', depth }))
+    await pass(POLL_RATES.depth.home)
+    await fireEvent.press(screen.getByText('Try again'))
+    await pass(0)
+    expect(depth).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('depth-error')).toHaveTextContent(SERVER_DOWN, { exact: false })
+    // the engine goes on polling; its first reply brings the book
+    up = true
+    await pass(POLL_RATES.depth.home)
+    expect(screen.queryByTestId('depth-error')).toBeNull()
+    expect(bids()).toHaveLength(5)
+  })
+
+  test('no book within NO_BOOK_MS while the feed is not live: an error with "Try again"', async () => {
+    // polls that neither fail nor deliver
+    const depth = jest.fn(async () => depthReply(5))
+    await open('NSE', 'RELIANCE', setup('dhan', { depth }))
+    await pass(NO_BOOK_MS - 100)
+    expect(screen.getByTestId('skeleton')).toBeTruthy()
+    expect(screen.queryByTestId('depth-error')).toBeNull()
+    await pass(100)
+    expect(screen.getByTestId('depth-error')).toBeTruthy()
+    expect(depth).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByText('Try again'))
+    await pass(0)
+    expect(depth).toHaveBeenCalledTimes(1)
+    expect(bids()).toHaveLength(5)
+  })
+
+  test('the time limit is longer than two of the slowest depth polls (tunnel, market closed)', () => {
+    expect(NO_BOOK_MS).toBeGreaterThanOrEqual(
+      2 * POLL_RATES.depth.tunnel * POLL_RATES.offHoursFactor,
+    )
+  })
+
+  test('logged out: no error and no retry, since nothing may poll the broker', async () => {
+    useConnection.getState().set({ brokerSession: 'logged_out' })
+    const depth = jest.fn(async () => {
+      throw UNREACHABLE
+    })
+    await open('NSE', 'RELIANCE', setup('dhan', { polling: 'real', depth }))
+    await pass(NO_BOOK_MS * 2)
+    expect(screen.queryByTestId('depth-error')).toBeNull()
+    expect(screen.queryByText('Try again')).toBeNull()
+    expect(screen.getByTestId('skeleton')).toBeTruthy()
   })
 })
 

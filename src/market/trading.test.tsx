@@ -177,3 +177,24 @@ describe('Trading.unknown', () => {
     expect(remove).toHaveBeenCalled()
   })
 })
+
+describe('Trading.depthDowngrades', () => {
+  test('keeps each broker:exchange once, in a new set', () => {
+    const { s } = fakeServices()
+    const d = createTrading(s, { now: () => NOW }).depthDowngrades
+    const before = d.getState().keys
+    d.getState().add('dhan:NSE')
+    d.getState().add('dhan:NSE')
+    expect([...d.getState().keys]).toEqual(['dhan:NSE'])
+    expect(before.size).toBe(0)
+  })
+
+  test('belongs to its container: a new one (sign-out, a server change) starts empty', () => {
+    const { s } = fakeServices()
+    const first = createTrading(s, { now: () => NOW })
+    first.depthDowngrades.getState().add('dhan:NSE')
+    const next = createTrading(fakeServices().s, { now: () => NOW })
+    expect(next.depthDowngrades.getState().keys.size).toBe(0)
+    expect(first.depthDowngrades.getState().keys.has('dhan:NSE')).toBe(true)
+  })
+})

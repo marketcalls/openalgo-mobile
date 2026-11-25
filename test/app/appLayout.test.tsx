@@ -2,17 +2,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { userEvent } from '@testing-library/react-native'
 import { Slot } from 'expo-router'
 import {
+  act,
   isHiddenFromAccessibility,
   renderRouter,
   screen,
   waitFor,
 } from 'expo-router/testing-library'
 import * as SplashScreen from 'expo-splash-screen'
+import { useEffect } from 'react'
 import { Text } from 'react-native'
 import RootLayout from '~/app/_layout'
 import AppLayout from '~/app/(app)/_layout'
+import type { Capabilities } from '~/core/capabilities/gates'
 import { defaultDeps } from '~/core/services/deps'
-import { useSession } from '~/core/services/services'
+import { type Services, useServices, useSession } from '~/core/services/services'
+import { applyServerUrl } from '~/features/account/serverChange'
+import { signOut } from '~/features/account/signOut'
+import { type Trading, useTrading } from '~/market/trading'
 
 jest.mock('expo-splash-screen', () => ({
   preventAutoHideAsync: jest.fn(async () => true),
@@ -125,4 +131,60 @@ test('"Forget key and set up again" on the error drops the key and its marker, t
   expect(useSession.getState().status).toBe('onboarding')
   expect(secure.deleteItemAsync).toHaveBeenCalledWith(`oa.${PID}.apikey`, expect.anything())
   await waitFor(async () => expect(await AsyncStorage.getItem(`oa.${PID}.hasKey`)).toBeNull())
+})
+
+/** Each services container the app group built, with its trading container, in order. */
+const shells: { s: Services; t: Trading }[] = []
+/** The app's home, recording the containers it is given. */
+function Home() {
+  const s = useServices()
+  const t = useTrading()
+  useEffect(() => {
+    shells.push({ s, t })
+  }, [s, t])
+  return <Text>app home</Text>
+}
+
+test('sign-out and a server change each give the app a new trading container: no depth downgrade carries over', async () => {
+  shells.length = 0
+  await renderRouter({ ...routes, '(app)/index': Home }, { initialUrl: '/' })
+  await screen.findByText('app home', { includeHiddenElements: true })
+  expect(shells).toHaveLength(1)
+  const first = shells[0] as (typeof shells)[number]
+  first.t.depthDowngrades.getState().add('dhan:NSE')
+
+  // a server change restarts the app group on the new address
+  const OTHER = 'https://other.example.com'
+  const caps: Capabilities = {
+    host: OTHER,
+    version: '2.0.0.0',
+    versionSource: 'app-info',
+    endpoints: null,
+    probed: {},
+    fields: {},
+    ws: { orderStream: null, ping: null, close1012: false, authDeadline: false },
+    probedAt: 0,
+  }
+  // renderRouter runs on fake timers: the app group's one-tick restart needs them moved on
+  await act(async () => {
+    const changed = applyServerUrl(first.s, OTHER, caps)
+    await jest.advanceTimersByTimeAsync(10)
+    await changed
+  })
+  await waitFor(() => expect(shells).toHaveLength(2))
+  const second = shells[1] as (typeof shells)[number]
+  expect(second.s.profile.get().restOrigin).toBe(OTHER)
+  expect(second.t).not.toBe(first.t)
+  expect(second.t.depthDowngrades.getState().keys.size).toBe(0)
+  second.t.depthDowngrades.getState().add('dhan:NSE')
+
+  // sign out, then sign in again (onboarding saves the key, then the session is ready)
+  await act(() => signOut(second.s, { deleteUserContent: false }))
+  expect(await screen.findByText('onboarding home')).toBeOnTheScreen()
+  await AsyncStorage.setItem(`oa.${PID}.hasKey`, '1')
+  await act(async () => useSession.getState().set({ status: 'ready', profileId: PID }))
+  await waitFor(() => expect(shells).toHaveLength(3))
+  const third = shells[2] as (typeof shells)[number]
+  expect(third.t).not.toBe(second.t)
+  expect(third.t.depthDowngrades.getState().keys.size).toBe(0)
 })

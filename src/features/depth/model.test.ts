@@ -1,5 +1,5 @@
 import { ticketHref } from '~/market/links'
-import { depthDowngrades, ladderRows, levelTicket } from './model'
+import { ladderRows, levelTicket } from './model'
 
 describe('ladderRows', () => {
   const depth = {
@@ -58,17 +58,5 @@ describe('levelTicket', () => {
       pricetype: 'LIMIT',
       price: 1424,
     })
-  })
-})
-
-describe('depthDowngrades', () => {
-  beforeEach(() => depthDowngrades.setState({ keys: new Set() }))
-
-  test('keeps each broker:exchange once', () => {
-    const before = depthDowngrades.getState().keys
-    depthDowngrades.getState().add('dhan:NSE')
-    depthDowngrades.getState().add('dhan:NSE')
-    expect([...depthDowngrades.getState().keys]).toEqual(['dhan:NSE'])
-    expect(before.size).toBe(0)
   })
 })
