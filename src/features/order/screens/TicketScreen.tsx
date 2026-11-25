@@ -43,10 +43,13 @@ import { ErrorState } from '~/ui/ErrorState'
 import { fmtQty } from '~/ui/format'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-import { ResultView, type TicketResult } from '../components/ResultView'
+import { toast } from '~/ui/Toast'
+import { ResultView, resultLine, type TicketResult } from '../components/ResultView'
 import { MODE_LABEL, ReviewStep } from '../components/ReviewStep'
 import { snapPrice, TicketForm } from '../components/TicketForm'
+import { useHoldSheet } from '../hooks/useHoldSheet'
 import { useMarginPreview } from '../hooks/useMarginPreview'
+import { holdOrder, useOtherOrderOut } from '../pendingOrders'
 
 type Step =
   | { kind: 'edit'; error?: string }
@@ -59,10 +62,26 @@ const SENDS: ReadonlySet<string> = new Set(['placeorder', 'splitorder'])
 
 const SPLIT_WAIT_SEC = Math.round(ENDPOINTS.splitorder.timeoutMs / 1000)
 
+/**
+ * How long confirm waits for the review's orderbook read (ruling 26). A read still out then
+ * leaves the snapshot incomplete unless it lands before the send; a failing read retries twice
+ * and a slow one can take 15 s a try, which would otherwise hold every confirm.
+ */
+export const BOOK_WAIT_MS = 5_000
+
+/** The toast when the sheet goes while the order is on its way. */
+export const STILL_SENDING = 'Your order is still being sent. Its outcome will show here.'
+
+const NOT_SENT = 'The order was not sent.'
+
+const MOVED = 'The price moved since the review. The order was not sent.'
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 const modeChanged = (mode: AnalyzerMode) =>
   `The server is now in ${MODE_LABEL[mode]} mode. Review again.`
+
+const idsOf = (b: Orderbook | undefined): string[] => b?.orders.map((o) => o.orderid) ?? []
 
 /** "1,755 + 65": the full children, counted when there are several, then the rest. */
 function breakdown(plan: Extract<OrderPlan, { kind: 'split' }>): string {
@@ -146,15 +165,31 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   const ltp = useLiveQuote(exchange, symbol, 1)?.ltp
   const [ticket, setTicket] = useState(() => initialTicket(params, meta))
   const [step, setStep] = useState<Step>({ kind: 'edit' })
+  /** This ticket, as the session's list of orders still out knows it. */
+  const [me] = useState(() => ({}))
+  const otherOut = useOtherOrderOut(trading, me)
+  /** Where this ticket's order is: on its way, or being checked after an unknown outcome. */
+  const phase = useRef<'idle' | 'sending' | 'checking'>('idle')
   const alive = useRef(true)
+  /** The review's orderbook read: its ids once it lands, for the review it was made for. */
+  const bookRead = useRef<{ review: number; ids: ReadonlySet<string> } | null>(null)
+  const bookTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [bookPending, setBookPending] = useState(false)
   useEffect(() => {
     alive.current = true
     return () => {
       alive.current = false
+      clearTimeout(bookTimer.current)
+      // The sheet went while the order was on its way (an Android sheet can always be swiped
+      // away): what comes of it shows as a toast.
+      if (phase.current === 'sending') toast(STILL_SENDING)
     }
   }, [])
-  /** Each opening of the review; a mode read for an earlier one is dropped. */
+  useHoldSheet(step.kind === 'sending')
+  /** Each opening of the review; the book read for an earlier one is dropped. */
   const reviews = useRef(0)
+  /** Each mode read; one for an earlier opening, or before a retry, is dropped. */
+  const modeReads = useRef(0)
   const pid = s.profile.get().id
 
   const caps = s.caps.get()
@@ -171,74 +206,127 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   const readMode = (seq: number) => {
     trading.analyzer.read().then(
       (mode) => {
-        if (alive.current && reviews.current === seq) {
+        if (alive.current && modeReads.current === seq) {
           setStep((st) => (st.kind === 'review' ? { ...st, mode, readError: undefined } : st))
         }
       },
       (e: unknown) => {
-        if (alive.current && reviews.current === seq) {
+        if (alive.current && modeReads.current === seq) {
           setStep((st) => (st.kind === 'review' ? { ...st, readError: e } : st))
         }
       },
     )
   }
 
+  /**
+   * Ruling 26: the order book as it stands at this review, so a check after an unknown outcome
+   * can tell the orders already in it from the one sent. It is always read afresh: the cache can
+   * hold a book from before an order the last ticket placed (a write only marks it stale), and
+   * that order would then match. Confirm waits for the read, up to `BOOK_WAIT_MS`.
+   */
+  const readBook = (review: number) => {
+    bookRead.current = null
+    setBookPending(true)
+    clearTimeout(bookTimer.current)
+    const settled = () => {
+      if (!alive.current || reviews.current !== review) return
+      clearTimeout(bookTimer.current)
+      setBookPending(false)
+    }
+    bookTimer.current = setTimeout(settled, BOOK_WAIT_MS)
+    s.queryClient
+      .fetchQuery({
+        queryKey: qk.orderbook(pid),
+        queryFn: () => trading.orders.orderbook(),
+        staleTime: 0,
+      })
+      .then(
+        (b) => {
+          if (reviews.current === review) bookRead.current = { review, ids: new Set(idsOf(b)) }
+        },
+        () => {},
+      )
+      .finally(settled)
+  }
+
   const openReview = () => {
-    const seq = ++reviews.current
+    const review = ++reviews.current
     setTicket((t) => ({
       ...t,
       price: snapPrice(t.price, meta),
       trigger: snapPrice(t.trigger, meta),
     }))
     setStep({ kind: 'review', mode: null })
-    // Ruling 26: the book as it stands, so a check after an unknown outcome can tell the orders
-    // already in it from the one sent.
-    s.queryClient
-      .ensureQueryData({
-        queryKey: qk.orderbook(pid),
-        queryFn: () => trading.orders.orderbook(),
-        revalidateIfStale: true,
-      })
-      .catch(() => {})
-    readMode(seq)
+    readBook(review)
+    readMode(++modeReads.current)
   }
 
   const retryRead = () => {
     setStep((st) => (st.kind === 'review' ? { ...st, readError: undefined } : st))
-    readMode(++reviews.current)
+    readMode(++modeReads.current)
   }
 
-  /** The order ids the orderbook cache holds now: those orders are not the one being sent. */
-  const bookIds = (): ReadonlySet<string> =>
-    new Set(
-      s.queryClient.getQueryData<Orderbook>(qk.orderbook(pid))?.orders.map((o) => o.orderid) ?? [],
-    )
+  /**
+   * What the send knows of the book: the ids of the orders already in it, which are not the one
+   * sent, and whether this review's read landed first (`complete`). Only replies already in hand
+   * count; a read still out may be answered after the order is placed, and would hide it.
+   */
+  type Sent = { at: number; knownIds: ReadonlySet<string>; complete: boolean }
 
-  type Sent = { at: number; knownIds: ReadonlySet<string> }
+  const snapshot = (review: number): Sent => {
+    const read = bookRead.current?.review === review ? bookRead.current : null
+    const cached = idsOf(s.queryClient.getQueryData<Orderbook>(qk.orderbook(pid)))
+    return {
+      at: Date.now(),
+      knownIds: new Set([...(read?.ids ?? []), ...cached]),
+      complete: read !== null,
+    }
+  }
 
-  /** It may have gone: the order book says what happened. Nothing is sent again. */
+  /** Shows `result` on the sheet, or as a toast once the sheet has gone (it may, mid-send). */
+  const show = (result: TicketResult) => {
+    if (alive.current) setStep({ kind: 'result', result })
+    else toast(resultLine(result))
+  }
+
+  /** Back to edit with `error`, or the error as a toast once the sheet has gone. */
+  const refused = (error: string) => {
+    if (alive.current) setStep({ kind: 'edit', error })
+    else toast(error)
+  }
+
+  /**
+   * It may have gone: the order book says what happened. Nothing is sent again. The check runs
+   * to its end even when the sheet has closed, and then shows as a toast.
+   */
   const reconcile = async (p: OrderPlan, sent: Sent) => {
+    phase.current = 'checking'
     notifyWarning()
-    setStep({ kind: 'result', result: { kind: 'maybe', check: null } })
+    show({ kind: 'maybe', check: null })
     const common = {
-      // nothing more is read once the ticket has closed
-      fetchOrders: () =>
-        alive.current ? trading.orders.orderbook() : Promise.reject(new Error('closed')),
+      fetchOrders: () => trading.orders.orderbook(),
       spec: p.spec,
       sentAt: sent.at,
       knownIds: sent.knownIds,
       sleep,
     }
-    const show = (check: Extract<TicketResult, { kind: 'maybe' }>['check']) => {
-      if (alive.current) setStep({ kind: 'result', result: { kind: 'maybe', check } })
-    }
+    // Without the review's book, a match may be an earlier identical order (ruling 26).
+    const earlier = !sent.complete
     if (p.kind === 'split') {
       const of = p.children.length
       const r = await reconcileSplit({ ...common, children: p.children }).catch(() => null)
-      show({ kind: 'split', checked: r?.checked ?? false, found: r?.found.length ?? 0, of })
+      const found = r?.found.length ?? 0
+      show({
+        kind: 'maybe',
+        check: { kind: 'split', checked: r?.checked ?? false, found, of, earlier },
+      })
     } else {
       const r = await reconcilePlacement(common).catch(() => null)
-      show({ kind: 'single', checked: r?.checked ?? false, status: r?.found?.status ?? null })
+      const status = r?.found?.status ?? null
+      show({
+        kind: 'maybe',
+        check: { kind: 'single', checked: r?.checked ?? false, status, earlier },
+      })
     }
   }
 
@@ -256,13 +344,13 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
           notifySuccess()
           // Ruling 12 and T11: the app's own order, so its event should follow.
           if (isEvented()) trading.eventWatch.expect(reply.orderid)
-          setStep({ kind: 'result', result: reply })
+          show(reply)
         } else if (reply.kind === 'split') {
           if (reply.children.every((c) => c.ok)) notifySuccess()
           else notifyWarning()
-          setStep({ kind: 'result', result: { kind: 'split', reply } })
+          show({ kind: 'split', reply })
         } else {
-          setStep({ kind: 'result', result: { kind: 'queued' } })
+          show({ kind: 'queued' })
         }
         return
       }
@@ -272,48 +360,64 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
         // Rulings 5: a server error from the send itself may hide a placed order.
         if (out.error.kind === 'Server' && SENDS.has(out.error.endpoint)) return reconcile(p, sent)
         notifyWarning()
-        setStep({ kind: 'edit', error: userMessage(out.error) })
+        refused(userMessage(out.error))
         return
       case 'semi_auto_blocked':
         notifyWarning()
-        setStep({ kind: 'edit', error: out.message })
+        refused(out.message)
         return
       case 'mode_changed':
-        setStep({ kind: 'review', mode: out.now, notice: modeChanged(out.now) })
+        if (alive.current) setStep({ kind: 'review', mode: out.now, notice: modeChanged(out.now) })
+        else toast(`The server is now in ${MODE_LABEL[out.now]} mode. ${NOT_SENT}`)
         return
       case 'cancelled':
-        setStep({ kind: 'review', mode: shownMode, notice: out.message })
+        if (alive.current) setStep({ kind: 'review', mode: shownMode, notice: out.message })
+        else toast(NOT_SENT)
         return
     }
   }
 
-  /** The whole of confirm runs inside the guard: one at a time, then the cooldown. */
+  /**
+   * The whole of confirm runs inside the guard: one at a time, then the cooldown. The session
+   * holds the order as out until its outcome is known, the check after an unknown one included,
+   * so no other ticket sends meanwhile, even once this sheet has gone.
+   */
   const confirm = (shownMode: AnalyzerMode) =>
     void guard.run(async () => {
-      // The LTP may have moved since the review: a stop now on the wrong side goes back to edit.
+      // The LTP may have moved since the review: a stop now on the wrong side goes back to edit,
+      // which shows the issue, and says why it is back there.
       if (validateTicket(ticket, meta, ltp, { splitAvailable }).length > 0) {
-        setStep({ kind: 'edit' })
+        notifyWarning()
+        setStep({ kind: 'edit', error: MOVED })
         return
       }
       const p = planOrder(ticket, meta)
+      const review = reviews.current
+      const release = holdOrder(trading, me)
+      phase.current = 'sending'
       setStep({ kind: 'sending', mode: shownMode })
-      const sent: Sent = { at: 0, knownIds: new Set() }
-      const send = (): Promise<PlaceReply | SplitReply> => {
-        sent.at = Date.now()
-        sent.knownIds = bookIds()
-        return p.kind === 'split'
-          ? trading.orders.split(p.spec, p.splitsize)
-          : trading.orders.place(p.spec)
+      try {
+        // `send` takes the snapshot just before the request; until then nothing is known.
+        const sent: Sent = { at: Date.now(), knownIds: new Set(), complete: false }
+        const send = (): Promise<PlaceReply | SplitReply> => {
+          Object.assign(sent, snapshot(review))
+          return p.kind === 'split'
+            ? trading.orders.split(p.spec, p.splitsize)
+            : trading.orders.place(p.spec)
+        }
+        const out = await submitOrderAction({
+          kind: p.kind === 'split' ? 'split' : 'place',
+          shownMode,
+          send,
+          gate: trading.analyzer,
+          confirmLive: confirmLiveOrder,
+          books: s.books,
+        })
+        await settle(out, p, sent, shownMode)
+      } finally {
+        phase.current = 'idle'
+        release()
       }
-      const out = await submitOrderAction({
-        kind: p.kind === 'split' ? 'split' : 'place',
-        shownMode,
-        send,
-        gate: trading.analyzer,
-        confirmLive: confirmLiveOrder,
-        books: s.books,
-      })
-      if (alive.current) await settle(out, p, sent, shownMode)
     })
 
   const body = () => {
@@ -349,6 +453,8 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
             mode={step.mode}
             readError={step.kind === 'review' ? step.readError : undefined}
             onRetryRead={retryRead}
+            bookPending={bookPending}
+            otherOut={otherOut}
             notice={step.kind === 'review' ? step.notice : undefined}
             sending={sending}
             splitWaitSec={p.kind === 'split' ? SPLIT_WAIT_SEC : undefined}

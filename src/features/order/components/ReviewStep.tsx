@@ -11,6 +11,9 @@ import { Text } from '~/ui/Text'
 
 export const MODE_LABEL: Record<AnalyzerMode, string> = { live: 'LIVE', analyze: 'ANALYZE' }
 
+export const OTHER_OUT =
+  "An earlier order's outcome isn't known yet. This one can be sent once it is."
+
 export function ReviewStep(p: {
   /** `ticketSummary`'s one line. */
   summary: string
@@ -22,6 +25,10 @@ export function ReviewStep(p: {
   /** The mode read failed: nothing can be confirmed until it works. */
   readError?: unknown
   onRetryRead: () => void
+  /** The order book is being read for this review (ruling 26): confirm waits for it. */
+  bookPending: boolean
+  /** Another ticket's order has an outcome not known yet: nothing is sent until it is. */
+  otherOut: boolean
   /** Why the review is shown again: the mode changed, or the live check did not pass. */
   notice?: string
   /** The confirm is in flight. */
@@ -52,8 +59,13 @@ export function ReviewStep(p: {
       ) : null}
       {p.readError !== undefined ? (
         <ErrorState error={p.readError} onRetry={p.onRetryRead} />
-      ) : p.mode === null ? (
+      ) : p.mode === null || p.bookPending ? (
         <Skeleton rows={1} />
+      ) : null}
+      {p.otherOut ? (
+        <Text testID="review-wait" tone="muted">
+          {OTHER_OUT}
+        </Text>
       ) : null}
       {p.sending && p.splitWaitSec !== undefined ? (
         <Text variant="caption" tone="muted">
@@ -65,7 +77,7 @@ export function ReviewStep(p: {
         title={`Place ${p.side} order`}
         variant={p.side === 'BUY' ? 'buy' : 'sell'}
         loading={p.sending}
-        disabled={p.mode === null || p.blocked}
+        disabled={p.mode === null || p.bookPending || p.otherOut || p.blocked}
         onPress={p.onConfirm}
       />
       <Button

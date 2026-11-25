@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native'
-import { Linking } from 'react-native'
+import { BackHandler, Linking } from 'react-native'
 import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import NewOrderRoute from '~/app/(app)/order/new'
 import type { Capabilities } from '~/core/capabilities/gates'
@@ -20,6 +20,7 @@ import {
 import { ticketHref } from '~/market/links'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
+import { ToastHost } from '~/ui/Toast'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
 import margin from '../../../test/fixtures/openalgo-docs/margin.json'
 import symbolNse from '../../../test/fixtures/openalgo-docs/symbol-nse.json'
@@ -31,13 +32,19 @@ import {
 } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
+import { OTHER_OUT } from './components/ReviewStep'
+import { HOLD_COPY } from './hooks/useHoldSheet'
+import { BOOK_WAIT_MS, STILL_SENDING } from './screens/TicketScreen'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
 let mockParams: Record<string, string> = {}
+/** Each render's `usePreventRemove(prevent, …)`, as the native stack would see it. */
+const mockPreventRemove = jest.fn()
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
+  usePreventRemove: (prevent: boolean, cb: unknown) => mockPreventRemove(prevent, cb),
 }))
 jest.mock('expo-local-authentication', () => ({
   SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
@@ -192,7 +199,8 @@ const Grab = () => {
   return null
 }
 
-const tree = (s: Services, n: number) => (
+/** The app shell around the ticket; `sheet` false is the sheet gone, the shell still up. */
+const tree = (s: Services, n: number, sheet = true) => (
   <SafeAreaInsetsContext.Provider value={INSETS}>
     <ServicesProvider value={s}>
       <TradingProvider now={Date.now}>
@@ -203,7 +211,8 @@ const tree = (s: Services, n: number) => (
             >
               <Grab />
               {/* one screen per open, as the stack gives each pushed ticket its own */}
-              <NewOrderRoute key={n} />
+              {sheet ? <NewOrderRoute key={n} /> : null}
+              <ToastHost />
             </LiveContext.Provider>
           </TickStoreContext.Provider>
         </QueryClientProvider>
@@ -233,6 +242,13 @@ async function openRaw(params: Record<string, string>) {
 
 /** Opens the ticket a link to `p` opens. */
 const open = (p: TicketParams) => openRaw(paramsOf(ticketHref(p)))
+
+/** The sheet goes (an Android swipe, which nothing can refuse); the shell and its toast stay. */
+async function closeSheet() {
+  if (!services || !view) throw new Error('open first')
+  await view.rerender(tree(services, opened++, false))
+  await pass(10)
+}
 
 const pass = (ms: number) =>
   act(async () => {
@@ -554,6 +570,7 @@ describe('review and send', () => {
     await confirm()
     expect(requests('placeorder')).toHaveLength(0)
     expect(screen.getByText('BUY stop must be above LTP 1,460.00.')).toBeTruthy()
+    expect(text('ticket-error')).toBe('The price moved since the review. The order was not sent.')
     expect(disabled('ticket-review')).toBe(true)
   })
 
@@ -736,6 +753,123 @@ describe('status unknown', () => {
     expect(requests('placeorder')).toHaveLength(1)
   })
 
+  const MAYBE_EARLIER =
+    'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
+  const BAD_GATEWAY: ScriptedReply = { status: 502, contentType: 'text/html', body: 'Bad Gateway' }
+
+  test("the review reads the book afresh: the last ticket's order is not taken for this one", async () => {
+    // A write only marks the cached book stale, and no screen refetches it: the last review's
+    // book, from before the first order, is what the cache still holds.
+    let placed = 0
+    let bookHeld: Promise<void> | null = null
+    let releaseBook = () => {}
+    await setup({
+      'POST /api/v1/placeorder': () => (++placed === 1 ? PLACED : BAD_GATEWAY),
+      'POST /api/v1/orderbook': async () => {
+        if (bookHeld) await bookHeld
+        return book(placed > 0 ? [row({ orderid: '250408000989443', quantity: 1, sec: 1 })] : [])
+      },
+    })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    expect(screen.getByText('Order placed')).toBeTruthy()
+    await press('ticket-done')
+
+    // the same order again, inside reconcile's 120 s window
+    bookHeld = new Promise<void>((resolve) => {
+      releaseBook = resolve
+    })
+    await open(RELIANCE)
+    await toReview()
+    // the analyzer reading is under 5 s old, but confirm waits for the book
+    expect(text('review-mode-badge')).toBe('LIVE')
+    expect(disabled('ticket-confirm')).toBe(true)
+    bookHeld = null
+    await act(async () => releaseBook())
+    await pass(10)
+    expect(disabled('ticket-confirm')).toBe(false)
+    await confirm()
+    await pass(2_100 + 5_000 + 10_000)
+    expect(screen.queryByText(/Found in the order book/)).toBeNull()
+    expect(screen.getByText(NOT_FOUND)).toBeTruthy()
+    expect(requests('placeorder')).toHaveLength(2)
+  })
+
+  test.each<[string, TicketParams, string, unknown[], string]>([
+    ['an order', RELIANCE, '1', [row({ orderid: 'OLD1', quantity: 1, sec: -30 })], MAYBE_EARLIER],
+    [
+      'a split',
+      NIFTY_FUT,
+      '28',
+      [
+        row({ orderid: 'OLD2', symbol: FUT, exchange: 'NFO', quantity: 65, sec: -30 }),
+        row({ orderid: 'OLD1', symbol: FUT, exchange: 'NFO', quantity: 1755, sec: -31 }),
+      ],
+      'Found 2 of 2 matching orders in the order book, but they may be earlier ones. Check the order book before trying again.',
+    ],
+  ])(
+    '%s: a review book read that failed never reports a match as this order',
+    async (_n, p, qty, earlier, copy) => {
+      let sent = false
+      await setup({
+        'POST /api/v1/placeorder': () => {
+          sent = true
+          return BAD_GATEWAY
+        },
+        'POST /api/v1/splitorder': () => {
+          sent = true
+          return BAD_GATEWAY
+        },
+        // unreadable at the review; afterwards it shows identical orders from 30 s before
+        'POST /api/v1/orderbook': () => (sent ? book(earlier) : 'throw'),
+      })
+      await open(p)
+      await type('ticket-qty', qty)
+      await toReview()
+      // confirm waits while the read retries
+      expect(disabled('ticket-confirm')).toBe(true)
+      await pass(3_100)
+      expect(disabled('ticket-confirm')).toBe(false)
+      await confirm()
+      await pass(2_100)
+      expect(screen.queryByText(/Found in the order book/)).toBeNull()
+      expect(screen.queryByText(/child orders in the order book/)).toBeNull()
+      expect(screen.getByText(copy)).toBeTruthy()
+      expect(requests(p === RELIANCE ? 'placeorder' : 'splitorder')).toHaveLength(1)
+    },
+  )
+
+  test('confirm waits 5 s at most for the book; a read that lands after the send does not count', async () => {
+    let sent = false
+    let releaseBook = () => {}
+    const earlier = book([row({ orderid: 'OLD1', quantity: 1, sec: -30 })])
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        sent = true
+        return BAD_GATEWAY
+      },
+      'POST /api/v1/orderbook': () =>
+        sent
+          ? earlier
+          : new Promise<ScriptedReply>((resolve) => {
+              releaseBook = () => resolve(earlier)
+            }),
+    })
+    await open(RELIANCE)
+    await toReview()
+    await pass(BOOK_WAIT_MS - 100)
+    expect(disabled('ticket-confirm')).toBe(true)
+    await pass(100)
+    expect(disabled('ticket-confirm')).toBe(false)
+    await confirm()
+    // the review's read is answered only now, after the order went: it could hold that order
+    await act(async () => releaseBook())
+    await pass(2_100)
+    expect(screen.queryByText(/Found in the order book/)).toBeNull()
+    expect(screen.getByText(MAYBE_EARLIER)).toBeTruthy()
+  })
+
   test('a book that cannot be read says so, never "probably not placed"', async () => {
     let sent = false
     await setup({
@@ -753,6 +887,109 @@ describe('status unknown', () => {
       screen.getByText("Couldn't check the order book. Check it before trying again."),
     ).toBeTruthy()
     expect(screen.queryByText(/probably not placed/)).toBeNull()
+  })
+})
+
+describe('the sheet while the order is out', () => {
+  /** A placeorder that answers when `release` is called. */
+  const heldPlace = (reply: ScriptedReply) => {
+    const held = { release: () => {} }
+    const route: Route = () =>
+      new Promise<ScriptedReply>((resolve) => {
+        held.release = () => resolve(reply)
+      })
+    return { held, route }
+  }
+
+  test("it is held while the order is on its way: iOS refuses the dismissal, Android's back does nothing", async () => {
+    const { held, route } = heldPlace(PLACED)
+    const back = jest.spyOn(BackHandler, 'addEventListener')
+    await setup({ 'POST /api/v1/placeorder': route })
+    await open(RELIANCE)
+    await toReview()
+    expect(mockPreventRemove).toHaveBeenLastCalledWith(false, expect.any(Function))
+    expect(back).not.toHaveBeenCalled()
+
+    await confirm()
+    expect(mockPreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function))
+    // a dismissal the stack refused says why
+    const refusedCb = mockPreventRemove.mock.calls.at(-1)?.[1] as () => void
+    await act(async () => refusedCb())
+    expect(text('toast')).toBe(HOLD_COPY)
+    // the back button is consumed
+    expect(back).toHaveBeenCalledWith('hardwareBackPress', expect.any(Function))
+    const onBack = back.mock.calls.at(-1)?.[1] as () => boolean
+    expect(onBack()).toBe(true)
+    const sub = back.mock.results.at(-1)?.value as { remove: () => void }
+    const removed = jest.spyOn(sub, 'remove')
+
+    await act(async () => held.release())
+    await pass(10)
+    expect(screen.getByText('Order placed')).toBeTruthy()
+    expect(mockPreventRemove).toHaveBeenLastCalledWith(false, expect.any(Function))
+    expect(removed).toHaveBeenCalledTimes(1)
+  })
+
+  test('gone mid-send: the outcome shows as a toast, and no other ticket sends until it is known', async () => {
+    const { held, route } = heldPlace(PLACED)
+    await setup({ 'POST /api/v1/placeorder': route }, { live: true })
+    await open(RELIANCE)
+    const expectSpy = jest.spyOn((trading as Trading).eventWatch, 'expect')
+    await toReview()
+    await confirm()
+    expect(requests('placeorder')).toHaveLength(1)
+    await closeSheet()
+    expect(text('toast')).toBe(STILL_SENDING)
+
+    // opened again from depth: its own guard knows nothing of the first order
+    await open(RELIANCE)
+    await toReview()
+    expect(text('review-wait')).toBe(OTHER_OUT)
+    expect(disabled('ticket-confirm')).toBe(true)
+
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Order placed: 250408000989443')
+    // the gone sheet's order still counts as the app's own (T11)
+    expect(expectSpy).toHaveBeenCalledWith('250408000989443')
+    expect(screen.queryByTestId('review-wait')).toBeNull()
+    expect(disabled('ticket-confirm')).toBe(false)
+    expect(requests('placeorder')).toHaveLength(1)
+  })
+
+  test('gone mid-send with an unknown outcome: the check still runs, and its result shows as a toast', async () => {
+    const { held, route } = heldPlace({
+      status: 502,
+      contentType: 'text/html',
+      body: 'Bad Gateway',
+    })
+    let sent = false
+    await setup({
+      'POST /api/v1/placeorder': (req) => {
+        sent = true
+        return (route as (r: ScriptedRequest) => Promise<ScriptedReply>)(req)
+      },
+      'POST /api/v1/orderbook': () =>
+        book(sent ? [row({ orderid: 'N1', quantity: 1, status: 'open', sec: 1 })] : []),
+    })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    await closeSheet()
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Status unknown: checking order book')
+
+    // another ticket waits through the check too
+    await open(RELIANCE)
+    await toReview()
+    expect(disabled('ticket-confirm')).toBe(true)
+    expect(text('review-wait')).toBe(OTHER_OUT)
+
+    await pass(2_100)
+    expect(text('toast')).toBe('Found in the order book: open')
+    expect(disabled('ticket-confirm')).toBe(false)
+    expect(requests('placeorder')).toHaveLength(1)
   })
 })
 

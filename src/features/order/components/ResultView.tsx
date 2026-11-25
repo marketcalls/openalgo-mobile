@@ -10,10 +10,14 @@ import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
 import { type SplitPlaced, SplitResult } from './SplitResult'
 
-/** What the order book showed after an unknown outcome; `checked` false when it could not be read. */
+/**
+ * What the order book showed after an unknown outcome; `checked` false when it could not be read.
+ * `earlier` when the book could not be read at the review, so a match found may be an earlier
+ * identical order rather than this one (ruling 26): it is then never reported as this order.
+ */
 export type Reconcile =
-  | { kind: 'single'; checked: boolean; status: string | null }
-  | { kind: 'split'; checked: boolean; found: number; of: number }
+  | { kind: 'single'; checked: boolean; status: string | null; earlier: boolean }
+  | { kind: 'split'; checked: boolean; found: number; of: number; earlier: boolean }
 
 export type TicketResult =
   | { kind: 'placed'; orderid: string; analyze: boolean }
@@ -29,12 +33,49 @@ const CHECKING = userMessage(
 const NOT_FOUND =
   'Not found in the order book. It was probably not placed. Check the order book before trying again.'
 const NOT_CHECKED = "Couldn't check the order book. Check it before trying again."
+const MAYBE_EARLIER =
+  'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
 const SANDBOX = 'Analyzer (sandbox)'
 
 function reconciled(r: Reconcile): string {
   if (!r.checked) return NOT_CHECKED
-  if (r.kind === 'split') return `Found ${r.found} of ${r.of} child orders in the order book.`
-  return r.status === null ? NOT_FOUND : `Found in the order book: ${r.status || '--'}`
+  if (r.kind === 'split') {
+    return r.earlier && r.found > 0
+      ? `Found ${r.found} of ${r.of} matching orders in the order book, but they may be earlier ones. Check the order book before trying again.`
+      : `Found ${r.found} of ${r.of} child orders in the order book.`
+  }
+  if (r.status === null) return NOT_FOUND
+  return r.earlier ? MAYBE_EARLIER : `Found in the order book: ${r.status || '--'}`
+}
+
+/**
+ * The result in one short line, for the toast once the sheet has gone while the order was out
+ * (the toast shows one line). It says no more than the sheet would, and never less: a match that
+ * may be an earlier order says so.
+ */
+export function resultLine(r: TicketResult): string {
+  switch (r.kind) {
+    case 'placed':
+      return `${r.analyze ? 'Sandbox order' : 'Order'} placed: ${r.orderid}`
+    case 'queued':
+      return 'Order queued in the web Action Center'
+    case 'split':
+      return `Split order: ${r.reply.children.filter((c) => c.ok).length} of ${r.reply.children.length} placed`
+    case 'maybe': {
+      const c = r.check
+      if (c === null) return CHECKING
+      if (!c.checked) return "Couldn't check the order book"
+      if (c.kind === 'split') {
+        return c.earlier && c.found > 0
+          ? `Unclear: ${c.found} of ${c.of} matches may be older`
+          : `Found ${c.found} of ${c.of} child orders`
+      }
+      if (c.status === null) return 'Not found in the order book'
+      return c.earlier
+        ? 'Unclear: the match may be an older order'
+        : `Found in the order book: ${c.status || '--'}`
+    }
+  }
 }
 
 export function ResultView(p: {
