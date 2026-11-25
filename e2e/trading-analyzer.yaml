@@ -19,6 +19,9 @@ appId: in.openalgo.mobile
 - inputText: ITC
 - tapOn:
     id: search-row-NSE-ITC
+# the result list keeps the keyboard up (keyboardShouldPersistTaps): the first Back would only
+# hide it and leave search open
+- hideKeyboard
 - back
 - extendedWaitUntil:
     visible:
@@ -65,8 +68,7 @@ appId: in.openalgo.mobile
 - extendedWaitUntil:
     visible: "101.00"
     timeout: 15000
-- tapOn:
-    text: ITC
+# the row is still expanded after the modify (same order id): a tap on it would collapse it
 - tapOn:
     id: order-cancel
 - tapOn: Cancel order
@@ -98,14 +100,19 @@ appId: in.openalgo.mobile
     id: order-result
 - tapOn:
     id: ticket-done
+# Done returns to the depth screen, a full-screen card over the tabs: leave it
+- back
 
 # Portfolio: close the position, then sell a holding
 - tapOn: Portfolio
 - tapOn:
     id: pos-close-NSE-ITC-CNC
 - tapOn: Close position
+# the sandbox fills the close at once; the tab keeps the outcome as a line
 - extendedWaitUntil:
-    visible: Close order sent
+    visible:
+      id: write-outcome-text
+      text: "Sandbox · Position is closed"
     timeout: 20000
 - extendedWaitUntil:
     visible:

@@ -17,6 +17,8 @@ appId: in.openalgo.mobile
 - inputText: ITC
 - tapOn:
     id: search-row-NSE-ITC
+# the result list keeps the keyboard up: the first Back would only hide it
+- hideKeyboard
 - back
 - extendedWaitUntil:
     visible:

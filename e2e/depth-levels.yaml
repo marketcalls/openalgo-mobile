@@ -16,7 +16,14 @@ appId: in.openalgo.mobile
     id: inst-depth
 - tapOn:
     id: depth-levels-20
+# a sixth row shows only once 20 levels arrive
 - extendedWaitUntil:
     visible:
+      id: depth-bid-5
+    timeout: 15000
+# row 19 is below the fold (20 rows of 36 dp under the quote header): ruling 30
+- scrollUntilVisible:
+    element:
       id: depth-bid-19
+    direction: DOWN
     timeout: 15000
