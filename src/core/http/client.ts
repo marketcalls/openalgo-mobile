@@ -157,8 +157,9 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
       if (ok && def.expect !== 'json') return null
       if ((s === 200 || s === 404) && isHtml(raw)) return fail('Unsupported')
       // A proxy's page (nginx 502/504, Cloudflare 520/524) or a crash page: the order may have
-      // reached the broker. 501 and 503 mean the request was never forwarded.
-      if (orderLane && s >= 500 && s !== 501 && s !== 503) return fail('MaybePlaced')
+      // reached the broker. 501 and 503 mean the request was never forwarded. A 2xx the app
+      // cannot read was still accepted, so the order may exist too.
+      if (orderLane && (ok || (s >= 500 && s !== 501 && s !== 503))) return fail('MaybePlaced')
       return fail('Server')
     }
     if (s === 403 && serverMessage?.includes('Semi-Auto')) return fail('SemiAutoBlocked')
@@ -213,7 +214,10 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
         parsed.error.issues.map((i) => i.path.map(String).join('.') || '(root)'),
       )
       log.warn(TAG, `${id} schema mismatch at ${[...paths].join(', ')}`)
-      throw new ApiError({ kind: 'Server', status: raw.status, endpoint: id })
+      // Only a 2xx gets here. On an order lane the server took the request, so the order may
+      // exist: never Server, which would invite a second send (design 7.10).
+      const kind = ORDER_LANES.has(def.lane) ? 'MaybePlaced' : 'Server'
+      throw new ApiError({ kind, status: raw.status, endpoint: id })
     },
 
     async getPublic(path) {

@@ -181,24 +181,46 @@ const Flat = z
   .object({ status: success, message: z.string().regex(/Already Matched|No OpenPosition/i) })
   .transform((r) => ({ kind: 'flat' as const, message: r.message }))
 
-export const SmartReplySchema = z.union([Queued, Placed, Flat])
+/**
+ * The service answers `{status:'success', orderid: null}` when the adapter returns 200 without an
+ * id (place_smart_order_service.py:240-241), so a success that is neither placed nor flat is
+ * no_id: the close may have gone, and the caller checks the positions.
+ */
+export const SmartReplySchema = z.union([Queued, Placed, Flat, NoId])
 
 /** Modify and cancel echo the order id. */
-export const IdReplySchema = z
-  .object({ status: success, orderid: orderId, mode })
-  .transform((r) => ({ orderid: r.orderid, analyze: r.mode === 'analyze' }))
+const Echoed = z.object({ status: success, orderid: orderId, mode }).transform((r) => ({
+  kind: 'ok' as const,
+  orderid: r.orderid,
+  analyze: r.mode === 'analyze',
+}))
+
+/** A success whose id is null, missing or unreadable is no_id: the caller checks the book. */
+export const IdReplySchema = z.union([Echoed, NoId])
+
+/**
+ * A list the reply always sends (cancel_all_order_service.py:166-172), read item by item: an
+ * unreadable item (a null, say) is skipped and the readable ones are kept.
+ */
+const readable = <T extends z.ZodType>(item: T) =>
+  z.array(z.unknown()).transform((items) =>
+    items.flatMap((x) => {
+      const r = item.safeParse(x)
+      return r.success ? [r.data] : []
+    }),
+  )
 
 /** A failure is a bare id, or (in the sandbox) `{orderid, message}`. */
 const FailedCancel = z.union([
   orderId.transform((id) => ({ orderid: id })),
-  z.object({ orderid: orderId, message: z.string().optional() }),
+  z.object({ orderid: orderId, message: z.string().optional().catch(undefined) }),
 ])
 
 export const CancelAllReplySchema = z
   .object({
     status: success,
-    canceled_orders: z.array(orderId),
-    failed_cancellations: z.array(FailedCancel),
+    canceled_orders: readable(orderId),
+    failed_cancellations: readable(FailedCancel),
   })
   .transform((r) => ({ canceled: r.canceled_orders, failed: r.failed_cancellations }))
 

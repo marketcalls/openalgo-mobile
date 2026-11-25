@@ -114,6 +114,11 @@ describe('PlaceReplySchema', () => {
     }
   })
 
+  test('a numeric order id past 2^53 is no id: its digits are already rounded', () => {
+    const reply = JSON.parse('{"status":"success","orderid":9007199254740993}')
+    expect(PlaceReplySchema.parse(reply)).toEqual({ kind: 'no_id' })
+  })
+
   test('an error body does not parse', () => {
     expect(PlaceReplySchema.safeParse({ status: 'error', orderid: '1' }).success).toBe(false)
   })
@@ -177,14 +182,27 @@ describe('SmartReplySchema', () => {
     })
   })
 
-  test('a success with neither an id nor a flat message does not parse', () => {
-    expect(SmartReplySchema.safeParse({ status: 'success', message: 'Done' }).success).toBe(false)
+  // place_smart_order_service.py:240-241 sends orderid null when the adapter gives none.
+  test('a success with a null or missing id, and no flat message, is no_id', () => {
+    for (const reply of [
+      { status: 'success', orderid: null },
+      { status: 'success' },
+      { status: 'success', orderid: ' ', mode: 'analyze' },
+      { status: 'success', message: 'Done' },
+    ]) {
+      expect(SmartReplySchema.parse(reply)).toEqual({ kind: 'no_id' })
+    }
+  })
+
+  test('an error body does not parse', () => {
+    expect(SmartReplySchema.safeParse({ status: 'error', message: 'x' }).success).toBe(false)
   })
 })
 
 describe('IdReplySchema', () => {
   test('modify and cancel echo the id; the sandbox adds mode:analyze', () => {
     expect(IdReplySchema.parse({ status: 'success', orderid: '250408000989443' })).toEqual({
+      kind: 'ok',
       orderid: '250408000989443',
       analyze: false,
     })
@@ -194,7 +212,17 @@ describe('IdReplySchema', () => {
       message: 'Order modified',
       mode: 'analyze',
     }
-    expect(IdReplySchema.parse(sandbox)).toEqual({ orderid: 'SB-1', analyze: true })
+    expect(IdReplySchema.parse(sandbox)).toEqual({ kind: 'ok', orderid: 'SB-1', analyze: true })
+  })
+
+  test('a success with a null or missing id is no_id, never a parse failure', () => {
+    expect(IdReplySchema.parse({ status: 'success', orderid: null })).toEqual({ kind: 'no_id' })
+    expect(IdReplySchema.parse({ status: 'success' })).toEqual({ kind: 'no_id' })
+    expect(IdReplySchema.parse({ status: 'success', mode: 'analyze' })).toEqual({ kind: 'no_id' })
+  })
+
+  test('an error body does not parse', () => {
+    expect(IdReplySchema.safeParse({ status: 'error', orderid: '1' }).success).toBe(false)
   })
 })
 
@@ -217,6 +245,29 @@ describe('CancelAllReplySchema', () => {
       canceled: ['SB-250408001042620'],
       failed: [{ orderid: 'SB-250408001043015', message: 'Failed to cancel' }],
     })
+  })
+
+  test('an unreadable item is skipped and the readable ones are kept', () => {
+    const r = CancelAllReplySchema.parse({
+      status: 'success',
+      message: 'Canceled 3 orders. Failed to cancel 3 orders.',
+      canceled_orders: ['250408001042620', null, 250408001042667],
+      failed_cancellations: [
+        null,
+        '250408001043015',
+        { orderid: null, message: 'Failed to cancel' },
+        { orderid: 'SB-1', message: 42 },
+      ],
+    })
+    expect(r).toEqual({
+      canceled: ['250408001042620', '250408001042667'],
+      failed: [{ orderid: '250408001043015' }, { orderid: 'SB-1' }],
+    })
+    expect([r.canceled.length, r.failed.length]).toEqual([2, 2])
+  })
+
+  test('a reply without its lists does not parse', () => {
+    expect(CancelAllReplySchema.safeParse({ status: 'success', message: 'x' }).success).toBe(false)
   })
 })
 

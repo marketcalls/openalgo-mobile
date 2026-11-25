@@ -7,8 +7,14 @@ import { envelope } from '~/core/http/schemas'
 
 /** A field a row cannot do without: a non-blank string, or a number as its digits. */
 const text = str.refine((s) => s.trim() !== '', 'blank')
-/** An order id. A number becomes a string, since modify and cancel take fields.Str. */
-export const orderId = text
+/**
+ * An order id. A number becomes a string, since modify and cancel take fields.Str. It must be a
+ * safe integer: past 2^53 the JSON parse has already rounded it (9007199254740993 reads as
+ * …992), so its digits are another order's, and a cancel or modify would target that one.
+ */
+export const orderId = z
+  .union([z.string(), z.number().refine(Number.isSafeInteger, 'not a safe integer')])
+  .pipe(text)
 /** A text field the row can do without: absent or unreadable is `''`. */
 const optText = str.catch('')
 /** A number the row can do without: absent, `''`, null or unreadable is unset. */

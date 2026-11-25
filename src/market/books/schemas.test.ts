@@ -134,6 +134,23 @@ describe('OrderbookSchema', () => {
     expect(row?.orderid).toBe('250408000989443')
   })
 
+  test('a numeric orderid past 2^53 drops the row, since its digits are already rounded', () => {
+    // JSON.parse reads 9007199254740993 as 9007199254740992: a cancel would target that id.
+    const unsafe = JSON.parse('9007199254740993') as number
+    const book = OrderbookSchema.parse(
+      ok({
+        orders: [
+          { ...ORDER, orderid: unsafe },
+          { ...ORDER, orderid: 2501.5 },
+          { ...ORDER, orderid: Number.MAX_SAFE_INTEGER },
+          { ...ORDER, orderid: '9007199254740993' },
+        ],
+      }),
+    )
+    expect(book.orders.map((o) => o.orderid)).toEqual(['9007199254740991', '9007199254740993'])
+    expect(book.dropped).toBe(2)
+  })
+
   test('a lowercase side is read as BUY or SELL; any other side drops the row', () => {
     const book = OrderbookSchema.parse(
       ok({
@@ -212,6 +229,12 @@ describe('TradebookSchema', () => {
     const { orderid: _, ...noId } = trade ?? {}
     const { action: __, ...noSide } = trade ?? {}
     expect(TradebookSchema.parse(ok([noId, noSide, trade]))).toMatchObject({ dropped: 2 })
+  })
+
+  test('a trade with a numeric orderid past 2^53 is dropped', () => {
+    const [trade] = tradebook.data
+    const unsafe = { ...trade, orderid: JSON.parse('9007199254740993') as number }
+    expect(TradebookSchema.parse(ok([unsafe, trade]))).toMatchObject({ dropped: 1 })
   })
 })
 

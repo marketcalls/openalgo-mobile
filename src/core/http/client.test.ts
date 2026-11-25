@@ -130,6 +130,27 @@ describe('classification (first match wins)', () => {
     ],
     ['no status: 403 html from a proxy', 'funds', html(403), { kind: 'Server' }],
     ['no status: 200 JSON', 'funds', json(200, { data: {} }), { kind: 'Server' }],
+    // An order lane's 2xx means the server took the request: the order may exist.
+    [
+      'no status: 200 JSON on an order lane',
+      'placeorder',
+      json(200, { data: {} }),
+      { kind: 'MaybePlaced' },
+    ],
+    [
+      'no status: 200 text on an order lane',
+      'splitorder',
+      { status: 200, body: 'OK' },
+      { kind: 'MaybePlaced' },
+    ],
+    [
+      'no status: 200 non-JSON on the smart lane',
+      'placesmartorder',
+      { status: 200, contentType: 'application/json', body: '{"status":"succ' },
+      { kind: 'MaybePlaced' },
+    ],
+    // The web app's page: this server has no such route, so nothing was sent on.
+    ['no status: 200 html on an order lane', 'placeorder', html(200), { kind: 'Unsupported' }],
     [
       '403 Semi-Auto',
       'cancelorder',
@@ -211,10 +232,28 @@ describe('classification (first match wins)', () => {
     ['500 JSON', 'funds', err(500, 'An unexpected error occurred'), { kind: 'Server' }],
     ['503 JSON on an order lane', 'placeorder', err(503, 'Unavailable'), { kind: 'Server' }],
     [
-      '2xx failing its schema',
+      '2xx with status error on an order lane',
+      'placeorder',
+      err(200, 'Order rejected'),
+      { kind: 'Validation', serverMessage: 'Order rejected' },
+    ],
+    [
+      '2xx failing its schema on a read',
       'funds',
       json(200, { status: 'success', data: { availablecash: 'lots' } }),
       { kind: 'Server' },
+    ],
+    [
+      '2xx failing its schema on an order lane',
+      'placeorder',
+      json(200, { status: 'success', data: { availablecash: 'lots' } }),
+      { kind: 'MaybePlaced' },
+    ],
+    [
+      '2xx failing its schema on the smart lane',
+      'placesmartorder',
+      json(200, { status: 'ok' }),
+      { kind: 'MaybePlaced' },
     ],
     // A rest parameter: a fifth named one would make jest wait for `done` on 4-cell rows.
   ])('%s', async (...[, id, reply, expected, auth]) => {
