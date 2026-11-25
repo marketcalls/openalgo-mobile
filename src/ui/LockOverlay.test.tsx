@@ -6,12 +6,12 @@ import {
   userEvent,
   waitFor,
 } from '@testing-library/react-native'
-import { StyleSheet, Text, View } from 'react-native'
+import { Platform, StyleSheet, Text, View } from 'react-native'
 import { createKeyStore } from '~/core/credentials/keyStore'
 import { createLockController } from '~/core/credentials/lock'
 import { createKeyVault } from '~/core/credentials/vault'
 import { memoryKV } from '../../test/helpers/memoryKV'
-import { LockOverlay } from './LockOverlay'
+import { LockLayer, LockOverlay } from './LockOverlay'
 import { tokens } from './tokens'
 
 const KEY = 'ab'.repeat(32)
@@ -162,4 +162,40 @@ test('after a retry fails to read the key, it offers to forget the key', async (
   expect(forget).toHaveProp('testID', 'lock-forget')
   await user.press(forget)
   expect(onForgetKey).toHaveBeenCalledTimes(1)
+})
+
+describe('LockLayer', () => {
+  test('on iOS the cover goes in a window above every presented sheet', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios')
+    await render(
+      <LockLayer>
+        <View testID="cover" />
+      </LockLayer>,
+    )
+    const cover = screen.getByTestId('cover')
+    // an ancestor is the native full-window overlay, not the React Native root
+    let n = cover.parent
+    const names: string[] = []
+    while (n) {
+      names.push(String(typeof n.type === 'string' ? n.type : (n.type as { name?: string }).name))
+      n = n.parent
+    }
+    expect(names.some((x) => /FullWindowOverlay/.test(x))).toBe(true)
+    jest.restoreAllMocks()
+  })
+
+  test("on Android the cover is the root's last child, already above its screens", async () => {
+    jest.replaceProperty(Platform, 'OS', 'android')
+    await render(
+      <LockLayer>
+        <View testID="cover" />
+      </LockLayer>,
+    )
+    let n = screen.getByTestId('cover').parent
+    while (n) {
+      expect(String((n.type as { name?: string }).name ?? n.type)).not.toMatch(/FullWindowOverlay/)
+      n = n.parent
+    }
+    jest.restoreAllMocks()
+  })
 })

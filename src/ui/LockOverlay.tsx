@@ -1,7 +1,22 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native'
+import { FullWindowOverlay } from 'react-native-screens'
 import type { LockController } from '~/core/credentials/lock'
 import { tokens } from './tokens'
+
+/**
+ * Where the lock cover is drawn. On iOS a presented sheet (the ticket, modify, instrument and
+ * search screens) is a view controller above the React Native root, so a cover inside the root
+ * is drawn beneath it, and the sheet, with its order and prices, stays visible and tappable over
+ * "locked". FullWindowOverlay puts the cover in a window above every presented one. Android
+ * presents those screens inside the root, so the cover, the root's last child, is already on top.
+ */
+export function LockLayer({ children }: { children: ReactNode }) {
+  if (Platform.OS !== 'ios') return <>{children}</>
+  return (
+    <FullWindowOverlay unstable_accessibilityContainerViewIsModal>{children}</FullWindowOverlay>
+  )
+}
 
 /**
  * An opaque full-screen cover, rendered as the last sibling over the app while it is locked. It

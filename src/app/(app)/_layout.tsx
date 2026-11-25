@@ -20,7 +20,7 @@ import {
 import { TradingProvider } from '~/market/trading'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
-import { LockOverlay } from '~/ui/LockOverlay'
+import { LockLayer, LockOverlay } from '~/ui/LockOverlay'
 import { ToastHost } from '~/ui/Toast'
 import { useTheme } from '~/ui/theme'
 
@@ -188,7 +188,12 @@ function AppShell({ s }: { s: Services }) {
                 <ToastHost />
               </View>
               {locked ? (
-                <LockOverlay controller={s.lock} onForgetKey={() => void s.lifecycle.forgetKey()} />
+                <LockLayer>
+                  <LockOverlay
+                    controller={s.lock}
+                    onForgetKey={() => void s.lifecycle.forgetKey()}
+                  />
+                </LockLayer>
               ) : null}
             </LiveContext.Provider>
           </TickStoreContext.Provider>
