@@ -258,47 +258,68 @@ jobs:
 
       - name: Write the e2e script
         # android-emulator-runner runs a multi-line script one line at a time, so the steps
-        # that share shell state (the mock's restart) live in one file.
+        # that share shell state (the mock's restart) live in one file. A failed flow does not
+        # stop the ones after it: each starts from a cleared app, and the script fails at the end.
         run: |
           cat > "$RUNNER_TEMP/e2e.sh" <<'SCRIPT'
           set -euo pipefail
-          # start_mock WS_PORT [BROKER]: BROKER defaults to zerodha, the mock's own default
+          DEBUG="$RUNNER_TEMP/e2e-debug"
+          mkdir -p "$DEBUG"
+          MOCKS=0
+          FAILED=()
+          # start_mock WS_PORT [BROKER]: BROKER defaults to zerodha, the mock's own default.
+          # Each start logs to its own file, kept for the debug artifact.
           start_mock() {
-            PORT=5000 WS_PORT="$1" PROFILE="$PROFILE" BROKER="${2:-zerodha}" node dev/mock-server/main.mjs > "$RUNNER_TEMP/mock.log" 2>&1 &
+            MOCKS=$((MOCKS + 1))
+            MOCK_LOG="$DEBUG/mock-$MOCKS-ws-$1-${2:-zerodha}.log"
+            PORT=5000 WS_PORT="$1" PROFILE="$PROFILE" BROKER="${2:-zerodha}" node dev/mock-server/main.mjs > "$MOCK_LOG" 2>&1 &
             MOCK_PID=$!
             for _ in $(seq 1 50); do
-              grep -q '^MOCK_READY' "$RUNNER_TEMP/mock.log" && return 0
+              grep -q '^MOCK_READY' "$MOCK_LOG" && return 0
               sleep 0.2
             done
-            cat "$RUNNER_TEMP/mock.log"
+            cat "$MOCK_LOG"
             return 1
           }
+          stop_mock() {
+            kill "$MOCK_PID"
+            wait "$MOCK_PID" || true
+          }
+          reset_mock() { curl -sSf -X POST http://localhost:5000/__mock/reset > /dev/null; }
+          # run_flow NAME: from a cleared app; a failure keeps the device log and the window stack
+          run_flow() {
+            adb shell pm clear in.openalgo.mobile
+            adb logcat -c || true
+            if ! maestro test "e2e/$1.yaml"; then
+              FAILED+=("$1")
+              adb logcat -d > "$DEBUG/logcat-$1.txt" 2>&1 || true
+              adb shell dumpsys activity activities > "$DEBUG/activities-$1.txt" 2>&1 || true
+            fi
+          }
+          echo "Screen: $(adb shell wm size | tr -d '\r'), $(adb shell wm density | tr -d '\r')"
           APK=$(ls dist/*.apk | head -n 1)
           adb install -r "$APK"
           start_mock 8765
-          maestro test e2e/onboarding-live.yaml
-          kill "$MOCK_PID"
-          wait "$MOCK_PID" || true
+          run_flow onboarding-live
+          stop_mock
           start_mock off
-          adb shell pm clear in.openalgo.mobile
-          maestro test e2e/onboarding-polling.yaml
-          kill "$MOCK_PID"
-          wait "$MOCK_PID" || true
+          run_flow onboarding-polling
+          stop_mock
           # the trading flows: the mock is reset before each one
-          reset_mock() { curl -sSf -X POST http://localhost:5000/__mock/reset > /dev/null; }
           start_mock 8765
           for flow in trading-analyzer trading-semiauto; do
             reset_mock
-            adb shell pm clear in.openalgo.mobile
-            maestro test "e2e/$flow.yaml"
+            run_flow "$flow"
           done
-          kill "$MOCK_PID"
-          wait "$MOCK_PID" || true
+          stop_mock
           start_mock 8765 dhan
           reset_mock
-          adb shell pm clear in.openalgo.mobile
-          maestro test e2e/depth-levels.yaml
-          kill "$MOCK_PID"
+          run_flow depth-levels
+          stop_mock
+          if [ "${#FAILED[@]}" -gt 0 ]; then
+            echo "Failed flows: ${FAILED[*]}"
+            exit 1
+          fi
           SCRIPT
 
       - name: Run the flows in an emulator
@@ -307,9 +328,29 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          # A phone-sized screen (1080 x 2400, 420 dpi): the default AVD is 320 x 640 at mdpi,
+          # where most lists run below the fold.
+          profile: pixel_6
           disable-animations: true
+          pre-emulator-launch-script: grep -E '^hw\.(device\.name|lcd\.)' "$HOME/.android/avd/test.avd/config.ini" || true
           script: bash ${{ runner.temp }}/e2e.sh
 
       - name: Mock server log
         if: failure()
-        run: cat "$RUNNER_TEMP/mock.log" || true
+        run: tail -n 200 "$RUNNER_TEMP"/e2e-debug/mock-*.log || true
+
+      - name: Collect the e2e debug output
+        # Maestro writes each run's screenshots, hierarchy and log under ~/.maestro/tests.
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-debug"
+          if [ -d "$HOME/.maestro/tests" ]; then cp -R "$HOME/.maestro/tests" "$RUNNER_TEMP/e2e-debug/maestro"; fi
+
+      - name: Upload the e2e debug output
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-debug-${{ matrix.PROFILE }}
+          path: ${{ runner.temp }}/e2e-debug
+          if-no-files-found: warn
+          retention-days: 14

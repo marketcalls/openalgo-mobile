@@ -2,7 +2,20 @@
 
 Maestro flows for the Android release build. They run only in CI (the `e2e-android` job in
 `.github/workflows/ci.yml`): the job builds an x86_64 APK, starts the mock server on the runner and
-runs the flows in an API 34 emulator, where the host is `10.0.2.2`.
+runs the flows in an API 34 emulator with the Pixel 6 profile (1080 x 2400), where the host is
+`10.0.2.2`. A failed flow does not stop the next one; the job fails at the end and uploads
+`e2e-debug-<PROFILE>`: Maestro's output for each run (`maestro/`: screenshots, the commands with
+the UI hierarchy at the failure, its log), each mock start's log, and the device log and activity
+stack of each failed flow.
+
+Writing a flow:
+- A row of a list may be below the fold on a small screen: `scrollUntilVisible` it before an
+  assert or a tap.
+- On Android, `hideKeyboard` presses Back. Use it only right after `inputText`, where the keyboard
+  is up; otherwise it leaves the screen. To leave a screen whose keyboard may or may not be up,
+  repeat `back` while one of its ids is visible.
+- A button that waits for a read (Confirm in the review, Modify order) is tapped with
+  `enabled: true`.
 
 | Flow | Mock server | What it checks |
 |---|---|---|
@@ -41,7 +54,7 @@ Watchlist
   `index-pick-{ID}`, `index-{ID}`
 
 Search
-- `search-input` *, `search-row-{ID}` *, `search-added-{ID}`, `search-chip-{EXCHANGE}`,
+- `search-input` *, `search-row-{ID}` *, `search-added-{ID}` *, `search-chip-{EXCHANGE}`,
   `search-status`
 
 Instrument sheet

@@ -17,13 +17,25 @@ appId: in.openalgo.mobile
 - inputText: ITC
 - tapOn:
     id: search-row-NSE-ITC
-# the result list keeps the keyboard up: the first Back would only hide it
-- hideKeyboard
-- back
 - extendedWaitUntil:
     visible:
-      id: watch-row-NSE-ITC
+      id: search-added-NSE-ITC
     timeout: 10000
+# Maestro's hideKeyboard on Android is a Back key press: Back goes only while search is open
+# (see trading-analyzer.yaml)
+- repeat:
+    while:
+      visible:
+        id: search-input
+    times: 2
+    commands:
+      - back
+# ITC is the eighth row of the default list, which can sit below the fold
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-ITC
+    direction: DOWN
+    timeout: 15000
 
 - tapOn:
     id: watch-buy-NSE-ITC
@@ -31,8 +43,12 @@ appId: in.openalgo.mobile
     id: ticket-type-MARKET
 - tapOn:
     id: ticket-review
+- assertVisible:
+    id: review-mode-badge
+    text: LIVE
 - tapOn:
     id: ticket-confirm
+    enabled: true
 - extendedWaitUntil:
     visible: Queued for approval in the web Action Center
     timeout: 15000
