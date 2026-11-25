@@ -22,7 +22,7 @@ import { TradingProvider } from '~/market/trading'
 import { ToastHost } from '~/ui/Toast'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
 import holdings from '../../../test/fixtures/openalgo-docs/holdings.json'
-import { keepExpectedLogs } from '../../../test/helpers/consoleLogs'
+import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
@@ -481,6 +481,31 @@ describe('close one', () => {
     await pass(17_500)
     expect(text('write-outcome-text')).toBe('The closing order was rejected. Still open: 10.')
     expect(screen.getByTestId('pos-close-NSE-RELIANCE-CNC')).not.toBeDisabled()
+  })
+
+  test('confirmed as ANALYZE, closed LIVE: the danger notice, never a success', async () => {
+    let mode: 'live' | 'analyze' = 'analyze'
+    await setup({
+      'POST /api/v1/analyzer': () => analyzer(mode),
+      // no mode:'analyze': the broker took it (C4)
+      'POST /api/v1/placesmartorder': () => {
+        mode = 'live'
+        return placed
+      },
+    })
+    const warned = expectLog(
+      'warn',
+      /\[orders\] closeOne: the review showed ANALYZE, but the server answered LIVE$/,
+    )
+    await show()
+    await press('pos-close-NSE-RELIANCE-CNC')
+    expect(asked[0]?.title).toMatch(/^ANALYZE/)
+    expect(warned).toHaveLength(1)
+    expect(text('live-surprise')).toContain(
+      'This closing order was placed in LIVE mode. The server switched to LIVE after your review.',
+    )
+    await press('live-surprise-dismiss')
+    expect(screen.queryByTestId('live-surprise')).toBeNull()
   })
 
   test('in analyzer mode the outcome carries the sandbox mark', async () => {
