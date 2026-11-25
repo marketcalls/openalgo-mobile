@@ -25,6 +25,7 @@ import {
   fieldText,
   Input,
   numberOf,
+  qtyOf,
   Segments,
   snapPrice,
 } from '~/market/components/OrderFields'
@@ -556,7 +557,7 @@ function Fields(p: {
           onChangeText={(s) => {
             setQty(s)
             // blank is NaN, which the ticket rules refuse
-            p.onChange({ qty: numberOf(s) ?? Number.NaN })
+            p.onChange({ qty: qtyOf(s) })
           }}
         />
         {meta.lots && lotsValid ? (

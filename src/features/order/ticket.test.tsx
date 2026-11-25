@@ -356,6 +356,18 @@ describe('edit', () => {
     expect(screen.getByText('Enter a trigger price above 0.')).toBeTruthy()
   })
 
+  test('a decimal comma (iOS decimal-pad in many regions) is the decimal point, never a group', async () => {
+    await setup()
+    await open({ ...RELIANCE, pricetype: 'LIMIT' })
+    await type('ticket-price', '1424,05')
+    await fireEvent(screen.getByTestId('ticket-price'), 'blur')
+    expect(screen.getByTestId('ticket-price').props.value).toBe('1424.05')
+    // a text that reads two ways is refused, not guessed
+    await type('ticket-price', '1,424')
+    expect(screen.getByText('Enter a price above 0.')).toBeTruthy()
+    expect(disabled('ticket-review')).toBe(true)
+  })
+
   test('derivatives take lots and show the units; products are MIS and NRML', async () => {
     await setup()
     await open(NIFTY_FUT)

@@ -12,18 +12,51 @@ import type { Side } from '../types'
 export const snapPrice = (n: number | undefined, meta: InstrumentMeta): number | undefined =>
   n === undefined ? undefined : snapTick(n, meta.tick, n)
 
-/** What a number field holds: a number, or nothing while it is blank or not a number. */
+/** Digits grouped by commas in threes (`142,405`), or the Indian way (`1,42,405`). */
+const GROUPED = /^(\d{1,3}(,\d{3})+|\d{1,2}(,\d{2})+,\d{3})$/
+
+/**
+ * A field's text with its separators read, or null when they could mean two numbers. iOS's
+ * decimal-pad shows the region's decimal separator, which is a comma in many regions (de, fr, es)
+ * with no '.' key, so a lone comma is the decimal point ("1424,05"), unless three digits follow
+ * it, which reads as a thousands group too ("1,424"). Commas before a point, or in several
+ * groups, group thousands. A comma after a point ("1.424,05") reads two ways.
+ */
+function readSeparators(t: string): string | null {
+  if (!t.includes(',')) return t
+  const point = t.indexOf('.')
+  if (point >= 0) {
+    const int = t.slice(0, point)
+    const rest = t.slice(point)
+    return GROUPED.test(int) && !rest.includes(',') ? int.replace(/,/g, '') + rest : null
+  }
+  const parts = t.split(',')
+  if (parts.length === 2) return /^\d{3}$/.test(parts[1] ?? '') ? null : parts.join('.')
+  return GROUPED.test(t) ? t.replace(/,/g, '') : null
+}
+
+/**
+ * What a price field holds: a number, or nothing while it is blank, not a number, or a text
+ * that reads two ways, which the ticket rules then refuse rather than guess.
+ */
 export const numberOf = (s: string): number | undefined => {
-  const t = s.replace(/,/g, '').trim()
+  const t = s.trim()
   if (t === '') return undefined
-  const n = Number(t)
+  const plain = readSeparators(t)
+  if (plain === null) return undefined
+  const n = Number(plain)
   return Number.isFinite(n) ? n : undefined
 }
 
-/** A blank or unreadable quantity is NaN, which the ticket rules refuse. */
+/**
+ * A blank or unreadable quantity is NaN, which the ticket rules refuse. Commas count only as
+ * thousands groups: "10,5" is a decimal comma, not 105.
+ */
 export const qtyOf = (s: string): number => {
-  const t = s.replace(/,/g, '').trim()
-  return t === '' ? Number.NaN : Number(t)
+  const t = s.trim()
+  if (t === '') return Number.NaN
+  if (!t.includes(',')) return Number(t)
+  return GROUPED.test(t) ? Number(t.replace(/,/g, '')) : Number.NaN
 }
 
 /** A field's text for a value: blank for none. */
