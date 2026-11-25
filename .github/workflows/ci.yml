@@ -262,8 +262,9 @@ jobs:
         run: |
           cat > "$RUNNER_TEMP/e2e.sh" <<'SCRIPT'
           set -euo pipefail
+          # start_mock WS_PORT [BROKER]: BROKER defaults to zerodha, the mock's own default
           start_mock() {
-            PORT=5000 WS_PORT="$1" PROFILE="$PROFILE" node dev/mock-server/main.mjs > "$RUNNER_TEMP/mock.log" 2>&1 &
+            PORT=5000 WS_PORT="$1" PROFILE="$PROFILE" BROKER="${2:-zerodha}" node dev/mock-server/main.mjs > "$RUNNER_TEMP/mock.log" 2>&1 &
             MOCK_PID=$!
             for _ in $(seq 1 50); do
               grep -q '^MOCK_READY' "$RUNNER_TEMP/mock.log" && return 0
@@ -281,6 +282,22 @@ jobs:
           start_mock off
           adb shell pm clear in.openalgo.mobile
           maestro test e2e/onboarding-polling.yaml
+          kill "$MOCK_PID"
+          wait "$MOCK_PID" || true
+          # the trading flows: the mock is reset before each one
+          reset_mock() { curl -sSf -X POST http://localhost:5000/__mock/reset > /dev/null; }
+          start_mock 8765
+          for flow in trading-analyzer trading-semiauto; do
+            reset_mock
+            adb shell pm clear in.openalgo.mobile
+            maestro test "e2e/$flow.yaml"
+          done
+          kill "$MOCK_PID"
+          wait "$MOCK_PID" || true
+          start_mock 8765 dhan
+          reset_mock
+          adb shell pm clear in.openalgo.mobile
+          maestro test e2e/depth-levels.yaml
           kill "$MOCK_PID"
           SCRIPT
 

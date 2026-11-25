@@ -1,0 +1,44 @@
+# Semi-Auto mode: a market buy waits for approval in the web Action Center (CI job
+# e2e-android). Needs the mock started with PORT=5000 WS_PORT=8765 and reset before the flow.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"semiAuto":true,"analyzer":false}'
+
+- tapOn:
+    id: wl-add
+- tapOn:
+    id: search-input
+- inputText: ITC
+- tapOn:
+    id: search-row-NSE-ITC
+- back
+- extendedWaitUntil:
+    visible:
+      id: watch-row-NSE-ITC
+    timeout: 10000
+
+- tapOn:
+    id: watch-buy-NSE-ITC
+- tapOn:
+    id: ticket-type-MARKET
+- tapOn:
+    id: ticket-review
+- tapOn:
+    id: ticket-confirm
+- extendedWaitUntil:
+    visible: Queued for approval in the web Action Center
+    timeout: 15000
+- assertVisible:
+    id: open-action-center
+- tapOn:
+    id: ticket-done
+
+- tapOn: Orders
+- assertVisible:
+    id: banner-semi-auto
