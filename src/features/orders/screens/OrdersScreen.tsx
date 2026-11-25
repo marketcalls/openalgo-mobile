@@ -17,6 +17,7 @@ import { DroppedNote } from '~/market/components/DroppedNote'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import { StaleNote } from '~/market/components/StaleNote'
 import { chartHref, depthHref, modifyHref } from '~/market/links'
+import { onOrder, useScopesOut } from '~/market/orders/pending'
 import { useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { Button } from '~/ui/Button'
@@ -159,8 +160,11 @@ function Orders(p: {
   writes: ReturnType<typeof useOrderWrites>
 }) {
   const router = useRouter()
-  const { instruments } = useTrading()
+  const trading = useTrading()
   const blocked = useBrokerBlocked()
+  // A write still out on an order (a modify sheet's that went, or this tab's cancel) holds its
+  // Modify and Cancel until its outcome is known, whichever screen sent it.
+  const out = useScopesOut(trading)
   const { q, writes } = p
   const data = q.data
   const rows = useMemo(() => {
@@ -170,14 +174,16 @@ function Orders(p: {
   const go = (href: string) => router.push(href as Href)
 
   const render = (r: Order) => {
-    const meta = knownMeta(instruments, r.exchange, r.symbol)
+    const meta = knownMeta(trading.instruments, r.exchange, r.symbol)
     const open = p.expanded === r.orderid
+    const pending = out.has(onOrder(r.orderid))
     return (
       <OrderRow row={r} meta={meta} expanded={open} onPress={() => p.onToggle(r.orderid)}>
         {open ? (
           <OrderActions
             working={isWorking(r)}
-            writesDisabled={blocked || writes.busy}
+            pending={pending}
+            writesDisabled={blocked || writes.busy || pending}
             onModify={() => go(modifyHref(r.orderid))}
             onCancel={() => writes.cancel(r, orderSummary(r, meta))}
             onDepth={() => go(depthHref(r.exchange, r.symbol))}
@@ -196,7 +202,7 @@ function Orders(p: {
       empty={p.segment === 'open' ? 'No open orders' : 'No orders today'}
       keyOf={(r) => r.orderid}
       render={render}
-      extra={`${p.expanded}|${blocked}|${writes.busy}`}
+      extra={`${p.expanded}|${blocked}|${writes.busy}|${[...out].join(',')}`}
     />
   )
 }

@@ -18,6 +18,7 @@ import {
   ServicesProvider,
 } from '~/core/services/services'
 import { ticketHref } from '~/market/links'
+import { HOLD_COPY } from '~/market/orders/useHoldSheet'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
 import { ToastHost } from '~/ui/Toast'
@@ -33,7 +34,6 @@ import {
 import { AUTH_OK, fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { earlierOutcome, OTHER_OUT } from './components/ReviewStep'
-import { HOLD_COPY } from './hooks/useHoldSheet'
 import { BOOK_WAIT_MS } from './hooks/useReviewBook'
 import { STILL_SENDING } from './screens/TicketScreen'
 

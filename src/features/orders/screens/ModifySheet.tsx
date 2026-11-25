@@ -3,6 +3,11 @@
 // split). It reads the server's mode on opening and shows it, LIVE or ANALYZE; modify sends
 // modifyorder once with the row's other fields as they are (C3), never retried. An outcome that
 // may hide the change is checked against the order book, never sent again.
+//
+// The sheet is held while the change is on its way (T12's hold), and the session holds the order
+// until the change's outcome is known, the check included (Global 4): another sheet for the same
+// order, or the tab's Modify and Cancel on it, wait meanwhile. An outcome that reached only the
+// toast, because its sheet had gone, is shown by the next sheet for that order before it sends.
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'expo-router'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
@@ -21,13 +26,23 @@ import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { MODE_LABEL } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
+import {
+  holdOrder,
+  onOrder,
+  otherOrderOut,
+  takeUnseenOutcome,
+  useOtherOrderOut,
+  useUnseenOutcome,
+} from '~/market/orders/pending'
 import type { ModifyChange } from '~/market/orders/schemas'
 import { readMode, submitOrderAction } from '~/market/orders/submit'
 import { issueText, planOrder, type TicketState, validateTicket } from '~/market/orders/ticket'
+import { useHoldSheet } from '~/market/orders/useHoldSheet'
 import { useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { PRICE_TYPES, type PriceType, type Product } from '~/market/types'
 import { useToneColors } from '~/ui/Badge'
+import { Banner } from '~/ui/Banner'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
 import { ErrorState } from '~/ui/ErrorState'
@@ -39,9 +54,11 @@ import { useTheme } from '~/ui/theme'
 import {
   CHECKING,
   checkOrder,
+  earlierChange,
   MODIFIED,
   modeChanged,
   NOT_READ,
+  ORDER_OUT,
   settle,
   useFreshBook,
 } from '../hooks/useOrderWrites'
@@ -53,6 +70,11 @@ const NO_SPLIT = { splitAvailable: false }
 
 const NO_TYPE = 'Choose an order type.'
 
+/** A dismissal refused while the change is on its way. */
+export const MODIFY_HOLD = 'The change is being sent. Wait for its outcome.'
+/** The sheet went while the change was on its way (an Android sheet can always be swiped away). */
+export const MODIFY_STILL_SENDING = 'The change is still being sent. Its outcome will show here.'
+
 export function ModifySheet({ orderid }: { orderid: string }) {
   return (
     <View style={styles.fill} testID="modify-screen">
@@ -62,40 +84,119 @@ export function ModifySheet({ orderid }: { orderid: string }) {
   )
 }
 
-/** The row from the orderbook cache, read once when the cache lacks it. */
+/**
+ * The row from the orderbook cache, read once when the cache lacks it. While another write on
+ * this order is out (a sheet that went, or the tab's cancel), the sheet waits for its outcome.
+ * Once that is known, or when the sheet opens on an earlier write's outcome only a toast said,
+ * the row is read afresh before the form shows: a modify sets absolute values, so a form from
+ * before that write would undo it.
+ */
 function OpenOrder({ orderid }: { orderid: string }) {
   const s = useServices()
   const trading = useTrading()
   const blocked = useBrokerBlocked()
+  const readBook = useFreshBook()
+  const scope = onOrder(orderid)
+  const [me] = useState(() => ({}))
+  const otherOut = useOtherOrderOut(trading, me, scope)
+  const unseen = useUnseenOutcome(trading, scope)
+  const [earlier, setEarlier] = useState<string | null>(null)
+  /** The row is to be read afresh (`wanted`), or that read failed. */
+  const [renew, setRenew] = useState<'no' | 'wanted' | { error: unknown }>('no')
+  useEffect(() => {
+    if (otherOut) setRenew('wanted')
+  }, [otherOut])
+  // On iOS the toast that carried it is beneath this sheet, so the sheet says it.
+  useEffect(() => {
+    if (unseen === null) return
+    const line = takeUnseenOutcome(trading, scope)
+    if (line === null) return
+    setEarlier(line)
+    setRenew('wanted')
+  }, [unseen, trading, scope])
+
   const q = useQuery({
     queryKey: qk.orderbook(s.profile.get().id),
     queryFn: () => trading.orders.orderbook(),
     enabled: false,
   })
   const cached = q.data?.orders.find((r) => r.orderid === orderid)
-  // The row the sheet opened on: a later read neither resets the form nor ends a check.
-  const [held, setHeld] = useState<OrderRow | null>(null)
-  const row = held ?? cached
+  // The row the sheet opened on: a later read neither resets the form nor ends a check. A fresh
+  // read after an earlier write replaces it ('gone' when that read lacks it).
+  const [held, setHeld] = useState<{ row: OrderRow | 'gone'; read: number } | null>(null)
+  const row = held ? held.row : cached
   useEffect(() => {
-    if (held === null && cached) setHeld(cached)
+    if (held === null && cached) setHeld({ row: cached, read: 0 })
   }, [held, cached])
   const [asked, setAsked] = useState(false)
   const { refetch } = q
+  const waiting = otherOut || renew !== 'no'
   useEffect(() => {
-    if (row || blocked || asked) return
+    if (row || blocked || asked || waiting) return
     setAsked(true)
     void refetch()
-  }, [row, blocked, asked, refetch])
+  }, [row, blocked, asked, waiting, refetch])
+  useEffect(() => {
+    if (renew !== 'wanted' || otherOut || unseen !== null || blocked) return
+    let live = true
+    readBook().then(
+      (b) => {
+        if (!live) return
+        const now = b.orders.find((r) => r.orderid === orderid)
+        setHeld((h) => ({ row: now ?? 'gone', read: (h?.read ?? 0) + 1 }))
+        setRenew('no')
+      },
+      (error: unknown) => {
+        if (live) setRenew({ error })
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [renew, otherOut, unseen, blocked, readBook, orderid])
 
-  if (row) return isWorking(row) ? <Instrument row={row} /> : <EmptyState title={GONE} />
-  if (!asked) return blocked ? <EmptyState title={NOT_READ} /> : <Skeleton />
-  if (q.isFetching) return <Skeleton />
-  if (q.isError) return <ErrorState error={q.error} onRetry={() => void refetch()} />
-  return <EmptyState title={GONE} />
+  const body = () => {
+    if (otherOut) {
+      return (
+        <View style={styles.body}>
+          <Text testID="modify-wait" tone="muted">
+            {ORDER_OUT}
+          </Text>
+          <Skeleton rows={1} />
+        </View>
+      )
+    }
+    if (typeof renew === 'object') {
+      return <ErrorState error={renew.error} onRetry={() => setRenew('wanted')} />
+    }
+    if (renew === 'wanted') return blocked ? <EmptyState title={NOT_READ} /> : <Skeleton />
+    if (row === 'gone') return <EmptyState title={GONE} />
+    if (row) {
+      // a fresh read starts the form again from that row
+      return isWorking(row) ? (
+        <Instrument key={held?.read ?? 0} row={row} me={me} />
+      ) : (
+        <EmptyState title={GONE} />
+      )
+    }
+    if (!asked) return blocked ? <EmptyState title={NOT_READ} /> : <Skeleton />
+    if (q.isFetching) return <Skeleton />
+    if (q.isError) return <ErrorState error={q.error} onRetry={() => void refetch()} />
+    return <EmptyState title={GONE} />
+  }
+
+  return (
+    <>
+      {earlier !== null ? (
+        <Banner testID="modify-earlier" tone="neutral" text={earlierChange(earlier)} />
+      ) : null}
+      {body()}
+    </>
+  )
 }
 
 /** The contract's metadata decides the rest: unknown shows only that, and takes no feed slot. */
-function Instrument({ row }: { row: OrderRow }) {
+function Instrument({ row, me }: { row: OrderRow; me: object }) {
   const s = useServices()
   const refused = useIsUnknown(row.exchange, row.symbol)
   const inst = useInstrument(row.exchange, row.symbol)
@@ -110,7 +211,7 @@ function Instrument({ row }: { row: OrderRow }) {
       </View>
     )
   }
-  if (inst.meta) return <ModifyForm row={row} meta={inst.meta} />
+  if (inst.meta) return <ModifyForm row={row} meta={inst.meta} me={me} />
   if (inst.loading) return <Skeleton />
   const queryKey = qk.symbol(s.profile.get().id, row.exchange, row.symbol)
   return (
@@ -162,8 +263,11 @@ type Step =
   | { kind: 'sending' }
   /** After an unknown outcome: `line` once the book says, null while it is read. */
   | { kind: 'check'; line: string | null }
+  /** Modified: the sheet closes once it is no longer held. */
+  | { kind: 'closing' }
 
-function ModifyForm({ row, meta }: { row: OrderRow; meta: InstrumentMeta }) {
+/** `me` is this sheet, as the session's writes still out know it. */
+function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me: object }) {
   const s = useServices()
   const trading = useTrading()
   const router = useRouter()
@@ -175,13 +279,28 @@ function ModifyForm({ row, meta }: { row: OrderRow; meta: InstrumentMeta }) {
   const [form, setForm] = useState(() => initialForm(row, meta))
   const [step, setStep] = useState<Step>({ kind: 'edit' })
   const [mode, setMode] = useState<{ now: AnalyzerMode | null; error?: unknown }>({ now: null })
+  /** This sheet's change is held on the order for the session until its outcome is known. */
+  const scope = onOrder(row.orderid)
+  /** Where this sheet's change is: on its way, or being checked after an unknown outcome. */
+  const phase = useRef<'idle' | 'sending' | 'checking'>('idle')
+  /** The last outcome line this sheet's change sent to the toast, once the sheet had gone. */
+  const goneLine = useRef<string | null>(null)
   const alive = useRef(true)
   useEffect(() => {
     alive.current = true
     return () => {
       alive.current = false
+      if (phase.current === 'sending') toast(MODIFY_STILL_SENDING)
     }
   }, [])
+  useHoldSheet(step.kind === 'sending', MODIFY_HOLD)
+  // Closing waits for the render that lifts the hold, on iOS a held sheet refuses the pop, and
+  // then a task more: expo-router keeps the hold in a provider's state, set in a layout effect.
+  useEffect(() => {
+    if (step.kind !== 'closing') return
+    const t = setTimeout(() => router.back(), 0)
+    return () => clearTimeout(t)
+  }, [step.kind, router])
 
   /** Each mode read; one an earlier read started is dropped. */
   const reads = useRef(0)
@@ -205,16 +324,30 @@ function ModifyForm({ row, meta }: { row: OrderRow; meta: InstrumentMeta }) {
       }))
     : [{ id: 'type', text: NO_TYPE }]
 
-  /** On the sheet, or as a toast once the sheet has gone (an Android sheet can be swiped away). */
+  /**
+   * On the sheet, or as a toast once the sheet has gone (an Android sheet can be swiped away);
+   * the session then keeps the line for the next sheet on this order, since on iOS a presented
+   * sheet hides that toast.
+   */
   const show = (next: Step, line?: string) => {
     if (alive.current) setStep(next)
-    else if (line) toast(line)
+    else if (line) {
+      goneLine.current = line
+      toast(line)
+    }
   }
 
+  /**
+   * The whole of confirm runs inside the guard: one at a time, then the cooldown. The session
+   * holds the order until the change's outcome is known, the check after an unknown one
+   * included, so no other sheet or the tab sends on it meanwhile, even once this sheet has gone.
+   */
   const confirm = (shownMode: AnalyzerMode) =>
     void guard.run(async () => {
-      // The button is disabled while the rules refuse the order; this keeps one from ever going.
+      // The button is disabled while the rules refuse the order, and the form gives way to the wait
+      // while another write on it is out; this keeps one from ever going.
       if (!ticket || validateTicket(ticket, meta, ltp, NO_SPLIT).length > 0) return
+      if (otherOrderOut(trading, me, scope)) return
       const { spec } = planOrder(ticket, meta)
       const change: ModifyChange = {
         quantity: spec.quantity,
@@ -222,44 +355,55 @@ function ModifyForm({ row, meta }: { row: OrderRow; meta: InstrumentMeta }) {
         price: spec.price,
         trigger_price: spec.trigger_price,
       }
+      const release = holdOrder(trading, me, scope)
+      goneLine.current = null
+      phase.current = 'sending'
       setStep({ kind: 'sending' })
-      const out = await submitOrderAction({
-        kind: 'modify',
-        shownMode,
-        send: () => trading.orders.modify(row, change),
-        gate: trading.analyzer,
-        confirmLive: confirmLiveOrder,
-        books: s.books,
-      })
-      const r = settle(out, 'modifyorder', (reply) => reply.kind === 'no_id')
-      switch (r.kind) {
-        case 'ok':
-          notifySuccess()
-          toast(MODIFIED)
-          if (alive.current) router.back()
-          return
-        case 'maybe': {
-          notifyWarning()
-          show({ kind: 'check', line: null }, CHECKING)
-          const line = await checkOrder(readBook, row.orderid)
-          show({ kind: 'check', line }, line)
-          return
+      try {
+        const out = await submitOrderAction({
+          kind: 'modify',
+          shownMode,
+          send: () => trading.orders.modify(row, change),
+          gate: trading.analyzer,
+          confirmLive: confirmLiveOrder,
+          books: s.books,
+        })
+        const r = settle(out, 'modifyorder', (reply) => reply.kind === 'no_id')
+        switch (r.kind) {
+          case 'ok':
+            notifySuccess()
+            toast(MODIFIED)
+            if (alive.current) setStep({ kind: 'closing' })
+            else goneLine.current = MODIFIED
+            return
+          case 'maybe': {
+            phase.current = 'checking'
+            notifyWarning()
+            show({ kind: 'check', line: null }, CHECKING)
+            const line = await checkOrder(readBook, row.orderid)
+            show({ kind: 'check', line }, line)
+            return
+          }
+          case 'refused':
+            notifyWarning()
+            show({ kind: 'edit', error: r.message }, r.message)
+            return
+          case 'semi_auto_blocked':
+            notifyWarning()
+            show({ kind: 'edit', semiAuto: r.message }, r.message)
+            return
+          case 'mode_changed':
+            if (alive.current) setMode({ now: r.now })
+            show({ kind: 'edit', notice: modeChanged(r.now) }, modeChanged(r.now))
+            return
+          case 'cancelled':
+            show({ kind: 'edit', notice: r.message }, r.message)
+            return
         }
-        case 'refused':
-          notifyWarning()
-          show({ kind: 'edit', error: r.message }, r.message)
-          return
-        case 'semi_auto_blocked':
-          notifyWarning()
-          show({ kind: 'edit', semiAuto: r.message }, r.message)
-          return
-        case 'mode_changed':
-          if (alive.current) setMode({ now: r.now })
-          show({ kind: 'edit', notice: modeChanged(r.now) }, modeChanged(r.now))
-          return
-        case 'cancelled':
-          show({ kind: 'edit', notice: r.message }, r.message)
-          return
+      } finally {
+        phase.current = 'idle'
+        // An outcome only the toast carried goes to the next sheet for this order.
+        release(goneLine.current)
       }
     })
 
@@ -281,7 +425,9 @@ function ModifyForm({ row, meta }: { row: OrderRow; meta: InstrumentMeta }) {
       ) : mode.now === null ? (
         <Skeleton rows={1} />
       ) : null}
-      {step.kind === 'check' ? (
+      {step.kind === 'closing' ? (
+        <Text testID="modify-closing">{MODIFIED}</Text>
+      ) : step.kind === 'check' ? (
         <View style={styles.form}>
           <Text testID="modify-check">{step.line ?? CHECKING}</Text>
           {step.line === null ? <Skeleton rows={1} /> : null}

@@ -13,6 +13,7 @@ import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { confirmInMode, MODE_LABEL } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
+import { holdOrder, onOrder, otherOrderOut, type PendingScope } from '~/market/orders/pending'
 import { RECONCILE_DELAYS_MS, reconcileRow } from '~/market/orders/reconcile'
 import { type ActionKind, type Outcome, submitOrderAction } from '~/market/orders/submit'
 import { useTrading } from '~/market/trading'
@@ -32,6 +33,14 @@ export const CANCEL_ALL_BODY =
 
 export const modeChanged = (now: AnalyzerMode) =>
   `The server is now in ${MODE_LABEL[now]} mode. Nothing was sent.`
+
+/** A modify sheet whose order has a write out (another sheet's, or the tab's): it waits. */
+export const ORDER_OUT =
+  "An earlier change to this order isn't known yet. This one can be sent once it is."
+/** On the tab, under a row whose order has a write out. */
+export const ROW_OUT = 'A change to this order is on its way. Modify and Cancel wait for it.'
+/** The outcome of an earlier write on this order whose sheet had gone, which only a toast said. */
+export const earlierChange = (line: string) => `Your earlier change to this order: ${line}`
 
 const orders = (n: number) => `${n} ${n === 1 ? 'order' : 'orders'}`
 
@@ -110,6 +119,8 @@ export async function checkOrder(
 type Write<R> = {
   kind: ActionKind
   endpoint: EndpointId
+  /** The order it is on, which the session holds until its outcome is known. */
+  scope?: PendingScope
   confirm: { title: string; body: string; ok: string }
   send: () => Promise<R>
   unknown?: (reply: R) => boolean
@@ -120,7 +131,9 @@ type Write<R> = {
 
 /**
  * Cancel and cancel all. One write at a time on the screen, its confirm included, then the
- * cooldown; `busy` disables the order buttons meanwhile. `semiBlocked` is the reason of a write
+ * cooldown; `busy` disables the order buttons meanwhile. A cancel is also held on its order for
+ * the session (`market/orders/pending`) until its outcome is known, so a modify sheet for that
+ * order waits for it, even after this screen remounts. `semiBlocked` is the reason of a write
  * Semi-Auto refused, until the next write starts.
  */
 export function useOrderWrites() {
@@ -129,6 +142,8 @@ export function useOrderWrites() {
   const guard = useSubmitGuard()
   const readBook = useFreshBook()
   const [semiBlocked, setSemiBlocked] = useState<string | null>(null)
+  /** This screen, as the session's writes still out know it. */
+  const [me] = useState(() => ({}))
 
   const write = <R>(w: Write<R>) =>
     void guard.run(async () => {
@@ -140,39 +155,51 @@ export function useOrderWrites() {
         return
       }
       if (c.kind === 'declined') return
-      const out = await submitOrderAction({
-        kind: w.kind,
-        shownMode: c.mode,
-        send: w.send,
-        gate: trading.analyzer,
-        confirmLive: confirmLiveOrder,
-        books: s.books,
-      })
-      const r = settle(out, w.endpoint, w.unknown)
-      switch (r.kind) {
-        case 'ok':
-          w.done(r.reply)
-          return
-        case 'maybe':
-          notifyWarning()
-          toast(CHECKING)
-          toast(await w.check())
-          return
-        case 'refused':
-          notifyWarning()
-          toast(r.message)
-          return
-        case 'semi_auto_blocked':
-          notifyWarning()
-          setSemiBlocked(r.message)
-          return
-        case 'mode_changed':
-          notifyWarning()
-          toast(modeChanged(r.now))
-          return
-        case 'cancelled':
-          if (r.message) toast(r.message)
-          return
+      // The row's buttons wait while its order has a write out; this keeps one from ever going.
+      if (w.scope !== undefined && otherOrderOut(trading, me, w.scope)) {
+        notifyWarning()
+        toast(ROW_OUT)
+        return
+      }
+      const release = w.scope === undefined ? null : holdOrder(trading, me, w.scope)
+      try {
+        const out = await submitOrderAction({
+          kind: w.kind,
+          shownMode: c.mode,
+          send: w.send,
+          gate: trading.analyzer,
+          confirmLive: confirmLiveOrder,
+          books: s.books,
+        })
+        const r = settle(out, w.endpoint, w.unknown)
+        switch (r.kind) {
+          case 'ok':
+            w.done(r.reply)
+            return
+          case 'maybe':
+            notifyWarning()
+            toast(CHECKING)
+            toast(await w.check())
+            return
+          case 'refused':
+            notifyWarning()
+            toast(r.message)
+            return
+          case 'semi_auto_blocked':
+            notifyWarning()
+            setSemiBlocked(r.message)
+            return
+          case 'mode_changed':
+            notifyWarning()
+            toast(modeChanged(r.now))
+            return
+          case 'cancelled':
+            if (r.message) toast(r.message)
+            return
+        }
+      } finally {
+        // The tab's toasts show on the tab itself, so no line is kept for a later sheet.
+        release?.()
       }
     })
 
@@ -181,6 +208,7 @@ export function useOrderWrites() {
     write({
       kind: 'cancel',
       endpoint: 'cancelorder',
+      scope: onOrder(row.orderid),
       confirm: { title: 'Cancel this order?', body: summary, ok: 'Cancel order' },
       send: () => trading.orders.cancel(row.orderid),
       unknown: (reply) => reply.kind === 'no_id',

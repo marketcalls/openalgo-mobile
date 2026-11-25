@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native'
-import { Alert, type AlertButton, Linking } from 'react-native'
+import { Alert, type AlertButton, BackHandler, Linking } from 'react-native'
 import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import OrdersTab from '~/app/(app)/(tabs)/orders'
 import ModifyOrderRoute from '~/app/(app)/order/[id]/modify'
@@ -31,13 +31,18 @@ import {
 } from '../../../test/helpers/fakeFetch'
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
+import { earlierChange, ORDER_OUT, ROW_OUT } from './hooks/useOrderWrites'
+import { MODIFY_HOLD, MODIFY_STILL_SENDING } from './screens/ModifySheet'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
 let mockParams: Record<string, string> = {}
+/** Each render's `usePreventRemove(prevent, …)`, as the native stack would see it. */
+const mockPreventRemove = jest.fn()
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
+  usePreventRemove: (prevent: boolean, cb: unknown) => mockPreventRemove(prevent, cb),
 }))
 jest.mock('expo-local-authentication', () => ({
   SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
@@ -717,6 +722,199 @@ describe('modify', () => {
     })
     expect(screen.getByTestId('blocked-open-action-center')).toBeTruthy()
     expect(screen.getByTestId('modify-confirm')).toBeTruthy()
+  })
+})
+
+describe('a write on an order while it is out', () => {
+  /** A route that answers `reply` when `release` is called. */
+  const heldRoute = (reply: ScriptedReply) => {
+    const held = { release: () => {} }
+    const route: Route = () =>
+      new Promise<ScriptedReply>((resolve) => {
+        held.release = () => resolve(reply)
+      })
+    return { held, route }
+  }
+  const MODIFIED_OK = ok({ status: 'success', orderid: 'A1' })
+
+  test("the sheet is held while the change is on its way: iOS refuses the dismissal, Android's back does nothing", async () => {
+    const { held, route } = heldRoute(MODIFIED_OK)
+    const back = jest.spyOn(BackHandler, 'addEventListener')
+    await setup({ 'POST /api/v1/modifyorder': route })
+    await show(['orders'])
+    await openModify('A1')
+    expect(mockPreventRemove).toHaveBeenLastCalledWith(false, expect.any(Function))
+    expect(back).not.toHaveBeenCalled()
+
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    expect(requests('modifyorder')).toHaveLength(1)
+    expect(mockPreventRemove).toHaveBeenLastCalledWith(true, expect.any(Function))
+    // a dismissal the stack refused says why
+    const refusedCb = mockPreventRemove.mock.calls.at(-1)?.[1] as () => void
+    await act(async () => refusedCb())
+    expect(text('toast')).toBe(MODIFY_HOLD)
+    // the back button is consumed
+    expect(back).toHaveBeenCalledWith('hardwareBackPress', expect.any(Function))
+    const onBack = back.mock.calls.at(-1)?.[1] as () => boolean
+    let consumed = false
+    await act(async () => {
+      consumed = onBack()
+    })
+    expect(consumed).toBe(true)
+    expect(text('toast')).toBe(MODIFY_HOLD)
+    const sub = back.mock.results.at(-1)?.value as { remove: () => void }
+    const removed = jest.spyOn(sub, 'remove')
+
+    // modified: the sheet goes back only once the hold is lifted (iOS would refuse it before)
+    const holdAtBack: unknown[] = []
+    mockRouter.back.mockImplementationOnce(() => {
+      holdAtBack.push(mockPreventRemove.mock.calls.at(-1)?.[0])
+    })
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Order modified')
+    expect(mockRouter.back).toHaveBeenCalledTimes(1)
+    expect(holdAtBack).toEqual([false])
+    expect(removed).toHaveBeenCalledTimes(1)
+  })
+
+  test('gone mid-send: the tab holds the row, a reopened sheet waits, then shows the outcome and the row afresh', async () => {
+    const { held, route } = heldRoute(MODIFIED_OK)
+    let modified = false
+    await setup({
+      'POST /api/v1/orderbook': () => book([order({ price: modified ? 17 : 16.5 })]),
+      'POST /api/v1/modifyorder': route,
+    })
+    await show(['orders'])
+    await openModify('A1')
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    expect(requests('modifyorder')).toHaveLength(1)
+    // an Android sheet can be swiped away mid-send
+    await show(['orders'])
+    expect(text('toast')).toBe(MODIFY_STILL_SENDING)
+
+    // the tab's Modify and Cancel on that order wait for the outcome
+    await press('order-row-A1')
+    expect(text('order-pending')).toBe(ROW_OUT)
+    expect(disabled('order-modify')).toBe(true)
+    expect(disabled('order-cancel')).toBe(true)
+
+    // a sheet opened on it anyway (its own guard knows nothing of the first change) waits too
+    await openModify('A1')
+    expect(text('modify-wait')).toBe(ORDER_OUT)
+    expect(screen.queryByTestId('modify-confirm')).toBeNull()
+
+    const reads = requests('orderbook').length
+    modified = true
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Order modified')
+    // on iOS that toast is beneath this sheet, so the sheet says it
+    expect(text('modify-earlier')).toBe(earlierChange('Order modified'))
+    expect(screen.queryByTestId('modify-wait')).toBeNull()
+    // and its form is the order as it is now, read afresh: one from before would undo the change
+    await pass(1_000)
+    expect(requests('orderbook').length).toBeGreaterThan(reads)
+    expect(screen.getByTestId('modify-price').props.value).toBe('17')
+    expect(disabled('modify-confirm')).toBe(false)
+    expect(requests('modifyorder')).toHaveLength(1)
+    // the tab's actions on the order are back
+    expect(screen.queryByTestId('order-pending')).toBeNull()
+    expect(disabled('order-modify')).toBe(false)
+  })
+
+  test('a 502, then Done during the check: the tab and a reopened sheet wait for the check', async () => {
+    let modified = false
+    await setup({
+      'POST /api/v1/orderbook': () => book([order({ price: modified ? 17 : 16.5 })]),
+      'POST /api/v1/modifyorder': () => {
+        modified = true
+        return BAD_GATEWAY
+      },
+    })
+    await show(['orders'])
+    await openModify('A1')
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    expect(text('modify-check')).toBe('Status unknown: checking order book')
+    // the check does not hold the sheet: Done is allowed, and the sheet goes
+    expect(mockPreventRemove).toHaveBeenLastCalledWith(false, expect.any(Function))
+    await press('modify-done')
+    expect(mockRouter.back).toHaveBeenCalledTimes(1)
+    await show(['orders'])
+
+    await press('order-row-A1')
+    expect(text('order-pending')).toBe(ROW_OUT)
+    expect(disabled('order-modify')).toBe(true)
+    await openModify('A1')
+    expect(text('modify-wait')).toBe(ORDER_OUT)
+
+    await pass(2_100)
+    expect(text('toast')).toBe('Order status: open')
+    expect(text('modify-earlier')).toBe(earlierChange('Order status: open'))
+    await pass(1_000)
+    expect(screen.getByTestId('modify-price').props.value).toBe('17')
+    expect(disabled('modify-confirm')).toBe(false)
+    expect(requests('modifyorder')).toHaveLength(1)
+  })
+
+  test('an outcome only the toast carried shows at the next sheet for that order, once', async () => {
+    const { held, route } = heldRoute(MODIFIED_OK)
+    await setup({
+      'POST /api/v1/orderbook': book([order({ orderid: 'A1' }), order({ orderid: 'B1' })]),
+      'POST /api/v1/modifyorder': route,
+    })
+    await show(['orders'])
+    await openModify('A1')
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    await show(['orders'])
+    // the outcome lands with no sheet open: a sheet presented then would hide its toast on iOS
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Order modified')
+
+    // another order's sheet does not show it
+    await openModify('B1')
+    expect(screen.queryByTestId('modify-earlier')).toBeNull()
+    expect(screen.getByTestId('modify-confirm')).toBeTruthy()
+    await show(['orders'])
+
+    await openModify('A1')
+    expect(text('modify-earlier')).toBe(earlierChange('Order modified'))
+    expect(screen.getByTestId('modify-confirm')).toBeTruthy()
+    await show(['orders'])
+    // the next sheet for it does not show it again
+    await openModify('A1')
+    expect(screen.queryByTestId('modify-earlier')).toBeNull()
+  })
+
+  test("the tab's cancel holds its order: a modify sheet for it waits, then finds the order gone", async () => {
+    const { held, route } = heldRoute(ok({ status: 'success', orderid: 'A1' }))
+    let cancelled = false
+    await setup({
+      'POST /api/v1/orderbook': () =>
+        book([order({ order_status: cancelled ? 'cancelled' : 'open' })]),
+      'POST /api/v1/cancelorder': route,
+    })
+    await show(['orders'])
+    await press('order-row-A1')
+    await press('order-cancel')
+    await pass(1_000)
+    expect(requests('cancelorder')).toHaveLength(1)
+    expect(text('order-pending')).toBe(ROW_OUT)
+
+    await openModify('A1')
+    expect(text('modify-wait')).toBe(ORDER_OUT)
+    cancelled = true
+    await act(async () => held.release())
+    await pass(1_000)
+    expect(text('toast')).toBe('Order cancelled')
+    expect(screen.getByText('This order is no longer open.')).toBeTruthy()
+    expect(screen.queryByTestId('modify-confirm')).toBeNull()
+    expect(requests('modifyorder')).toHaveLength(0)
   })
 })
 

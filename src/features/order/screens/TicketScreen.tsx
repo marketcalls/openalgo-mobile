@@ -22,6 +22,12 @@ import { ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { useSubmitGuard } from '~/market/orders/guard'
+import {
+  holdOrder,
+  takeUnseenOutcome,
+  useOtherOrderOut,
+  useUnseenOutcome,
+} from '~/market/orders/pending'
 import { reconcilePlacement, reconcileSplit } from '~/market/orders/reconcile'
 import type { PlaceReply, SplitReply } from '~/market/orders/schemas'
 import { type Outcome, submitOrderAction } from '~/market/orders/submit'
@@ -35,6 +41,7 @@ import {
   ticketSummary,
   validateTicket,
 } from '~/market/orders/ticket'
+import { useHoldSheet } from '~/market/orders/useHoldSheet'
 import { openServerPage, useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
@@ -46,10 +53,8 @@ import { toast } from '~/ui/Toast'
 import { ResultView, resultLine, type TicketResult } from '../components/ResultView'
 import { MODE_LABEL, ReviewStep } from '../components/ReviewStep'
 import { snapPrice, TicketForm } from '../components/TicketForm'
-import { useHoldSheet } from '../hooks/useHoldSheet'
 import { useMarginPreview } from '../hooks/useMarginPreview'
 import { type BookSnapshot, useReviewBook } from '../hooks/useReviewBook'
-import { holdOrder, takeUnseenOutcome, useOtherOrderOut, useUnseenOutcome } from '../pendingOrders'
 
 type Step =
   | { kind: 'edit'; error?: string }

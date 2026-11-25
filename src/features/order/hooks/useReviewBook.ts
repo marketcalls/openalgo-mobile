@@ -6,8 +6,8 @@ import { qk } from '~/core/query/keys'
 import { shouldRetryQuery } from '~/core/query/queryClient'
 import { useServices } from '~/core/services/services'
 import type { Orderbook } from '~/market/books/schemas'
+import { otherOrderOut } from '~/market/orders/pending'
 import { useTrading } from '~/market/trading'
-import { otherOrderOut } from '../pendingOrders'
 
 /**
  * How long confirm waits for the review's read. A read still out then leaves the snapshot
