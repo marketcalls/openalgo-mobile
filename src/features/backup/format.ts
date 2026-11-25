@@ -2,6 +2,7 @@
 // whole format is tested without a file system. Never the key, the server address or the
 // profile id: only the content goes in, and the text is checked once more before it is shared.
 import { istClock, istDate } from '~/core/realtime/marketHours'
+import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 import { WATCHLIST_LIMITS, type WatchItem, type Watchlists } from '~/market/watchlists/model'
 
 export const BACKUP_KIND = 'openalgo-mobile-backup'
@@ -47,8 +48,13 @@ export function buildBackup(o: {
   return text
 }
 
+/**
+ * `trimmed`: entries over the limits, left out. `unlisted`: entries whose exchange no OpenAlgo
+ * version accepts (a hand-edited file), left out: one such entry would fail the whole multiquotes
+ * batch of its list.
+ */
 export type ParsedBackup =
-  | { ok: true; file: BackupFile; skipped: string[]; trimmed: number }
+  | { ok: true; file: BackupFile; skipped: string[]; trimmed: number; unlisted: number }
   | { ok: false; reason: 'too_large' | 'not_backup' }
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -56,11 +62,13 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 const FIELD_MAX = 64
 
-const cleanItem = (v: unknown): WatchItem | null => {
+/** An entry, its exchange upper-cased ('nse' is NSE); 'unlisted' when no server accepts it. */
+const cleanItem = (v: unknown): WatchItem | 'unlisted' | null => {
   if (!isRecord(v) || typeof v.exchange !== 'string' || typeof v.symbol !== 'string') return null
-  const exchange = v.exchange.trim()
+  const exchange = v.exchange.trim().toUpperCase()
   const symbol = v.symbol.trim()
   if (!exchange || !symbol || exchange.length > FIELD_MAX || symbol.length > FIELD_MAX) return null
+  if (!ALL_EXCHANGES.includes(exchange)) return 'unlisted'
   return { exchange, symbol }
 }
 
@@ -78,9 +86,10 @@ const cut = (name: string) => name.slice(0, WATCHLIST_LIMITS.nameMax)
 function cleanWatchlists(
   v: unknown,
   newId: () => string,
-): { value: Watchlists; trimmed: number } | null {
+): { value: Watchlists; trimmed: number; unlisted: number } | null {
   if (!isRecord(v) || !Array.isArray(v.lists)) return null
   let trimmed = 0
+  let unlisted = 0
   const taken = new Set<string>()
   const lists: Watchlists['lists'] = []
   const valid = v.lists.filter(isRecord)
@@ -95,6 +104,10 @@ function cleanWatchlists(
     const items: WatchItem[] = []
     for (const r of Array.isArray(raw.items) ? raw.items : []) {
       const item = cleanItem(r)
+      if (item === 'unlisted') {
+        unlisted++
+        continue
+      }
       if (!item) continue
       const k = `${item.exchange}:${item.symbol}`
       if (seen.has(k)) continue
@@ -109,7 +122,7 @@ function cleanWatchlists(
   }
   if (lists.length === 0) return null
   const active = typeof v.activeId === 'string' && taken.has(v.activeId) ? v.activeId : lists[0]?.id
-  return { value: { version: 1, activeId: active, lists }, trimmed }
+  return { value: { version: 1, activeId: active, lists }, trimmed, unlisted }
 }
 
 const fallbackId = () => `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -137,11 +150,13 @@ export function parseBackup(text: string, newId: () => string = fallbackId): Par
   )
   const content: BackupFile['content'] = {}
   let trimmed = 0
+  let unlisted = 0
   if ('watchlists' in raw.content) {
     const w = cleanWatchlists(raw.content.watchlists, newId)
     if (w) {
       content.watchlists = w.value
       trimmed = w.trimmed
+      unlisted = w.unlisted
     }
   }
   return {
@@ -155,6 +170,7 @@ export function parseBackup(text: string, newId: () => string = fallbackId): Par
     },
     skipped,
     trimmed,
+    unlisted,
   }
 }
 
@@ -170,26 +186,34 @@ function restoredName(name: string, taken: Set<string>): string {
   }
 }
 
-/** The lists after a restore. Replace swaps them in; merge appends within the limits. */
+/**
+ * The lists after a restore. Replace swaps them in; merge appends within the limits, and
+ * `leftOut` counts the incoming lists past them, which the screen says (RF 5: a restore trimmed
+ * to the limits says so).
+ */
 export function applyRestore(
   current: Watchlists,
   incoming: Watchlists,
   mode: 'replace' | 'merge',
   newId: () => string,
-): Watchlists {
-  if (mode === 'replace') return incoming
+): { value: Watchlists; leftOut: number } {
+  if (mode === 'replace') return { value: incoming, leftOut: 0 }
   const ids = new Set(current.lists.map((l) => l.id))
   const names = new Set(current.lists.map((l) => l.name.toLowerCase()))
   const lists = [...current.lists]
+  let leftOut = 0
   for (const l of incoming.lists) {
-    if (lists.length >= WATCHLIST_LIMITS.lists) break
+    if (lists.length >= WATCHLIST_LIMITS.lists) {
+      leftOut++
+      continue
+    }
     const id = ids.has(l.id) ? freshId(newId, ids) : l.id
     const name = restoredName(l.name, names)
     ids.add(id)
     names.add(name.toLowerCase())
     lists.push({ id, name, items: l.items })
   }
-  return { ...current, lists }
+  return { value: { ...current, lists }, leftOut }
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')

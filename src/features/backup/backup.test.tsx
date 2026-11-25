@@ -157,6 +157,19 @@ test('Merge appends and renames a clashing name, with no confirm', async () => {
   expect(alert).not.toHaveBeenCalled()
 })
 
+test('a merge past 50 lists says how many were left out, not only "Backup restored"', async () => {
+  await open()
+  // 48 lists from the file beside the phone's 2: 46 fit, 2 are left out
+  const lists = Array.from({ length: 50 }, (_, i) => ({ id: `l${i}`, name: `L${i}`, items: [] }))
+  await choose(backupText({ watchlists: { version: 1, lists } }))
+  await userEvent.press(await screen.findByTestId('restore-merge'))
+  expect(await screen.findByText(BACKUP_COPY.leftOut(2))).toBeOnTheScreen()
+  expect(BACKUP_COPY.leftOut(2)).toBe(
+    'Backup restored. 2 lists were left out: a phone holds at most 50 lists.',
+  )
+  expect(saved().lists).toHaveLength(50)
+})
+
 test('the trimmed note reads as the plan says', async () => {
   await open()
   const lists = Array.from({ length: 60 }, (_, i) => ({ id: `l${i}`, name: `L${i}`, items: [] }))

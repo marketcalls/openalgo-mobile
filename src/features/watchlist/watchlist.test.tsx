@@ -346,6 +346,23 @@ describe('useSeedQuotes', () => {
     expect([...seeded]).toEqual(['NFO:NIFTY25NOV25FUT'])
   })
 
+  test("a whole-batch 400 for one entry's exchange marks that entry, by its index, and no other", async () => {
+    const h = setup({
+      call: async () => {
+        throw new ApiError({
+          kind: 'Validation',
+          status: 400,
+          endpoint: 'multiquotes',
+          refusedAt: [1],
+        })
+      },
+    })
+    const items = [...ITEMS, { exchange: 'NCO', symbol: 'CRUDEOIL' }]
+    await render(h.wrap(<Probe items={items} />))
+    await settle()
+    expect([...seeded]).toEqual(['NCO:CRUDEOIL'])
+  })
+
   test('a broker failure entry is not a refusal: no key joins the set', async () => {
     const h = setup({
       call: async (_id, body) => (body.symbols ?? []).map((s) => ({ ...s, error: TIMED_OUT })),

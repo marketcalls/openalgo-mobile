@@ -64,7 +64,10 @@ afterEach(() => jest.restoreAllMocks())
 
 describe('classification (first match wins)', () => {
   type Expected = Partial<
-    Pick<ApiError, 'kind' | 'banForm' | 'serverMessage' | 'unknownFields' | 'invalidSymbols'>
+    Pick<
+      ApiError,
+      'kind' | 'banForm' | 'serverMessage' | 'unknownFields' | 'invalidSymbols' | 'refusedAt'
+    >
   >
   test.each<[string, EndpointId, ScriptedReply | 'throw', Expected, Auth?]>([
     ['fetch throws on the order lane', 'placeorder', 'throw', { kind: 'MaybePlaced' }],
@@ -216,6 +219,15 @@ describe('classification (first match wins)', () => {
         serverMessage: 'Symbol NIFTY25NOV25FUT not found in exchange NFO',
         invalidSymbols: [{ exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }],
       },
+    ],
+    [
+      "400 multiquotes refusing an entry's exchange: the whole batch, by index (OneOf, 2.0.0.1+)",
+      'multiquotes',
+      json(400, {
+        status: 'error',
+        message: { symbols: { '3': { exchange: ['Must be one of: NSE, NFO, CDS.'] } } },
+      }),
+      { kind: 'Validation', refusedAt: [3] },
     ],
     ['401', 'multioptiongreeks', err(401, 'Unauthorized'), { kind: 'Validation' }],
     ['409', 'analyzer/toggle', err(409, BUSY), { kind: 'Validation', serverMessage: BUSY }],

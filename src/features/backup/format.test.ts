@@ -137,6 +137,21 @@ describe('parseBackup (RF 5)', () => {
     expect(r.trimmed).toBe(0)
   })
 
+  test('a hand-edited exchange is upper-cased; one no OpenAlgo accepts is left out and counted', () => {
+    const items = [
+      { exchange: 'nse', symbol: 'ITC' },
+      { exchange: 'NSEX', symbol: 'TCS' },
+      { exchange: 'mcx_index', symbol: 'MCXCOMPDEX' },
+    ]
+    const r = parsed(wrap({ watchlists: { version: 1, lists: [{ id: 'a', name: 'A', items }] } }))
+    expect(r.file.content.watchlists?.lists[0]?.items).toEqual([
+      { exchange: 'NSE', symbol: 'ITC' },
+      { exchange: 'MCX_INDEX', symbol: 'MCXCOMPDEX' },
+    ])
+    expect(r.unlisted).toBe(1)
+    expect(r.trimmed).toBe(0)
+  })
+
   test('duplicate and missing list ids are reissued; the active list stays valid', () => {
     const r = parsed(
       wrap({
@@ -193,11 +208,11 @@ describe('applyRestore', () => {
   }
 
   test('replace swaps in the incoming lists', () => {
-    expect(applyRestore(W, incoming, 'replace', newId)).toEqual(incoming)
+    expect(applyRestore(W, incoming, 'replace', newId)).toEqual({ value: incoming, leftOut: 0 })
   })
 
   test('merge appends and renames a clashing name', () => {
-    const r = applyRestore(W, incoming, 'merge', newId)
+    const r = applyRestore(W, incoming, 'merge', newId).value
     expect(r.lists.map((l) => l.name)).toEqual(['Watchlist', 'Options', 'Options (restored)'])
     expect(r.activeId).toBe('b')
   })
@@ -210,7 +225,7 @@ describe('applyRestore', () => {
       lists: [{ id: 'a', name: long, items: [] }],
     }
     const inc: Watchlists = { version: 1, lists: [{ id: 'z', name: long, items: [] }] }
-    const name = applyRestore(cur, inc, 'merge', newId).lists[1]?.name ?? ''
+    const name = applyRestore(cur, inc, 'merge', newId).value.lists[1]?.name ?? ''
     expect(name.length).toBeLessThanOrEqual(30)
     expect(name.endsWith(' (restored)')).toBe(true)
     expect(name).not.toBe(long)
@@ -229,10 +244,12 @@ describe('applyRestore', () => {
         { id: 'q', name: 'Fresh 2', items: [] },
       ],
     }
-    const r = applyRestore(cur, inc, 'merge', newId)
+    const { value: r, leftOut } = applyRestore(cur, inc, 'merge', newId)
     expect(r.lists).toHaveLength(50)
     expect(r.lists[49]?.id).toBe('new1')
     expect(new Set(r.lists.map((l) => l.id)).size).toBe(50)
+    // the list past the limit is counted, so the screen says it was left out (RF 5)
+    expect(leftOut).toBe(1)
   })
 })
 

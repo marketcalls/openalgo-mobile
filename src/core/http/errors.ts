@@ -28,6 +28,11 @@ export type ApiErrorInit = {
   unknownFields?: string[]
   /** A multiquotes 400 when no symbol was valid: the contracts the server does not list. */
   invalidSymbols?: SymbolRef[]
+  /**
+   * A 400 that refused the whole request for some of its `symbols` entries (marshmallow's
+   * `symbols.<i>.exchange`, an exchange the server does not accept): their indexes.
+   */
+  refusedAt?: number[]
   banForm?: BanForm
   /** A RateLimited order the scheduler refused unsent: the seconds until its 429 gate opens. */
   retryInSec?: number
@@ -40,6 +45,7 @@ export class ApiError extends Error {
   readonly serverMessage?: string
   readonly unknownFields?: string[]
   readonly invalidSymbols?: SymbolRef[]
+  readonly refusedAt?: number[]
   readonly banForm?: BanForm
   readonly retryInSec?: number
 
@@ -52,6 +58,7 @@ export class ApiError extends Error {
     this.serverMessage = init.serverMessage
     this.unknownFields = init.unknownFields
     this.invalidSymbols = init.invalidSymbols
+    this.refusedAt = init.refusedAt
     this.banForm = init.banForm
     this.retryInSec = init.retryInSec
   }
@@ -101,6 +108,21 @@ export function invalidSymbols(body: unknown): SymbolRef[] | undefined {
       out.push({ exchange: x.exchange, symbol: x.symbol })
     }
   }
+  return out.length ? out : undefined
+}
+
+/**
+ * The `symbols` entries a 400 refused one by one, as marshmallow reports a nested list:
+ * `{message: {symbols: {"3": {exchange: ["Must be one of: ..."]}}}}` (restx_api/multiquotes.py;
+ * the exchange OneOf since 2.0.0.1, before NCO and two index exchanges were added). The whole
+ * batch fails, and no `invalid_symbols` names the entry.
+ */
+export function refusedIndexes(body: unknown): number[] | undefined {
+  if (!isRecord(body) || !isRecord(body.message) || !isRecord(body.message.symbols))
+    return undefined
+  const out = Object.entries(body.message.symbols)
+    .filter(([k, v]) => /^\d+$/.test(k) && isRecord(v))
+    .map(([k]) => Number(k))
   return out.length ? out : undefined
 }
 

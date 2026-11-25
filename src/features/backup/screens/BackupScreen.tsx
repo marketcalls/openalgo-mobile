@@ -7,7 +7,7 @@ import { log } from '~/core/log/logger'
 import { notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { defaultDeps } from '~/core/services/deps'
 import { useTrading, useWatchlists } from '~/market/trading'
-import type { Watchlists } from '~/market/watchlists/model'
+import { WATCHLIST_LIMITS, type Watchlists } from '~/market/watchlists/model'
 import { Button } from '~/ui/Button'
 import { confirm } from '~/ui/confirm'
 import { Text } from '~/ui/Text'
@@ -28,6 +28,10 @@ export const BACKUP_COPY = {
   restored: 'Backup restored',
   skipped: (keys: string[]) => `Skipped data this version can't read: ${keys.join(', ')}.`,
   trimmed: (n: number) => `${n} entries were over the limits and were left out.`,
+  unlisted: (n: number) =>
+    `${n} ${n === 1 ? 'entry names an exchange' : 'entries name an exchange'} OpenAlgo doesn't accept, left out.`,
+  leftOut: (n: number) =>
+    `Backup restored. ${n} ${n === 1 ? 'list was' : 'lists were'} left out: a phone holds at most ${WATCHLIST_LIMITS.lists} lists.`,
   summary: (lists: number, symbols: number) =>
     `${lists} ${lists === 1 ? 'list' : 'lists'}, ${symbols} ${symbols === 1 ? 'symbol' : 'symbols'}`,
   replaceTitle: (k: number) => `Replace your ${k} ${k === 1 ? 'watchlist' : 'watchlists'}?`,
@@ -82,6 +86,7 @@ export function BackupScreen() {
       const notes: string[] = []
       if (r.skipped.length > 0) notes.push(BACKUP_COPY.skipped(r.skipped))
       if (r.trimmed > 0) notes.push(BACKUP_COPY.trimmed(r.trimmed))
+      if (r.unlisted > 0) notes.push(BACKUP_COPY.unlisted(r.unlisted))
       setPending({ watchlists: r.file.content.watchlists ?? null, notes })
     } catch (e) {
       fail(BACKUP_COPY.readFailed, e)
@@ -94,13 +99,21 @@ export function BackupScreen() {
     setBusy(true)
     setError(null)
     try {
-      await store.getState().apply((w) => ({
-        next: applyRestore(w, incoming, mode, defaultDeps.uuid),
-        result: 'ok' as const,
-      }))
+      let leftOut = 0
+      await store.getState().apply((w) => {
+        const r = applyRestore(w, incoming, mode, defaultDeps.uuid)
+        leftOut = r.leftOut
+        return { next: r.value, result: 'ok' as const }
+      })
       setPending(null)
-      notifySuccess()
-      toast(BACKUP_COPY.restored)
+      if (leftOut > 0) {
+        notifyWarning()
+        setError(BACKUP_COPY.leftOut(leftOut))
+        toast(BACKUP_COPY.leftOut(leftOut))
+      } else {
+        notifySuccess()
+        toast(BACKUP_COPY.restored)
+      }
     } catch (e) {
       fail(BACKUP_COPY.restoreFailed, e)
     } finally {

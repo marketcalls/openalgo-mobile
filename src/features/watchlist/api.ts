@@ -73,8 +73,14 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
         refuse(refused)
       })
       .catch((e: unknown) => {
-        const refused =
-          e instanceof ApiError && e.kind === 'Validation' ? e.invalidSymbols : undefined
+        const v = e instanceof ApiError && e.kind === 'Validation' ? e : undefined
+        // the whole batch refused for some entries' exchange: those entries, by index, so one
+        // item from a hand-edited or another server's backup does not blank every price
+        const at = v?.refusedAt
+          ?.map((i) => todo[i])
+          .filter((i): i is WatchItem => i !== undefined)
+          .map((i) => ({ exchange: i.exchange, symbol: i.symbol }))
+        const refused = v?.invalidSymbols ?? (at?.length ? at : undefined)
         if (refused) refuse(refused.map((s) => quoteKey(s.exchange, s.symbol)))
         else log.warn('watchlist', 'could not seed quotes', e)
       })

@@ -16,6 +16,7 @@ import {
   type BanForm,
   invalidSymbols,
   isRecord,
+  refusedIndexes,
   unknownFields,
 } from './errors'
 
@@ -186,7 +187,12 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
     const unknown = s === 400 ? unknownFields(raw.json) : undefined
     if (unknown || s === 404 || s === 501) return fail('Unsupported', { unknownFields: unknown })
     if ((s >= 400 && s < 500) || (ok && raw.json.status === 'error')) {
-      return fail('Validation', s === 400 ? { invalidSymbols: invalidSymbols(raw.json) } : {})
+      return fail(
+        'Validation',
+        s === 400
+          ? { invalidSymbols: invalidSymbols(raw.json), refusedAt: refusedIndexes(raw.json) }
+          : {},
+      )
     }
     if (s === 502 && orderLane) return fail('MaybePlaced')
     if (!ok) return fail('Server')
