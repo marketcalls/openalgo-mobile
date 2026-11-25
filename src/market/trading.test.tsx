@@ -226,6 +226,15 @@ describe('Trading.depthDowngrades', () => {
   })
 })
 
+describe('Trading.flags', () => {
+  test('margin starts on, and a 501 turns it off for its container only', () => {
+    const first = createTrading(fakeServices().s, { now: () => NOW })
+    expect(first.flags).toEqual({ marginOff: false })
+    first.flags.marginOff = true
+    expect(createTrading(fakeServices().s, { now: () => NOW }).flags.marginOff).toBe(false)
+  })
+})
+
 let trading: Trading | undefined
 const GrabTrading = () => {
   trading = useTrading()

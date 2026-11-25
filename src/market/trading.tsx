@@ -98,6 +98,11 @@ export type Trading = {
   analyzer: AnalyzerGate
   /** Whether the app's own orders produce order events; the bus feeds it (RF 3). */
   eventWatch: EventWatch
+  /**
+   * What the session has learned about the server. `marginOff`: margin answered 501 (or is
+   * missing), so the ticket's margin preview is hidden until the next session (design 7.10).
+   */
+  flags: { marginOff: boolean }
 }
 
 export function createTrading(
@@ -116,6 +121,7 @@ export function createTrading(
       api: s.api,
     }),
     eventWatch: createEventWatch({ now: o.now }),
+    flags: { marginOff: false },
   }
 }
 
