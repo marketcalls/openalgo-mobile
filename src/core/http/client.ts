@@ -21,7 +21,14 @@ import {
 
 export type RawResponse = { status: number; contentType: string; text: string; json?: unknown }
 
-export type RequestOptions = { signal?: AbortSignal }
+export type RequestOptions = {
+  signal?: AbortSignal
+  /**
+   * A read that must go out now, never joined to the same read already out (the scheduler's
+   * dedupe): a read sent before an event the caller checks for, such as an order, may not show it.
+   */
+  fresh?: boolean
+}
 
 export type HttpClient = {
   /** POSTs `body` plus the key, classifies the reply, and parses a success with `schema`. */

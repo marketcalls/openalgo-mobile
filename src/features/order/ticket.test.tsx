@@ -32,9 +32,10 @@ import {
 } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { OTHER_OUT } from './components/ReviewStep'
+import { earlierOutcome, OTHER_OUT } from './components/ReviewStep'
 import { HOLD_COPY } from './hooks/useHoldSheet'
-import { BOOK_WAIT_MS, STILL_SENDING } from './screens/TicketScreen'
+import { BOOK_WAIT_MS } from './hooks/useReviewBook'
+import { STILL_SENDING } from './screens/TicketScreen'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
@@ -93,6 +94,12 @@ const ok = (body: unknown): ScriptedReply => ({ status: 200, body })
 const analyzer = (mode: 'live' | 'analyze') =>
   ok({ status: 'success', data: { mode, analyze_mode: mode === 'analyze', total_logs: 0 } })
 const PLACED = ok({ status: 'success', orderid: '250408000989443' })
+const BAD_GATEWAY: ScriptedReply = { status: 502, contentType: 'text/html', body: 'Bad Gateway' }
+
+const NOT_FOUND =
+  'Not found in the order book. It was probably not placed. Check the order book before trying again.'
+const MAYBE_EARLIER =
+  'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
 
 /** `HH:MM:SS` IST, `sec` seconds from 09:30:00 (T0). */
 const istTime = (sec: number) => {
@@ -706,9 +713,6 @@ describe('split orders', () => {
 })
 
 describe('status unknown', () => {
-  const NOT_FOUND =
-    'Not found in the order book. It was probably not placed. Check the order book before trying again.'
-
   test.each<[string, ScriptedReply]>([
     ['a 502 page', { status: 502, contentType: 'text/html', body: '<html>Bad Gateway</html>' }],
     ['a 500 error', { status: 500, body: { status: 'error', message: 'Broker timed out' } }],
@@ -753,10 +757,6 @@ describe('status unknown', () => {
     expect(requests('placeorder')).toHaveLength(1)
   })
 
-  const MAYBE_EARLIER =
-    'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
-  const BAD_GATEWAY: ScriptedReply = { status: 502, contentType: 'text/html', body: 'Bad Gateway' }
-
   test("the review reads the book afresh: the last ticket's order is not taken for this one", async () => {
     // A write only marks the cached book stale, and no screen refetches it: the last review's
     // book, from before the first order, is what the cache still holds.
@@ -791,6 +791,48 @@ describe('status unknown', () => {
     expect(disabled('ticket-confirm')).toBe(false)
     await confirm()
     await pass(2_100 + 5_000 + 10_000)
+    expect(screen.queryByText(/Found in the order book/)).toBeNull()
+    expect(screen.getByText(NOT_FOUND)).toBeTruthy()
+    expect(requests('placeorder')).toHaveLength(2)
+  })
+
+  test("a read still out from the last review is not joined: it was sent before that review's order", async () => {
+    // A slow broker: the first review's read is still unanswered when its order is placed, and
+    // when the next review opens. It holds the book as it stood before the first order.
+    let placed = 0
+    let reads = 0
+    let answerFirst = () => {}
+    await setup({
+      'POST /api/v1/placeorder': () => (++placed === 1 ? PLACED : BAD_GATEWAY),
+      'POST /api/v1/orderbook': () => {
+        const reply = book(
+          placed > 0 ? [row({ orderid: '250408000989443', quantity: 1, sec: 1 })] : [],
+        )
+        if (++reads > 1) return reply
+        return new Promise<ScriptedReply>((resolve) => {
+          answerFirst = () => resolve(reply)
+        })
+      },
+    })
+    await open(RELIANCE)
+    await toReview()
+    await pass(BOOK_WAIT_MS)
+    expect(disabled('ticket-confirm')).toBe(false)
+    await confirm()
+    expect(screen.getByText('Order placed')).toBeTruthy()
+    await press('ticket-done')
+
+    await open(RELIANCE)
+    await toReview()
+    // this review sent a read of its own, after the first order, beside the one still out
+    expect(requests('orderbook')).toHaveLength(2)
+    // the first read is answered only now, with the book from before the first order
+    await act(async () => answerFirst())
+    await pass(10)
+    expect(disabled('ticket-confirm')).toBe(false)
+    await confirm()
+    await pass(2_100 + 5_000 + 10_000)
+    // the first order is in this review's book, so it is not taken for the second
     expect(screen.queryByText(/Found in the order book/)).toBeNull()
     expect(screen.getByText(NOT_FOUND)).toBeTruthy()
     expect(requests('placeorder')).toHaveLength(2)
@@ -870,6 +912,44 @@ describe('status unknown', () => {
     expect(screen.getByText(MAYBE_EARLIER)).toBeTruthy()
   })
 
+  test('a check read goes out after the order, never joined to a read sent before it', async () => {
+    let sent = false
+    let reads = 0
+    let answerPoll = () => {}
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        sent = true
+        return BAD_GATEWAY
+      },
+      'POST /api/v1/orderbook': () => {
+        const reply = book(
+          sent ? [row({ orderid: 'N1', quantity: 1, status: 'open', sec: 1 })] : [],
+        )
+        // the second read is another screen's poll: sent before the order, answered late
+        if (++reads !== 2) return reply
+        return new Promise<ScriptedReply>((resolve) => {
+          answerPoll = () => resolve(reply)
+        })
+      },
+    })
+    await open(RELIANCE)
+    await toReview()
+    // the Orders tab's poll goes out before the order, a plain read as useOrderbook makes
+    const poll = (trading as Trading).orders.orderbook()
+    await pass(10)
+    await confirm()
+    // the check's first read, at 2 s, then the poll's late answer: the book before the order
+    await pass(2_100)
+    await act(async () => {
+      answerPoll()
+      await poll
+    })
+    await pass(10)
+    // the check read was a request of its own, sent after the order, so it found it at once
+    expect(requests('orderbook')).toHaveLength(3)
+    expect(screen.getByText('Found in the order book: open')).toBeTruthy()
+  })
+
   test('a book that cannot be read says so, never "probably not placed"', async () => {
     let sent = false
     await setup({
@@ -947,14 +1027,95 @@ describe('the sheet while the order is out', () => {
     expect(text('review-wait')).toBe(OTHER_OUT)
     expect(disabled('ticket-confirm')).toBe(true)
 
+    const reads = requests('orderbook').length
     await act(async () => held.release())
     await pass(10)
     expect(text('toast')).toBe('Order placed: 250408000989443')
+    // on iOS that toast is beneath this sheet, so the sheet says it too
+    expect(text('review-earlier')).toBe(earlierOutcome('Order placed: 250408000989443'))
     // the gone sheet's order still counts as the app's own (T11)
     expect(expectSpy).toHaveBeenCalledWith('250408000989443')
     expect(screen.queryByTestId('review-wait')).toBeNull()
+    // this review read the book while that order was out: it reads it again, and confirm waits
+    await pass(1_000)
+    expect(requests('orderbook')).toHaveLength(reads + 1)
     expect(disabled('ticket-confirm')).toBe(false)
     expect(requests('placeorder')).toHaveLength(1)
+  })
+
+  test("Done during the check: the waiting ticket shows the earlier order's outcome, and reads the book again", async () => {
+    let firstSent: number | null = null
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        firstSent ??= Date.now()
+        return BAD_GATEWAY
+      },
+      // the broker lists the first order a second after it went; the second never shows
+      'POST /api/v1/orderbook': () =>
+        book(
+          firstSent !== null && Date.now() >= firstSent + 1_000
+            ? [row({ orderid: 'N1', quantity: 1, status: 'open', sec: 1 })]
+            : [],
+        ),
+    })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    expect(screen.getByText('Status unknown: checking order book')).toBeTruthy()
+    // Done is allowed during the check, and the sheet goes
+    await press('ticket-done')
+    expect(mockRouter.back).toHaveBeenCalledTimes(1)
+    await closeSheet()
+
+    // opened again: its review reads the book before the broker lists the first order
+    await open(RELIANCE)
+    await toReview()
+    expect(text('review-wait')).toBe(OTHER_OUT)
+    expect(disabled('ticket-confirm')).toBe(true)
+    expect(screen.queryByTestId('review-earlier')).toBeNull()
+
+    // the check finds the first order: its toast is beneath this sheet on iOS, so the sheet says it
+    await pass(2_100)
+    expect(text('toast')).toBe('Found in the order book: open')
+    expect(text('review-earlier')).toBe(earlierOutcome('Found in the order book: open'))
+    expect(screen.queryByTestId('review-wait')).toBeNull()
+    expect(disabled('ticket-confirm')).toBe(false)
+
+    // the book was read again once the first order's outcome was known, so it is not this one
+    await confirm()
+    await pass(2_100 + 5_000 + 10_000)
+    expect(screen.queryByText(/Found in the order book/)).toBeNull()
+    expect(screen.queryByText(MAYBE_EARLIER)).toBeNull()
+    expect(screen.getByText(NOT_FOUND)).toBeTruthy()
+    expect(requests('placeorder')).toHaveLength(2)
+  })
+
+  test('an outcome only the toast carried shows at the next review, once', async () => {
+    const { held, route } = heldPlace(PLACED)
+    await setup({ 'POST /api/v1/placeorder': route })
+    await open(RELIANCE)
+    await toReview()
+    await confirm()
+    await closeSheet()
+    // the outcome lands with no ticket open: a sheet presented over the shell (the instrument
+    // sheet) would hide its toast on iOS
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Order placed: 250408000989443')
+
+    await open(RELIANCE)
+    expect(screen.queryByTestId('review-earlier')).toBeNull()
+    await toReview()
+    expect(text('review-earlier')).toBe(earlierOutcome('Order placed: 250408000989443'))
+    // still there when this ticket comes back to review
+    await press('ticket-back')
+    await toReview()
+    expect(text('review-earlier')).toBe(earlierOutcome('Order placed: 250408000989443'))
+
+    // a later ticket does not show it again
+    await open(RELIANCE)
+    await toReview()
+    expect(screen.queryByTestId('review-earlier')).toBeNull()
   })
 
   test('gone mid-send with an unknown outcome: the check still runs, and its result shows as a toast', async () => {
@@ -988,6 +1149,7 @@ describe('the sheet while the order is out', () => {
 
     await pass(2_100)
     expect(text('toast')).toBe('Found in the order book: open')
+    expect(text('review-earlier')).toBe(earlierOutcome('Found in the order book: open'))
     expect(disabled('ticket-confirm')).toBe(false)
     expect(requests('placeorder')).toHaveLength(1)
   })

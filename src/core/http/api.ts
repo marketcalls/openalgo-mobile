@@ -57,8 +57,9 @@ export function createApi({ http, scheduler, fields }: ApiDeps): Api {
     return scheduler.run({
       endpoint: id,
       lane: ENDPOINTS[id].lane,
-      // The body never holds the key: the client adds it. The scheduler skips orders.
-      dedupeKey: `${id} ${stableJson(body)}`,
+      // The body never holds the key: the client adds it. The scheduler skips orders, and a
+      // fresh read is never shared.
+      dedupeKey: o?.fresh ? undefined : `${id} ${stableJson(body)}`,
       // The caller's abort rejects only this call; the request itself aborts on the
       // scheduler's signal, once every caller sharing it has aborted.
       signal: o?.signal,

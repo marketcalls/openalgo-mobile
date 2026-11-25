@@ -123,6 +123,24 @@ test('B4 Dedupe', async () => {
   expect(sent('quotes')).toHaveLength(3)
 })
 
+test('a fresh read goes out on its own, beside the same read already out', async () => {
+  const { api, run, sent } = setup({ 'POST /api/v1/orderbook': later(100, OK) })
+  const calls = [
+    api.call('orderbook', {}, ANY),
+    // one that must postdate something (an order) never joins a read sent before it
+    api.call('orderbook', {}, ANY, { fresh: true }),
+    api.call('orderbook', {}, ANY),
+  ]
+  await jest.advanceTimersByTimeAsync(100)
+  await Promise.all(calls)
+  expect(sent('orderbook')).toHaveLength(2)
+  expect(run.mock.calls.map(([r]) => r.dedupeKey)).toEqual([
+    'orderbook {}',
+    undefined,
+    'orderbook {}',
+  ])
+})
+
 describe('Deduped callers abort on their own (ruling 3b)', () => {
   const quote = { symbol: 'RELIANCE', exchange: 'NSE' }
   // what the client gives a caller abort on a read (client.test.ts)

@@ -14,6 +14,9 @@ export const MODE_LABEL: Record<AnalyzerMode, string> = { live: 'LIVE', analyze:
 export const OTHER_OUT =
   "An earlier order's outcome isn't known yet. This one can be sent once it is."
 
+/** The outcome of an earlier order whose sheet had gone, which only a toast carried. */
+export const earlierOutcome = (line: string) => `Your earlier order: ${line}`
+
 export function ReviewStep(p: {
   /** `ticketSummary`'s one line. */
   summary: string
@@ -29,6 +32,8 @@ export function ReviewStep(p: {
   bookPending: boolean
   /** Another ticket's order has an outcome not known yet: nothing is sent until it is. */
   otherOut: boolean
+  /** That order's outcome once known, when its own sheet had gone and only a toast said it. */
+  earlier: string | null
   /** Why the review is shown again: the mode changed, or the live check did not pass. */
   notice?: string
   /** The confirm is in flight. */
@@ -62,6 +67,7 @@ export function ReviewStep(p: {
       ) : p.mode === null || p.bookPending ? (
         <Skeleton rows={1} />
       ) : null}
+      {p.earlier !== null ? <Text testID="review-earlier">{earlierOutcome(p.earlier)}</Text> : null}
       {p.otherOut ? (
         <Text testID="review-wait" tone="muted">
           {OTHER_OUT}
