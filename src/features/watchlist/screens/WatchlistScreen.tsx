@@ -222,6 +222,14 @@ export function WatchlistScreen() {
             onNew={onNew}
           />
           <HeaderButton
+            testID="wl-search"
+            title="Search"
+            label="Search symbols"
+            // browse mode (design 7.3): a result opens the instrument sheet, for its quote,
+            // depth and chart, without adding it to a list first
+            onPress={() => router.push(searchHref() as Href)}
+          />
+          <HeaderButton
             testID="wl-add"
             title="Add"
             label="Add symbols"

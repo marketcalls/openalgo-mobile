@@ -35,7 +35,7 @@ Onboarding
 Watchlist
 - `watch-row-{ID}` *, `watch-ltp-{ID}` *, `watch-flash-{ID}`, `watch-buy-{ID}` *, `watch-sell-{ID}`,
   `watch-swipe-{ID}`, `watch-unknown-{ID}`
-- `wl-add` *, `wl-edit`, `wl-new`, `wl-empty-add`, `wl-name-input`, `wl-name-save`,
+- `wl-search`, `wl-add` *, `wl-edit`, `wl-new`, `wl-empty-add`, `wl-name-input`, `wl-name-save`,
   `wl-name-cancel`, `wl-tab-{ID}`, `wl-up-{ID}`, `wl-down-{ID}`, `wl-remove-{ID}`
 - `index-strip`, `index-edit`, `index-edit-done`, `index-panel`, `index-panel-{ID}`,
   `index-pick-{ID}`, `index-{ID}`

@@ -441,6 +441,15 @@ describe('WatchlistScreen', () => {
     expect(screen.queryByTestId('watch-sell-NSE_INDEX-NIFTY')).toBeNull()
   })
 
+  test('wl-search opens search in browse mode, where a result opens the instrument sheet', async () => {
+    const h = setup()
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-search'))
+    expect(mockPush).toHaveBeenCalledWith(searchHref())
+    expect(mockPush).toHaveBeenCalledWith('/search')
+  })
+
   test('wl-add opens search to add to the active list', async () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
