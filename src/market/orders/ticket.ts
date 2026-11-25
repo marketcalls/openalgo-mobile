@@ -55,6 +55,12 @@ const positive = (n: number | undefined): n is number =>
 /** On the tick, with the price itself as the reference for the tick's 1% guard. */
 const snap = (n: number, meta: InstrumentMeta) => snapTick(n, meta.tick, n)
 
+/**
+ * A price or trigger as the order sends it: on the tick, or 0 when there is none. A value
+ * below half a tick (0.02 on tick 0.05) is sent as 0, so validation reads this, not the input.
+ */
+const sent = (n: number | undefined, meta: InstrumentMeta) => (positive(n) ? snap(n, meta) : 0)
+
 /** Whole lots (or shares), at least one, as the web sizes them (:955-958). */
 const wholeQty = (qty: number) => Math.max(1, Math.floor(qty || 1))
 
@@ -102,8 +108,8 @@ export function planOrder(t: TicketState, meta: InstrumentMeta): OrderPlan {
     quantity: ticketUnits(t, meta),
     pricetype: t.pricetype,
     product: t.product,
-    price: hasPrice(t.pricetype) && positive(t.price) ? snap(t.price, meta) : 0,
-    trigger_price: hasTrigger(t.pricetype) && positive(t.trigger) ? snap(t.trigger, meta) : 0,
+    price: hasPrice(t.pricetype) ? sent(t.price, meta) : 0,
+    trigger_price: hasTrigger(t.pricetype) ? sent(t.trigger, meta) : 0,
   }
   const freeze = meta.freezeQty
   if (!(freeze > 1 && spec.quantity > freeze)) return { kind: 'single', spec }
@@ -127,7 +133,8 @@ const wrongSide = (action: Side, trigger: number, ltp: number) =>
 
 /**
  * What stops the ticket going to review. A quote-only or unlisted instrument is reported
- * alone; nothing else about the ticket matters then. The stop side is checked only with a
+ * alone; nothing else about the ticket matters then. Prices are checked as `planOrder` sends
+ * them, on the tick, so one that snaps to 0 is refused. The stop side is checked only with a
  * known LTP, and a split only when the quantity is valid.
  */
 export function validateTicket(
@@ -143,12 +150,11 @@ export function validateTicket(
   if (!productOptionsFor(t.exchange).includes(t.product)) issues.push('product')
   const qtyOk = Number.isInteger(t.qty) && t.qty >= 1
   if (!qtyOk) issues.push('qty')
-  if (hasPrice(t.pricetype) && !positive(t.price)) issues.push('price_required')
+  if (hasPrice(t.pricetype) && !positive(sent(t.price, meta))) issues.push('price_required')
   if (hasTrigger(t.pricetype)) {
-    if (!positive(t.trigger)) issues.push('trigger_required')
-    else if (positive(ltp) && wrongSide(t.action, snap(t.trigger, meta), ltp)) {
-      issues.push('stop_side')
-    }
+    const trigger = sent(t.trigger, meta)
+    if (!positive(trigger)) issues.push('trigger_required')
+    else if (positive(ltp) && wrongSide(t.action, trigger, ltp)) issues.push('stop_side')
   }
   if (qtyOk) {
     const plan = planOrder(t, meta)

@@ -244,6 +244,36 @@ describe('prices (sandbox/order_manager.py:1437-1450)', () => {
     ).toMatchObject({ price: 0, trigger_price: 1425.05 })
   })
 
+  test('a price or trigger that snaps to 0 is refused: the check reads what is sent', () => {
+    // A deep out-of-the-money option on tick 0.05: 0.02 rounds to 0, which the sandbox and
+    // brokers refuse, so it must stop at the ticket, not after review.
+    const OPT: InstrumentMeta = {
+      ...FUT,
+      symbol: 'NIFTY30DEC2630000CE',
+      tick: 0.05,
+      instrumenttype: 'OPTIDX',
+      strike: 30000,
+    }
+    const opt = (o: Partial<TicketState>) => fut({ symbol: OPT.symbol, qty: 1, ...o })
+    const LTP = 0.05
+
+    const limit = opt({ pricetype: 'LIMIT', price: 0.02 })
+    expect(planOrder(limit, OPT).spec.price).toBe(0)
+    expect(validateTicket(limit, OPT, LTP, SPLIT)).toEqual(['price_required'])
+
+    const slm = opt({ action: 'SELL', pricetype: 'SL-M', trigger: 0.02 })
+    expect(planOrder(slm, OPT).spec.trigger_price).toBe(0)
+    expect(validateTicket(slm, OPT, LTP, SPLIT)).toEqual(['trigger_required'])
+
+    const sl = opt({ action: 'SELL', pricetype: 'SL', price: 0.02, trigger: 0.02 })
+    expect(validateTicket(sl, OPT, LTP, SPLIT)).toEqual(['price_required', 'trigger_required'])
+
+    // 0.03 rounds up to one tick, which is sent and allowed.
+    const up = opt({ pricetype: 'LIMIT', price: 0.03 })
+    expect(planOrder(up, OPT).spec.price).toBe(0.05)
+    expect(validateTicket(up, OPT, LTP, SPLIT)).toEqual([])
+  })
+
   test('the copy', () => {
     const ctx = { ticket: rel(), meta: RELIANCE }
     expect(issueText('price_required', ctx)).toBe('Enter a price above 0.')
