@@ -8,63 +8,119 @@ import { istDate } from '~/core/realtime/marketHours'
 import { useConnection } from '~/core/services/connection'
 import { type Services, useServices } from '~/core/services/services'
 import { createEventWatch, type EventWatch } from './books/eventWatch'
-import { createInstrumentCache, type InstrumentCache } from './instruments/cache'
+import { createInstrumentCache, type InstrumentCache, UNKNOWN_TTL_MS } from './instruments/cache'
 import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
 import { createOrderApi, type OrderApi } from './orders/api'
 import type { Watchlists } from './watchlists/model'
 import { createWatchlistsStore, type WatchlistsStore } from './watchlists/store'
 
 /**
+ * How long a refusal stands: the server's "not found" is not only an expired contract. At the
+ * first broker login of the day the stock server deletes its symbol table and fills it again
+ * (e.g. broker/zerodha/database/master_contract_db.py), and meanwhile it refuses every symbol
+ * ("...ensure master contracts are downloaded", quotes_service.py). So a refusal is asked again
+ * after `UNKNOWN_TTL_MS`, and one that lands within `TENTATIVE_WINDOW_MS` of the broker session
+ * turning active, while that reload may be running, after `TENTATIVE_TTL_MS`.
+ */
+export { UNKNOWN_TTL_MS }
+export const TENTATIVE_WINDOW_MS = 2 * 60_000
+export const TENTATIVE_TTL_MS = 2 * 60_000
+
+/**
  * Quote keys (`EX:SYM`) the server refused this session: a multiquotes entry carrying the
  * server's own validation refusal, or a 400's `invalid_symbols` (ruling 8). Such keys take no
- * feed slot and no poll. The set is forgotten when the broker session turns active (the server
- * may have downloaded its master contracts since) and on a new IST day.
+ * feed slot and no poll. A key is forgotten once its refusal is old (`UNKNOWN_TTL_MS`), and the
+ * whole set when the broker session turns active (the server may have downloaded its master
+ * contracts since) and on a new IST day.
  */
 export type UnknownKeys = StoreApi<{
   keys: ReadonlySet<string>
-  /** Moves on when a clear forgets keys, so the seed asks again for the ones it skipped. */
+  /**
+   * Moves on at every clear, and when old refusals are forgotten, so the seed asks again for
+   * the keys it skipped, and a reply sent before it cannot bring its refusals back.
+   */
   epoch: number
-  add(keys: readonly string[]): void
+  /** `tentative`: the refusal may be the server's symbol-table reload, so it stands briefly. */
+  add(keys: readonly string[], o?: { tentative?: boolean }): void
   /** Forgets every key. */
   clear(): void
-  /** Clears the set once the IST day has changed; true when that forgot keys. */
+  /** The broker session turned active: forgets every key, and refusals that follow soon are tentative. */
+  activated(): void
+  /**
+   * Forgets the refusals whose time is up, and the whole set once the IST day has changed; true
+   * when that forgot keys.
+   */
   rollover(): boolean
 }>
 
 function createUnknownKeys(now: () => number): UnknownKeys {
   let day = istDate(now())
+  let activatedAt = Number.NEGATIVE_INFINITY
+  /** When each key's refusal is up. */
+  const until = new Map<string, number>()
   return createStore((set, get) => ({
     keys: new Set<string>(),
     epoch: 0,
-    add(keys) {
+    add(keys, o = {}) {
       const fresh = keys.filter((k) => !get().keys.has(k))
-      if (fresh.length) set({ keys: new Set([...get().keys, ...fresh]) })
+      if (!fresh.length) return
+      const t = now()
+      const ttl =
+        o.tentative || t - activatedAt < TENTATIVE_WINDOW_MS ? TENTATIVE_TTL_MS : UNKNOWN_TTL_MS
+      for (const k of fresh) until.set(k, t + ttl)
+      set({ keys: new Set([...get().keys, ...fresh]) })
     },
     clear() {
-      if (get().keys.size) set({ keys: new Set<string>(), epoch: get().epoch + 1 })
+      until.clear()
+      set({ keys: new Set<string>(), epoch: get().epoch + 1 })
+    },
+    activated() {
+      activatedAt = now()
+      get().clear()
     },
     rollover() {
-      const today = istDate(now())
-      if (today === day) return false
-      day = today
-      const had = get().keys.size > 0
-      get().clear()
-      return had
+      const t = now()
+      const today = istDate(t)
+      if (today !== day) {
+        day = today
+        const had = get().keys.size > 0
+        get().clear()
+        return had
+      }
+      const up = [...get().keys].filter((k) => (until.get(k) ?? 0) <= t)
+      if (!up.length) return false
+      for (const k of up) until.delete(k)
+      set({
+        keys: new Set([...get().keys].filter((k) => !up.includes(k))),
+        epoch: get().epoch + 1,
+      })
+      return true
     },
   }))
 }
 
-/** Clears `unknown` when the broker session turns active, and rolls it over at each foreground. */
-function forgetRefusals(unknown: UnknownKeys): () => void {
+/** How often old refusals are looked for while the app runs. */
+const EXPIRE_EVERY_MS = 60_000
+
+/**
+ * Clears `unknown` and the instrument cache's unknown marks when the broker session turns active,
+ * and forgets old refusals at each foreground and every minute.
+ */
+function forgetRefusals(unknown: UnknownKeys, instruments: InstrumentCache): () => void {
   const offConn = useConnection.subscribe((st, prev) => {
-    if (st.brokerSession === 'active' && prev.brokerSession !== 'active') unknown.getState().clear()
+    if (st.brokerSession === 'active' && prev.brokerSession !== 'active') {
+      unknown.getState().activated()
+      instruments.forgetUnknown()
+    }
   })
   const app = AppState.addEventListener('change', (st) => {
     if (st === 'active') unknown.getState().rollover()
   })
+  const timer = setInterval(() => unknown.getState().rollover(), EXPIRE_EVERY_MS)
   return () => {
     offConn()
     app.remove()
+    clearInterval(timer)
   }
 }
 
@@ -146,7 +202,7 @@ export function TradingProvider({
 }) {
   const s = useServices()
   const trading = useMemo(() => createTrading(s, { now }), [s, now])
-  useEffect(() => forgetRefusals(trading.unknown), [trading])
+  useEffect(() => forgetRefusals(trading.unknown, trading.instruments), [trading])
   useEffect(() => watchOrderEvents(s, trading.eventWatch), [s, trading])
   return <TradingContext.Provider value={trading}>{children}</TradingContext.Provider>
 }

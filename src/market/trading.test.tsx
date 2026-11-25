@@ -15,8 +15,11 @@ import { SymbolSchema } from './instruments/meta'
 import { useInstrument } from './instruments/useInstrument'
 import {
   createTrading,
+  TENTATIVE_TTL_MS,
+  TENTATIVE_WINDOW_MS,
   type Trading,
   TradingProvider,
+  UNKNOWN_TTL_MS,
   type UnknownKeys,
   useTrading,
 } from './trading'
@@ -82,8 +85,10 @@ const Bad = () => {
 }
 
 let grabbed: UnknownKeys | undefined
+let grabbedTrading: Trading | undefined
 const Grab = () => {
-  grabbed = useTrading().unknown
+  grabbedTrading = useTrading()
+  grabbed = grabbedTrading.unknown
   return null
 }
 
@@ -132,21 +137,47 @@ describe('Trading.unknown', () => {
     grabbed = undefined
   })
 
-  test('clear forgets the keys and moves the epoch on; an empty set stays put', () => {
+  test('clear forgets the keys and always moves the epoch on, an empty set too', () => {
     const { s } = fakeServices()
     const u = createTrading(s, { now: () => NOW }).unknown
+    // a seed reply still out from before the clear must not add its refusals
     u.getState().clear()
-    expect(u.getState().epoch).toBe(0)
+    expect(u.getState().epoch).toBe(1)
     u.getState().add(['NFO:GONE', 'NFO:GONE'])
     expect([...u.getState().keys]).toEqual(['NFO:GONE'])
     u.getState().clear()
     expect(u.getState().keys.size).toBe(0)
-    expect(u.getState().epoch).toBe(1)
+    expect(u.getState().epoch).toBe(2)
+  })
+
+  test('a refusal is forgotten once it is old; one soon after the session turned active sooner', () => {
+    const { s } = fakeServices()
+    let t = NOW
+    const u = createTrading(s, { now: () => t }).unknown
+    u.getState().add(['NFO:GONE'])
+    t = NOW + UNKNOWN_TTL_MS - 1
+    expect(u.getState().rollover()).toBe(false)
+    t = NOW + UNKNOWN_TTL_MS
+    const epoch = u.getState().epoch
+    expect(u.getState().rollover()).toBe(true)
+    expect(u.getState().keys.size).toBe(0)
+    expect(u.getState().epoch).toBe(epoch + 1)
+    // within the window after the session turned active, the server may be reloading
+    u.getState().activated()
+    u.getState().add(['NSE:ITC'])
+    t += TENTATIVE_TTL_MS
+    expect(u.getState().rollover()).toBe(true)
+    expect(u.getState().keys.size).toBe(0)
+    // a tentative refusal (a seed the server refused every symbol of) is short too
+    t += TENTATIVE_WINDOW_MS
+    u.getState().add(['NSE:SBIN'], { tentative: true })
+    t += TENTATIVE_TTL_MS
+    expect(u.getState().rollover()).toBe(true)
   })
 
   test('rollover clears only on a new IST day', () => {
     const { s } = fakeServices()
-    let t = Date.UTC(2026, 10, 24, 18, 0) // 23:30 IST
+    let t = Date.UTC(2026, 10, 24, 18, 20) // 23:50 IST
     const u = createTrading(s, { now: () => t }).unknown
     u.getState().add(['NFO:GONE'])
     t = Date.UTC(2026, 10, 24, 18, 29) // 23:59 IST
@@ -165,8 +196,11 @@ describe('Trading.unknown', () => {
     await act(async () => grabbed?.getState().add(['NFO:GONE']))
     await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
     expect(grabbed?.getState().keys.size).toBe(1)
+    const drop = jest.spyOn((grabbedTrading as Trading).instruments, 'forgetUnknown')
     await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
     expect(grabbed?.getState().keys.size).toBe(0)
+    // the instrument cache's 404 marks go too (the server may have reloaded its symbol table)
+    expect(drop).toHaveBeenCalledTimes(1)
   })
 
   test('the provider rolls it over when the app comes to the foreground on a new IST day', async () => {

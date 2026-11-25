@@ -3,7 +3,12 @@ import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
 import { SearchSchema } from '~/core/http/schemas'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { createInstrumentCache, isSymbolNotFound, isValidationRefusal } from './cache'
+import {
+  createInstrumentCache,
+  isSymbolNotFound,
+  isValidationRefusal,
+  UNKNOWN_TTL_MS,
+} from './cache'
 import { SymbolSchema } from './meta'
 
 const DAY1 = Date.UTC(2026, 10, 24, 5, 0) // 10:30 IST, 2026-11-24
@@ -90,16 +95,84 @@ describe('instrument cache', () => {
     expect(h.calls).toHaveLength(2)
   })
 
-  test('RF 1: an expired contract is unknown, asked once a day', async () => {
+  test('RF 1: an expired contract is unknown, asked again only once its mark is old', async () => {
     const h = setup()
     expect(await h.cache.get('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
     expect(h.calls).toHaveLength(1)
     for (let i = 0; i < 5; i++) expect(await h.cache.get('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
     expect(h.calls).toHaveLength(1)
     expect(h.cache.peek('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
-    h.setNow(DAY2)
+    h.setNow(DAY1 + UNKNOWN_TTL_MS - 1)
+    expect(await h.cache.get('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
+    expect(h.calls).toHaveLength(1)
+    h.setNow(DAY1 + UNKNOWN_TTL_MS)
+    expect(h.cache.peek('NFO', 'NIFTY25NOV25FUT')).toBeUndefined()
     expect(await h.cache.get('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
     expect(h.calls).toHaveLength(2)
+    h.setNow(DAY2)
+    expect(await h.cache.get('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
+    expect(h.calls).toHaveLength(3)
+  })
+
+  test("a 404 during the server's symbol-table reload does not stick: re-login drops every mark, stored too", async () => {
+    let reloading = true
+    const h = setup()
+    const api: Api = {
+      async call(_id, body) {
+        if (reloading) throw notFound(String(body.symbol), String(body.exchange))
+        return SymbolSchema.parse({
+          status: 'success',
+          data: { symbol: body.symbol, exchange: body.exchange, lotsize: 1, tick_size: 0.05 },
+        }) as never
+      },
+    }
+    const cache = createInstrumentCache({ api, storage: h.storage, now: () => DAY1 })
+    expect(await cache.get('NSE', 'RELIANCE')).toBe('unknown')
+    reloading = false
+    // the broker session turns active
+    cache.forgetUnknown()
+    expect(cache.peek('NSE', 'RELIANCE')).toBeUndefined()
+    await Promise.resolve()
+    const stored = JSON.parse(h.kv.data.get('oa.p1.instruments') ?? 'null')
+    expect(stored.unknown).toEqual([])
+    expect(await cache.get('NSE', 'RELIANCE')).toMatchObject({ symbol: 'RELIANCE' })
+    // and a new cache (an app restart) does not bring the mark back
+    const again = createInstrumentCache({ api, storage: h.storage, now: () => DAY1 })
+    expect(await again.get('NSE', 'RELIANCE')).toMatchObject({ symbol: 'RELIANCE' })
+  })
+
+  test('a read sent before the marks were dropped cannot mark its contract again', async () => {
+    const h = setup()
+    let answer: (e: unknown) => void = () => {}
+    let calls = 0
+    const api: Api = {
+      call: (_id, body) => {
+        calls++
+        if (calls === 1) {
+          return new Promise<never>((_r, reject) => {
+            answer = () => reject(notFound(String(body.symbol), String(body.exchange)))
+          })
+        }
+        return Promise.resolve(
+          SymbolSchema.parse({
+            status: 'success',
+            data: { symbol: body.symbol, exchange: body.exchange, lotsize: 1, tick_size: 0.05 },
+          }) as never,
+        )
+      },
+    }
+    const cache = createInstrumentCache({ api, storage: h.storage, now: () => DAY1 })
+    const first = cache.get('NSE', 'RELIANCE')
+    for (let i = 0; i < 20 && calls === 0; i++) await Promise.resolve()
+    expect(calls).toBe(1)
+    cache.forgetUnknown()
+    // a read after the drop does not join the one still out
+    const second = cache.get('NSE', 'RELIANCE')
+    answer(null)
+    expect(await first).toBe('unknown')
+    expect(await second).toMatchObject({ symbol: 'RELIANCE' })
+    expect(cache.peek('NSE', 'RELIANCE')).toMatchObject({ symbol: 'RELIANCE' })
+    expect(calls).toBe(2)
   })
 
   test('other failures are thrown and not remembered', async () => {
@@ -191,12 +264,22 @@ describe('instrument cache', () => {
     const stored = JSON.parse(h.kv.data.get('oa.p1.instruments') ?? 'null')
     expect(stored.day).toBe('2026-11-24')
     expect(stored.items).toHaveLength(1)
-    expect(stored.unknown).toEqual(['NFO:NIFTY25NOV25FUT'])
+    expect(stored.unknown).toEqual([{ k: 'NFO:NIFTY25NOV25FUT', at: DAY1 }])
 
     const again = h.make()
     expect(await again.get('NSE', 'RELIANCE')).toMatchObject({ symbol: 'RELIANCE' })
     expect(await again.get('NFO', 'NIFTY25NOV25FUT')).toBe('unknown')
     expect(h.calls).toHaveLength(2) // nothing new
+  })
+
+  test('a stored mark without a time (an older store) is asked again', async () => {
+    const h = setup()
+    h.kv.data.set(
+      'oa.p1.instruments',
+      JSON.stringify({ day: '2026-11-24', items: [], unknown: ['NSE:RELIANCE'] }),
+    )
+    expect(await h.make().get('NSE', 'RELIANCE')).toMatchObject({ symbol: 'RELIANCE' })
+    expect(h.calls).toHaveLength(1)
   })
 
   test('yesterday’s store is dropped', async () => {

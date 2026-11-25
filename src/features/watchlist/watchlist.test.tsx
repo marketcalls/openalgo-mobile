@@ -738,6 +738,40 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId('watch-ltp-NFO-NIFTY25NOV25FUT')).toHaveTextContent('1,500.00')
   })
 
+  test("the session turning active during the server's symbol-table reload: every symbol refused, then a later seed restores the prices", async () => {
+    let reloading = false
+    const h = setup({
+      seed: lists({
+        id: 'a',
+        name: 'Mine',
+        items: [
+          { exchange: 'NSE', symbol: 'RELIANCE' },
+          { exchange: 'NSE', symbol: 'ITC' },
+        ],
+      }),
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) =>
+          reloading ? { ...s, error: GONE } : { ...s, data: { ltp: 1500, prev_close: 1490 } },
+        ),
+    })
+    await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    // back from "Log in to your broker": the server deletes and refills its symbol table
+    reloading = true
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    expect(screen.getByTestId('watch-unknown-NSE-RELIANCE')).toBeOnTheScreen()
+    reloading = false
+    // the refusals were tentative: within minutes the rows are asked for again
+    await later(3 * 60_000)
+    await settle()
+    expect(screen.queryByTestId('watch-unknown-NSE-RELIANCE')).toBeNull()
+    expect(screen.queryByTestId('watch-unknown-NSE-ITC')).toBeNull()
+    await h.flush()
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toHaveTextContent('1,500.00')
+  })
+
   test('from "unknown", the session turning active forgets the refusals and seeds again', async () => {
     const h = setup({
       seed: lists({
@@ -910,7 +944,7 @@ describe('WatchlistScreen', () => {
         'oa.p1.instruments': JSON.stringify({
           day: istDate(Date.now()),
           items: [],
-          unknown: ['NFO:NIFTY25NOV25FUT'],
+          unknown: [{ k: 'NFO:NIFTY25NOV25FUT', at: Date.now() }],
         }),
       },
     })

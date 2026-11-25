@@ -22,7 +22,10 @@ export function useInstrument(
     queryKey: qk.symbol(pid, exchange, symbol),
     queryFn: () => instruments.get(exchange, symbol),
     initialData: () => instruments.peek(exchange, symbol),
-    staleTime: TEN_MINUTES,
+    // 'unknown' is asked of the cache again at each mount: it answers from memory while its mark
+    // stands, and asks the server once the mark is old or dropped (the broker session turned
+    // active, when the server may have reloaded its symbol table)
+    staleTime: (q) => (q.state.data === 'unknown' ? 0 : TEN_MINUTES),
     enabled: exchange !== '' && symbol !== '',
   })
   const d = q.data

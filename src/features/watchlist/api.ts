@@ -23,8 +23,11 @@ import {
 /**
  * Seeds the tick store for `items` on each focus, unless the broker is blocked. Keys the server
  * itself refuses (an entry with its validation refusal, or a 400's `invalid_symbols`) join the
- * session's unknown set, which is returned, and are not asked for again until the set is cleared
- * (the broker session turns active, or a new IST day). A broker failure entry marks nothing.
+ * session's unknown set, which is returned, and are not asked for again until their refusal is
+ * old or the set is cleared (the broker session turns active, or a new IST day). A seed of
+ * several symbols that the server refuses every one of looks like its symbol table being
+ * reloaded rather than a list of expired contracts, so those refusals are tentative: they stand
+ * for minutes, not for the session. A broker failure entry marks nothing.
  */
 export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlySet<string> } {
   const { api, store } = useServices()
@@ -53,7 +56,9 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
     const at = Date.now()
     // a reply from before a clear must not bring its refusals back
     const refuse = (ks: string[]) => {
-      if (unknown.getState().epoch === epoch) unknown.getState().add(ks)
+      if (unknown.getState().epoch !== epoch) return
+      const all = todo.length > 1 && todo.every((i) => ks.includes(quoteKey(i.exchange, i.symbol)))
+      unknown.getState().add(ks, { tentative: all })
     }
     const symbols = todo.map((i) => ({ symbol: i.symbol, exchange: i.exchange }))
     api
