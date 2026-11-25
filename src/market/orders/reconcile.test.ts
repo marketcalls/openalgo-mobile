@@ -1,6 +1,11 @@
 import { ApiError } from '~/core/http/errors'
 import positionbook from '../../../test/fixtures/openalgo-docs/positionbook.json'
-import { type Orderbook, OrderbookSchema, PositionbookSchema } from '../books/schemas'
+import {
+  type Orderbook,
+  OrderbookSchema,
+  type Positionbook,
+  PositionbookSchema,
+} from '../books/schemas'
 import {
   RECONCILE_DELAYS_MS,
   reconcileClose,
@@ -43,8 +48,8 @@ const raw = (o: Record<string, unknown> = {}) => ({
 const book = (...rows: object[]): Orderbook =>
   OrderbookSchema.parse({ status: 'success', data: { orders: rows, statistics: {} } })
 
-/** fetchOrders answering each call with the next book (the last one repeats); an Error rejects. */
-function fetches(...books: (Orderbook | Error)[]) {
+/** A fetch answering each call with the next book (the last one repeats); an Error rejects. */
+function answers<B>(books: (B | Error)[]) {
   let i = 0
   return jest.fn(async () => {
     const b = books[Math.min(i++, books.length - 1)]
@@ -52,6 +57,8 @@ function fetches(...books: (Orderbook | Error)[]) {
     return b
   })
 }
+const fetches = (...books: (Orderbook | Error)[]) => answers(books)
+const positionReads = (...books: (Positionbook | Error)[]) => answers(books)
 
 const sleep = jest.fn(async (_ms: number) => {})
 const NONE: ReadonlySet<string> = new Set()
@@ -311,30 +318,82 @@ describe('reconcileSplit', () => {
 describe('reconcileClose', () => {
   const positions = PositionbookSchema.parse(positionbook)
   const fetchPositions = async () => positions
+  const NHPC = { symbol: 'NHPC', exchange: 'NSE', product: 'MIS', quantity: -1 }
+  /** The positionbook with NHPC MIS at `quantity`, as the server sends it. */
+  const nhpcAt = (quantity: string) =>
+    PositionbookSchema.parse({
+      status: 'success',
+      data: [{ symbol: 'NHPC', exchange: 'NSE', product: 'MIS', quantity, ltp: '83.72' }],
+    })
+  const delays = () => sleep.mock.calls.map(([ms]) => ms)
 
   test('quantity 0 is closed', async () => {
     const row = { symbol: 'RELIANCE', exchange: 'NSE', product: 'MIS', quantity: 5 }
-    expect(await reconcileClose({ fetchPositions, row })).toBe('closed')
+    expect(await reconcileClose({ fetchPositions, row, sleep })).toBe('closed')
   })
 
   test('a row gone from the book is closed; another product of the symbol does not count', async () => {
     const gone = { symbol: 'SBIN', exchange: 'NSE', product: 'MIS', quantity: 5 }
-    expect(await reconcileClose({ fetchPositions, row: gone })).toBe('closed')
+    expect(await reconcileClose({ fetchPositions, row: gone, sleep })).toBe('closed')
     const otherProduct = { symbol: 'NHPC', exchange: 'NSE', product: 'CNC', quantity: -1 }
-    expect(await reconcileClose({ fetchPositions, row: otherProduct })).toBe('closed')
+    expect(await reconcileClose({ fetchPositions, row: otherProduct, sleep })).toBe('closed')
   })
 
   test('quantity -1 is open', async () => {
-    const row = { symbol: 'NHPC', exchange: 'NSE', product: 'MIS', quantity: -1 }
-    expect(await reconcileClose({ fetchPositions, row })).toBe('open')
+    expect(await reconcileClose({ fetchPositions, row: NHPC, sleep })).toBe('open')
   })
 
   test('a book that cannot be read is unknown', async () => {
-    const row = { symbol: 'NHPC', exchange: 'NSE', product: 'MIS', quantity: -1 }
     const failing = async () => {
       throw network()
     }
-    expect(await reconcileClose({ fetchPositions: failing, row })).toBe('unknown')
+    expect(await reconcileClose({ fetchPositions: failing, row: NHPC, sleep })).toBe('unknown')
+  })
+
+  test('waits 2 s before its first read, as the books lag', async () => {
+    const order: string[] = []
+    const logged = async (ms: number) => {
+      order.push(`sleep ${ms}`)
+    }
+    const read = jest.fn(async () => {
+      order.push('read')
+      return nhpcAt('0')
+    })
+    expect(await reconcileClose({ fetchPositions: read, row: NHPC, sleep: logged })).toBe('closed')
+    expect(order).toEqual(['sleep 2000', 'read'])
+  })
+
+  test('a book still showing the old quantity is read again: closed on the 2nd read', async () => {
+    const fetchPositions = positionReads(nhpcAt('-1'), nhpcAt('0'))
+    expect(await reconcileClose({ fetchPositions, row: NHPC, sleep })).toBe('closed')
+    expect(fetchPositions).toHaveBeenCalledTimes(2)
+    expect(delays()).toEqual([2000, 5000])
+  })
+
+  test('open only after every read showed it open', async () => {
+    const fetchPositions = positionReads(nhpcAt('-1'))
+    expect(await reconcileClose({ fetchPositions, row: NHPC, sleep })).toBe('open')
+    expect(fetchPositions).toHaveBeenCalledTimes(3)
+    expect(delays()).toEqual([2000, 5000, 10000])
+  })
+
+  test('a failed read is skipped: the answer is the last read that worked', async () => {
+    const lateClose = positionReads(network(), nhpcAt('0'))
+    expect(await reconcileClose({ fetchPositions: lateClose, row: NHPC, sleep })).toBe('closed')
+    expect(lateClose).toHaveBeenCalledTimes(2)
+    const openThenFail = positionReads(nhpcAt('-1'), network())
+    expect(await reconcileClose({ fetchPositions: openThenFail, row: NHPC, sleep })).toBe('open')
+    expect(openThenFail).toHaveBeenCalledTimes(3)
+    const never = positionReads(network())
+    expect(await reconcileClose({ fetchPositions: never, row: NHPC, sleep })).toBe('unknown')
+    expect(never).toHaveBeenCalledTimes(3)
+  })
+
+  test('takes the delays it is given', async () => {
+    const fetchPositions = positionReads(nhpcAt('-1'))
+    const delaysMs = [200, 500, 1000]
+    expect(await reconcileClose({ fetchPositions, row: NHPC, sleep, delaysMs })).toBe('open')
+    expect(delays()).toEqual(delaysMs)
   })
 })
 

@@ -10,15 +10,19 @@ const WINDOW_MS = 120_000
 
 type FetchOrders = () => Promise<{ orders: readonly OrderRow[] }>
 
-type Placement = {
+/** The books lag the write, so each check waits, then reads once, per delay. */
+type Polling = {
+  sleep: (ms: number) => Promise<void>
+  delaysMs?: readonly number[]
+}
+
+type Placement = Polling & {
   fetchOrders: FetchOrders
   spec: Pick<OrderSpec, 'symbol' | 'exchange' | 'action' | 'product' | 'quantity'>
   /** Epoch ms of the send. */
   sentAt: number
   /** The ids in the orderbook cache at submit time: those orders are not ours. */
   knownIds: ReadonlySet<string>
-  sleep: (ms: number) => Promise<void>
-  delaysMs?: readonly number[]
 }
 
 /**
@@ -51,33 +55,49 @@ const newestFirst = (rows: readonly OrderRow[]) =>
   [...rows].sort((a, b) => (timeOf(a) === timeOf(b) ? 0 : timeOf(b) > timeOf(a) ? 1 : -1))
 
 /**
- * After each delay, one fetch; `pick` the rows that are ours, and stop once `done` says so.
+ * After each delay, one fetch; `read` what the book says, and stop once `done` says so.
  * A fetch that fails is skipped. The answer is the last fetch that worked.
  */
-async function poll<T>(
-  p: Placement,
-  pick: (candidates: OrderRow[]) => T,
+async function poll<B, T>(
+  { sleep, delaysMs = RECONCILE_DELAYS_MS }: Polling,
+  fetch: () => Promise<B>,
+  read: (book: B) => T,
   done: (found: T) => boolean,
   none: T,
 ): Promise<Reconciled<T>> {
   let last: Reconciled<T> = { found: none, checked: false }
-  for (const ms of p.delaysMs ?? RECONCILE_DELAYS_MS) {
-    await p.sleep(ms)
-    let orders: readonly OrderRow[]
+  for (const ms of delaysMs) {
+    await sleep(ms)
+    let book: B
     try {
-      orders = (await p.fetchOrders()).orders
+      book = await fetch()
     } catch {
       continue
     }
-    last = { found: pick(newestFirst(orders.filter((r) => isCandidate(r, p)))), checked: true }
+    last = { found: read(book), checked: true }
     if (done(last.found)) return last
   }
   return last
 }
 
+/** Polls the orderbook; `pick` gets the rows that could be ours, newest first. */
+const pollOrders = <T>(
+  p: Placement,
+  pick: (candidates: OrderRow[]) => T,
+  done: (found: T) => boolean,
+  none: T,
+) =>
+  poll(
+    p,
+    p.fetchOrders,
+    ({ orders }) => pick(newestFirst(orders.filter((r) => isCandidate(r, p)))),
+    done,
+    none,
+  )
+
 /** The order a single placement made, if the book shows one. */
 export function reconcilePlacement(p: Placement): Promise<Reconciled<OrderRow | null>> {
-  return poll(
+  return pollOrders(
     p,
     (rows) => rows.find((r) => r.quantity === p.spec.quantity) ?? null,
     (found) => found !== null,
@@ -104,30 +124,34 @@ export function reconcileSplit(
     }
     return found
   }
-  return poll(p, pick, (found) => found.length >= p.children.length, [])
+  return pollOrders(p, pick, (found) => found.length >= p.children.length, [])
 }
 
 /**
  * Whether a close went through: the row of that symbol and product at quantity 0, or gone from
- * the book, is closed. A book that cannot be read is `unknown`.
+ * the book, is closed. Like a placement, it waits before each read, because the positionbook
+ * lags the close: a read at once can still show the old quantity, and "still open" then invites
+ * a second close while the first may be working (a resend after a maybe, rulings 5). It stops
+ * at the first read that shows the position closed. `open` is what the last read that worked
+ * showed after every delay; `unknown` is no read working at all.
  */
 export async function reconcileClose({
   fetchPositions,
   row,
-}: {
+  ...polling
+}: Polling & {
   fetchPositions: () => Promise<{ rows: readonly PositionRow[] }>
   row: Pick<PositionToClose, 'symbol' | 'exchange' | 'product'>
 }): Promise<'closed' | 'open' | 'unknown'> {
-  let rows: readonly PositionRow[]
-  try {
-    rows = (await fetchPositions()).rows
-  } catch {
-    return 'unknown'
+  const isClosed = ({ rows }: { rows: readonly PositionRow[] }) => {
+    const now = rows.find(
+      (r) => r.symbol === row.symbol && r.exchange === row.exchange && r.product === row.product,
+    )
+    return !now || now.quantity === 0
   }
-  const now = rows.find(
-    (r) => r.symbol === row.symbol && r.exchange === row.exchange && r.product === row.product,
-  )
-  return !now || now.quantity === 0 ? 'closed' : 'open'
+  const { found: closed, checked } = await poll(polling, fetchPositions, isClosed, (c) => c, false)
+  if (!checked) return 'unknown'
+  return closed ? 'closed' : 'open'
 }
 
 /** The order's row as the book shows it now; null when it is not there. A failed read rejects. */
