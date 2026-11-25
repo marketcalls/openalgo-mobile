@@ -27,6 +27,7 @@ import { ToastHost } from '~/ui/Toast'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
 import margin from '../../../test/fixtures/openalgo-docs/margin.json'
 import symbolNse from '../../../test/fixtures/openalgo-docs/symbol-nse.json'
+import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import {
   type Route,
   type ScriptedReply,
@@ -284,16 +285,25 @@ const text = (id: string) => textOf(screen.getByTestId(id))
 const toReview = () => press('ticket-review')
 const confirm = () => press('ticket-confirm')
 
+/**
+ * The log lines every test here makes over the real services container: the http client's line
+ * for each request, and the feed's over the fake socket (its state; the auth deadline, since the
+ * fake server answers only with `live`; and that handshake). Any other line reaches the console;
+ * a test that expects one says so (`expectLog`).
+ */
+const HARNESS_LOGS = {
+  info: / INFO \[(http\] \w+ (\d{3}|failed|timeout) \d+ms|ws\] state \w+)$/,
+  warn: / WARN \[ws\] no auth_ok in time$/,
+  debug: / DEBUG \[ws\] (→ authenticate|← auth_ok)$/,
+}
+
 beforeEach(() => {
   jest.useFakeTimers({ now: T0 })
   useConnection.getState().reset()
   usePrefs.setState({ confirmLiveWrites: false })
   mockParams = {}
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
-  // the http and order logs; console.error stays live, so a React error still shows
-  for (const m of ['debug', 'info', 'warn'] as const) {
-    jest.spyOn(console, m).mockImplementation(() => {})
-  }
+  keepExpectedLogs(HARNESS_LOGS)
 })
 afterEach(async () => {
   await cleanup()
@@ -424,6 +434,10 @@ describe('margin preview', () => {
   })
 
   test('after a 501, no more margin calls that session and no margin line', async () => {
+    const hidden = expectLog(
+      'info',
+      /\[order\] margin is not supported here: hidden for the session$/,
+    )
     await setup({
       'POST /api/v1/margin': {
         status: 501,
@@ -445,6 +459,7 @@ describe('margin preview', () => {
     await pass(700)
     expect(requests('margin')).toHaveLength(1)
     expect(screen.queryByTestId('ticket-margin')).toBeNull()
+    expect(hidden).toHaveLength(1)
   })
 
   test('another error hides the line quietly, and the next edit asks again', async () => {
@@ -511,6 +526,10 @@ describe('review and send', () => {
   })
 
   test('reviewed as ANALYZE, placed LIVE: the danger notice, the error haptic, and the next review reads the mode again', async () => {
+    const warned = expectLog(
+      'warn',
+      /\[orders\] place: the review showed ANALYZE, but the server answered LIVE$/,
+    )
     const error = jest.spyOn(haptics, 'notifyError')
     const success = jest.spyOn(haptics, 'notifySuccess')
     let mode: 'live' | 'analyze' = 'analyze'
@@ -535,6 +554,7 @@ describe('review and send', () => {
     expect(screen.queryByText('Analyzer (sandbox)')).toBeNull()
     expect(error).toHaveBeenCalledTimes(1)
     expect(success).not.toHaveBeenCalled()
+    expect(warned).toHaveLength(1)
 
     // still within 5 s of the ANALYZE reading: the next review asks the server, and shows LIVE
     await press('ticket-done')
@@ -585,6 +605,7 @@ describe('review and send', () => {
   })
 
   test('the mode changed since the review: nothing is sent, and the review shows the new mode', async () => {
+    const notSent = expectLog('info', /\[orders\] place: the server is now in live mode, not sent$/)
     let mode: 'live' | 'analyze' = 'analyze'
     await setup({ 'POST /api/v1/analyzer': () => analyzer(mode) })
     await open(RELIANCE)
@@ -595,6 +616,7 @@ describe('review and send', () => {
     await pass(6_000)
     await confirm()
     expect(requests('placeorder')).toHaveLength(0)
+    expect(notSent).toHaveLength(1)
     expect(screen.getByText('The server is now in LIVE mode. Review again.')).toBeTruthy()
     expect(text('review-mode-badge')).toBe('LIVE')
     // confirm stays disabled through the 120 ms cooldown
@@ -672,7 +694,11 @@ describe('biometrics', () => {
 
   test('in analyzer mode there is no prompt', async () => {
     usePrefs.setState({ confirmLiveWrites: true })
-    await setup({ 'POST /api/v1/analyzer': analyzer('analyze') })
+    await setup({
+      'POST /api/v1/analyzer': analyzer('analyze'),
+      // the sandbox's reply (C4)
+      'POST /api/v1/placeorder': ok({ status: 'success', orderid: 'A1', mode: 'analyze' }),
+    })
     await open(RELIANCE)
     await toReview()
     await confirm()
@@ -1044,7 +1070,11 @@ describe('the sheet while the order is out', () => {
     // the back button is consumed
     expect(back).toHaveBeenCalledWith('hardwareBackPress', expect.any(Function))
     const onBack = back.mock.calls.at(-1)?.[1] as () => boolean
-    expect(onBack()).toBe(true)
+    let consumed = false
+    await act(async () => {
+      consumed = onBack()
+    })
+    expect(consumed).toBe(true)
     const sub = back.mock.results.at(-1)?.value as { remove: () => void }
     const removed = jest.spyOn(sub, 'remove')
 

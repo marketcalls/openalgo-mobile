@@ -8,9 +8,11 @@ import {
 } from '../books/schemas'
 import {
   RECONCILE_DELAYS_MS,
+  reconcileCancelAll,
   reconcileClose,
   reconcilePlacement,
   reconcileRow,
+  reconcileRowChange,
   reconcileSplit,
 } from './reconcile'
 import type { OrderSpec } from './schemas'
@@ -415,6 +417,97 @@ describe('reconcileRow', () => {
       reconcileRow({ fetchOrders: fetches(network()), orderid: 'A' }),
     ).rejects.toMatchObject({
       kind: 'Network',
+    })
+  })
+})
+
+describe('reconcileRowChange', () => {
+  /** The order as it was when the write went: open, LIMIT 10 @ 1420. */
+  const BEFORE = book(raw({ orderid: 'A' })).orders[0] as NonNullable<Orderbook['orders'][number]>
+  const delays = () => sleep.mock.calls.map(([ms]) => ms)
+
+  test('a book that lags the write: the reads go on until it shows the order changed', async () => {
+    const fetchOrders = fetches(
+      book(raw({ orderid: 'A' })),
+      book(raw({ orderid: 'A' })),
+      book(raw({ orderid: 'A', price: 1425 })),
+    )
+    const out = await reconcileRowChange({ fetchOrders, before: BEFORE, sleep })
+    expect(out).toEqual({ found: expect.objectContaining({ price: 1425 }), checked: true })
+    expect(fetchOrders).toHaveBeenCalledTimes(3)
+    expect(delays()).toEqual([2000, 5000, 10000])
+  })
+
+  test.each([
+    ['status', { order_status: 'cancelled' }],
+    ['type', { pricetype: 'MARKET' }],
+    ['quantity', { quantity: '20' }],
+    ['trigger', { trigger_price: 1410 }],
+  ])('a changed %s stops at that read', async (_what, change) => {
+    const fetchOrders = fetches(book(raw({ orderid: 'A', ...change })))
+    const out = await reconcileRowChange({ fetchOrders, before: BEFORE, sleep })
+    expect(out).toEqual({ found: expect.objectContaining({ orderid: 'A' }), checked: true })
+    expect(fetchOrders).toHaveBeenCalledTimes(1)
+    expect(delays()).toEqual([2000])
+  })
+
+  test('an order gone from the book is null, at the first read that shows it gone', async () => {
+    const fetchOrders = fetches(book(raw({ orderid: 'A' })), book(raw({ orderid: 'B' })))
+    expect(await reconcileRowChange({ fetchOrders, before: BEFORE, sleep })).toEqual({
+      found: null,
+      checked: true,
+    })
+    expect(fetchOrders).toHaveBeenCalledTimes(2)
+  })
+
+  test('unchanged after every delay: the row as the last read showed it', async () => {
+    const fetchOrders = fetches(book(raw({ orderid: 'A' })))
+    const out = await reconcileRowChange({ fetchOrders, before: BEFORE, sleep, delaysMs: [1, 2] })
+    expect(out).toEqual({ found: expect.objectContaining({ price: 1420 }), checked: true })
+    expect(fetchOrders).toHaveBeenCalledTimes(2)
+  })
+
+  test('a failed read is skipped; none working is unchecked', async () => {
+    const skipped = fetches(network(), book(raw({ orderid: 'A', order_status: 'complete' })))
+    expect(await reconcileRowChange({ fetchOrders: skipped, before: BEFORE, sleep })).toEqual({
+      found: expect.objectContaining({ status: 'complete' }),
+      checked: true,
+    })
+    const down = fetches(network())
+    expect(await reconcileRowChange({ fetchOrders: down, before: BEFORE, sleep })).toEqual({
+      found: null,
+      checked: false,
+    })
+    expect(down).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('reconcileCancelAll', () => {
+  const twoOpen = () =>
+    book(raw({ orderid: 'A' }), raw({ orderid: 'B', order_status: 'trigger pending' }))
+
+  test('reads until the book shows none working', async () => {
+    const fetchOrders = fetches(
+      twoOpen(),
+      book(
+        raw({ orderid: 'A', order_status: 'cancelled' }),
+        raw({ orderid: 'C', order_status: 'complete' }),
+      ),
+    )
+    expect(await reconcileCancelAll({ fetchOrders, sleep })).toEqual({ found: 0, checked: true })
+    expect(fetchOrders).toHaveBeenCalledTimes(2)
+  })
+
+  test('still open after every delay: the count the last read showed; none read is unchecked', async () => {
+    const open = fetches(twoOpen())
+    expect(await reconcileCancelAll({ fetchOrders: open, sleep })).toEqual({
+      found: 2,
+      checked: true,
+    })
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([2000, 5000, 10000])
+    expect(await reconcileCancelAll({ fetchOrders: fetches(network()), sleep })).toEqual({
+      found: 0,
+      checked: false,
     })
   })
 })

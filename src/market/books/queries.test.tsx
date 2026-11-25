@@ -21,6 +21,7 @@ import holdings from '../../../test/fixtures/openalgo-docs/holdings.json'
 import idleBook from '../../../test/fixtures/openalgo-docs/orderbook.json'
 import positions from '../../../test/fixtures/openalgo-docs/positionbook.json'
 import trades from '../../../test/fixtures/openalgo-docs/tradebook.json'
+import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { type Trading, TradingProvider, useTrading } from '../trading'
 import {
@@ -183,8 +184,13 @@ const setConn = (patch: Partial<ConnectionState>) =>
     useConnection.getState().set(patch)
   })
 
+/** The event watch's line when an order of the app's own gets no event in time (RF 3). */
+const DEMOTED = /INFO \[books\] no order event within 10000 ms: polling at the no-events rate$/
+
 beforeEach(() => {
   jest.useFakeTimers({ now: T0 })
+  // any log line no test here expects reaches the console
+  keepExpectedLogs()
   screenActive.mockReturnValue(true)
   useConnection.getState().reset()
   useConnection.getState().set({ brokerSession: 'active', keyState: 'ok', analyzer: 'live' })
@@ -337,11 +343,13 @@ describe('useBookPolling', () => {
   })
 
   test('RF 3: zerodha, stream live, expect("A1") and no event for 10 s → a working book polls at 5 s', async () => {
+    const demoted = expectLog('info', DEMOTED)
     const h = setup({ broker: 'zerodha', book: 'working' })
     await h.mount(<OrdersProbe />)
     await act(async () => h.watch().expect('A1'))
     await pass(10_000)
     expect(h.watch().demoted()).toBe(true)
+    expect(demoted).toHaveLength(1)
     // the 30 s wait armed before the demotion runs out; from then on every 5 s
     await pass(20_000)
     expect(h.count('orderbook')).toBe(2)
@@ -395,12 +403,14 @@ describe('useBookPolling', () => {
 
 describe('useIsEvented', () => {
   test('reads the policy as things stand when called', async () => {
+    const demoted = expectLog('info', DEMOTED)
     const h = setup({ broker: 'zerodha' })
     await h.mount(<EventedProbe />)
     expect(readEvented?.()).toBe(true)
     await act(async () => h.watch().expect('A1'))
     await pass(10_000)
     expect(readEvented?.()).toBe(false)
+    expect(demoted).toHaveLength(1)
   })
 
   test('ibulls has no events, except in analyzer mode', async () => {

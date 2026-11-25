@@ -6,7 +6,9 @@ import { qk } from '~/core/query/keys'
 import { shouldRetryQuery } from '~/core/query/queryClient'
 import { useServices } from '~/core/services/services'
 import type { Orderbook } from '~/market/books/schemas'
+import { sleep } from '~/market/orders/outcome'
 import { otherOrderOut } from '~/market/orders/pending'
+import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useTrading } from '~/market/trading'
 
 /**
@@ -25,8 +27,6 @@ export type BookSnapshot = {
 
 const idsOf = (b: Orderbook | undefined): string[] => b?.orders.map((o) => o.orderid) ?? []
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-
 /** TanStack's default delay before the next try, as the app's queries wait. */
 const retryDelay = (failures: number) => Math.min(1000 * 2 ** failures, 30_000)
 
@@ -43,6 +43,7 @@ export function useReviewBook(o: { owner: object; otherOut: boolean; onReview: b
   const { owner, otherOut, onReview } = o
   const s = useServices()
   const trading = useTrading()
+  const readFresh = useFreshBook()
   const pid = s.profile.get().id
   const alive = useRef(true)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -60,23 +61,15 @@ export function useReviewBook(o: { owner: object; otherOut: boolean; onReview: b
   }, [])
 
   /**
-   * One read this review sends itself, never one already out: a read sent before an earlier
-   * order (the last review's, on a slow broker) does not hold that order. TanStack's `fetchQuery`
-   * would join it, and so would the scheduler's dedupe, hence `fresh`. It retries as the app's
-   * queries do, while it is still wanted, and shares what it read with the books unless a reply
-   * that landed meanwhile is there already.
+   * One read this review sends itself, never one already out (`useFreshBook`): a read sent before
+   * an earlier order (the last review's, on a slow broker) does not hold that order. It retries as
+   * the app's queries do, while it is still wanted.
    */
   const fetchFresh = useCallback(
     async (wanted: () => boolean): Promise<Orderbook> => {
-      const key = qk.orderbook(pid)
       for (let failures = 0; ; failures++) {
-        const sentAt = Date.now()
         try {
-          const b = await trading.orders.orderbook({ fresh: true })
-          if ((s.queryClient.getQueryState(key)?.dataUpdatedAt ?? 0) < sentAt) {
-            s.queryClient.setQueryData(key, b)
-          }
-          return b
+          return await readFresh()
         } catch (e) {
           if (!wanted() || !shouldRetryQuery(failures, e)) throw e
           await sleep(retryDelay(failures))
@@ -84,7 +77,7 @@ export function useReviewBook(o: { owner: object; otherOut: boolean; onReview: b
         }
       }
     },
-    [s, trading, pid],
+    [readFresh],
   )
 
   const read = useCallback(() => {

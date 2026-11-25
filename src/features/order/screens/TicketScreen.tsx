@@ -8,12 +8,12 @@ import { ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { hasEndpoint } from '~/core/capabilities/gates'
 import { ENDPOINTS } from '~/core/http/endpoints'
-import { userMessage } from '~/core/http/errors'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { qk } from '~/core/query/keys'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import { useServices } from '~/core/services/services'
 import { useIsEvented } from '~/market/books/queries'
+import { snapPrice } from '~/market/components/OrderFields'
 import { BrokerBanner } from '~/market/components/SessionBanners'
 import { defaultProduct, isQuoteOnly } from '~/market/instruments/exchanges'
 import type { InstrumentMeta } from '~/market/instruments/meta'
@@ -21,7 +21,9 @@ import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
 import { ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
+import { MODE_LABEL } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
+import { settle, sleep } from '~/market/orders/outcome'
 import {
   holdOrder,
   takeUnseenOutcome,
@@ -51,8 +53,8 @@ import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
 import { toast } from '~/ui/Toast'
 import { ResultView, resultLine, type TicketResult } from '../components/ResultView'
-import { MODE_LABEL, ReviewStep } from '../components/ReviewStep'
-import { snapPrice, TicketForm } from '../components/TicketForm'
+import { ReviewStep } from '../components/ReviewStep'
+import { TicketForm } from '../components/TicketForm'
 import { useMarginPreview } from '../hooks/useMarginPreview'
 import { type BookSnapshot, useReviewBook } from '../hooks/useReviewBook'
 
@@ -62,9 +64,6 @@ type Step =
   | { kind: 'sending'; mode: AnalyzerMode }
   | { kind: 'result'; result: TicketResult }
 
-/** The endpoints a ticket sends on: a Server error from one of them may hide a placed order. */
-const SENDS: ReadonlySet<string> = new Set(['placeorder', 'splitorder'])
-
 const SPLIT_WAIT_SEC = Math.round(ENDPOINTS.splitorder.timeoutMs / 1000)
 
 /** The toast when the sheet goes while the order is on its way. */
@@ -73,8 +72,6 @@ export const STILL_SENDING = 'Your order is still being sent. Its outcome will s
 const NOT_SENT = 'The order was not sent.'
 
 const MOVED = 'The price moved since the review. The order was not sent.'
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 const modeChanged = (mode: AnalyzerMode) =>
   `The server is now in ${MODE_LABEL[mode]} mode. Review again.`
@@ -300,23 +297,28 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     }
   }
 
-  const settle = async (
+  /**
+   * What came of the send (`settle`, rulings 5): `maybe`, a Server error from the send itself and
+   * a success without an id may hide a placed order, so the book is checked.
+   */
+  const showOutcome = async (
     out: Outcome<PlaceReply | SplitReply>,
     p: OrderPlan,
     sent: Sent,
     shownMode: AnalyzerMode,
   ) => {
-    switch (out.kind) {
-      case 'done': {
-        const reply = out.reply
+    const r = settle(out, p.kind === 'split' ? 'splitorder' : 'placeorder')
+    switch (r.kind) {
+      case 'ok': {
+        const reply = r.reply
         if (reply.kind === 'no_id') return reconcile(p, sent)
         if (reply.kind === 'queued') {
           show({ kind: 'queued' })
           return
         }
         // The review showed ANALYZE, but the server placed it LIVE: never told as a success.
-        const live = out.liveSurprise ? { liveSurprise: true as const } : {}
-        if (out.liveSurprise) notifyError()
+        const live = r.liveSurprise ? { liveSurprise: true as const } : {}
+        if (r.liveSurprise) notifyError()
         else if (reply.kind === 'split' && !reply.children.every((c) => c.ok)) notifyWarning()
         else notifySuccess()
         if (reply.kind === 'placed') {
@@ -330,22 +332,20 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
       }
       case 'maybe':
         return reconcile(p, sent)
-      case 'error':
-        // Rulings 5: a server error from the send itself may hide a placed order.
-        if (out.error.kind === 'Server' && SENDS.has(out.error.endpoint)) return reconcile(p, sent)
+      case 'refused':
         notifyWarning()
-        refused(userMessage(out.error))
+        refused(r.message)
         return
       case 'semi_auto_blocked':
         notifyWarning()
-        refused(out.message)
+        refused(r.message)
         return
       case 'mode_changed':
-        if (alive.current) setStep({ kind: 'review', mode: out.now, notice: modeChanged(out.now) })
-        else tell(`The server is now in ${MODE_LABEL[out.now]} mode. ${NOT_SENT}`)
+        if (alive.current) setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) })
+        else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
         return
       case 'cancelled':
-        if (alive.current) setStep({ kind: 'review', mode: shownMode, notice: out.message })
+        if (alive.current) setStep({ kind: 'review', mode: shownMode, notice: r.message })
         else tell(NOT_SENT)
         return
     }
@@ -387,7 +387,7 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
           confirmLive: confirmLiveOrder,
           books: s.books,
         })
-        await settle(out, p, sent, shownMode)
+        await showOutcome(out, p, sent, shownMode)
       } finally {
         phase.current = 'idle'
         // An outcome only the toast carried goes to the review that waits for it, or the next.

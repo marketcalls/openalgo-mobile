@@ -1,44 +1,37 @@
 // The order book's writes (design 7.10): cancel one and cancel all from the Orders tab, each behind
 // a confirm that names the server's mode, sent once through the order safety of T10 and one at a
-// time. An outcome that may hide the write is checked against the order book, never sent again.
-// A write the server took LIVE after the confirm said ANALYZE is told as a danger notice, never as
-// a success. The modify sheet shares the outcome reading and the check.
-import { useCallback, useState } from 'react'
+// time. An outcome that may hide the write is checked against the order book, never sent again
+// (`market/orders/outcome`, which the modify sheet shares). A write the server took LIVE after the
+// confirm said ANALYZE is told as a danger notice, never as a success.
+import { useState } from 'react'
 import type { EndpointId } from '~/core/http/endpoints'
-import { ApiError, userMessage } from '~/core/http/errors'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
-import { qk } from '~/core/query/keys'
 import { useServices } from '~/core/services/services'
-import { isWorking, type Orderbook, type OrderRow } from '~/market/books/schemas'
-import type { AnalyzerMode } from '~/market/orders/analyzerGate'
+import type { OrderRow } from '~/market/books/schemas'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
-import { confirmInMode, MODE_LABEL } from '~/market/orders/confirmWrite'
+import { confirmInMode } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
-import { holdOrder, onOrder, otherOrderOut, type PendingScope } from '~/market/orders/pending'
-import { RECONCILE_DELAYS_MS, reconcileRow } from '~/market/orders/reconcile'
 import {
-  type ActionKind,
-  liveSurpriseText,
-  type Outcome,
-  submitOrderAction,
-} from '~/market/orders/submit'
+  CHECKING,
+  checkOrder,
+  errorText,
+  modeChanged,
+  NOT_CHECKED,
+  settle,
+  sleep,
+} from '~/market/orders/outcome'
+import { holdOrder, onOrder, otherOrderOut, type PendingScope } from '~/market/orders/pending'
+import { reconcileCancelAll } from '~/market/orders/reconcile'
+import { type ActionKind, liveSurpriseText, submitOrderAction } from '~/market/orders/submit'
+import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useTrading } from '~/market/trading'
 import { toast } from '~/ui/Toast'
 
-/** A-T7's copy for MaybePlaced, verbatim (ruling 3). */
-export const CHECKING = userMessage(
-  new ApiError({ kind: 'MaybePlaced', status: 0, endpoint: 'cancelorder' }),
-)
-export const NOT_CHECKED = "Couldn't check the order book. Check it before trying again."
 export const NOT_READ = "The order book can't be read right now."
 export const MODIFIED = 'Order modified'
 const CANCELLED = 'Order cancelled'
-const NOT_IN_BOOK = 'The order is no longer in the order book.'
 export const CANCEL_ALL_BODY =
   'This cancels every open order in the account, including ones placed by strategies or the web.'
-
-export const modeChanged = (now: AnalyzerMode) =>
-  `The server is now in ${MODE_LABEL[now]} mode. Nothing was sent.`
 
 /** A modify sheet whose order has a write out (another sheet's, or the tab's): it waits. */
 export const ORDER_OUT =
@@ -49,82 +42,6 @@ export const ROW_OUT = 'A change to this order is on its way. Modify and Cancel 
 export const earlierChange = (line: string) => `Your earlier change to this order: ${line}`
 
 const orders = (n: number) => `${n} ${n === 1 ? 'order' : 'orders'}`
-
-/** The books lag a write: a check waits this long before it reads (T10's first delay). */
-const CHECK_AFTER_MS = RECONCILE_DELAYS_MS[0] ?? 2_000
-
-export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-
-export const errorText = (e: unknown) =>
-  e instanceof ApiError ? userMessage(e) : 'Something went wrong.'
-
-/** What came of a write, as a screen tells it. */
-export type Settled<R> =
-  /** `liveSurprise`: the confirm said ANALYZE, but the server took it LIVE (`Outcome`). */
-  | { kind: 'ok'; reply: R; liveSurprise?: true }
-  /** It may have gone: check the book, never send again. */
-  | { kind: 'maybe' }
-  | { kind: 'refused'; message: string }
-  | { kind: 'semi_auto_blocked'; message: string }
-  | { kind: 'mode_changed'; now: AnalyzerMode }
-  | { kind: 'cancelled'; message?: string }
-
-/**
- * Rulings 5: besides `maybe`, a Server error from the write's own endpoint and a success without
- * an id (`unknown`) may hide the write, so both are checked like it.
- */
-export function settle<R>(
-  out: Outcome<R>,
-  endpoint: EndpointId,
-  unknown: (reply: R) => boolean = () => false,
-): Settled<R> {
-  switch (out.kind) {
-    case 'done':
-      if (unknown(out.reply)) return { kind: 'maybe' }
-      return out.liveSurprise
-        ? { kind: 'ok', reply: out.reply, liveSurprise: true }
-        : { kind: 'ok', reply: out.reply }
-    case 'error':
-      return out.error.kind === 'Server' && out.error.endpoint === endpoint
-        ? { kind: 'maybe' }
-        : { kind: 'refused', message: userMessage(out.error) }
-    default:
-      return out
-  }
-}
-
-/**
- * Reads the order book now, never joined to a read already out (one sent before the write may
- * not show it), and shows it on the books unless a newer reply landed meanwhile.
- */
-export function useFreshBook(): () => Promise<Orderbook> {
-  const s = useServices()
-  const trading = useTrading()
-  const pid = s.profile.get().id
-  return useCallback(async () => {
-    const key = qk.orderbook(pid)
-    const sentAt = Date.now()
-    const b = await trading.orders.orderbook({ fresh: true })
-    if ((s.queryClient.getQueryState(key)?.dataUpdatedAt ?? 0) < sentAt) {
-      s.queryClient.setQueryData(key, b)
-    }
-    return b
-  }, [s, trading, pid])
-}
-
-/** After a write on one order whose outcome is unknown: its status, once the book can show it. */
-export async function checkOrder(
-  readBook: () => Promise<Orderbook>,
-  orderid: string,
-): Promise<string> {
-  await sleep(CHECK_AFTER_MS)
-  try {
-    const row = await reconcileRow({ fetchOrders: readBook, orderid })
-    return row ? `Order status: ${row.status || '--'}` : NOT_IN_BOOK
-  } catch {
-    return NOT_CHECKED
-  }
-}
 
 type Write<R> = {
   kind: ActionKind
@@ -234,7 +151,7 @@ export function useOrderWrites() {
       send: () => trading.orders.cancel(row.orderid),
       unknown: (reply) => reply.kind === 'no_id',
       done: () => ({ line: CANCELLED, ok: true }),
-      check: () => checkOrder(readBook, row.orderid),
+      check: () => checkOrder({ readBook, before: row }),
     })
 
   /** `n` is the count of open orders the book shows, which the confirm names. */
@@ -252,14 +169,12 @@ export function useOrderWrites() {
         line: `Cancelled ${reply.canceled.length}. Failed ${reply.failed.length}.`,
         ok: reply.failed.length === 0,
       }),
+      // The book lags the write: it is read after each of T10's delays until none is open.
       check: async () => {
-        await sleep(CHECK_AFTER_MS)
-        try {
-          const b = await readBook()
-          return `Status unknown. ${orders(b.orders.filter(isWorking).length)} still open.`
-        } catch {
-          return `Status unknown. ${NOT_CHECKED}`
-        }
+        const r = await reconcileCancelAll({ fetchOrders: readBook, sleep }).catch(() => null)
+        return r?.checked
+          ? `Status unknown. ${orders(r.found)} still open.`
+          : `Status unknown. ${NOT_CHECKED}`
       },
     })
 

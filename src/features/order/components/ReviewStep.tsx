@@ -1,15 +1,13 @@
 // The review before every order (design 7.10): the order as it will be sent, how it splits, and
 // the mode the server is in now, LIVE or ANALYZE. Confirm sends it, in the side's colour.
 import { StyleSheet, View } from 'react-native'
+import { ModeBadge } from '~/market/components/ModeBadge'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import type { Side } from '~/market/types'
-import { useToneColors } from '~/ui/Badge'
 import { Button } from '~/ui/Button'
 import { ErrorState } from '~/ui/ErrorState'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-
-export const MODE_LABEL: Record<AnalyzerMode, string> = { live: 'LIVE', analyze: 'ANALYZE' }
 
 export const OTHER_OUT =
   "An earlier order's outcome isn't known yet. This one can be sent once it is."
@@ -49,7 +47,7 @@ export function ReviewStep(p: {
     <View style={styles.wrap} testID="ticket-review-step">
       <View style={styles.modeRow}>
         <Text variant="heading">Review</Text>
-        {p.mode ? <ModeBadge mode={p.mode} /> : null}
+        {p.mode ? <ModeBadge mode={p.mode} testID="review-mode-badge" /> : null}
       </View>
       <Text variant="mono" testID="review-summary">
         {p.summary}
@@ -97,24 +95,7 @@ export function ReviewStep(p: {
   )
 }
 
-/**
- * LIVE in the danger colours, ANALYZE in the analyzer's. It looks like a Badge but carries its id
- * on the label, so a Maestro flow reads the id and the text from one node.
- */
-function ModeBadge({ mode }: { mode: AnalyzerMode }) {
-  const { bg, fg } = useToneColors(mode === 'live' ? 'danger' : 'analyze')
-  return (
-    <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text testID="review-mode-badge" variant="caption" style={[styles.badgeLabel, { color: fg }]}>
-        {MODE_LABEL[mode]}
-      </Text>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   wrap: { gap: 14 },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeLabel: { fontWeight: '700' },
 })

@@ -24,6 +24,7 @@ import { ToastHost } from '~/ui/Toast'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
 import symbolNse from '../../../test/fixtures/openalgo-docs/symbol-nse.json'
 import trades from '../../../test/fixtures/openalgo-docs/tradebook.json'
+import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import {
   type Route,
   type ScriptedReply,
@@ -250,6 +251,24 @@ const rowIds = () =>
     .queryAllByTestId(/^order-row-/)
     .map((n) => String(n.props.testID).slice('order-row-'.length))
 
+/**
+ * The log lines every test here makes over the real services container: the http client's line
+ * for each request, and the feed's over a fake socket that never authenticates (its state, and
+ * the auth deadline when a test runs past it). Any other line reaches the console; a test that
+ * expects one says so (`expectLog`).
+ */
+const HARNESS_LOGS = {
+  info: / INFO \[(http\] \w+ (\d{3}|failed|timeout) \d+ms|ws\] state \w+)$/,
+  warn: / WARN \[ws\] no auth_ok in time$/,
+}
+
+/** The order log's warning for a write the server took LIVE after an ANALYZE confirm. */
+const expectLiveSurprise = (kind: string) =>
+  expectLog(
+    'warn',
+    new RegExp(`\\[orders\\] ${kind}: the review showed ANALYZE, but the server answered LIVE$`),
+  )
+
 /** Each native confirm asked: its title and body, answered with `answer`. */
 let asked: { title: string; body?: string; ok?: string }[] = []
 let answer = true
@@ -267,10 +286,7 @@ beforeEach(() => {
     const b = buttons?.find((x) => (answer ? x.style !== 'cancel' : x.style === 'cancel'))
     b?.onPress?.()
   })
-  // the http and order logs; console.error stays live, so a React error still shows
-  for (const m of ['debug', 'info', 'warn'] as const) {
-    jest.spyOn(console, m).mockImplementation(() => {})
-  }
+  keepExpectedLogs(HARNESS_LOGS)
 })
 afterEach(async () => {
   await cleanup()
@@ -487,6 +503,7 @@ describe('cancel', () => {
   })
 
   test('confirmed as ANALYZE, cancelled LIVE: the danger notice and the error haptic; the next confirm reads the mode again', async () => {
+    const warned = expectLiveSurprise('cancel')
     const error = jest.spyOn(haptics, 'notifyError')
     const success = jest.spyOn(haptics, 'notifySuccess')
     let mode: 'live' | 'analyze' = 'analyze'
@@ -507,6 +524,7 @@ describe('cancel', () => {
       'This cancellation was sent in LIVE mode. The server switched to LIVE after your review.',
     )
     expect(error).toHaveBeenCalledTimes(1)
+    expect(warned).toHaveLength(1)
     expect(success).not.toHaveBeenCalled()
     await press('live-surprise-dismiss')
     expect(screen.queryByTestId('live-surprise')).toBeNull()
@@ -545,6 +563,39 @@ describe('cancel', () => {
     expect(rowIds()).toEqual([])
     await press('orders-seg-all')
     expect(text('order-status-A1')).toBe('Cancelled')
+  })
+
+  test('a 502 and a book that lags past 2 s: the check reads again and still reports the change', async () => {
+    let cancelledAt: number | null = null
+    await setup({
+      // the broker's book shows the cancel 3 s after it went
+      'POST /api/v1/orderbook': () =>
+        book([
+          order({
+            order_status:
+              cancelledAt !== null && Date.now() - cancelledAt >= 3_000 ? 'cancelled' : 'open',
+          }),
+        ]),
+      'POST /api/v1/cancelorder': () => {
+        cancelledAt = Date.now()
+        return BAD_GATEWAY
+      },
+    })
+    await show(['orders'])
+    await press('order-row-A1')
+    await press('order-cancel')
+    expect(text('toast')).toBe('Status unknown: checking order book')
+    const before = requests('orderbook').length
+    // the read at 2 s still shows it open: that is not the answer while the series runs
+    await pass(2_100)
+    expect(requests('orderbook').length).toBeGreaterThan(before)
+    expect(screen.queryByText('Order status: open')).toBeNull()
+    expect(text('order-pending')).toBe(ROW_OUT)
+    // the next read, 5 s later, shows the cancel
+    await pass(5_000)
+    expect(text('toast')).toBe('Order status: cancelled')
+    expect(requests('cancelorder')).toHaveLength(1)
+    expect(screen.queryByTestId('order-pending')).toBeNull()
   })
 
   test('a Semi-Auto 403 shows the server reason and the Action Center link', async () => {
@@ -611,6 +662,7 @@ describe('cancel all', () => {
   })
 
   test('confirmed as ANALYZE, a cancel all reply without the sandbox tag shows the LIVE notice', async () => {
+    const warned = expectLiveSurprise('cancelAll')
     const error = jest.spyOn(haptics, 'notifyError')
     await setup({
       'POST /api/v1/analyzer': analyzer('analyze'),
@@ -630,6 +682,7 @@ describe('cancel all', () => {
     )
     expect(text('toast')).toBe('Cancelled 2. Failed 0.')
     expect(error).toHaveBeenCalledTimes(1)
+    expect(warned).toHaveLength(1)
   })
 
   test('a 502 refetches the order book: "Status unknown. 2 orders still open."', async () => {
@@ -640,8 +693,32 @@ describe('cancel all', () => {
     await show(['orders'])
     await press('orders-cancel-all')
     expect(text('toast')).toBe('Status unknown: checking order book')
+    // the book lags a write: while it still shows them open, it is read again at 2, 7 and 17 s
     await pass(2_100)
+    expect(screen.queryByText(/still open/)).toBeNull()
+    await pass(15_000)
     expect(text('toast')).toBe('Status unknown. 2 orders still open.')
+    expect(requests('cancelallorder')).toHaveLength(1)
+  })
+
+  test('a 502 and a book that lags past 2 s: the check reads until none is open', async () => {
+    let sentAt: number | null = null
+    await setup({
+      'POST /api/v1/orderbook': () =>
+        sentAt !== null && Date.now() - sentAt >= 3_000
+          ? book([order({ orderid: 'A1', order_status: 'cancelled' })])
+          : twoOpen(),
+      'POST /api/v1/cancelallorder': () => {
+        sentAt = Date.now()
+        return BAD_GATEWAY
+      },
+    })
+    await show(['orders'])
+    await press('orders-cancel-all')
+    await pass(2_100)
+    expect(screen.queryByText(/still open/)).toBeNull()
+    await pass(5_000)
+    expect(text('toast')).toBe('Status unknown. 0 orders still open.')
     expect(requests('cancelallorder')).toHaveLength(1)
   })
 
@@ -727,6 +804,7 @@ describe('modify', () => {
   })
 
   test('shown as ANALYZE, modified LIVE: the sheet stays with the notice, and its badge reads the mode again', async () => {
+    const warned = expectLiveSurprise('modify')
     const error = jest.spyOn(haptics, 'notifyError')
     const success = jest.spyOn(haptics, 'notifySuccess')
     let mode: 'live' | 'analyze' = 'analyze'
@@ -747,6 +825,7 @@ describe('modify', () => {
       'This change was sent in LIVE mode. The server switched to LIVE after your review.',
     )
     expect(error).toHaveBeenCalledTimes(1)
+    expect(warned).toHaveLength(1)
     expect(success).not.toHaveBeenCalled()
     // it does not close by itself: the user reads it first
     await pass(500)
@@ -796,11 +875,58 @@ describe('modify', () => {
     await press('modify-confirm')
     expect(text('modify-check')).toBe('Status unknown: checking order book')
     await pass(2_100)
-    expect(text('modify-check')).toBe('Order status: open')
+    // the order as the book shows it now, beside what was sent: the change took
+    expect(text('modify-check')).toBe(
+      'Order status: open · Now LIMIT 1 @ 17.00 · Sent LIMIT 1 @ 17.00',
+    )
     expect(screen.queryByTestId('modify-confirm')).toBeNull()
     expect(requests('modifyorder')).toHaveLength(1)
     await press('modify-done')
     expect(mockRouter.back).toHaveBeenCalledTimes(1)
+  })
+
+  test('a 502 and a book that lags past 2 s: the check reads again, then shows the quantity and price now', async () => {
+    let modifiedAt: number | null = null
+    const shown = () => modifiedAt !== null && Date.now() - modifiedAt >= 3_000
+    await setup({
+      'POST /api/v1/orderbook': () => book([order(shown() ? { quantity: '2', price: 17 } : {})]),
+      'POST /api/v1/modifyorder': () => {
+        modifiedAt = Date.now()
+        return BAD_GATEWAY
+      },
+    })
+    await show(['orders'])
+    await openModify('A1')
+    await type('modify-qty', '2')
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    expect(bodyOf('modifyorder')).toMatchObject({ quantity: 2, price: 17 })
+    // the read at 2 s still shows the order as it was: the check goes on
+    await pass(2_100)
+    expect(text('modify-check')).toBe('Status unknown: checking order book')
+    await pass(5_000)
+    expect(text('modify-check')).toBe(
+      'Order status: open · Now LIMIT 2 @ 17.00 · Sent LIMIT 2 @ 17.00',
+    )
+    expect(requests('modifyorder')).toHaveLength(1)
+  })
+
+  test('a 502 whose change never shows: after the last read, the order as it is beside what was sent', async () => {
+    await setup({ 'POST /api/v1/modifyorder': BAD_GATEWAY })
+    await show(['orders'])
+    await openModify('A1')
+    await type('modify-price', '17')
+    await press('modify-confirm')
+    const before = requests('orderbook').length
+    await pass(7_100)
+    expect(text('modify-check')).toBe('Status unknown: checking order book')
+    await pass(10_000)
+    expect(text('modify-check')).toBe(
+      'Order status: open · Now LIMIT 1 @ 16.50 · Sent LIMIT 1 @ 17.00',
+    )
+    // the check's three reads, and the books' own refresh after the send
+    expect(requests('orderbook').length - before).toBeGreaterThanOrEqual(3)
+    expect(requests('modifyorder')).toHaveLength(1)
   })
 
   test('a Semi-Auto 403 on modify shows the reason and the Action Center link', async () => {
@@ -947,8 +1073,9 @@ describe('a write on an order while it is out', () => {
     expect(text('modify-wait')).toBe(ORDER_OUT)
 
     await pass(2_100)
-    expect(text('toast')).toBe('Order status: open')
-    expect(text('modify-earlier')).toBe(earlierChange('Order status: open'))
+    const line = 'Order status: open · Now LIMIT 1 @ 17.00 · Sent LIMIT 1 @ 17.00'
+    expect(text('toast')).toBe(line)
+    expect(text('modify-earlier')).toBe(earlierChange(line))
     await pass(1_000)
     expect(screen.getByTestId('modify-price').props.value).toBe('17')
     expect(disabled('modify-confirm')).toBe(false)

@@ -1,6 +1,6 @@
 // After a write whose outcome is unknown (MaybePlaced, or a success without an id), the books
 // say what happened (design 7.10). These only read: nothing here ever sends an order.
-import type { OrderRow, PositionRow } from '../books/schemas'
+import { isWorking, type OrderRow, type PositionRow } from '../books/schemas'
 import type { OrderSpec, PositionToClose } from './schemas'
 
 export const RECONCILE_DELAYS_MS: readonly number[] = [2000, 5000, 10000]
@@ -163,4 +163,51 @@ export async function reconcileRow({
   orderid: string
 }): Promise<OrderRow | null> {
   return (await fetchOrders()).orders.find((r) => r.orderid === orderid) ?? null
+}
+
+/** What a modify or a cancel changes of an order: its status, type, quantity, price or trigger. */
+const sameOrder = (a: OrderRow, b: OrderRow) =>
+  a.status === b.status &&
+  a.pricetype === b.pricetype &&
+  a.quantity === b.quantity &&
+  a.price === b.price &&
+  a.trigger_price === b.trigger_price
+
+/**
+ * After a write on one order (a modify or a cancel) whose outcome is unknown: the order's row
+ * once the book shows it changed from `before`, the row as it was when the write went, or gone
+ * (null). The book lags the write, so a read that still shows the order as it was is not the
+ * answer while delays remain: it reads after each delay and stops at the first change. Otherwise
+ * it gives what the last read that worked showed; `checked` is false when no read worked.
+ */
+export function reconcileRowChange({
+  fetchOrders,
+  before,
+  ...polling
+}: Polling & { fetchOrders: FetchOrders; before: OrderRow }): Promise<Reconciled<OrderRow | null>> {
+  return poll(
+    polling,
+    fetchOrders,
+    ({ orders }) => orders.find((r) => r.orderid === before.orderid) ?? null,
+    (now) => now === null || !sameOrder(now, before),
+    null,
+  )
+}
+
+/**
+ * After a cancel all whose outcome is unknown: how many orders the book shows still working,
+ * read after each delay until it shows none. Otherwise the count the last read that worked
+ * showed; `checked` is false when no read worked.
+ */
+export function reconcileCancelAll({
+  fetchOrders,
+  ...polling
+}: Polling & { fetchOrders: FetchOrders }): Promise<Reconciled<number>> {
+  return poll(
+    polling,
+    fetchOrders,
+    ({ orders }) => orders.filter(isWorking).length,
+    (open) => open === 0,
+    0,
+  )
 }

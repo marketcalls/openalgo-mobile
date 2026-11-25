@@ -10,23 +10,32 @@
 // toast, because its sheet had gone, is shown by the next sheet for that order before it sends.
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'expo-router'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { qk } from '~/core/query/keys'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import { useServices } from '~/core/services/services'
-import { isWorking, type OrderRow } from '~/market/books/schemas'
+import { isWorking, type Orderbook, type OrderRow } from '~/market/books/schemas'
 import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
+import { ModeBadge } from '~/market/components/ModeBadge'
+import {
+  Field,
+  fieldText,
+  Input,
+  numberOf,
+  Segments,
+  snapPrice,
+} from '~/market/components/OrderFields'
 import { BrokerBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import type { InstrumentMeta } from '~/market/instruments/meta'
-import { fmtTick, snapTick } from '~/market/instruments/tick'
+import { fmtTick } from '~/market/instruments/tick'
 import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
-import { MODE_LABEL } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
+import { CHECKING, checkOrder, modeChanged, settle } from '~/market/orders/outcome'
 import {
   holdOrder,
   onOrder,
@@ -38,11 +47,11 @@ import {
 import type { ModifyChange } from '~/market/orders/schemas'
 import { liveSurpriseText, readMode, submitOrderAction } from '~/market/orders/submit'
 import { issueText, planOrder, type TicketState, validateTicket } from '~/market/orders/ticket'
+import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useHoldSheet } from '~/market/orders/useHoldSheet'
 import { useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { PRICE_TYPES, type PriceType, type Product } from '~/market/types'
-import { useToneColors } from '~/ui/Badge'
 import { Banner } from '~/ui/Banner'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
@@ -52,17 +61,7 @@ import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
 import { toast } from '~/ui/Toast'
 import { useTheme } from '~/ui/theme'
-import {
-  CHECKING,
-  checkOrder,
-  earlierChange,
-  MODIFIED,
-  modeChanged,
-  NOT_READ,
-  ORDER_OUT,
-  settle,
-  useFreshBook,
-} from '../hooks/useOrderWrites'
+import { earlierChange, MODIFIED, NOT_READ, ORDER_OUT } from '../hooks/useOrderWrites'
 
 const GONE = 'This order is no longer open.'
 
@@ -363,6 +362,11 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
         price: spec.price,
         trigger_price: spec.trigger_price,
       }
+      // The order as the books show it as the change goes: a check reads until the book differs.
+      const before =
+        s.queryClient
+          .getQueryData<Orderbook>(qk.orderbook(s.profile.get().id))
+          ?.orders.find((r) => r.orderid === row.orderid) ?? row
       const release = holdOrder(trading, me, scope)
       goneLine.current = null
       phase.current = 'sending'
@@ -395,7 +399,7 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
             phase.current = 'checking'
             notifyWarning()
             show({ kind: 'check', line: null }, CHECKING)
-            const line = await checkOrder(readBook, row.orderid)
+            const line = await checkOrder({ readBook, before, sent: change, meta })
             show({ kind: 'check', line }, line)
             return
           }
@@ -433,7 +437,7 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
       <Title row={row} />
       <View style={styles.modeRow}>
         <Text variant="heading">Modify order</Text>
-        {mode.now ? <ModeBadge mode={mode.now} /> : null}
+        {mode.now ? <ModeBadge mode={mode.now} testID="modify-mode-badge" /> : null}
       </View>
       {mode.error !== undefined ? (
         <ErrorState error={mode.error} onRetry={read} />
@@ -510,33 +514,6 @@ function Title({ row }: { row: OrderRow }) {
   )
 }
 
-/** LIVE in the danger colours, ANALYZE in the analyzer's; the id is on the label, as on review. */
-function ModeBadge({ mode }: { mode: AnalyzerMode }) {
-  const { bg, fg } = useToneColors(mode === 'live' ? 'danger' : 'analyze')
-  return (
-    <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text testID="modify-mode-badge" variant="caption" style={[styles.badgeLabel, { color: fg }]}>
-        {MODE_LABEL[mode]}
-      </Text>
-    </View>
-  )
-}
-
-/** On the tick, with the price itself as the guard's reference, as the ticket rules send it. */
-const snapped = (n: number | undefined, meta: InstrumentMeta) =>
-  n === undefined ? undefined : snapTick(n, meta.tick, n)
-
-/** A number, or nothing while the field is blank or not a number. */
-const numberOf = (s: string): number | undefined => {
-  const t = s.replace(/,/g, '').trim()
-  if (t === '') return undefined
-  const n = Number(t)
-  return Number.isFinite(n) ? n : undefined
-}
-
-const fieldText = (n: number | undefined) =>
-  n === undefined || !Number.isFinite(n) ? '' : String(n)
-
 function Fields(p: {
   form: Form
   meta: InstrumentMeta
@@ -551,16 +528,22 @@ function Fields(p: {
   const lotsValid = Number.isInteger(f.qty) && f.qty >= 1
 
   const onBlur = (field: 'price' | 'trigger', setText: (s: string) => void) => () => {
-    const n = snapped(f[field], meta)
+    const n = snapPrice(f[field], meta)
     setText(fieldText(n))
     p.onChange({ [field]: n })
   }
 
   return (
     <>
-      <Field label="Type">
-        <TypeSegments value={pt} onChange={(pricetype) => p.onChange({ pricetype })} />
-      </Field>
+      <Segments
+        label="Type"
+        items={PRICE_TYPES.map((t) => ({
+          id: `modify-type-${t}`,
+          label: t,
+          on: pt === t,
+          onPress: () => p.onChange({ pricetype: t }),
+        }))}
+      />
       <Field label={meta.lots ? 'Lots' : 'Quantity'}>
         <Input
           testID="modify-qty"
@@ -613,59 +596,6 @@ function Fields(p: {
   )
 }
 
-function TypeSegments(p: { value: PriceType | null; onChange: (t: PriceType) => void }) {
-  const { c } = useTheme()
-  return (
-    <View style={[styles.segments, { borderColor: c.border }]}>
-      {PRICE_TYPES.map((t) => {
-        const on = p.value === t
-        return (
-          <Pressable
-            key={t}
-            testID={`modify-type-${t}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            onPress={() => p.onChange(t)}
-            style={[styles.segment, { backgroundColor: on ? c.primary : 'transparent' }]}
-          >
-            <Text
-              style={{
-                color: on ? c.primaryForeground : c.foreground,
-                fontWeight: on ? '700' : '400',
-              }}
-            >
-              {t}
-            </Text>
-          </Pressable>
-        )
-      })}
-    </View>
-  )
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <View style={styles.field}>
-      <Text variant="caption" tone="muted">
-        {label}
-      </Text>
-      {children}
-    </View>
-  )
-}
-
-function Input(p: React.ComponentProps<typeof TextInput>) {
-  const { c } = useTheme()
-  return (
-    <TextInput
-      {...p}
-      selectTextOnFocus
-      placeholderTextColor={c.mutedForeground}
-      style={[styles.input, { color: c.foreground, borderColor: c.border }]}
-    />
-  )
-}
-
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   body: { padding: 16, gap: 16 },
@@ -673,23 +603,5 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   side: { fontWeight: '700' },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeLabel: { fontWeight: '700' },
   form: { gap: 14 },
-  field: { gap: 6 },
-  segments: {
-    flexDirection: 'row',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  segment: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
-  input: {
-    minHeight: 44,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    fontVariant: ['tabular-nums'],
-  },
 })

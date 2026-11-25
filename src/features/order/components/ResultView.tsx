@@ -3,9 +3,9 @@
 // notice; queued points to the web Action Center; an unknown outcome says what the order book
 // shows. Nothing here sends the order again: the way on is the order book.
 import { StyleSheet, View } from 'react-native'
-import { ApiError, userMessage } from '~/core/http/errors'
 import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { QUEUED_COPY } from '~/market/components/SessionBanners'
+import { CHECKING, NOT_CHECKED } from '~/market/orders/outcome'
 import { LIVE_SURPRISE } from '~/market/orders/submit'
 import { Badge } from '~/ui/Badge'
 import { Button } from '~/ui/Button'
@@ -30,13 +30,8 @@ export type TicketResult =
   /** It may have gone (MaybePlaced, a 5xx, a success without an id); `check` once the book says. */
   | { kind: 'maybe'; check: Reconcile | null }
 
-/** A-T7's copy for MaybePlaced, verbatim (ruling 3). */
-const CHECKING = userMessage(
-  new ApiError({ kind: 'MaybePlaced', status: 0, endpoint: 'placeorder' }),
-)
 const NOT_FOUND =
   'Not found in the order book. It was probably not placed. Check the order book before trying again.'
-const NOT_CHECKED = "Couldn't check the order book. Check it before trying again."
 const MAYBE_EARLIER =
   'A matching order is in the order book, but it may be an earlier one. Check the order book before trying again.'
 const SANDBOX = 'Analyzer (sandbox)'
