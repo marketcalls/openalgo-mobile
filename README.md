@@ -38,7 +38,10 @@ the broker, never the live trading server. Copy `.env.test.example` to `.env.tes
 ignores it) and fill in `OPENALGO_TEST_URL`, `OPENALGO_TEST_APIKEY` and, for the live-feed
 checks, `OPENALGO_TEST_WS_URL`. The test server needs `FLASK_HOST_IP='0.0.0.0'` and
 `WEBSOCKET_HOST='0.0.0.0'`. Without the file the suite skips itself; in live mode every test
-fails, and the suite never toggles the mode.
+fails, and the suite never toggles the mode. Besides the connection and feed checks it reads the
+five books (none may drop a row), `/symbol`, and runs the analyzer order loop (strategy `mobile`):
+place a LIMIT BUY of 1 RELIANCE at 90% of the ltp, modify it, cancel it. While NSE is open it also
+buys 1 RELIANCE CNC at market and closes it with a smart order.
 
 ## Checks
 

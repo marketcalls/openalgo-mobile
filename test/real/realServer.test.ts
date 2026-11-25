@@ -9,13 +9,17 @@ import { profileStorage } from '~/core/config/storage'
 import { atLeast } from '~/core/config/version'
 import { checkKey } from '~/core/credentials/status'
 import { createHttpClient, type HttpClient } from '~/core/http/client'
-import { AnalyzerSchema, DepthSchema, MultiQuotesSchema } from '~/core/http/schemas'
+import { AnalyzerSchema, DepthSchema, FundsSchema, MultiQuotesSchema } from '~/core/http/schemas'
 import { isExchangeOpen } from '~/core/realtime/marketHours'
 import { type Inbound, parseInbound } from '~/core/realtime/protocol'
 import { createTickStore } from '~/core/realtime/tickStore'
 import { createRealtime, type WebSocketCtor } from '~/core/realtime/wsClient'
 import { capabilityReport } from '~/features/account/diagnostics'
 import { feedStep, keyStep, serverStep } from '~/features/onboarding/flow'
+import type { OrderRow } from '~/market/books/schemas'
+import { SymbolSchema, toMeta } from '~/market/instruments/meta'
+import { snapTick } from '~/market/instruments/tick'
+import { createOrderApi } from '~/market/orders/api'
 import { memoryKV } from '../helpers/memoryKV'
 import { loadTestEnv, type TestEnv } from './env'
 
@@ -202,11 +206,151 @@ function suite({ url, key, wsUrl }: TestEnv) {
       })
     })
 
+    // The app's order and book calls, over the real client: the scheduler and field gate are
+    // not under test here.
+    const orders = () =>
+      createOrderApi({ call: (id, body, schema, o) => http.request(id, body, schema, o) })
+
+    describe('books and metadata', () => {
+      test('orderbook, tradebook, positionbook, holdings and funds all parse, none dropped', async () => {
+        safe()
+        const api = orders()
+        const [ob, tb, pb, hd, funds] = await Promise.all([
+          api.orderbook(),
+          api.tradebook(),
+          api.positionbook(),
+          api.holdings(),
+          http.request('funds', {}, FundsSchema),
+        ])
+        console.info(
+          `dropped: orderbook ${ob.dropped}, tradebook ${tb.dropped}, positionbook ${pb.dropped}, holdings ${hd.dropped}`,
+        )
+        expect([ob.dropped, tb.dropped, pb.dropped, hd.dropped]).toEqual([0, 0, 0, 0])
+        expect(funds.availablecash).toEqual(expect.any(Number))
+      })
+
+      test('/symbol RELIANCE gives a lot size and a tick', async () => {
+        safe()
+        const meta = toMeta(
+          await http.request('symbol', { symbol: 'RELIANCE', exchange: 'NSE' }, SymbolSchema),
+        )
+        expect(meta.lotsize).toBeGreaterThanOrEqual(1)
+        expect(meta.tick).toBeGreaterThan(0)
+      })
+    })
+
+    describe('analyzer orders', () => {
+      async function reliance() {
+        const meta = toMeta(
+          await http.request('symbol', { symbol: 'RELIANCE', exchange: 'NSE' }, SymbolSchema),
+        )
+        const q = await http.request(
+          'multiquotes',
+          { symbols: [{ symbol: 'RELIANCE', exchange: 'NSE' }] },
+          MultiQuotesSchema,
+        )
+        const ltp = q[0]?.data?.ltp
+        if (typeof ltp !== 'number' || !(ltp > 0)) throw new Error('RELIANCE has no ltp')
+        return { tick: meta.tick, ltp }
+      }
+
+      const find = async (id: string) =>
+        (await orders().orderbook({ fresh: true })).orders.find((o) => o.orderid === id)
+
+      async function untilOrder(id: string, ok: (o: OrderRow) => boolean, what: string) {
+        let last: OrderRow | undefined
+        const end = Date.now() + 15_000
+        while (Date.now() < end) {
+          last = await find(id)
+          if (last && ok(last)) return last
+          await wait(500)
+        }
+        throw new Error(`${what}: not within 15000 ms (last ${last?.status ?? 'absent'})`)
+      }
+
+      test('place a LIMIT BUY below the market, modify its price, cancel it', async () => {
+        safe()
+        const api = orders()
+        const { tick, ltp } = await reliance()
+        const price = snapTick(ltp * 0.9, tick, ltp)
+        const placed = await api.place({
+          exchange: 'NSE',
+          symbol: 'RELIANCE',
+          action: 'BUY',
+          quantity: 1,
+          pricetype: 'LIMIT',
+          product: 'CNC',
+          price,
+          trigger_price: 0,
+        })
+        if (placed.kind !== 'placed') throw new Error(`place answered ${placed.kind}`)
+        const id = placed.orderid
+        try {
+          const open = await untilOrder(id, (o) => o.status === 'open', 'the order is open')
+          expect(open.price).toBe(price)
+
+          const next = snapTick(ltp * 0.91, tick, ltp)
+          expect(next).not.toBe(price)
+          const m = await api.modify(open, { price: next })
+          expect(m.kind).toBe('ok')
+          const changed = await untilOrder(id, (o) => o.price === next, 'the price changes')
+          expect(changed.price).toBe(next)
+
+          const c = await api.cancel(id)
+          expect(c.kind).toBe('ok')
+          const gone = await untilOrder(
+            id,
+            (o) => o.status === 'cancelled',
+            'the order is cancelled',
+          )
+          expect(gone.status).toBe('cancelled')
+        } catch (e) {
+          // Leave nothing working in the sandbox.
+          await api.cancel(id).catch(() => {})
+          throw e
+        }
+      })
+
+      const whileOpen = isExchangeOpen('NSE', Date.now()) ? test : test.skip
+      whileOpen('MARKET BUY 1 CNC, then smartClose leaves the position flat', async () => {
+        safe()
+        const api = orders()
+        const spec = {
+          exchange: 'NSE',
+          symbol: 'RELIANCE',
+          action: 'BUY' as const,
+          quantity: 1,
+          pricetype: 'MARKET' as const,
+          product: 'CNC' as const,
+          price: 0,
+          trigger_price: 0,
+        }
+        const position = async () =>
+          (await api.positionbook({ fresh: true })).rows.find(
+            (r) => r.symbol === 'RELIANCE' && r.exchange === 'NSE' && r.product === 'CNC',
+          )
+        const placed = await api.place(spec)
+        expect(placed.kind).toBe('placed')
+        let row: Awaited<ReturnType<typeof position>>
+        const end = Date.now() + 15_000
+        while (Date.now() < end) {
+          row = await position()
+          if (row && row.quantity > 0) break
+          await wait(500)
+        }
+        if (!row || !(row.quantity > 0)) throw new Error('the position did not open')
+        await api.smartClose(row)
+        const flatEnd = Date.now() + 15_000
+        let qty = row.quantity
+        while (Date.now() < flatEnd && qty !== 0) {
+          await wait(500)
+          qty = (await position())?.quantity ?? 0
+        }
+        expect(qty).toBe(0)
+      })
+    })
+
     // Plan B: the checks below arrive with the screens they cover.
-    test.todo('books: orderbook, tradebook, positionbook, holdings')
-    test.todo('analyzer orders: place a market order and read it back')
-    test.todo('modify an order')
-    test.todo('cancel an order')
     test.todo('tool: portfolio backtest')
     test.todo('tool: SIP backtest')
     test.todo('tool: sector rotation')
