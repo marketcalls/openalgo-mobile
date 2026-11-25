@@ -7,6 +7,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import { istDate } from '~/core/realtime/marketHours'
 import { useConnection } from '~/core/services/connection'
 import { type Services, useServices } from '~/core/services/services'
+import { createEventWatch, type EventWatch } from './books/eventWatch'
 import { createInstrumentCache, type InstrumentCache } from './instruments/cache'
 import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
 import { createOrderApi, type OrderApi } from './orders/api'
@@ -95,6 +96,8 @@ export type Trading = {
   orders: OrderApi
   /** The analyzer mode each order write is checked against, on useAnalyzer's query. */
   analyzer: AnalyzerGate
+  /** Whether the app's own orders produce order events; the bus feeds it (RF 3). */
+  eventWatch: EventWatch
 }
 
 export function createTrading(
@@ -112,6 +115,16 @@ export function createTrading(
       pid: s.profile.get().id,
       api: s.api,
     }),
+    eventWatch: createEventWatch({ now: o.now }),
+  }
+}
+
+/** Every order event counts as seen; unsubscribing also drops the waits still running. */
+function watchOrderEvents(s: Pick<Services, 'orderEvents'>, watch: EventWatch): () => void {
+  const off = s.orderEvents.subscribe((u) => watch.seen(u.orderid))
+  return () => {
+    off()
+    watch.reset()
   }
 }
 
@@ -128,6 +141,7 @@ export function TradingProvider({
   const s = useServices()
   const trading = useMemo(() => createTrading(s, { now }), [s, now])
   useEffect(() => forgetRefusals(trading.unknown), [trading])
+  useEffect(() => watchOrderEvents(s, trading.eventWatch), [s, trading])
   return <TradingContext.Provider value={trading}>{children}</TradingContext.Provider>
 }
 

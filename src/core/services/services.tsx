@@ -29,6 +29,7 @@ import { type BookInvalidator, createBookInvalidator } from '~/core/query/invali
 import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
 import { isExchangeOpen } from '~/core/realtime/marketHours'
+import { createOrderEventBus, type OrderEventBus } from '~/core/realtime/orderEvents'
 import { createPollingEngine, type PollingEngine } from '~/core/realtime/polling'
 import { pricesStale } from '~/core/realtime/staleness'
 import { createTickStore, type TickStore } from '~/core/realtime/tickStore'
@@ -94,6 +95,8 @@ export type Services = {
   storage: ProfileStorage
   queryClient: QueryClient
   books: BookInvalidator
+  /** Every `order_update` the feed delivers, once each (design 7.6); each one refreshes the books. */
+  orderEvents: OrderEventBus
   lifecycle: Lifecycle
 }
 
@@ -193,6 +196,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
   const store = createTickStore(tickSchedule)
   const queryClient = createQueryClient()
   const books = createBookInvalidator(queryClient, pid)
+  const orderEvents = createOrderEventBus()
 
   let appActive = true
   let probing: Promise<void> | null = null
@@ -295,7 +299,8 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
       void reprobe().then(() => (talking() ? broker.check() : undefined))
     },
     onSilence: () => void broker.check(),
-    onOrderUpdate: () => books.poke(),
+    // Ruling 13: the books refresh from the bus (below), so any emit on it refreshes them.
+    onOrderUpdate: (u) => orderEvents.emit(u),
     onResync: () => books.poke(),
     // Ruling 7: the in-memory profile reads the new mode at once.
     onPollingRetry: (ok) =>
@@ -341,6 +346,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     feed: realtime.status().state,
   })
   const unsubs = [
+    orderEvents.subscribe(() => books.poke()),
     realtime.onStatus((st) => {
       conn.getState().set({ feed: st.state })
       syncStale()
@@ -461,6 +467,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     storage,
     queryClient,
     books,
+    orderEvents,
     lifecycle,
   }
   disposers.set(s, () => {

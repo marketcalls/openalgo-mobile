@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { profileStorage } from '~/core/config/storage'
 import { ApiError } from '~/core/http/errors'
+import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { createTickStore } from '~/core/realtime/tickStore'
 import { LiveContext, type LiveServices } from '~/core/realtime/useLive'
 import { TickStoreContext } from '~/core/realtime/useQuote'
@@ -59,6 +60,7 @@ const setup = (seed: Record<string, string> = {}) => {
     store,
     storage: profileStorage(kv, 'p1'),
     profile: { get: () => ({ id: 'p1' }) },
+    orderEvents: createOrderEventBus(),
   } as unknown as Services
   // no gc timer: it would hold the test process open
   const client = new QueryClient({

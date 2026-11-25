@@ -5,6 +5,7 @@ import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-c
 import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { createPollingEngine, POLL_RATES, type PollConsumer } from '~/core/realtime/polling'
 import type { DepthBook, QuotePatch } from '~/core/realtime/protocol'
 import { createSubscriptionManager, type SubRequest } from '~/core/realtime/subscriptions'
@@ -140,6 +141,7 @@ const setup = (broker: string | null = 'dhan', o: SetupOptions = {}) => {
     broker: { check },
     storage: profileStorage(kv, 'p1'),
     profile: { get: () => ({ id: 'p1', broker, restOrigin: 'https://algo.example.com' }) },
+    orderEvents: createOrderEventBus(),
   } as unknown as Services
   // no gc timer: it would hold the test process open
   const client = new QueryClient({

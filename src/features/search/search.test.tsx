@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { profileStorage } from '~/core/config/storage'
 import { ApiError } from '~/core/http/errors'
+import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { type Services, ServicesProvider } from '~/core/services/services'
 import { TradingProvider } from '~/market/trading'
 import { WATCHLIST_LIMITS, WatchlistsSchema } from '~/market/watchlists/model'
@@ -35,6 +36,7 @@ const setup = (o: { version?: string | null; rows?: Row[]; fail?: boolean } = {}
     storage,
     caps: { get: () => ({ version: o.version === undefined ? '2.0.3.5' : o.version }) },
     profile: { get: () => ({ id: 'p1' }) },
+    orderEvents: createOrderEventBus(),
   } as unknown as Services
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const ui = (addTo?: string) => (

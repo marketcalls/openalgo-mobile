@@ -5,6 +5,7 @@ import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
 import { qk } from '~/core/query/keys'
+import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
 import analyzeFixture from '../../test/fixtures/openalgo-docs/analyzer-analyze.json'
@@ -12,7 +13,13 @@ import orderbookFixture from '../../test/fixtures/openalgo-docs/orderbook.json'
 import { memoryKV } from '../../test/helpers/memoryKV'
 import { SymbolSchema } from './instruments/meta'
 import { useInstrument } from './instruments/useInstrument'
-import { createTrading, TradingProvider, type UnknownKeys, useTrading } from './trading'
+import {
+  createTrading,
+  type Trading,
+  TradingProvider,
+  type UnknownKeys,
+  useTrading,
+} from './trading'
 
 const NOW = Date.UTC(2026, 10, 24, 5, 0)
 
@@ -44,6 +51,7 @@ function fakeServices() {
     queryClient: new QueryClient({
       defaultOptions: { queries: { gcTime: Number.POSITIVE_INFINITY } },
     }),
+    orderEvents: createOrderEventBus(),
   } as unknown as Services
   return { s, calls }
 }
@@ -215,5 +223,63 @@ describe('Trading.depthDowngrades', () => {
     const next = createTrading(fakeServices().s, { now: () => NOW })
     expect(next.depthDowngrades.getState().keys.size).toBe(0)
     expect(first.depthDowngrades.getState().keys.has('dhan:NSE')).toBe(true)
+  })
+})
+
+let trading: Trading | undefined
+const GrabTrading = () => {
+  trading = useTrading()
+  return null
+}
+
+describe('Trading.eventWatch', () => {
+  beforeEach(() => jest.useFakeTimers({ now: NOW }))
+  afterEach(() => {
+    jest.useRealTimers()
+    trading = undefined
+  })
+
+  test("the provider feeds the bus's order events to it, so an awaited order is met", async () => {
+    const { s } = fakeServices()
+    await mount(<GrabTrading />, s)
+    await act(async () => trading?.eventWatch.expect('A1'))
+    await act(async () =>
+      s.orderEvents.emit({ t: 'order_update', orderid: 'A1', order_status: 'open' }),
+    )
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000)
+    })
+    expect(trading?.eventWatch.demoted()).toBe(false)
+  })
+
+  test('an event that beat the reply still counts (ruling 12)', async () => {
+    const { s } = fakeServices()
+    await mount(<GrabTrading />, s)
+    await act(async () =>
+      s.orderEvents.emit({ t: 'order_update', orderid: 'A1', order_status: 'open' }),
+    )
+    await act(async () => trading?.eventWatch.expect('A1'))
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000)
+    })
+    expect(trading?.eventWatch.demoted()).toBe(false)
+  })
+
+  test('unmounting stops listening and drops the pending waits', async () => {
+    const { s } = fakeServices()
+    const view = await mount(<GrabTrading />, s)
+    const watch = trading?.eventWatch
+    await act(async () => watch?.expect('A1'))
+    await view.unmount()
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000)
+    })
+    expect(watch?.demoted()).toBe(false)
+    s.orderEvents.emit({ t: 'order_update', orderid: 'B2' })
+    watch?.expect('B2')
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(10_000)
+    })
+    expect(watch?.demoted()).toBe(true)
   })
 })

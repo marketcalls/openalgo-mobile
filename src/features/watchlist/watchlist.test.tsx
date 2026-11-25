@@ -3,6 +3,7 @@ import { AccessibilityInfo, Alert, type AlertButton } from 'react-native'
 import { profileStorage } from '~/core/config/storage'
 import { ApiError } from '~/core/http/errors'
 import { istDate } from '~/core/realtime/marketHours'
+import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { createPollingEngine } from '~/core/realtime/polling'
 import { createTickStore } from '~/core/realtime/tickStore'
 import { LiveContext, type LiveServices } from '~/core/realtime/useLive'
@@ -97,6 +98,7 @@ const setup = (o: { live?: boolean; call?: Call; seed?: Record<string, string> }
     store,
     storage: profileStorage(kv, 'p1'),
     profile: { get: () => ({ id: 'p1', restOrigin: ORIGIN }) },
+    orderEvents: createOrderEventBus(),
   } as unknown as Services
   const wrap = (ui: React.ReactElement) => (
     <ServicesProvider value={services}>

@@ -675,24 +675,54 @@ describe('services', () => {
     expect(h.banners()).toEqual([])
   })
 
-  test('order_update pokes the books', async () => {
+  test('three identical order_update frames give one bus emit and one invalidation 500 ms later', async () => {
     const h = setup()
     const sock = await ready(h)
     await jest.advanceTimersByTimeAsync(1000)
+    const heard = jest.fn()
+    h.s.orderEvents.subscribe(heard)
     const invalidate = jest.spyOn(h.s.queryClient, 'invalidateQueries')
-    sock.serverSend({
+    const frame = {
       type: 'order_update',
       orderid: '250101000000001',
       symbol: 'RELIANCE',
       exchange: 'NSE',
       order_status: 'complete',
       filled_quantity: 1,
-    })
+    }
+    for (let i = 0; i < 3; i++) sock.serverSend(frame)
+    expect(heard).toHaveBeenCalledTimes(1)
+    expect(heard).toHaveBeenCalledWith(
+      expect.objectContaining({ t: 'order_update', orderid: '250101000000001' }),
+    )
     await jest.advanceTimersByTimeAsync(499)
     expect(invalidate).not.toHaveBeenCalled()
     await jest.advanceTimersByTimeAsync(1)
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orderbook(PID) })
+    const orderbook = invalidate.mock.calls.filter(([f]) => f?.queryKey?.[2] === 'orderbook')
+    expect(orderbook).toEqual([[{ queryKey: qk.orderbook(PID) }]])
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.funds(PID) })
+    await jest.advanceTimersByTimeAsync(5000)
+    expect(invalidate.mock.calls.filter(([f]) => f?.queryKey?.[2] === 'orderbook')).toHaveLength(1)
+  })
+
+  test('ruling 13: an emit on the bus refreshes the books, as an order_update frame does', async () => {
+    const h = setup()
+    await ready(h)
+    await jest.advanceTimersByTimeAsync(1000)
+    const invalidate = jest.spyOn(h.s.queryClient, 'invalidateQueries')
+    h.s.orderEvents.emit({ t: 'order_update', orderid: '250101000000002' })
+    await jest.advanceTimersByTimeAsync(500)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orderbook(PID) })
+  })
+
+  test('a disposed container no longer refreshes the books on an emit', async () => {
+    const h = setup()
+    await ready(h)
+    const invalidate = jest.spyOn(h.s.queryClient, 'invalidateQueries')
+    disposeServices(h.s)
+    h.s.orderEvents.emit({ t: 'order_update', orderid: '250101000000003' })
+    await jest.advanceTimersByTimeAsync(1000)
+    expect(invalidate).not.toHaveBeenCalled()
   })
 
   test('locking stops the feed and pauses reads; unlocking checks the broker, restarts the feed and resyncs', async () => {
