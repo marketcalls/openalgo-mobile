@@ -19,6 +19,7 @@ import {
   type CalendarSpecJson,
   CHART_TOPICS,
   type ChartInit,
+  type ChartMeta,
   type ChartReady,
   DOM_WS_URL,
   type DomReply,
@@ -658,6 +659,38 @@ describe('ChartDom', () => {
     page.push(CHART_TOPICS.calendars, { NSE: { ...NSE, exceptions: { '2026-11-27': [] } } })
     await waitFor(page.ready)
     expect(applied.mock.calls.at(-1)?.[0]?.sessionFrom(FRIDAY_1030)?.date).toBe('2026-11-30')
+  })
+
+  test('the trade pushes that come while the widget is being built reach its lines and panel', async () => {
+    const added = jest.spyOn(Chart.prototype, 'addPriceLine')
+    const page = await mountChart()
+    const meta: ChartMeta = {
+      exchange: 'NSE',
+      symbol: 'INFY',
+      tick: 0.05,
+      lotsize: 1,
+      lots: false,
+      quoteOnly: false,
+      freezeQty: 0,
+    }
+    page.push(CHART_TOPICS.init, { ...INIT, meta, ltp: 1500 })
+    // The page is still reading the saved state: there is no widget yet.
+    page.push(CHART_TOPICS.orders, [
+      { id: '7', side: 'BUY', type: 'LIMIT', qty: 1, price: 1490, trigger: null },
+    ])
+    await waitFor(page.ready)
+    expect(added).toHaveBeenCalledWith(expect.objectContaining({ id: 'order:7', price: 1490 }))
+    const buy = page.container.querySelector<HTMLElement>('.oac-chart #chart-buy')
+    expect(buy?.textContent).toBe('BUY1,500.00')
+    buy?.click()
+    expect(page.sent).toContainEqual({
+      v: 1,
+      kind: 'intent',
+      intent: { type: 'trade', inst: INIT.inst, side: 'BUY', lots: 1 },
+    })
+    expect(page.errors()).toEqual([])
+    await page.unmount()
+    expect(page.container.querySelector('#chart-buy')).toBeNull()
   })
 
   test('a new scheme restyles the open chart', async () => {

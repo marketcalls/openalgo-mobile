@@ -31,6 +31,7 @@ import type { SessionCalendars } from './calendars'
 import { createChartFeeds } from './feeds'
 import { DOM_BUNDLE } from './marker'
 import { chartTheme, keepAppPalette } from './theme'
+import { attachTrading, holdTradePushes } from './trading/glue'
 import { savedInterval, widgetOptions } from './widgetOptions'
 
 type Scheme = ChartDomProps['scheme']
@@ -99,6 +100,9 @@ function openPage(
   let widget: Widget | null = null
   let live: OpenAlgoLiveDataFeed | null = null
   let stopPalette: (() => void) | null = null
+  let trading: { dispose(): void } | null = null
+  // The trade pushes that come while the widget is being built, for the trading glue.
+  const held = holdTradePushes(client)
   let calendars: SessionCalendars | null = null
   // A calendars push that comes before the widget exists, for the widget to open with.
   let pendingCalendars: Record<string, CalendarSpecJson> | null = null
@@ -137,6 +141,8 @@ function openPage(
     withoutDownloads(w)
     // The widget's own Theme control would put the library's teal and off-red on the candles.
     stopPalette = keepAppPalette(w)
+    trading = attachTrading(w, client, feeds.live, held.seed)
+    held.stop()
     let settled = false
     const off = w.on('data', (e) => {
       if (settled) return
@@ -189,7 +195,9 @@ function openPage(
     dispose() {
       disposed = true
       for (const off of offs) off()
+      held.stop()
       stopPalette?.()
+      trading?.dispose()
       widget?.destroy()
       live?.close()
     },
