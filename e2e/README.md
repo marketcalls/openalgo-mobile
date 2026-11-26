@@ -23,8 +23,8 @@ Writing a flow:
 |---|---|---|
 | `onboarding-live.yaml` | `PORT=5000 WS_PORT=8765` | server, key and live-feed steps; the watchlist shows a price within 10 s |
 | `onboarding-polling.yaml` | `PORT=5000 WS_PORT=off` | the feed test fails, the profile saves in polling mode, `badge-polling` shows, and the price updates |
-| `trading-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | add ITC, a LIMIT buy reviewed as ANALYZE, modify, cancel, depth into a ticket, close a position, sell a holding |
-| `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
+| `trading-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | add ITC, a LIMIT buy from its instrument sheet reviewed as ANALYZE, modify, cancel, depth into a ticket, close a position, sell a holding |
+| `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
 | `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | the 20-level switch shows `depth-bid-19` |
 
 The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5. The trading flows start with the mock
@@ -48,19 +48,27 @@ Onboarding
 - `update-back`, `start-retry`, `start-forget`
 
 Watchlist
-- `watch-row-{ID}` *, `watch-ltp-{ID}` *, `watch-flash-{ID}`, `watch-buy-{ID}` *, `watch-sell-{ID}`,
+- `watch-row-{ID}` *, `watch-ltp-{ID}` *, `watch-ex-{ID}`, `watch-held-{ID}`, `watch-flash-{ID}`,
   `watch-swipe-{ID}`, `watch-unknown-{ID}`
-- `wl-search`, `wl-add` *, `wl-edit`, `wl-new`, `wl-empty-add`, `wl-name-input`, `wl-name-save`,
-  `wl-name-cancel`, `wl-tab-{ID}`, `wl-up-{ID}`, `wl-down-{ID}`, `wl-remove-{ID}`
-- `index-strip`, `index-edit`, `index-edit-done`, `index-panel`, `index-panel-{ID}`,
-  `index-pick-{ID}`, `index-{ID}`
+- `wl-tab-{LISTID}` (not for flows: list ids are lower case; tap a tab by its label), `wl-manage`
+- `wl-search-add` *, `wl-count`, `wl-sort`, `wl-sort-{SORT}` (`ADDED`, `AZ`, `CHANGE`, `LTP`,
+  `EXCHANGE`), `wl-edit`, `wl-empty-add`
+- edit mode: `wl-up-{ID}`, `wl-down-{ID}`, `wl-regroup-{ID}` (once the list has a group),
+  `wl-remove-{ID}`, `wl-new-group`, `wl-move-{N}`, `wl-move-none`
+- groups: `wl-group-{N}`, and in edit mode `wl-group-up-{N}`, `wl-group-down-{N}`,
+  `wl-group-menu-{N}` (a native menu: tap Rename or Delete by its text)
+- the manage sheet: `wl-list-{N}`, `wl-list-up-{N}`, `wl-list-down-{N}`, `wl-list-rename-{N}`,
+  `wl-list-delete-{N}`, `wl-new`, `wl-manage-done`
+- the name sheet: `wl-name-input`, `wl-name-save`, `wl-name-cancel`
+- `index-strip`, `index-toggle`, `index-edit`, `index-edit-done`, `index-panel`,
+  `index-panel-{ID}`, `index-pick-{ID}`, `index-{ID}`
 
 Search
-- `search-input` *, `search-row-{ID}` *, `search-added-{ID}` *, `search-chip-{EXCHANGE}`,
-  `search-status`
+- `search-input` *, `search-row-{ID}` *, `search-added-{ID}` *, `search-open-{ID}` (add mode),
+  `search-chip-{EXCHANGE}`, `search-status`
 
 Instrument sheet
-- `instrument-sheet`, `inst-ltp`, `inst-change`, `inst-unknown`, `inst-buy`, `inst-sell`,
+- `instrument-sheet`, `inst-ltp`, `inst-change`, `inst-unknown`, `inst-buy` *, `inst-sell`,
   `inst-watch`, `inst-depth` *, `inst-chart`, `inst-optionchain`
 
 Depth

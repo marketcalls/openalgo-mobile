@@ -60,7 +60,8 @@ export function buildRows(list: WatchList, o: { editing: boolean; quoteOf: Quote
   return rows
 }
 
-const heightOf = (r: RowModel) =>
+/** A row's height, for `getItemLayout`. */
+export const rowHeight = (r: RowModel) =>
   r.kind === 'item' ? ROW_HEIGHT : r.kind === 'group' ? GROUP_HEIGHT : NEW_GROUP_HEIGHT
 
 /** Each row's top offset, for `getItemLayout`. */
@@ -68,7 +69,7 @@ export function rowOffsets(rows: readonly RowModel[]): number[] {
   let at = 0
   return rows.map((r) => {
     const top = at
-    at += heightOf(r)
+    at += rowHeight(r)
     return top
   })
 }

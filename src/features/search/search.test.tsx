@@ -4,6 +4,7 @@ import { profileStorage } from '~/core/config/storage'
 import { ApiError } from '~/core/http/errors'
 import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { type Services, ServicesProvider } from '~/core/services/services'
+import { instrumentHref } from '~/market/links'
 import { TradingProvider } from '~/market/trading'
 import { WATCHLIST_LIMITS, WatchlistsSchema } from '~/market/watchlists/model'
 import { TOAST_MS, ToastHost } from '~/ui/Toast'
@@ -162,8 +163,22 @@ describe('SearchScreen', () => {
     await render(h.ui())
     await type('it')
     await settle()
+    expect(screen.queryByTestId('search-open-NSE-ITC')).toBeNull()
     await fireEvent.press(screen.getByTestId('search-row-NSE-ITC'))
     expect(mockReplace).toHaveBeenCalledWith('/instrument/NSE%3AITC')
+  })
+
+  test('add mode: search-open replaces the route with the instrument sheet and adds nothing', async () => {
+    const h = setup()
+    await render(h.ui('default'))
+    await type('it')
+    await settle()
+    const open = screen.getByTestId('search-open-NSE-ITC')
+    expect(open).toHaveProp('accessibilityLabel', 'Open ITC')
+    await act(async () => void fireEvent.press(open))
+    expect(mockReplace).toHaveBeenCalledWith(instrumentHref('NSE', 'ITC'))
+    expect(screen.queryByTestId('search-status')).toBeNull()
+    expect(screen.queryByTestId('search-added-NSE-ITC')).toBeNull()
   })
 
   test('add mode adds the symbol, shows a tick and a toast; a second tap says already there', async () => {

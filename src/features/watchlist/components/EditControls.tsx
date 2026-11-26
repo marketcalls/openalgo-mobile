@@ -1,7 +1,11 @@
-// Edit mode's controls for one row: move it up or down, or remove it.
-import { Pressable, StyleSheet, View } from 'react-native'
+// Edit mode's controls for one row: move it up or down within its group, move it to another
+// group, or remove it. `EditButton` is the 44 pt control the group headers and the list sheet use too.
+import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native'
+import { Icon, type IconName } from '~/ui/Icon'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
+
+const REGROUP: IconName = { ios: 'folder', android: 'drive_file_move' }
 
 export function EditControls(p: {
   /** `EX-SYM`, the row's testID suffix. */
@@ -12,24 +16,34 @@ export function EditControls(p: {
   onUp: () => void
   onDown: () => void
   onRemove: () => void
+  /** Offers to move the row to a group; absent while the list has no group. */
+  onRegroup?: () => void
 }) {
   return (
     <View style={styles.row}>
-      <Control
+      <EditButton
         testID={`wl-up-${p.id}`}
         glyph="↑"
         label={`Move ${p.symbol} up`}
         disabled={p.first}
         onPress={p.onUp}
       />
-      <Control
+      <EditButton
         testID={`wl-down-${p.id}`}
         glyph="↓"
         label={`Move ${p.symbol} down`}
         disabled={p.last}
         onPress={p.onDown}
       />
-      <Control
+      {p.onRegroup ? (
+        <EditButton
+          testID={`wl-regroup-${p.id}`}
+          icon={REGROUP}
+          label={`Move ${p.symbol} to a group`}
+          onPress={p.onRegroup}
+        />
+      ) : null}
+      <EditButton
         testID={`wl-remove-${p.id}`}
         glyph="✕"
         label={`Remove ${p.symbol}`}
@@ -40,15 +54,19 @@ export function EditControls(p: {
   )
 }
 
-function Control(p: {
+/** A square control showing a glyph or an icon, labelled for screen readers. */
+export function EditButton(p: {
   testID: string
-  glyph: string
   label: string
+  glyph?: string
+  icon?: IconName
   disabled?: boolean
   danger?: boolean
+  style?: ViewStyle
   onPress: () => void
 }) {
   const { c } = useTheme()
+  const color = p.danger ? c.destructive : c.foreground
   return (
     <Pressable
       testID={p.testID}
@@ -57,11 +75,13 @@ function Control(p: {
       accessibilityState={{ disabled: p.disabled === true }}
       disabled={p.disabled}
       onPress={p.onPress}
-      style={[styles.control, p.disabled && styles.off]}
+      style={[styles.control, p.style, p.disabled && styles.off]}
     >
-      <Text style={[styles.glyph, { color: p.danger ? c.destructive : c.foreground }]}>
-        {p.glyph}
-      </Text>
+      {p.icon ? (
+        <Icon name={p.icon} size={18} color={color} />
+      ) : (
+        <Text style={[styles.glyph, { color }]}>{p.glyph}</Text>
+      )}
     </Pressable>
   )
 }

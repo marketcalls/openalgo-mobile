@@ -1,5 +1,6 @@
 // The strip of index chips above the watchlist. A tap opens a panel with that index's day range
-// and the account's funds; Edit picks which indices show (one to four).
+// and the account's funds; Edit picks which indices show (one to four). The chevron collapses it
+// to a 32 px "Indices" bar (design 17.1): the chips unmount, and so release their feed slots.
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { log } from '~/core/log/logger'
@@ -9,6 +10,7 @@ import { useFunds } from '~/market/books/queries'
 import { useIsUnknown } from '~/market/instruments/useInstrument'
 import { Change } from '~/ui/Change'
 import { fmtPrice } from '~/ui/format'
+import { Icon, type IconName } from '~/ui/Icon'
 import { Price } from '~/ui/Price'
 import { Sheet } from '~/ui/Sheet'
 import { Text } from '~/ui/Text'
@@ -19,31 +21,51 @@ import {
   INDEX_CHOICES,
   type IndexChoice,
   loadIndexStrip,
+  loadIndexStripOpen,
   saveIndexStrip,
+  saveIndexStripOpen,
   toggleIndex,
 } from '../indexStrip'
 
 const find = (key: string) => INDEX_CHOICES.find((i) => i.key === key)
+const COLLAPSE: IconName = { ios: 'chevron.up', android: 'expand_less' }
+const EXPAND: IconName = { ios: 'chevron.down', android: 'expand_more' }
 
 export function IndexStrip() {
   const { storage } = useServices()
   const { c } = useTheme()
   const [strip, setStrip] = useState<readonly string[]>(DEFAULT_INDEX_STRIP)
-  // false until the saved choice is read, so a change cannot be overwritten by that read
+  const [shown, setShown] = useState(true)
+  // false until the saved choices are read, so a change cannot be overwritten by that read, and
+  // a strip saved collapsed never mounts its chips
   const [ready, setReady] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     let live = true
-    loadIndexStrip(storage)
-      .then((s) => live && setStrip(s))
-      .catch((e) => log.warn('watchlist', 'could not read the index strip', e))
-      .finally(() => live && setReady(true))
+    const unread = (e: unknown) => log.warn('watchlist', 'could not read the index strip', e)
+    void Promise.all([
+      loadIndexStrip(storage)
+        .then((s) => live && setStrip(s))
+        .catch(unread),
+      loadIndexStripOpen(storage)
+        .then((o) => live && setShown(o))
+        .catch(unread),
+    ]).then(() => live && setReady(true))
     return () => {
       live = false
     }
   }, [storage])
+
+  const toggleShown = () => {
+    const next = !shown
+    setShown(next)
+    if (!next) setOpen(null)
+    saveIndexStripOpen(storage, next).catch((e) =>
+      log.warn('watchlist', 'could not save the index strip', e),
+    )
+  }
 
   const toggle = useCallback(
     (key: string) => {
@@ -62,31 +84,53 @@ export function IndexStrip() {
   const chips = strip.map(find).filter((i): i is IndexChoice => i !== undefined)
   const current = chips.find((i) => i.key === open)
   return (
-    <View style={[styles.wrap, { borderBottomColor: c.border }]}>
+    <View style={[styles.wrap, { borderBottomColor: c.border }, !shown && styles.collapsed]}>
       <View style={styles.row}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
-          {chips.map((i) => (
-            <Chip
-              key={i.key}
-              index={i}
-              selected={open === i.key}
-              onPress={() => setOpen(open === i.key ? null : i.key)}
-            />
-          ))}
-        </ScrollView>
+        {shown ? (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
+              {ready
+                ? chips.map((i) => (
+                    <Chip
+                      key={i.key}
+                      index={i}
+                      selected={open === i.key}
+                      onPress={() => setOpen(open === i.key ? null : i.key)}
+                    />
+                  ))
+                : null}
+            </ScrollView>
+            <Pressable
+              testID="index-edit"
+              accessibilityRole="button"
+              accessibilityLabel="Choose indices"
+              disabled={!ready}
+              onPress={() => setEditing(true)}
+              hitSlop={8}
+              style={styles.edit}
+            >
+              <Text style={styles.editLabel}>Edit</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Text variant="caption" tone="muted" style={styles.barLabel}>
+            Indices
+          </Text>
+        )}
         <Pressable
-          testID="index-edit"
+          testID="index-toggle"
           accessibilityRole="button"
-          accessibilityLabel="Choose indices"
+          accessibilityLabel={shown ? 'Hide indices' : 'Show indices'}
+          accessibilityState={{ expanded: shown }}
           disabled={!ready}
-          onPress={() => setEditing(true)}
+          onPress={toggleShown}
           hitSlop={8}
-          style={styles.edit}
+          style={[styles.toggle, !shown && styles.toggleBar]}
         >
-          <Text style={styles.editLabel}>Edit</Text>
+          <Icon name={shown ? COLLAPSE : EXPAND} size={16} color={c.mutedForeground} />
         </Pressable>
       </View>
-      {current ? <Panel index={current} /> : null}
+      {shown && current ? <Panel index={current} /> : null}
       <Sheet visible={editing} onClose={() => setEditing(false)}>
         <Text variant="title">Indices</Text>
         {INDEX_CHOICES.map((i) => (
@@ -207,7 +251,11 @@ const styles = StyleSheet.create({
     marginRight: 8,
     minWidth: 104,
   },
+  collapsed: { height: 32, paddingVertical: 0, justifyContent: 'center' },
+  barLabel: { flex: 1, paddingLeft: 16 },
   edit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
+  toggle: { minHeight: 44, justifyContent: 'center', paddingRight: 12, paddingLeft: 4 },
+  toggleBar: { minHeight: 32 },
   editLabel: { fontWeight: '600' },
   pick: { minHeight: 48, flexDirection: 'row', alignItems: 'center' },
   panel: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 8, gap: 16 },

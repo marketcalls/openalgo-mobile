@@ -6,6 +6,7 @@ import { Button } from './Button'
 import { Change } from './Change'
 import { ErrorState } from './ErrorState'
 import { NotYetAvailable } from './NotYetAvailable'
+import { Price } from './Price'
 import { StatusBadges } from './StatusBadges'
 import { Text } from './Text'
 import { buildTheme, resolveScheme, useTheme } from './theme'
@@ -33,6 +34,17 @@ describe.each(['light', 'dark'] as const)('%s scheme', (scheme) => {
     expect(screen.getByText('+1.20 (+0.50%)')).toBeTruthy()
     await rerender(<Change change={-1.2} pct={-0.5} testID="c" />)
     expect(colorOf(screen.getByTestId('c'))).toBe(tokens.trade[scheme].loss)
+  })
+
+  test('Price takes the profit or loss colour from its sign, and the default without one', async () => {
+    const { rerender } = await render(<Price value={10} sign={1} testID="p" />)
+    expect(colorOf(screen.getByTestId('p'))).toBe(tokens.trade[scheme].profit)
+    await rerender(<Price value={10} sign={-1} testID="p" />)
+    expect(colorOf(screen.getByTestId('p'))).toBe(tokens.trade[scheme].loss)
+    await rerender(<Price value={10} sign={0} testID="p" />)
+    expect(colorOf(screen.getByTestId('p'))).toBe(tokens[scheme].foreground)
+    await rerender(<Price value={10} testID="p" />)
+    expect(colorOf(screen.getByTestId('p'))).toBe(tokens[scheme].foreground)
   })
 
   test('a buy button uses trade.buy', async () => {

@@ -1,5 +1,7 @@
-// One watchlist row. It reads only its own symbol, so a tick re-renders this row alone. An
-// expired or unknown contract renders statically: no feed, no poll, no B/S (ruling 8).
+// One watchlist row, plain as in Kite (design 17.1): the symbol over its exchange and the held
+// quantity, the LTP in the day change's colour over the change. A press opens the instrument
+// sheet; a left swipe asks to remove. It reads only its own symbol, so a tick re-renders this row
+// alone. An expired or unknown contract renders statically: no feed, no poll (ruling 8).
 import { type Href, useRouter } from 'expo-router'
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import {
@@ -14,13 +16,13 @@ import {
 } from 'react-native'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import { useFeedStale } from '~/core/realtime/useQuote'
-import { isQuoteOnly } from '~/market/instruments/exchanges'
+import { exchangeLabel } from '~/market/instruments/exchanges'
 import { useIsUnknown } from '~/market/instruments/useInstrument'
-import { instrumentHref, ticketHref } from '~/market/links'
-import { useBrokerBlocked } from '~/market/session'
-import type { Side } from '~/market/types'
+import { instrumentHref } from '~/market/links'
 import { Badge } from '~/ui/Badge'
 import { Change } from '~/ui/Change'
+import { fmtQty, signOf } from '~/ui/format'
+import { Icon, type IconName } from '~/ui/Icon'
 import { Price } from '~/ui/Price'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
@@ -33,6 +35,7 @@ export const FLASH_MS = 400
 export const SWIPE_REMOVE_PX = 80
 /** Horizontal travel before a drag counts as a swipe, not a tap or a scroll. */
 const SWIPE_SLOP = 10
+const BRIEFCASE: IconName = { ios: 'briefcase.fill', android: 'work' }
 
 /** The system's reduce-motion setting, read once per screen. */
 export function useReduceMotion(): boolean {
@@ -52,22 +55,27 @@ export function useReduceMotion(): boolean {
 type Props = {
   exchange: string
   symbol: string
+  /** The quantity held (holdings, else the net open position), for the briefcase marker. */
+  held?: number
   reduceMotion?: boolean
-  /** Edit mode: up, down and remove replace B/S, and a press opens nothing. */
+  /** Edit mode: the edit controls show, and a press opens nothing. */
   editing?: boolean
+  /** First and last within the row's group, where up and down stop. */
   first?: boolean
   last?: boolean
   /** Asks to remove the row (it confirms); without it there is no swipe and no remove action. */
   onRemove?: (exchange: string, symbol: string) => void
   onMove?: (exchange: string, symbol: string, by: -1 | 1) => void
+  /** Edit mode: offers to move the row to a group. */
+  onRegroup?: (exchange: string, symbol: string) => void
 }
 
 export const WatchRow = memo(function WatchRow(p: Props) {
-  const { exchange, symbol, editing = false } = p
+  const { exchange, symbol, editing = false, onRegroup } = p
   const unknown = useIsUnknown(exchange, symbol)
   const id = `${exchange}-${symbol}`
   const remove = p.onRemove ? () => p.onRemove?.(exchange, symbol) : undefined
-  const body = { id, exchange, symbol, editing, onRemove: remove }
+  const body = { id, exchange, symbol, held: p.held, editing, onRemove: remove }
   return (
     <Swipe id={id} onRemove={editing ? undefined : remove}>
       {unknown ? <UnknownBody {...body} /> : <LiveBody {...body} reduceMotion={p.reduceMotion} />}
@@ -79,6 +87,7 @@ export const WatchRow = memo(function WatchRow(p: Props) {
           last={p.last ?? true}
           onUp={() => p.onMove?.(exchange, symbol, -1)}
           onDown={() => p.onMove?.(exchange, symbol, 1)}
+          onRegroup={onRegroup ? () => onRegroup(exchange, symbol) : undefined}
           onRemove={remove}
         />
       ) : null}
@@ -90,11 +99,12 @@ type BodyProps = {
   id: string
   exchange: string
   symbol: string
+  held?: number
   editing: boolean
   onRemove?: () => void
 }
 
-/** A priced row: the live quote, and B/S unless the exchange is quote-only or editing. */
+/** A priced row: the live LTP, coloured by the day change, over the change. */
 function LiveBody(p: BodyProps & { reduceMotion?: boolean }) {
   const q = useLiveQuote(p.exchange, p.symbol, 2)
   const stale = useFeedStale()
@@ -103,11 +113,10 @@ function LiveBody(p: BodyProps & { reduceMotion?: boolean }) {
       {p.reduceMotion ? null : <Flash id={p.id} ltp={q?.ltp} />}
       <Main {...p} dim={stale}>
         <View style={styles.right}>
-          <Price value={q?.ltp} testID={`watch-ltp-${p.id}`} />
+          <Price value={q?.ltp} sign={signOf(q?.change)} testID={`watch-ltp-${p.id}`} />
           <Change change={q?.change} pct={q?.changePct} />
         </View>
       </Main>
-      {p.editing || isQuoteOnly(p.exchange) ? null : <TradeButtons {...p} />}
     </>
   )
 }
@@ -125,7 +134,6 @@ const REMOVE_ACTION = [{ name: 'remove', label: 'Remove' }]
 
 /** The pressable part: the symbol and what follows it; a press opens the instrument sheet. */
 function Main(p: BodyProps & { dim?: boolean; children: ReactNode }) {
-  const { c } = useTheme()
   const router = useRouter()
   const onAction = (e: AccessibilityActionEvent) => {
     if (e.nativeEvent.actionName === 'remove') p.onRemove?.()
@@ -145,68 +153,28 @@ function Main(p: BodyProps & { dim?: boolean; children: ReactNode }) {
         <Text variant="body" numberOfLines={1} style={styles.symbol}>
           {p.symbol}
         </Text>
-        <Text variant="caption" tone="muted" style={[styles.tag, { borderColor: c.border }]}>
-          {p.exchange}
-        </Text>
+        <View style={styles.sub}>
+          <Text testID={`watch-ex-${p.id}`} variant="caption" tone="muted">
+            {exchangeLabel(p.exchange)}
+          </Text>
+          {p.held === undefined ? null : <Held id={p.id} quantity={p.held} />}
+        </View>
       </View>
       {p.children}
     </Pressable>
   )
 }
 
-/** B and S open the ticket; disabled while the broker is blocked. */
-function TradeButtons(p: BodyProps) {
-  const router = useRouter()
-  const blocked = useBrokerBlocked()
-  const { trade } = useTheme()
-  const open = (action: Side) =>
-    router.push(ticketHref({ exchange: p.exchange, symbol: p.symbol, action }) as Href)
+/** The briefcase and the quantity held; a short position's is negative. */
+function Held({ id, quantity }: { id: string; quantity: number }) {
+  const { c } = useTheme()
   return (
-    <View style={styles.trade}>
-      <SideButton
-        testID={`watch-buy-${p.id}`}
-        glyph="B"
-        label={`Buy ${p.symbol}`}
-        bg={trade.buy}
-        fg={trade.onBuy}
-        disabled={blocked}
-        onPress={() => open('BUY')}
-      />
-      <SideButton
-        testID={`watch-sell-${p.id}`}
-        glyph="S"
-        label={`Sell ${p.symbol}`}
-        bg={trade.sell}
-        fg={trade.onSell}
-        disabled={blocked}
-        onPress={() => open('SELL')}
-      />
+    <View style={styles.held}>
+      <Icon name={BRIEFCASE} size={11} color={c.mutedForeground} />
+      <Text testID={`watch-held-${id}`} variant="caption" tone="muted">
+        {fmtQty(quantity)}
+      </Text>
     </View>
-  )
-}
-
-function SideButton(p: {
-  testID: string
-  glyph: string
-  label: string
-  bg: string
-  fg: string
-  disabled: boolean
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      testID={p.testID}
-      accessibilityRole="button"
-      accessibilityLabel={p.label}
-      accessibilityState={{ disabled: p.disabled }}
-      disabled={p.disabled}
-      onPress={p.onPress}
-      hitSlop={4}
-      style={[styles.side, { backgroundColor: p.bg }, p.disabled && styles.off]}
-    >
-      <Text style={[styles.sideGlyph, { color: p.fg }]}>{p.glyph}</Text>
-    </Pressable>
   )
 }
 
@@ -315,18 +283,7 @@ const styles = StyleSheet.create({
   },
   left: { flex: 1, minWidth: 0, justifyContent: 'center' },
   symbol: { fontWeight: '600' },
-  tag: {
-    alignSelf: 'flex-start',
-    marginTop: 2,
-    fontSize: 10,
-    paddingHorizontal: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
+  sub: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  held: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   right: { alignItems: 'flex-end', justifyContent: 'center' },
-  trade: { flexDirection: 'row', gap: 6 },
-  side: { width: 36, height: 36, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  sideGlyph: { fontWeight: '700' },
-  off: { opacity: 0.4 },
 })

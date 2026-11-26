@@ -13,7 +13,7 @@ import { TradingProvider } from '~/market/trading'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { IndexStrip } from './components/IndexStrip'
-import { loadIndexStrip, normalizeStrip, toggleIndex } from './indexStrip'
+import { loadIndexStrip, loadIndexStripOpen, normalizeStrip, toggleIndex } from './indexStrip'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
 
@@ -26,15 +26,22 @@ const NIFTY = 'NSE_INDEX:NIFTY'
 const SENSEX = 'BSE_INDEX:SENSEX'
 const VIX = 'NSE_INDEX:INDIAVIX'
 
-const setup = async (seed?: unknown) => {
+const setup = async (seed?: unknown, o: { kv?: ReturnType<typeof memoryKV> } = {}) => {
   const store = createTickStore((fn) => fn(), { evictAfterMs: 0 })
-  const kv = memoryKV(seed ? { 'oa.p1.indexStrip': JSON.stringify(seed) } : {})
+  const kv = o.kv ?? memoryKV(seed ? { 'oa.p1.indexStrip': JSON.stringify(seed) } : {})
   const call = jest.fn(async (id: string, _body: unknown, schema: z.ZodType) => {
     if (id === 'funds') return schema.parse(funds)
     throw new Error(`unexpected ${id}`)
   })
+  /** The feed subscriptions the chips hold now, by key. */
+  const held = new Map<string, number>()
+  const acquire = (r: { exchange: string; symbol: string }) => {
+    const k = `${r.exchange}:${r.symbol}`
+    held.set(k, (held.get(k) ?? 0) + 1)
+    return () => held.set(k, (held.get(k) ?? 1) - 1)
+  }
   const live = {
-    realtime: { acquire: () => () => {}, confirmedDepth: () => undefined },
+    realtime: { acquire, confirmedDepth: () => undefined },
     polling: { register: () => () => {} },
     store,
   } as unknown as LiveServices
@@ -49,7 +56,7 @@ const setup = async (seed?: unknown) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
   })
-  await render(
+  const { unmount } = await render(
     <ServicesProvider value={services}>
       <TradingProvider now={Date.now}>
         <QueryClientProvider client={client}>
@@ -64,7 +71,8 @@ const setup = async (seed?: unknown) => {
   )
   const funded = () => call.mock.calls.filter((c) => c[0] === 'funds').length
   const saved = () => JSON.parse(kv.data.get('oa.p1.indexStrip') ?? 'null')
-  return { store, kv, funded, saved }
+  const holds = (k: string) => held.get(k) ?? 0
+  return { store, kv, funded, saved, holds, unmount }
 }
 
 const settle = () =>
@@ -148,6 +156,47 @@ describe('IndexStrip', () => {
     expect(screen.getByTestId('index-panel-close')).toHaveTextContent(/24,400\.00/)
     await fireEvent.press(screen.getByTestId('index-NIFTY'))
     expect(screen.queryByTestId('index-panel')).toBeNull()
+  })
+
+  test('index-toggle collapses the strip to its Indices bar and saves indexStripOpen false; a remount stays collapsed', async () => {
+    const h = await setup()
+    await settle()
+    const toggle = () => screen.getByTestId('index-toggle')
+    expect(toggle()).toHaveProp('accessibilityState', expect.objectContaining({ expanded: true }))
+    expect(h.holds(NIFTY)).toBe(1)
+    await fireEvent.press(screen.getByTestId('index-NIFTY'))
+    await settle()
+    expect(screen.getByTestId('index-panel')).toBeOnTheScreen()
+
+    await fireEvent.press(toggle())
+    await settle()
+    expect(screen.queryByTestId('index-NIFTY')).toBeNull()
+    expect(screen.queryByTestId('index-SENSEX')).toBeNull()
+    expect(screen.queryByTestId('index-panel')).toBeNull()
+    expect(screen.queryByTestId('index-edit')).toBeNull()
+    expect(screen.getByText('Indices')).toBeOnTheScreen()
+    expect(toggle()).toHaveProp('accessibilityState', expect.objectContaining({ expanded: false }))
+    // the chips are gone, and with them their feed slots
+    expect(h.holds(NIFTY)).toBe(0)
+    expect(h.holds(SENSEX)).toBe(0)
+    expect(h.kv.data.get('oa.p1.indexStripOpen')).toBe('false')
+    expect(await loadIndexStripOpen(profileStorage(h.kv, 'p1'))).toBe(false)
+
+    await h.unmount()
+    const again = await setup(undefined, { kv: h.kv })
+    await settle()
+    expect(screen.queryByTestId('index-NIFTY')).toBeNull()
+    expect(again.holds(NIFTY)).toBe(0)
+    await fireEvent.press(screen.getByTestId('index-toggle'))
+    await settle()
+    expect(screen.getByTestId('index-NIFTY')).toBeOnTheScreen()
+    expect(h.kv.data.get('oa.p1.indexStripOpen')).toBe('true')
+  })
+
+  test('the strip is open by default, and an unreadable saved value opens it too', async () => {
+    expect(await loadIndexStripOpen(profileStorage(memoryKV(), 'p1'))).toBe(true)
+    const bad = memoryKV({ 'oa.p1.indexStripOpen': '"no"' })
+    expect(await loadIndexStripOpen(profileStorage(bad, 'p1'))).toBe(true)
   })
 
   test('funds are not asked for while the broker is logged out', async () => {

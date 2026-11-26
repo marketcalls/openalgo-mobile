@@ -11,7 +11,7 @@ appId: in.openalgo.mobile
       CONTROL: '{"semiAuto":true,"analyzer":false}'
 
 - tapOn:
-    id: wl-add
+    id: wl-search-add
 - tapOn:
     id: search-input
 - inputText: ITC
@@ -37,8 +37,11 @@ appId: in.openalgo.mobile
     direction: DOWN
     timeout: 15000
 
+# a market buy from ITC's instrument sheet
 - tapOn:
-    id: watch-buy-NSE-ITC
+    id: watch-row-NSE-ITC
+- tapOn:
+    id: inst-buy
 - tapOn:
     id: ticket-type-MARKET
 - tapOn:

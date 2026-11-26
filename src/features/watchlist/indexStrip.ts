@@ -1,5 +1,6 @@
 // The index strip's choices and the user's pick (design 7.7): one to four of four indices, kept
-// in profile storage as `indexStrip`. Pure helpers plus the load and save.
+// in profile storage as `indexStrip`, and whether the strip is open (`indexStripOpen`, design
+// 17.1). Pure helpers plus the loads and saves.
 import { z } from 'zod'
 import type { ProfileStorage } from '~/core/config/storage'
 
@@ -44,3 +45,13 @@ export async function loadIndexStrip(s: ProfileStorage): Promise<string[]> {
 
 export const saveIndexStrip = (s: ProfileStorage, strip: readonly string[]): Promise<void> =>
   s.setJSON(NAME, strip)
+
+const OPEN = 'indexStripOpen'
+
+/** Whether the strip shows its chips; open unless the user collapsed it. */
+export async function loadIndexStripOpen(s: ProfileStorage): Promise<boolean> {
+  return (await s.getJSON(OPEN, z.boolean())) ?? true
+}
+
+export const saveIndexStripOpen = (s: ProfileStorage, open: boolean): Promise<void> =>
+  s.setJSON(OPEN, open)

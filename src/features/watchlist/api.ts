@@ -1,7 +1,7 @@
 // The watchlist's one REST call: a snapshot on each focus, so a row shows a price before the
 // first tick. After that the socket (or the polling engine) keeps it current. The snapshot also
 // finds the contracts the server does not list (RF 1).
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from 'zustand'
 import { ApiError } from '~/core/http/errors'
 import { MultiQuotesSchema } from '~/core/http/schemas'
@@ -17,6 +17,7 @@ import {
   type Reduced,
   setActive,
   type WatchItem,
+  type WatchList,
   type Watchlists,
 } from '~/market/watchlists/model'
 
@@ -27,9 +28,13 @@ import {
  * old or the set is cleared (the broker session turns active, or a new IST day). A seed of
  * several symbols that the server refuses every one of looks like its symbol table being
  * reloaded rather than a list of expired contracts, so those refusals are tentative: they stand
- * for minutes, not for the session. A broker failure entry marks nothing.
+ * for minutes, not for the session. A broker failure entry marks nothing. `seeded` moves on each
+ * time a seed's prices are in the store, so a sorted list can take its snapshot then.
  */
-export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlySet<string> } {
+export function useSeedQuotes(items: readonly WatchItem[]): {
+  unknown: ReadonlySet<string>
+  seeded: number
+} {
   const { api, store } = useServices()
   const { instruments, unknown } = useTrading()
   const active = useScreenActive()
@@ -37,6 +42,7 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
   const keys = useStore(unknown, (st) => st.keys)
   // a clear moves it on, so the keys it forgot are asked for again
   const epoch = useStore(unknown, (st) => st.epoch)
+  const [seeded, setSeeded] = useState(0)
   // a new array with the same symbols must not seed again
   const sig = items.map((i) => quoteKey(i.exchange, i.symbol)).join(',')
   // biome-ignore lint/correctness/useExhaustiveDependencies: `sig` stands for `items`
@@ -71,6 +77,7 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
           else if (r.data && live) store.seed(k, multiquoteToPatch(r.data), at)
         }
         refuse(refused)
+        if (live) setSeeded((n) => n + 1)
       })
       .catch((e: unknown) => {
         const v = e instanceof ApiError && e.kind === 'Validation' ? e : undefined
@@ -88,7 +95,7 @@ export function useSeedQuotes(items: readonly WatchItem[]): { unknown: ReadonlyS
       live = false
     }
   }, [active, blocked, api, store, instruments, unknown, sig, epoch])
-  return { unknown: keys }
+  return { unknown: keys, seeded }
 }
 
 /** An id no list in `w` has. */
@@ -97,6 +104,14 @@ export function newListId(w: Watchlists, now: number = Date.now()): string {
   const taken = new Set(w.lists.map((l) => l.id))
   while (taken.has(`l${n.toString(36)}`)) n++
   return `l${n.toString(36)}`
+}
+
+/** An id no group of `list` has. */
+export function newGroupId(list: WatchList, now: number = Date.now()): string {
+  let n = now
+  const taken = new Set(list.groups.map((g) => g.id))
+  while (taken.has(`g${n.toString(36)}`)) n++
+  return `g${n.toString(36)}`
 }
 
 /** Adds a list and shows it, in one save. */

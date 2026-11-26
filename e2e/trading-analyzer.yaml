@@ -13,7 +13,7 @@ appId: in.openalgo.mobile
 
 # add ITC to the watchlist: add mode stays open after a pick and ticks the row
 - tapOn:
-    id: wl-add
+    id: wl-search-add
 - tapOn:
     id: search-input
 - inputText: ITC
@@ -41,9 +41,11 @@ appId: in.openalgo.mobile
     direction: DOWN
     timeout: 15000
 
-# a LIMIT buy, reviewed as ANALYZE
+# a LIMIT buy from ITC's instrument sheet, reviewed as ANALYZE
 - tapOn:
-    id: watch-buy-NSE-ITC
+    id: watch-row-NSE-ITC
+- tapOn:
+    id: inst-buy
 - tapOn:
     id: ticket-type-LIMIT
 - tapOn:

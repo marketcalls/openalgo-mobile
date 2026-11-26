@@ -1,5 +1,6 @@
 // The search modal. Browse mode opens the instrument sheet; add mode (`addTo` = a list id)
-// adds the symbol to that list. Chips narrow the search to one exchange.
+// adds the symbol to that list, and each row's trailing button opens its sheet instead. Chips
+// narrow the search to one exchange.
 import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
 import { FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
@@ -48,9 +49,12 @@ export function SearchScreen({ addTo }: { addTo?: string }) {
   }, [addTo, watchlists])
   const list = useWatchlists((w) => w.lists.find((l) => l.id === addTo))
 
+  const open = (exchange: string, symbol: string) =>
+    router.replace(instrumentHref(exchange, symbol) as never)
+
   const onPick = async (exchange: string, symbol: string) => {
     if (addTo === undefined) {
-      router.replace(instrumentHref(exchange, symbol) as never)
+      open(exchange, symbol)
       return
     }
     if (!watchlists.getState().loaded) await watchlists.getState().load()
@@ -85,6 +89,7 @@ export function SearchScreen({ addTo }: { addTo?: string }) {
               (i) => i.exchange === item.exchange && i.symbol === item.symbol,
             )}
             onPress={() => void onPick(item.exchange, item.symbol)}
+            onOpen={addTo === undefined ? undefined : () => open(item.exchange, item.symbol)}
           />
         )}
       />

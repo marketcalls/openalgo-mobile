@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { AccessibilityInfo, Alert, type AlertButton } from 'react-native'
 import { profileStorage } from '~/core/config/storage'
@@ -11,13 +12,15 @@ import { TickStoreContext } from '~/core/realtime/useQuote'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
-import { instrumentHref, searchHref, ticketHref } from '~/market/links'
+import { instrumentHref, searchHref } from '~/market/links'
 import { TradingProvider } from '~/market/trading'
 import { DEFAULT_WATCHLISTS, type Watchlists, WatchlistsSchema } from '~/market/watchlists/model'
 import { loadWatchlists, saveWatchlists } from '~/market/watchlists/store'
 import { ToastHost } from '~/ui/Toast'
+import { buildTheme } from '~/ui/theme'
+import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { newListId, useSeedQuotes } from './api'
+import { newGroupId, newListId, useSeedQuotes } from './api'
 import { WatchRow } from './components/WatchRow'
 import { WatchlistScreen } from './screens/WatchlistScreen'
 
@@ -42,6 +45,7 @@ const GONE =
 const TIMED_OUT = "HTTPSConnectionPool(host='api.example.com', port=443): Read timed out."
 
 beforeEach(() => {
+  keepExpectedLogs()
   jest.useFakeTimers()
   screenActive.mockReturnValue(true)
   useConnection.getState().reset()
@@ -55,12 +59,20 @@ afterEach(() => {
 
 type Sym = { symbol: string; exchange: string }
 type Call = (id: string, body: { symbols?: Sym[] } & Record<string, unknown>) => Promise<unknown>
+type BookRow = { symbol: string; exchange: string; product: string; quantity: number }
 
 /** multiquotes answers every symbol with a price, unless a test scripts the reply. */
 const priced: Call = async (_id, body) =>
   (body.symbols ?? []).map((s) => ({ ...s, data: { ltp: 1500, prev_close: 1490 } }))
 
-const setup = (o: { live?: boolean; call?: Call; seed?: Record<string, string> } = {}) => {
+const setup = (
+  o: {
+    live?: boolean
+    call?: Call
+    seed?: Record<string, string>
+    books?: { holdings?: BookRow[]; positions?: BookRow[] }
+  } = {},
+) => {
   let pending: (() => void) | null = null
   const store = createTickStore((fn) => {
     pending = fn
@@ -71,7 +83,13 @@ const setup = (o: { live?: boolean; call?: Call; seed?: Record<string, string> }
       pending = null
       f?.()
     })
-  const call = jest.fn(o.call ?? priced)
+  const quotes = o.call ?? priced
+  // The holdings marker's books, in their parsed shapes; every other id goes to `quotes`.
+  const call = jest.fn(async (id: string, body: { symbols?: Sym[] } & Record<string, unknown>) => {
+    if (id === 'holdings') return { rows: o.books?.holdings ?? [], stats: {}, dropped: 0 }
+    if (id === 'positionbook') return { rows: o.books?.positions ?? [], dropped: 0 }
+    return quotes(id, body)
+  })
   const api = { call } as unknown as Services['api']
   const kv = memoryKV(o.seed)
   const polling = createPollingEngine({
@@ -93,30 +111,39 @@ const setup = (o: { live?: boolean; call?: Call; seed?: Record<string, string> }
     confirmedDepth: () => undefined,
   }
   const live = { realtime, polling, store } as unknown as LiveServices
+  // no gc timer: it would hold the test process open
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+  })
   const services = {
     api,
     store,
+    queryClient,
     storage: profileStorage(kv, 'p1'),
     profile: { get: () => ({ id: 'p1', restOrigin: ORIGIN }) },
     orderEvents: createOrderEventBus(),
   } as unknown as Services
   const wrap = (ui: React.ReactElement) => (
     <ServicesProvider value={services}>
-      <TradingProvider now={Date.now}>
-        <TickStoreContext.Provider value={store}>
-          <LiveContext.Provider value={live}>
-            {ui}
-            <ToastHost />
-          </LiveContext.Provider>
-        </TickStoreContext.Provider>
-      </TradingProvider>
+      <QueryClientProvider client={queryClient}>
+        <TradingProvider now={Date.now}>
+          <TickStoreContext.Provider value={store}>
+            <LiveContext.Provider value={live}>
+              {ui}
+              <ToastHost />
+            </LiveContext.Provider>
+          </TickStoreContext.Provider>
+        </TradingProvider>
+      </QueryClientProvider>
     </ServicesProvider>
   )
   const count = (id: string) => call.mock.calls.filter((c) => c[0] === id).length
   const saved = (): Watchlists =>
     WatchlistsSchema.parse(JSON.parse(kv.data.get('oa.p1.watchlists') ?? 'null'))
   const holds = (k: string) => held.get(k) ?? 0
-  return { store, flush, call, count, wrap, polling, holds, kv, saved }
+  /** The multiquotes requests' bodies, in order. */
+  const seeds = () => call.mock.calls.filter((c) => c[0] === 'multiquotes').map((c) => c[1])
+  return { store, flush, call, count, wrap, polling, holds, kv, saved, seeds }
 }
 
 /** Lets the storage reads, the seed and the store writes finish. */
@@ -134,6 +161,34 @@ const later = (ms: number) =>
 const lists = (...ls: { id: string; name: string; items: Sym[] }[]): Record<string, string> => ({
   'oa.p1.watchlists': JSON.stringify({ version: 1, activeId: ls[0]?.id, lists: ls }),
 })
+
+/** The default list's symbols, as added. */
+const DEFAULT_ORDER = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'SBIN', 'NIFTY']
+
+/** The rows' symbols, top to bottom. */
+const symbols = () =>
+  screen
+    .getAllByTestId(/^watch-row-/)
+    .map((n) => String(n.props.testID).replace(/^watch-row-[A-Z_]+-/, ''))
+
+/** The rows and group headers, top to bottom, by testID. */
+const layout = () =>
+  screen.getAllByTestId(/^(watch-row-|wl-group-\d+$)/).map((n) => String(n.props.testID))
+
+/**
+ * Leaves the screen and comes back (the instrument sheet opened and closed). Each render gets a
+ * new element: React would skip one it has already rendered.
+ */
+const refocus = async (
+  rerender: (ui: React.ReactElement) => Promise<unknown>,
+  ui: () => React.ReactElement,
+) => {
+  screenActive.mockReturnValue(false)
+  await rerender(ui())
+  screenActive.mockReturnValue(true)
+  await rerender(ui())
+  await settle()
+}
 
 const ITEMS = [{ exchange: 'NSE', symbol: 'RELIANCE' }]
 let seeded: ReadonlySet<string> = new Set()
@@ -280,36 +335,35 @@ describe('WatchRow', () => {
     expect(screen.queryByTestId('watch-flash-NSE-RELIANCE')).toBeNull()
   })
 
-  test('B and S open the ticket for BUY and SELL; a row press opens the instrument', async () => {
+  test('a row has no B/S; a press opens the instrument sheet', async () => {
     const h = setup()
     await render(h.wrap(<WatchRow exchange="NSE" symbol="RELIANCE" reduceMotion />))
-    await fireEvent.press(screen.getByTestId('watch-buy-NSE-RELIANCE'))
-    expect(mockPush).toHaveBeenLastCalledWith('/order/new?exchange=NSE&symbol=RELIANCE&action=BUY')
-    await fireEvent.press(screen.getByTestId('watch-sell-NSE-RELIANCE'))
-    expect(mockPush).toHaveBeenLastCalledWith(
-      ticketHref({ exchange: 'NSE', symbol: 'RELIANCE', action: 'SELL' }),
-    )
+    expect(screen.queryByTestId('watch-buy-NSE-RELIANCE')).toBeNull()
+    expect(screen.queryByTestId('watch-sell-NSE-RELIANCE')).toBeNull()
+    expect(screen.getByTestId('watch-ex-NSE-RELIANCE')).toHaveTextContent('NSE')
     await fireEvent.press(screen.getByTestId('watch-row-NSE-RELIANCE'))
-    expect(mockPush).toHaveBeenLastCalledWith(instrumentHref('NSE', 'RELIANCE'))
-    expect(mockPush).toHaveBeenCalledTimes(3)
+    expect(mockPush).toHaveBeenCalledWith(instrumentHref('NSE', 'RELIANCE'))
+    expect(mockPush).toHaveBeenCalledTimes(1)
   })
 
-  test('a quote-only index has no B/S', async () => {
+  test('NIFTY shows INDICES under its symbol', async () => {
     const h = setup()
     await render(h.wrap(<WatchRow exchange="NSE_INDEX" symbol="NIFTY" reduceMotion />))
-    expect(screen.getByTestId('watch-row-NSE_INDEX-NIFTY')).toBeOnTheScreen()
-    expect(screen.queryByTestId('watch-buy-NSE_INDEX-NIFTY')).toBeNull()
-    expect(screen.queryByTestId('watch-sell-NSE_INDEX-NIFTY')).toBeNull()
+    expect(screen.getByTestId('watch-ex-NSE_INDEX-NIFTY')).toHaveTextContent('INDICES')
+    expect(screen.queryByTestId('watch-held-NSE_INDEX-NIFTY')).toBeNull()
   })
 
-  test('while the broker is logged out, B/S are disabled', async () => {
+  test('the price is in the colour of the day change', async () => {
     const h = setup()
-    useConnection.getState().set({ brokerSession: 'logged_out' })
+    const { trade, c } = buildTheme('dark')
     await render(h.wrap(<WatchRow exchange="NSE" symbol="RELIANCE" reduceMotion />))
-    expect(screen.getByTestId('watch-buy-NSE-RELIANCE')).toBeDisabled()
-    expect(screen.getByTestId('watch-sell-NSE-RELIANCE')).toBeDisabled()
-    await fireEvent.press(screen.getByTestId('watch-buy-NSE-RELIANCE'))
-    expect(mockPush).not.toHaveBeenCalled()
+    const ltp = () => screen.getByTestId('watch-ltp-NSE-RELIANCE')
+    await tick(h, 1500)
+    expect(ltp()).toHaveStyle({ color: trade.profit })
+    await tick(h, 1480)
+    expect(ltp()).toHaveStyle({ color: trade.loss })
+    await tick(h, 1490)
+    expect(ltp()).toHaveStyle({ color: c.foreground })
   })
 })
 
@@ -325,6 +379,17 @@ describe('newListId', () => {
       ],
     }
     expect(newListId(taken, t)).toBe(`l${(t + 1).toString(36)}`)
+  })
+})
+
+describe('newGroupId', () => {
+  test('an id from the time with the g prefix, moved on past any group of the list that has it', () => {
+    const t = 1_764_000_000_000
+    const list = DEFAULT_WATCHLISTS.lists[0]
+    if (!list) throw new Error('no default list')
+    expect(newGroupId(list, t)).toBe(`g${t.toString(36)}`)
+    const taken = { ...list, groups: [{ id: `g${t.toString(36)}`, name: 'Banks' }] }
+    expect(newGroupId(taken, t)).toBe(`g${(t + 1).toString(36)}`)
   })
 })
 
@@ -412,22 +477,34 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId('index-strip')).toBeOnTheScreen()
   })
 
-  test('lists the default symbols and, with a live feed, makes no REST call after the seed', async () => {
+  test('a focus reads one multiquotes, holdings and positionbook, then nothing; a refocus within 60 s reads only multiquotes', async () => {
     const h = setup({ live: true })
-    await render(h.wrap(<WatchlistScreen />))
+    const ui = () => h.wrap(<WatchlistScreen />)
+    const { rerender } = await render(ui())
     await settle()
     expect(screen.getByTestId('watch-row-NSE-RELIANCE')).toBeTruthy()
     expect(screen.getByTestId('watch-row-NSE_INDEX-NIFTY')).toBeTruthy()
     expect(h.kv.data.has('oa.p1.watchlists')).toBe(true)
-    expect(h.call).toHaveBeenCalledTimes(1) // the seed
-    expect(h.call.mock.calls[0]?.[1]).toEqual({
+    expect(h.count('multiquotes')).toBe(1)
+    expect(h.count('holdings')).toBe(1)
+    expect(h.count('positionbook')).toBe(1)
+    expect(h.call).toHaveBeenCalledTimes(3)
+    expect(h.seeds()[0]).toEqual({
       symbols: DEFAULT_WATCHLISTS.lists[0]?.items.map((i) => ({
         symbol: i.symbol,
         exchange: i.exchange,
       })),
     })
-    await later(10_000)
-    expect(h.call).toHaveBeenCalledTimes(1)
+    await later(30_000)
+    expect(h.call).toHaveBeenCalledTimes(3)
+    // the instrument sheet opened and closed twice, within the books' 60 s
+    await refocus(rerender, ui)
+    await later(5_000)
+    await refocus(rerender, ui)
+    await later(5_000)
+    expect(h.count('multiquotes')).toBe(3)
+    expect(h.count('holdings')).toBe(1)
+    expect(h.count('positionbook')).toBe(1)
   })
 
   test('waits for the saved lists: the seed asks for the saved list, never the defaults', async () => {
@@ -436,40 +513,192 @@ describe('WatchlistScreen', () => {
     })
     await render(h.wrap(<WatchlistScreen />))
     await settle()
-    expect(h.call).toHaveBeenCalledTimes(1)
-    expect(h.call.mock.calls[0]?.[1]).toEqual({ symbols: [{ symbol: 'ITC', exchange: 'NSE' }] })
+    expect(h.seeds()).toEqual([{ symbols: [{ symbol: 'ITC', exchange: 'NSE' }] }])
     expect(screen.getByTestId('watch-row-NSE-ITC')).toBeOnTheScreen()
     expect(screen.queryByTestId('watch-row-NSE-RELIANCE')).toBeNull()
   })
 
-  test('B on RELIANCE opens the BUY ticket; NIFTY has no B/S', async () => {
+  test('wl-search-add opens search to add to the active list', async () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
     await settle()
-    await fireEvent.press(screen.getByTestId('watch-buy-NSE-RELIANCE'))
-    expect(mockPush).toHaveBeenCalledWith(
-      ticketHref({ exchange: 'NSE', symbol: 'RELIANCE', action: 'BUY' }),
-    )
-    expect(screen.queryByTestId('watch-buy-NSE_INDEX-NIFTY')).toBeNull()
-    expect(screen.queryByTestId('watch-sell-NSE_INDEX-NIFTY')).toBeNull()
-  })
-
-  test('wl-search opens search in browse mode, where a result opens the instrument sheet', async () => {
-    const h = setup()
-    await render(h.wrap(<WatchlistScreen />))
-    await settle()
-    await fireEvent.press(screen.getByTestId('wl-search'))
-    expect(mockPush).toHaveBeenCalledWith(searchHref())
-    expect(mockPush).toHaveBeenCalledWith('/search')
-  })
-
-  test('wl-add opens search to add to the active list', async () => {
-    const h = setup()
-    await render(h.wrap(<WatchlistScreen />))
-    await settle()
-    await fireEvent.press(screen.getByTestId('wl-add'))
+    expect(screen.queryByTestId('wl-search')).toBeNull()
+    expect(screen.queryByTestId('wl-add')).toBeNull()
+    await fireEvent.press(screen.getByTestId('wl-search-add'))
     expect(mockPush).toHaveBeenCalledWith(searchHref({ addTo: 'default' }))
     expect(mockPush).toHaveBeenCalledWith('/search?addTo=default')
+  })
+
+  test('wl-count reads 7/250 for the defaults, and the active tab is underlined', async () => {
+    const h = setup()
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.getByTestId('wl-count')).toHaveTextContent('7/250')
+    const tab = screen.getByTestId('wl-tab-default')
+    expect(tab).toBeSelected()
+    expect(tab).toHaveStyle({
+      borderBottomWidth: 2,
+      borderBottomColor: buildTheme('dark').c.primary,
+    })
+    expect(tab).toHaveTextContent('Watchlist')
+  })
+
+  test('holdings RELIANCE 10, a short TCS -50 and a closed INFY: the marker shows 10 and -50, none for INFY', async () => {
+    const h = setup({
+      books: {
+        holdings: [{ symbol: 'RELIANCE', exchange: 'NSE', product: 'CNC', quantity: 10 }],
+        positions: [
+          { symbol: 'TCS', exchange: 'NSE', product: 'MIS', quantity: -50 },
+          { symbol: 'INFY', exchange: 'NSE', product: 'MIS', quantity: 0 },
+        ],
+      },
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    // react-query tells its observers from a 0 ms timer
+    await later(1)
+    expect(screen.getByTestId('watch-held-NSE-RELIANCE')).toHaveTextContent('10')
+    expect(screen.getByTestId('watch-held-NSE-TCS')).toHaveTextContent('-50')
+    expect(screen.queryByTestId('watch-held-NSE-INFY')).toBeNull()
+    expect(screen.queryByTestId('watch-held-NSE-SBIN')).toBeNull()
+    // and the seeded price, up on the day, is in the profit colour
+    await h.flush()
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toHaveStyle({
+      color: buildTheme('dark').trade.profit,
+    })
+  })
+
+  test('wl-sort then wl-sort-AZ orders the rows by symbol and saves the sort', async () => {
+    const h = setup()
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    await fireEvent.press(screen.getByTestId('wl-sort'))
+    expect(screen.getByTestId('wl-sort-ADDED')).toBeChecked()
+    await fireEvent.press(screen.getByTestId('wl-sort-AZ'))
+    await settle()
+    expect(screen.queryByTestId('wl-sort-AZ')).toBeNull()
+    expect(symbols()).toEqual(['HDFCBANK', 'ICICIBANK', 'INFY', 'NIFTY', 'RELIANCE', 'SBIN', 'TCS'])
+    expect(h.saved().lists[0]?.sort).toBe('az')
+    expect(h.saved().lists[0]?.items.map((i) => i.symbol)).toEqual(DEFAULT_ORDER)
+  })
+
+  test('a % change sort is a snapshot: a tick that would reorder waits for the next focus', async () => {
+    const ltp: Record<string, number> = {}
+    const h = setup({
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) => ({
+          ...s,
+          data: { ltp: ltp[s.symbol] ?? 1500, prev_close: 1490 },
+        })),
+    })
+    const ui = () => h.wrap(<WatchlistScreen />)
+    const { rerender } = await render(ui())
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-sort'))
+    await fireEvent.press(screen.getByTestId('wl-sort-CHANGE'))
+    await settle()
+    expect(h.saved().lists[0]?.sort).toBe('change')
+    // every symbol is up 0.67%: ties keep the added order
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    ltp.SBIN = 1600
+    ltp.TCS = 1400
+    await act(async () => {
+      h.store.put('NSE:SBIN', { ltp: 1600, close: 1490 }, 'ws')
+      h.store.put('NSE:TCS', { ltp: 1400, close: 1490 }, 'ws')
+    })
+    await h.flush()
+    expect(screen.getByTestId('watch-ltp-NSE-SBIN')).toHaveTextContent('1,600.00')
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    // nor does a render that is not a focus
+    await rerender(ui())
+    await settle()
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    await refocus(rerender, ui)
+    expect(symbols()).toEqual(['SBIN', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'NIFTY', 'TCS'])
+  })
+
+  test('a sort chosen at the last session applies once the first seed lands', async () => {
+    const h = setup({
+      seed: {
+        'oa.p1.watchlists': JSON.stringify({
+          version: 2,
+          activeId: 'a',
+          lists: [
+            {
+              id: 'a',
+              name: 'Mine',
+              sort: 'ltp',
+              groups: [],
+              items: [
+                { exchange: 'NSE', symbol: 'ITC' },
+                { exchange: 'NSE', symbol: 'SBIN' },
+              ],
+            },
+          ],
+        }),
+      },
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) => ({
+          ...s,
+          data: { ltp: s.symbol === 'SBIN' ? 800 : 400, prev_close: 390 },
+        })),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(symbols()).toEqual(['SBIN', 'ITC'])
+  })
+
+  test('wl-manage then wl-list-down-0 reorders the lists and saves', async () => {
+    const h = setup({
+      seed: lists(
+        { id: 'a', name: 'One', items: [{ exchange: 'NSE', symbol: 'ITC' }] },
+        { id: 'b', name: 'Two', items: [{ exchange: 'NSE', symbol: 'SBIN' }] },
+      ),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-manage'))
+    expect(screen.getByTestId('wl-list-0')).toHaveTextContent(/One/)
+    expect(screen.getByTestId('wl-list-up-0')).toBeDisabled()
+    expect(screen.getByTestId('wl-list-down-1')).toBeDisabled()
+    await fireEvent.press(screen.getByTestId('wl-list-down-0'))
+    await settle()
+    expect(h.saved().lists.map((l) => l.id)).toEqual(['b', 'a'])
+    expect(screen.getByTestId('wl-list-0')).toHaveTextContent(/Two/)
+    const tabs = screen.getAllByTestId(/^wl-tab-/).map((n) => n.props.testID)
+    expect(tabs).toEqual(['wl-tab-b', 'wl-tab-a'])
+    // the active list stays the one shown
+    expect(screen.getByTestId('wl-tab-a')).toBeSelected()
+    await fireEvent.press(screen.getByTestId('wl-manage-done'))
+    expect(screen.queryByTestId('wl-list-0')).toBeNull()
+  })
+
+  test('the manage sheet renames and deletes a list; the last list has no delete there', async () => {
+    const h = setup({
+      seed: lists(
+        { id: 'a', name: 'One', items: [{ exchange: 'NSE', symbol: 'ITC' }] },
+        { id: 'b', name: 'Two', items: [{ exchange: 'NSE', symbol: 'SBIN' }] },
+      ),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-manage'))
+    await fireEvent.press(screen.getByTestId('wl-list-rename-1'))
+    expect(screen.getByTestId('wl-name-input').props.value).toBe('Two')
+    await fireEvent.changeText(screen.getByTestId('wl-name-input'), 'Swing')
+    await fireEvent.press(screen.getByTestId('wl-name-save'))
+    await settle()
+    expect(h.saved().lists.map((l) => l.name)).toEqual(['One', 'Swing'])
+    // back to the lists, still in the sheet
+    expect(screen.getByTestId('wl-list-1')).toHaveTextContent(/Swing/)
+
+    const confirmed = answerAlert('Delete')
+    await fireEvent.press(screen.getByTestId('wl-list-delete-1'))
+    await settle()
+    expect(confirmed.mock.calls[0]?.[0]).toBe('Delete Swing and its 1 symbol?')
+    expect(h.saved().lists.map((l) => l.id)).toEqual(['a'])
+    expect(screen.getByTestId('wl-list-delete-0')).toBeDisabled()
   })
 
   test('the remove action confirms, removes and saves', async () => {
@@ -521,15 +750,17 @@ describe('WatchlistScreen', () => {
     expect(h.saved().lists[0]?.items.map((i) => i.symbol)).not.toContain('INFY')
   })
 
-  test('edit mode moves rows up and down and saves; B/S give way to the controls', async () => {
+  test('edit mode moves rows up and down and saves; regrouping needs a group', async () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
     await settle()
     expect(screen.queryByTestId('wl-up-NSE-TCS')).toBeNull()
+    expect(screen.queryByTestId('wl-new-group')).toBeNull()
     await fireEvent.press(screen.getByTestId('wl-edit'))
-    expect(screen.queryByTestId('watch-buy-NSE-RELIANCE')).toBeNull()
     expect(screen.getByTestId('wl-up-NSE-RELIANCE')).toBeDisabled()
     expect(screen.getByTestId('wl-down-NSE_INDEX-NIFTY')).toBeDisabled()
+    expect(screen.queryByTestId('wl-regroup-NSE-TCS')).toBeNull()
+    expect(screen.getByTestId('wl-new-group')).toBeOnTheScreen()
 
     await fireEvent.press(screen.getByTestId('wl-up-NSE-TCS'))
     await settle()
@@ -548,15 +779,145 @@ describe('WatchlistScreen', () => {
 
     await fireEvent.press(screen.getByTestId('wl-edit'))
     expect(screen.queryByTestId('wl-up-NSE-TCS')).toBeNull()
-    expect(screen.getByTestId('watch-buy-NSE-RELIANCE')).toBeOnTheScreen()
+    expect(screen.queryByTestId('wl-new-group')).toBeNull()
   })
 
-  test('wl-new asks for a name; the new list appears, becomes active and starts empty', async () => {
+  test('in edit mode, wl-new-group named Banks shows wl-group-0; wl-regroup then wl-move-0 puts HDFCBANK under it', async () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
     await settle()
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    await fireEvent.press(screen.getByTestId('wl-new-group'))
+    expect(screen.getByText('New group')).toBeOnTheScreen()
+    expect(screen.getByTestId('wl-name-input').props.value).toBe('')
+    await fireEvent.changeText(screen.getByTestId('wl-name-input'), 'Banks')
+    await fireEvent.press(screen.getByTestId('wl-name-save'))
+    await settle()
+    expect(screen.queryByTestId('wl-name-input')).toBeNull()
+    expect(screen.getByTestId('wl-group-0')).toHaveTextContent(/Banks/)
+    const group = h.saved().lists[0]?.groups[0]
+    expect(group?.name).toBe('Banks')
+    expect(group?.id).toMatch(/^g/)
+
+    await fireEvent.press(screen.getByTestId('wl-regroup-NSE-HDFCBANK'))
+    expect(screen.getByTestId('wl-move-none')).toBeChecked()
+    await fireEvent.press(screen.getByTestId('wl-move-0'))
+    await settle()
+    expect(screen.queryByTestId('wl-move-0')).toBeNull()
+    const saved = h.saved().lists[0]?.items.find((i) => i.symbol === 'HDFCBANK')
+    expect(saved).toEqual({ exchange: 'NSE', symbol: 'HDFCBANK', group: group?.id })
+    expect(layout().slice(-2)).toEqual(['wl-group-0', 'watch-row-NSE-HDFCBANK'])
+    expect(screen.getByTestId('wl-group-0')).toHaveTextContent(/1/)
+    // alone in its group, it cannot move up or down
+    expect(screen.getByTestId('wl-up-NSE-HDFCBANK')).toBeDisabled()
+    expect(screen.getByTestId('wl-down-NSE-HDFCBANK')).toBeDisabled()
+    // NIFTY is now the last ungrouped row
+    expect(screen.getByTestId('wl-down-NSE_INDEX-NIFTY')).toBeDisabled()
+  })
+
+  test('a stored list with groups shows them after the ungrouped rows; groups reorder, and Delete keeps their symbols', async () => {
+    const h = setup({
+      seed: {
+        'oa.p1.watchlists': JSON.stringify({
+          version: 2,
+          activeId: 'a',
+          lists: [
+            {
+              id: 'a',
+              name: 'Mine',
+              sort: 'added',
+              groups: [
+                { id: 'g1', name: 'Banks' },
+                { id: 'g2', name: 'IT' },
+              ],
+              items: [
+                { exchange: 'NSE', symbol: 'HDFCBANK', group: 'g1' },
+                { exchange: 'NSE', symbol: 'TCS', group: 'g2' },
+                { exchange: 'NSE', symbol: 'ITC' },
+              ],
+            },
+          ],
+        }),
+      },
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(layout()).toEqual([
+      'watch-row-NSE-ITC',
+      'wl-group-0',
+      'watch-row-NSE-HDFCBANK',
+      'wl-group-1',
+      'watch-row-NSE-TCS',
+    ])
+    expect(screen.getByTestId('wl-group-0')).toHaveTextContent(/Banks/)
+    expect(screen.queryByTestId('wl-group-menu-0')).toBeNull()
+
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    expect(screen.getByTestId('wl-group-up-0')).toBeDisabled()
+    expect(screen.getByTestId('wl-group-down-1')).toBeDisabled()
+    await fireEvent.press(screen.getByTestId('wl-group-down-0'))
+    await settle()
+    expect(h.saved().lists[0]?.groups.map((g) => g.id)).toEqual(['g2', 'g1'])
+    expect(screen.getByTestId('wl-group-1')).toHaveTextContent(/Banks/)
+
+    answerAlert('Delete')
+    const confirmed = answerAlert('Delete')
+    await fireEvent.press(screen.getByTestId('wl-group-menu-1'))
+    await settle()
+    expect(confirmed.mock.calls.at(-1)?.slice(0, 2)).toEqual([
+      'Delete group Banks?',
+      'Its symbols stay in the list.',
+    ])
+    const doc = h.saved().lists[0]
+    expect(doc?.groups.map((g) => g.id)).toEqual(['g2'])
+    expect(doc?.items.find((i) => i.symbol === 'HDFCBANK')).toEqual({
+      exchange: 'NSE',
+      symbol: 'HDFCBANK',
+    })
+    expect(screen.getByTestId('watch-row-NSE-HDFCBANK')).toBeOnTheScreen()
+    expect(screen.queryByTestId('wl-group-1')).toBeNull()
+  })
+
+  test('a group menu renames the group', async () => {
+    const h = setup({
+      seed: {
+        'oa.p1.watchlists': JSON.stringify({
+          version: 2,
+          activeId: 'a',
+          lists: [
+            {
+              id: 'a',
+              name: 'Mine',
+              sort: 'added',
+              groups: [{ id: 'g1', name: 'Banks' }],
+              items: [{ exchange: 'NSE', symbol: 'HDFCBANK', group: 'g1' }],
+            },
+          ],
+        }),
+      },
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    answerAlert('Rename')
+    await fireEvent.press(screen.getByTestId('wl-group-menu-0'))
+    expect(screen.getByText('Rename group')).toBeOnTheScreen()
+    expect(screen.getByTestId('wl-name-input').props.value).toBe('Banks')
+    await fireEvent.changeText(screen.getByTestId('wl-name-input'), 'Lenders')
+    await fireEvent.press(screen.getByTestId('wl-name-save'))
+    await settle()
+    expect(h.saved().lists[0]?.groups).toEqual([{ id: 'g1', name: 'Lenders' }])
+    expect(screen.getByTestId('wl-group-0')).toHaveTextContent(/Lenders/)
+  })
+
+  test('wl-new asks for a name, prefilled; the new list appears, becomes active and starts empty', async () => {
+    const h = setup()
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.queryByTestId('wl-new')).toBeNull()
+    await fireEvent.press(screen.getByTestId('wl-manage'))
     await fireEvent.press(screen.getByTestId('wl-new'))
-    expect(screen.getByTestId('wl-name-save')).toBeDisabled()
+    expect(screen.getByTestId('wl-name-input').props.value).toBe('Watchlist 2')
     await fireEvent.changeText(screen.getByTestId('wl-name-input'), '  Swing  ')
     await fireEvent.press(screen.getByTestId('wl-name-save'))
     await settle()
@@ -569,7 +930,10 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId(`wl-tab-${id}`)).toBeSelected()
     expect(screen.getByTestId('wl-tab-default')).not.toBeSelected()
     expect(screen.queryByTestId('wl-name-input')).toBeNull()
+    // the sheet closed on the new list
+    expect(screen.queryByTestId('wl-manage-done')).toBeNull()
     expect(screen.getByText('This list is empty')).toBeOnTheScreen()
+    expect(screen.getByTestId('wl-count')).toHaveTextContent('0/250')
     await fireEvent.press(screen.getByTestId('wl-empty-add'))
     expect(mockPush).toHaveBeenCalledWith(searchHref({ addTo: id }))
   })
@@ -590,28 +954,31 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId('watch-row-NSE-SBIN')).toBeOnTheScreen()
     expect(screen.queryByTestId('watch-row-NSE-ITC')).toBeNull()
     expect(h.saved().activeId).toBe('b')
-    expect(h.call.mock.calls.at(-1)?.[1]).toEqual({
-      symbols: [{ symbol: 'SBIN', exchange: 'NSE' }],
-    })
+    expect(h.seeds().at(-1)).toEqual({ symbols: [{ symbol: 'SBIN', exchange: 'NSE' }] })
   })
 
   test('cancelling the name changes nothing; at 50 lists wl-new says so instead', async () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
     await settle()
+    await fireEvent.press(screen.getByTestId('wl-manage'))
     await fireEvent.press(screen.getByTestId('wl-new'))
     await fireEvent.changeText(screen.getByTestId('wl-name-input'), 'Swing')
     await fireEvent.press(screen.getByTestId('wl-name-cancel'))
     await settle()
     expect(screen.queryByTestId('wl-name-input')).toBeNull()
+    expect(screen.getByTestId('wl-list-0')).toBeOnTheScreen()
     expect(h.saved().lists).toHaveLength(1)
 
     const full = Array.from({ length: 50 }, (_, i) => ({ id: `l${i}`, name: `L${i}`, items: [] }))
     const f = setup({ seed: lists(...full) })
     await render(f.wrap(<WatchlistScreen />))
     await settle()
+    await fireEvent.press(screen.getByTestId('wl-manage'))
     await fireEvent.press(screen.getByTestId('wl-new'))
     expect(screen.queryByTestId('wl-name-input')).toBeNull()
+    // closed, so the toast is not hidden under it
+    expect(screen.queryByTestId('wl-manage-done')).toBeNull()
     expect(screen.getByTestId('toast')).toHaveTextContent('You can keep up to 50 lists.')
   })
 
@@ -619,6 +986,7 @@ describe('WatchlistScreen', () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
     await settle()
+    const warned = expectLog('warn', /could not save the lists/)
     h.kv.set = async () => {
       throw new Error('disk full')
     }
@@ -629,6 +997,7 @@ describe('WatchlistScreen', () => {
     await settle()
     expect(screen.getByTestId('toast')).toHaveTextContent('Could not save your lists. Try again.')
     expect(screen.getByTestId('watch-row-NSE-TCS')).toBeOnTheScreen()
+    expect(warned).toHaveLength(1)
   })
 
   test('a long press renames a list', async () => {
@@ -683,7 +1052,7 @@ describe('WatchlistScreen', () => {
     expect(h.saved().lists).toHaveLength(1)
   })
 
-  test('a multiquotes error entry shows "Expired or unknown", with no B/S and no /symbol call', async () => {
+  test('a multiquotes error entry shows "Expired or unknown", with no price and no /symbol call', async () => {
     const h = setup({
       seed: lists({
         id: 'a',
@@ -703,10 +1072,8 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId('watch-row-NFO-NIFTY25NOV25FUT')).toHaveTextContent(
       /Expired or unknown/,
     )
-    expect(screen.queryByTestId('watch-buy-NFO-NIFTY25NOV25FUT')).toBeNull()
-    expect(screen.queryByTestId('watch-sell-NFO-NIFTY25NOV25FUT')).toBeNull()
     expect(screen.queryByTestId('watch-ltp-NFO-NIFTY25NOV25FUT')).toBeNull()
-    expect(screen.getByTestId('watch-buy-NSE-RELIANCE')).toBeOnTheScreen()
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toBeOnTheScreen()
     expect(screen.getByTestId('watch-row-NSE-RELIANCE')).not.toHaveTextContent(/Expired/)
     expect(h.count('symbol')).toBe(0)
     // once known, an unknown key holds no feed subscription and no poll
@@ -731,8 +1098,7 @@ describe('WatchlistScreen', () => {
     await settle()
     expect(screen.queryByTestId('watch-unknown-NSE-RELIANCE')).toBeNull()
     expect(screen.getByTestId('watch-row-NSE-RELIANCE')).not.toHaveTextContent(/Expired/)
-    expect(screen.getByTestId('watch-buy-NSE-RELIANCE')).toBeOnTheScreen()
-    expect(screen.getByTestId('watch-sell-NSE-RELIANCE')).toBeOnTheScreen()
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toBeOnTheScreen()
     // the row stays live: it holds the feed, and the next tick lands
     expect(h.holds('NSE:RELIANCE')).toBe(1)
     await tick(h, 1502.5)
@@ -767,12 +1133,12 @@ describe('WatchlistScreen', () => {
     await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
     await settle()
     expect(h.count('multiquotes')).toBe(2)
-    expect(h.call.mock.calls[1]?.[1].symbols).toContainEqual({
+    expect(h.seeds()[1]?.symbols).toContainEqual({
       symbol: 'NIFTY25NOV25FUT',
       exchange: 'NFO',
     })
     expect(screen.queryByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeNull()
-    expect(screen.getByTestId('watch-buy-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    expect(screen.getByTestId('watch-ltp-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
     await h.flush()
     expect(screen.getByTestId('watch-ltp-NFO-NIFTY25NOV25FUT')).toHaveTextContent('1,500.00')
   })
@@ -875,7 +1241,7 @@ describe('WatchlistScreen', () => {
     screenActive.mockReturnValue(true)
     await rerender(h.wrap(<WatchlistScreen />))
     await settle()
-    expect(h.call.mock.calls[1]?.[1].symbols).toEqual([{ symbol: 'RELIANCE', exchange: 'NSE' }])
+    expect(h.seeds()[1]?.symbols).toEqual([{ symbol: 'RELIANCE', exchange: 'NSE' }])
     await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
     await settle()
     expect(h.count('multiquotes')).toBe(3)
@@ -954,7 +1320,7 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId('watch-row-NFO-NIFTY25NOV25FUT')).toHaveTextContent(
       /Expired or unknown/,
     )
-    expect(screen.queryByTestId('watch-buy-NFO-NIFTY25NOV25FUT')).toBeNull()
+    expect(screen.queryByTestId('watch-ltp-NFO-NIFTY25NOV25FUT')).toBeNull()
     await later(10_000)
     expect(h.count('multiquotes')).toBe(1)
     // focusing again does not ask for it again
@@ -992,9 +1358,7 @@ describe('WatchlistScreen', () => {
     expect(screen.getByTestId('watch-row-NFO-NIFTY25NOV25FUT')).toHaveTextContent(
       /Expired or unknown/,
     )
-    expect(h.call.mock.calls.map((c) => c[1])).toEqual([
-      { symbols: [{ symbol: 'ITC', exchange: 'NSE' }] },
-    ])
+    expect(h.seeds()).toEqual([{ symbols: [{ symbol: 'ITC', exchange: 'NSE' }] }])
   })
 
   test('blocked: focusing makes zero multiquotes calls; unblocking seeds', async () => {
