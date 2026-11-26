@@ -4,8 +4,8 @@
 // live confirm when that is on, one order at a time with the 120 ms cooldown, the session's hold
 // on a new order, sent once and never again, and an outcome that may hide the order checked
 // against the order book (rulings 5). It refuses what the ticket would not send as one order
-// (above the freeze limit, preflight conflict 29), and anything while the badge cannot show the
-// mode (conflict 7) or another order's outcome is not known yet.
+// (a quote-only instrument, above the freeze limit, preflight conflict 29), and anything while
+// the badge cannot show the mode (conflict 7) or another order's outcome is not known yet.
 import { useIsFocused } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { usePrefs } from '~/core/config/prefs'
@@ -19,14 +19,14 @@ import { useIsEvented } from '~/market/books/queries'
 import type { Orderbook } from '~/market/books/schemas'
 import type { WriteOutcome } from '~/market/components/OutcomeLine'
 import { QUEUED_COPY } from '~/market/components/SessionBanners'
-import { defaultProduct } from '~/market/instruments/exchanges'
+import { defaultProduct, isQuoteOnly } from '~/market/instruments/exchanges'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { useSubmitGuard } from '~/market/orders/guard'
 import { CHECKING, modeChanged } from '~/market/orders/outcome'
 import { holdOrder, NEW_ORDER, otherOrderOut, useOtherOrderOut } from '~/market/orders/pending'
 import { placementOutcome, reconcileText, resultLine, type Sent } from '~/market/orders/result'
 import { liveSurpriseText, readMode, submitOrderAction } from '~/market/orders/submit'
-import { planOrder } from '~/market/orders/ticket'
+import { planOrder, QUOTE_ONLY_COPY } from '~/market/orders/ticket'
 import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useReviewBook } from '~/market/orders/useReviewBook'
 import { useTrading } from '~/market/trading'
@@ -113,6 +113,10 @@ export function useOneTap() {
       setSemiBlocked(null)
       setLiveSurprise(null)
       setOutcome(null)
+      // What the ticket refuses first (`validateTicket`), on the same exchange test. The page
+      // hides BUY and SELL on an index, but the bridge is not trusted, and the server would take
+      // the order: its VALID_EXCHANGES lists the index exchanges (utils/constants.py at c8b2896).
+      if (meta.quoteOnly || isQuoteOnly(inst.exchange)) return refuse(QUOTE_ONLY_COPY)
       const conn = useConnection.getState()
       const blocked = blockedReason(conn)
       if (blocked !== null) return refuse(blocked)

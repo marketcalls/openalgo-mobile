@@ -32,6 +32,10 @@ export type TicketIssue =
   | 'split_too_large'
   | 'split_unavailable'
 
+/** Why a quote-only (index) instrument has no order: the ticket's words, one-tap's too. */
+export const QUOTE_ONLY_COPY =
+  "Indices can't be traded. Open the futures or options contract instead."
+
 /**
  * How the order goes out. A split names the child size the server is asked for and the
  * children it will make; `orders` counts them. Above 100 the server refuses the split, and
@@ -177,7 +181,7 @@ export type IssueContext = { ticket: TicketState; meta: InstrumentMeta | 'unknow
 export function issueText(issue: TicketIssue, { ticket, meta, ltp }: IssueContext): string {
   switch (issue) {
     case 'quote_only':
-      return "Indices can't be traded. Open the futures or options contract instead."
+      return QUOTE_ONLY_COPY
     case 'unknown_instrument':
       return "This symbol isn't on the server's list (expired or misspelt)."
     case 'qty':

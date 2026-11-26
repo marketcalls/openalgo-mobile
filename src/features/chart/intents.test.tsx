@@ -20,6 +20,7 @@ import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/Sessi
 import type { InstrumentMeta } from '~/market/instruments/meta'
 import { holdOrder, NEW_ORDER } from '~/market/orders/pending'
 import { liveSurpriseText } from '~/market/orders/submit'
+import { QUOTE_ONLY_COPY } from '~/market/orders/ticket'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
 import { ToastHost } from '~/ui/Toast'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
@@ -102,6 +103,20 @@ const FUT_META: InstrumentMeta = {
   quoteOnly: false,
   lots: true,
 }
+/** An index: a price and nothing to trade. */
+const NIFTY_META: InstrumentMeta = {
+  exchange: 'NSE_INDEX',
+  symbol: 'NIFTY',
+  name: 'NIFTY 50',
+  lotsize: 1,
+  tick: 0.05,
+  freezeQty: 0,
+  instrumenttype: 'INDEX',
+  expiry: null,
+  strike: null,
+  quoteOnly: true,
+  lots: false,
+}
 /** What the chart screen pushes to the page for an instrument (and passes to the intents). */
 const chartMeta = (m: InstrumentMeta): ChartMeta => ({
   exchange: m.exchange,
@@ -115,6 +130,7 @@ const chartMeta = (m: InstrumentMeta): ChartMeta => ({
 const RELIANCE: Inst = { exchange: 'NSE', symbol: 'RELIANCE' }
 const NIFTY_FUT: Inst = { exchange: 'NFO', symbol: FUT }
 const INFY: Inst = { exchange: 'NSE', symbol: 'INFY' }
+const NIFTY: Inst = { exchange: 'NSE_INDEX', symbol: 'NIFTY' }
 
 const ok = (body: unknown): ScriptedReply => ({ status: 200, body })
 const analyzer = (mode: 'live' | 'analyze') =>
@@ -179,7 +195,7 @@ async function setup(routes: Record<string, Route> = {}, o: { live?: boolean } =
     [`oa.${PID}.caps`]: JSON.stringify(CAPS),
     [`oa.${PID}.instruments`]: JSON.stringify({
       day: '2026-11-24',
-      items: [RELIANCE_META, FUT_META],
+      items: [RELIANCE_META, FUT_META, NIFTY_META],
       unknown: [],
     }),
   })
@@ -676,6 +692,37 @@ describe('one-tap', () => {
     await show(NIFTY_FUT, { ...chartMeta(FUT_META), freezeQty: 1 })
     await tap(NIFTY_FUT, 'BUY', 2)
     expect(requests('placeorder')).toHaveLength(2)
+  })
+
+  test('one-tap on a quote-only (index) instrument sends nothing and says what the ticket says', async () => {
+    await setup()
+    await show(NIFTY, chartMeta(NIFTY_META))
+    const modeReads = requests('analyzer').length
+    // the page hides BUY and SELL on an index, but the bridge is not trusted, and the server's
+    // VALID_EXCHANGES lists NSE_INDEX: nothing goes, as from the ticket
+    await tap(NIFTY, 'BUY', 1)
+    expect(toast()).toBe(QUOTE_ONLY_COPY)
+    expect(QUOTE_ONLY_COPY).toBe(
+      "Indices can't be traded. Open the futures or options contract instead.",
+    )
+    expect(requests('placeorder')).toHaveLength(0)
+    expect(requests('analyzer')).toHaveLength(modeReads)
+    expect(screen.queryByTestId('write-outcome')).toBeNull()
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    // either says it: the exchange, as the ticket's own check, or the metadata's flag
+    await pass(200)
+    await show(NIFTY, { ...chartMeta(NIFTY_META), quoteOnly: false })
+    await tap(NIFTY, 'SELL', 1)
+    await pass(200)
+    await show(RELIANCE, { ...chartMeta(RELIANCE_META), quoteOnly: true })
+    await tap(RELIANCE, 'BUY', 1)
+    expect(toast()).toBe(QUOTE_ONLY_COPY)
+    expect(requests('placeorder')).toHaveLength(0)
+    // a tradeable instrument still goes at once
+    await pass(200)
+    await show(RELIANCE, chartMeta(RELIANCE_META))
+    await tap(RELIANCE, 'BUY', 1)
+    expect(requests('placeorder')).toHaveLength(1)
   })
 
   test("one-tap while another sheet's order is out places nothing and says EARLIER_OUT", async () => {
