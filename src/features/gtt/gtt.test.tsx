@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native'
-import { Linking } from 'react-native'
+import { Linking, View } from 'react-native'
 import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import ModifyGttRoute from '~/app/(app)/gtt/[id]/modify'
 import NewGttRoute from '~/app/(app)/gtt/new'
@@ -34,6 +34,10 @@ import {
 } from '../../../test/helpers/fakeFetch'
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
+import { GttList } from './components/GttList'
+import { earlierGtt, GTT_OTHER_OUT } from './components/GttReview'
+import { GTT_ROW_OUT, useGttWrites } from './hooks/useGttWrites'
+import { STILL_SENDING } from './screens/GttTicketScreen'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
@@ -169,8 +173,16 @@ function ListBehind() {
   return null
 }
 
+/** The Orders tab's GTT segment itself beneath the sheet: its rows, their actions and notes. */
+function TabBehind() {
+  return <GttList writes={useGttWrites()} />
+}
+
+/** What is beneath the sheet: nothing, the GTT book's query alone, or the GTT segment. */
+type Behind = boolean | 'tab'
+
 /** The app shell around one GTT sheet; `behind` mounts the GTT list beneath it. */
-const tree = (s: Services, sheet: React.ReactElement, behind: boolean) => (
+const tree = (s: Services, sheet: React.ReactElement, behind: Behind) => (
   <SafeAreaInsetsContext.Provider value={INSETS}>
     <ServicesProvider value={s}>
       <TradingProvider now={Date.now}>
@@ -179,7 +191,7 @@ const tree = (s: Services, sheet: React.ReactElement, behind: boolean) => (
             <LiveContext.Provider
               value={{ realtime: s.realtime, polling: s.polling, store: s.store }}
             >
-              {behind ? <ListBehind /> : null}
+              {behind === 'tab' ? <TabBehind /> : behind ? <ListBehind /> : null}
               {sheet}
               <ToastHost />
             </LiveContext.Provider>
@@ -196,7 +208,11 @@ let view: { rerender: (el: React.ReactElement) => Promise<unknown> } | null = nu
 let opened = 0
 
 /** Opens a sheet with these route params, and waits for the instrument's metadata. */
-async function show(params: Record<string, string>, sheet: React.ReactElement, behind = false) {
+async function show(
+  params: Record<string, string>,
+  sheet: React.ReactElement,
+  behind: Behind = false,
+) {
   if (!services) throw new Error('setup first')
   mockParams = params
   const el = tree(services, sheet, behind)
@@ -206,8 +222,25 @@ async function show(params: Record<string, string>, sheet: React.ReactElement, b
 }
 
 const open = (p: GttParams) => show(paramsOf(gttHref(p)), <NewGttRoute key={opened++} />)
-const openModify = (id: string, o: { behind?: boolean } = {}) =>
+const openModify = (id: string, o: { behind?: Behind } = {}) =>
   show({ id }, <ModifyGttRoute key={opened++} />, o.behind)
+
+/** The sheet goes (an Android sheet can always be swiped away); the shell, and `behind`, stay. */
+async function closeSheet(behind: Behind = false) {
+  if (!services || !view) throw new Error('open first')
+  await view.rerender(tree(services, <View />, behind))
+  await pass(10)
+}
+
+/** A route that answers only once `held.release()` runs. */
+const heldReply = (reply: ScriptedReply) => {
+  const held = { release: () => {} }
+  const route: Route = () =>
+    new Promise<ScriptedReply>((resolve) => {
+      held.release = () => resolve(reply)
+    })
+  return { held, route }
+}
 
 const pass = (ms: number) =>
   act(async () => {
@@ -667,6 +700,78 @@ describe('status unknown', () => {
     expect(
       screen.getByText("Couldn't check the GTT book. Check it before trying again."),
     ).toBeTruthy()
+  })
+})
+
+describe('a GTT write that outlives its sheet', () => {
+  test("gone mid-send: the toast says so, another GTT ticket waits for it, then shows the earlier GTT's outcome and reads the book again", async () => {
+    const { held, route } = heldReply(PLACED)
+    await setup({ 'POST /api/v1/placegttorder': route })
+    await reviewSell()
+    await press('gtt-confirm')
+    expect(requests('placegttorder')).toHaveLength(1)
+    await closeSheet()
+    expect(text('toast')).toBe(STILL_SENDING)
+
+    // opened again: its own guard knows nothing of the first GTT
+    await reviewSell()
+    expect(screen.getByText(GTT_OTHER_OUT)).toBeTruthy()
+    expect(disabled('gtt-confirm')).toBe(true)
+    await press('gtt-confirm')
+    expect(requests('placegttorder')).toHaveLength(1)
+
+    const reads = requests('gttorderbook').length
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Sandbox · GTT placed: 1001')
+    // on iOS that toast is beneath this sheet, so the sheet says it too
+    expect(screen.getByText(earlierGtt('Sandbox · GTT placed: 1001'))).toBeTruthy()
+    expect(screen.queryByText(GTT_OTHER_OUT)).toBeNull()
+    // this review read the book while that GTT was out: it reads it again, and confirm waits
+    await pass(1_000)
+    expect(requests('gttorderbook')).toHaveLength(reads + 1)
+    expect(disabled('gtt-confirm')).toBe(false)
+    expect(requests('placegttorder')).toHaveLength(1)
+  })
+
+  test("a modify still out, its sheet gone: the GTT segment's row says so, and its Modify and Cancel wait for it", async () => {
+    const { held, route } = heldReply(PLACED)
+    await setup({
+      'POST /api/v1/gttorderbook': gttBook([ROW]),
+      'POST /api/v1/modifygttorder': route,
+    })
+    await openModify('1001', { behind: 'tab' })
+    await pass(1_000)
+    await press('gtt-row-1001')
+    expect(screen.queryByTestId('gtt-pending')).toBeNull()
+    expect(disabled('gtt-modify')).toBe(false)
+    expect(disabled('gtt-cancel')).toBe(false)
+
+    await ltp(1800)
+    await type('gtt-trigger', '1450')
+    await press('gtt-review')
+    await pass(1_000)
+    await press('gtt-confirm')
+    expect(requests('modifygttorder')).toHaveLength(1)
+    expect(text('gtt-pending')).toBe(GTT_ROW_OUT)
+    expect(disabled('gtt-modify')).toBe(true)
+    expect(disabled('gtt-cancel')).toBe(true)
+
+    // swiped away mid-send: the row still waits for it
+    await closeSheet('tab')
+    expect(text('toast')).toBe(STILL_SENDING)
+    expect(text('gtt-pending')).toBe(GTT_ROW_OUT)
+    expect(disabled('gtt-cancel')).toBe(true)
+    await press('gtt-cancel')
+    expect(requests('cancelgttorder')).toHaveLength(0)
+
+    await act(async () => held.release())
+    await pass(10)
+    expect(text('toast')).toBe('Sandbox · GTT modified: 1001')
+    expect(screen.queryByTestId('gtt-pending')).toBeNull()
+    expect(disabled('gtt-modify')).toBe(false)
+    expect(disabled('gtt-cancel')).toBe(false)
+    expect(requests('modifygttorder')).toHaveLength(1)
   })
 })
 

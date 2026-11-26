@@ -82,7 +82,7 @@ type Step =
 const NOT_SENT = 'The GTT was not sent.'
 const MOVED = 'The price moved since the review. The GTT was not sent.'
 /** The toast when the sheet goes while the GTT is on its way. */
-const STILL_SENDING = 'Your GTT is still being sent. Its outcome will show here.'
+export const STILL_SENDING = 'Your GTT is still being sent. Its outcome will show here.'
 /** A dismissal refused while the GTT is on its way. */
 const HOLD_COPY = 'The GTT is being sent. Wait for its outcome.'
 const NOT_IN_BOOK = 'This GTT is no longer in the book.'
