@@ -29,6 +29,39 @@ const json: z.ZodType<import('./protocol').JSONValue> = z.lazy(() =>
   ]),
 )
 
+// A request body comes from the WebView, so it is bounded and walked iteratively: a recursive
+// schema overflows the stack on a deep body and safeParse then throws instead of refusing.
+const MAX_BODY_DEPTH = 8
+const MAX_BODY_NODES = 1_000
+function boundedJson(value: unknown): boolean {
+  const stack: Array<[unknown, number]> = [[value, 0]]
+  let nodes = 0
+  while (stack.length > 0) {
+    const [cur, depth] = stack.pop() as [unknown, number]
+    if (++nodes > MAX_BODY_NODES || depth > MAX_BODY_DEPTH) return false
+    if (cur === null || typeof cur === 'string' || typeof cur === 'boolean') continue
+    if (typeof cur === 'number') {
+      if (!Number.isFinite(cur)) return false
+      continue
+    }
+    if (Array.isArray(cur)) {
+      for (const item of cur) stack.push([item, depth + 1])
+      continue
+    }
+    if (typeof cur === 'object') {
+      const proto = Object.getPrototypeOf(cur)
+      if (proto !== Object.prototype && proto !== null) return false
+      for (const item of Object.values(cur as Record<string, unknown>)) {
+        if (item !== undefined) stack.push([item, depth + 1])
+      }
+      continue
+    }
+    return false
+  }
+  return true
+}
+const requestBody = z.custom<import('./protocol').JSONValue>(boundedJson, 'body')
+
 // A path stays on the API host: absolute, no scheme, no parent step, no empty segment, no backslash.
 const path = z
   .string()
@@ -124,7 +157,7 @@ export const DomToNativeSchema: z.ZodType<DomToNative> = z.discriminatedUnion('k
     method: z.enum(['GET', 'POST']),
     path,
     query: z.record(z.string(), z.string()).optional(),
-    body: json.optional(),
+    body: requestBody.optional(),
   }),
   z.strictObject({ v, kind: z.literal('abort'), rid }),
   socketMsg,
@@ -145,3 +178,15 @@ export const NativeToDomBatchSchema: z.ZodType<NativeToDom[]> = z.array(
     z.strictObject({ kind: z.literal('push'), topic: z.string(), payload: json }),
   ]),
 )
+
+/** Parses a WebView message and never throws: any exception becomes a refusal. */
+export function parseDomToNative(
+  raw: unknown,
+): { success: true; data: DomToNative } | { success: false } {
+  try {
+    const r = DomToNativeSchema.safeParse(raw)
+    return r.success ? { success: true, data: r.data } : { success: false }
+  } catch {
+    return { success: false }
+  }
+}

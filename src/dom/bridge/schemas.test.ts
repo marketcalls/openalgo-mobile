@@ -1,4 +1,9 @@
-import { ChartIntentSchema, DomToNativeSchema, NativeToDomBatchSchema } from './schemas'
+import {
+  ChartIntentSchema,
+  DomToNativeSchema,
+  NativeToDomBatchSchema,
+  parseDomToNative,
+} from './schemas'
 
 const req = {
   v: 1,
@@ -102,4 +107,28 @@ test('a native batch parses and a malformed one does not', () => {
   ).toBe(false)
   expect(NativeToDomBatchSchema.safeParse([{ kind: 'eval', code: 'x' }]).success).toBe(false)
   expect(NativeToDomBatchSchema.safeParse({}).success).toBe(false)
+})
+
+describe('request body bounds', () => {
+  const req = (body: unknown) => ({
+    v: 1,
+    kind: 'request',
+    rid: 1,
+    method: 'POST',
+    path: '/api/v1/x',
+    body,
+  })
+  const deep = (n: number) => JSON.parse('['.repeat(n) + ']'.repeat(n))
+  it('refuses a deeply nested body without throwing', () => {
+    for (const n of [10, 5_000, 20_000]) {
+      expect(() => DomToNativeSchema.safeParse(req(deep(n)))).not.toThrow()
+      expect(DomToNativeSchema.safeParse(req(deep(n))).success).toBe(false)
+      expect(parseDomToNative(req(deep(n))).success).toBe(false)
+    }
+  })
+  it('refuses an oversized body and accepts a flat one', () => {
+    expect(DomToNativeSchema.safeParse(req(Array(1_001).fill(1))).success).toBe(false)
+    expect(DomToNativeSchema.safeParse(req({ symbol: 'INFY', n: 1, a: [1, 2] })).success).toBe(true)
+    expect(parseDomToNative(req({ symbol: 'INFY' })).success).toBe(true)
+  })
 })
