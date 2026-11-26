@@ -13,6 +13,20 @@ export const ORDER_COOLDOWN_MS = 120
 export const MAX_LOTS = 9_999
 const TOUCH = '44px'
 const NO_PRICE = '—'
+/**
+ * What a finger on the panel sends that the chart's element would act on too (openalgo-charts
+ * 2.7.3 _attachInput): the whole press, its end included, not only its start. The glue's
+ * capture listener already cancels a contextmenu, and the chart's lostpointercapture handler
+ * acts only on pointers it pressed itself.
+ */
+const PANEL_OWNS = [
+  'pointerdown',
+  'pointermove',
+  'pointerup',
+  'pointercancel',
+  'dblclick',
+  'wheel',
+] as const
 
 export type TradePanel = {
   setMeta(m: ChartMeta | null): void
@@ -171,9 +185,13 @@ export function mountTradePanel(
   inc.addEventListener('click', step(1))
 
   // A press on the panel is not the chart's: no pan, no crosshair, no long press, and no
-  // double-tap reset under a fast second tap.
+  // double-tap reset under a fast second tap. The panel sits inside the chart's own input
+  // element (.oac-chart), so the end of a press stops here too: openalgo-charts 2.7.3 turns a
+  // pointerup or pointercancel that comes with no press of its own into a click at the chart's
+  // last press (_onPointerUp → _endClick), and a tap on BUY after a tap on a line's X would
+  // send that X's cancel or close again.
   const own = (e: Event) => e.stopPropagation()
-  for (const type of ['pointerdown', 'dblclick', 'wheel']) panel.addEventListener(type, own)
+  for (const type of PANEL_OWNS) panel.addEventListener(type, own)
 
   const write = (node: Text, text: string) => {
     if (node.data !== text) node.data = text

@@ -1,7 +1,7 @@
 // The trading glue (design 7.9.4, 7.9.6) against a fake chart and widget, in the "dom" project
 // (jsdom). Every action the page takes is a ChartIntent sent over the bridge; the page places
 // nothing itself.
-import type { OpenAlgoLiveDataFeed, PriceLineOptions } from 'openalgo-charts'
+import { createChart, type OpenAlgoLiveDataFeed, type PriceLineOptions } from 'openalgo-charts'
 import { TOPBAR_HEIGHT, type Widget } from 'openalgo-charts/widget'
 import {
   CHART_TOPICS,
@@ -15,6 +15,7 @@ import {
 } from '~/dom/bridge/protocol'
 import { createDomClient } from '~/dom/web/client'
 import { tokens } from '~/ui/tokens'
+import { stubCanvas } from '../testCanvas'
 import { attachTrading, holdTradePushes, type TradeSeed } from './glue'
 
 const INFY: ChartMeta = {
@@ -253,7 +254,13 @@ function setup(o: { seed?: Partial<TradeSeed>; inst?: Inst } = {}) {
   }
 }
 
-type Pointer = { id?: number; x?: number; y: number; primary?: boolean }
+type Pointer = {
+  id?: number
+  x?: number
+  y: number
+  primary?: boolean
+  type?: 'touch' | 'mouse'
+}
 function pointer(target: EventTarget, type: string, p: Pointer) {
   const e = new MouseEvent(type, {
     bubbles: true,
@@ -263,6 +270,7 @@ function pointer(target: EventTarget, type: string, p: Pointer) {
   })
   Object.defineProperty(e, 'pointerId', { value: p.id ?? 1 })
   Object.defineProperty(e, 'isPrimary', { value: p.primary ?? true })
+  Object.defineProperty(e, 'pointerType', { value: p.type ?? 'touch' })
   target.dispatchEvent(e)
   return e
 }
@@ -465,6 +473,169 @@ describe('close buttons', () => {
       { type: 'cancel', inst, orderid: '1' },
       { type: 'close', inst, product: 'NRML' },
     ])
+  })
+})
+
+// The glue on a real openalgo-charts chart, built on the widget's `.oac-chart` element as the
+// widget builds it: the chart's own pointer listeners sit on that element, and so does the panel.
+// The chart turns a pointerup it gets without a pointerdown into a click at its last press, so
+// a press on the panel must never reach it.
+describe('on a real chart', () => {
+  let restoreCanvas: () => void
+  beforeAll(() => {
+    restoreCanvas = stubCanvas()
+  })
+  afterAll(() => restoreCanvas())
+
+  function realChart(seed: Partial<TradeSeed>) {
+    const frames: Array<() => void> = []
+    const root = document.createElement('div')
+    root.className = 'oac-widget'
+    const plot = document.createElement('div')
+    plot.className = 'oac-chart'
+    root.append(plot)
+    document.body.append(root)
+    const chart = createChart(plot, { raf: { schedule: (cb) => frames.push(cb) } })
+    // Wide enough for an order line's pills, X included, to sit inside the plot.
+    chart.applySize(1000, 600)
+    const t0 = 1_700_000_000
+    chart.addSeries('candlestick').setData(
+      Array.from({ length: 50 }, (_, i) => ({
+        time: t0 + 300 * i,
+        open: 100,
+        high: 110,
+        low: 90,
+        close: 105,
+      })),
+    )
+    const sent: DomToNative[] = []
+    const client = createDomClient(async (m: JSONValue) => {
+      sent.push(m as DomToNative)
+      return { status: 202, body: null }
+    })
+    const widget = {
+      chart,
+      root,
+      draw: { activeTool: () => null },
+      isDestroyed: false,
+      symbol: () => 'INFY',
+      exchange: () => 'NSE',
+      interval: () => '5m',
+      theme: () => 'dark',
+      on: () => () => {},
+    }
+    const trading = attachTrading(widget as unknown as Widget, client, fakeLive().live, {
+      meta: INFY,
+      ltp: 105,
+      orders: [],
+      positions: [],
+      ...seed,
+    })
+    mounted.push(() => {
+      trading.dispose()
+      chart.destroy()
+      root.remove()
+    })
+    for (let i = 0; i < 10 && frames.length > 0; i++) for (const frame of frames.splice(0)) frame()
+
+    const clicks: Array<string | null> = []
+    chart.on('click', (e) => clicks.push(e.id))
+    let crosshairs = 0
+    chart.on('crosshair:move', () => {
+      crosshairs++
+    })
+    let hover: string | null = null
+    chart.on('hover', (e) => {
+      hover = e.id
+    })
+    const views: string[] = []
+    for (const name of ['dblclick', 'zoom', 'pan'] as const) chart.on(name, () => views.push(name))
+    let pointerId = 10
+    const canvas = plot.querySelector('canvas') ?? plot
+    const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`) as HTMLElement
+    return {
+      intents: () => sent.flatMap((m) => (m.kind === 'intent' ? [m.intent] : [])),
+      clicks,
+      crosshairs: () => crosshairs,
+      /** The chart's double-tap reset, zoom and pan events. */
+      views,
+      /** The middle of a line's X, found as a mouse finds it: by hovering along the line. */
+      closeAt(id: string, price: number) {
+        const y = chart.priceToCoordinate(price) ?? Number.NaN
+        const xs: number[] = []
+        for (let x = 0; x < 1000; x++) {
+          pointer(canvas, 'pointermove', { id: 1, x, y, type: 'mouse' })
+          if (hover === `${id}::close`) xs.push(x)
+        }
+        pointer(canvas, 'pointerleave', { id: 1, x: 0, y, type: 'mouse' })
+        expect(xs.length).toBeGreaterThan(4)
+        return { x: xs[xs.length >> 1] as number, y }
+      },
+      tapChart(at: { x: number; y: number }) {
+        const p = { id: ++pointerId, ...at }
+        pointer(canvas, 'pointerdown', p)
+        pointer(canvas, 'pointerup', p)
+      },
+      /** A finger on a panel button: down, up, then the click the browser makes of them. */
+      tapButton(id: string) {
+        const p = { id: ++pointerId, x: 20, y: TOPBAR_HEIGHT + 20 }
+        pointer($(id), 'pointerdown', p)
+        pointer($(id), 'pointerup', p)
+        $(id).click()
+      },
+      /** A finger the WebView takes back (a scroll): down, then cancel, and no click. */
+      cancelOn(id: string) {
+        const p = { id: ++pointerId, x: 20, y: TOPBAR_HEIGHT + 20 }
+        pointer($(id), 'pointerdown', p)
+        pointer($(id), 'pointercancel', p)
+      },
+      moveOver(id: string) {
+        for (const type of ['touch', 'mouse'] as const) {
+          pointer($(id), 'pointermove', { id: ++pointerId, x: 24, y: TOPBAR_HEIGHT + 24, type })
+        }
+      },
+      /** A fast second tap's dblclick, and a wheel turn, on a panel button. */
+      doubleTapAndWheel(id: string) {
+        const at = { bubbles: true, cancelable: true, clientX: 24, clientY: TOPBAR_HEIGHT + 24 }
+        $(id).dispatchEvent(new MouseEvent('dblclick', at))
+        $(id).dispatchEvent(new WheelEvent('wheel', { ...at, deltaY: -120 }))
+      },
+    }
+  }
+
+  test("a tap on a line's X, then a BUY tap, sends exactly one cancel and one trade", () => {
+    const t = realChart({ orders: [LIMIT_BUY] })
+    t.tapChart(t.closeAt('order:1', LIMIT_BUY.price))
+    // Native's confirm was dismissed; the next taps are on the panel.
+    t.tapButton('chart-lots-inc')
+    t.cancelOn('chart-lots-dec')
+    const crosshairs = t.crosshairs()
+    t.moveOver('chart-buy')
+    t.doubleTapAndWheel('chart-lots-inc')
+    t.tapButton('chart-buy')
+    const inst = { exchange: 'NSE', symbol: 'INFY' }
+    expect(t.intents()).toEqual([
+      { type: 'cancel', inst, orderid: '1' },
+      { type: 'trade', inst, side: 'BUY', lots: 2 },
+    ])
+    // The chart saw one click, the X's. No finger on the panel moved its crosshair, reset its
+    // scale, zoomed or panned it.
+    expect(t.clicks).toEqual(['order:1::close'])
+    expect(t.crosshairs()).toBe(crosshairs)
+    expect(t.views).toEqual([])
+  })
+
+  test("a tap on a position's X, then a SELL tap, sends exactly one close and one trade", () => {
+    const t = realChart({ positions: [{ product: 'NRML', net: 2, avg: 104 }] })
+    t.tapChart(t.closeAt('position:NRML', 104))
+    t.tapButton('chart-sell')
+    t.tapButton('chart-lots-inc')
+    const inst = { exchange: 'NSE', symbol: 'INFY' }
+    expect(t.intents()).toEqual([
+      { type: 'close', inst, product: 'NRML' },
+      { type: 'trade', inst, side: 'SELL', lots: 1 },
+    ])
+    expect(t.clicks).toEqual(['position:NRML::close'])
   })
 })
 
