@@ -24,6 +24,13 @@ the Flask server the app's feature gates follow.
 | `spike/` | The earlier performance spike, kept for reference; it has its own README |
 | `docs/superpowers/` | The design and plans |
 
+## Features (0.2.0)
+
+- **Watchlist**: Kite-style lists with groups and sort.
+- **GTT**: single and OCO triggers, where the broker supports them, with a GTT segment in Orders.
+- **Update check**: once a day the app asks GitHub Releases for a newer version. Turn it off
+  with the **Check for app updates** switch on the Account screen.
+
 ## Mock server
 
 ```bash
