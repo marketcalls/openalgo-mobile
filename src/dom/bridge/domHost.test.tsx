@@ -1,9 +1,15 @@
 import { render, screen } from '@testing-library/react-native'
-import { type ComponentType, forwardRef, useImperativeHandle, useState } from 'react'
+import { Activity, type ComponentType, forwardRef, useImperativeHandle, useState } from 'react'
 import { Linking } from 'react-native'
 import { log } from '~/core/log/logger'
-import { ACCEPTED_REPLY, type DomHandlers, DomHost, REFUSED_REPLY } from './DomHost'
-import { createOutbox, type Outbox } from './outbox'
+import {
+  ACCEPTED_REPLY,
+  type DomHandlers,
+  DomHost,
+  LINK_OPEN_EVERY_MS,
+  REFUSED_REPLY,
+} from './DomHost'
+import { createOutbox, OUTBOX_RETRY_MS, type Outbox } from './outbox'
 import type {
   DomEntryProps,
   DomHandle,
@@ -94,6 +100,7 @@ async function mount(
 }
 
 const v = 1 as const
+const DARK: PageProps = { scheme: 'dark' }
 const loaded = { v, kind: 'event', name: 'loaded' }
 const ready = {
   v,
@@ -132,6 +139,7 @@ beforeEach(() => {
   warn = jest.spyOn(log, 'warn').mockImplementation(() => {})
 })
 afterEach(() => {
+  jest.useRealTimers()
   jest.restoreAllMocks()
 })
 
@@ -245,6 +253,31 @@ test('a handler that throws or rejects gives the refusal, never its error', asyn
   expect(await bridge(intent)).toEqual(REFUSED_REPLY)
 })
 
+test('a handler failure is logged under its own 10 s limit, so refusals cannot hide it', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+  const { bridge } = await mount({
+    handlers: { storage: () => Promise.reject(new Error('disk full')) },
+  })
+  // A flood of malformed messages uses up the refusals' line.
+  for (let i = 0; i < 50; i++) await bridge({ v, kind: 'eval', code: String(i) })
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenLastCalledWith('dom', 'refused message')
+
+  // The failed storage write still gets its line.
+  expect(await bridge({ ...storageGet, op: 'set', value: 'x' })).toEqual(REFUSED_REPLY)
+  expect(warn).toHaveBeenCalledTimes(2)
+  expect(warn).toHaveBeenLastCalledWith('dom', 'failed storage', expect.any(Error))
+
+  // Failures have a 10 s limit of their own.
+  now.mockReturnValue(1_009_999)
+  await bridge(storageGet)
+  expect(warn).toHaveBeenCalledTimes(2)
+  now.mockReturnValue(1_010_000)
+  await bridge(storageGet)
+  expect(warn).toHaveBeenCalledTimes(3)
+  expect(warn).toHaveBeenLastCalledWith('dom', 'failed storage', expect.any(Error))
+})
+
 test('posts wait for loaded, then go once per frame in order', async () => {
   const f = frames()
   const outbox = createOutbox({ schedule: f.schedule })
@@ -291,6 +324,103 @@ test('a frame delivers at most maxBatch, and the rest go the next frame', () => 
   expect(f.pending()).toBe(0)
 })
 
+test('a deliver that throws keeps its batch first, logs once per 10 s, and tries again after 250 ms', () => {
+  jest.useFakeTimers()
+  const f = frames()
+  const outbox = createOutbox({ schedule: f.schedule, maxBatch: 2 })
+  for (const n of [1, 2, 3]) outbox.post(push(n))
+  const deliver = jest.fn((_b: NativeToDom[]): unknown => {
+    throw new Error('the view is gone')
+  })
+  outbox.attach(deliver)
+
+  // The error stays inside the frame, and nothing is lost.
+  expect(() => f.run()).not.toThrow()
+  expect(deliver).toHaveBeenCalledWith([push(1), push(2)])
+  expect(outbox.stats()).toEqual({ queued: 3, dropped: 0 })
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith('dom', 'could not deliver to the page', expect.any(Error))
+
+  // Not on the next frame: after 250 ms, even when more is posted meanwhile.
+  outbox.post(push(4))
+  expect(f.pending()).toBe(0)
+  jest.advanceTimersByTime(OUTBOX_RETRY_MS - 1)
+  expect(f.pending()).toBe(0)
+  jest.advanceTimersByTime(1)
+  expect(f.pending()).toBe(1)
+  f.run()
+  expect(deliver).toHaveBeenCalledTimes(2)
+  expect(warn).toHaveBeenCalledTimes(1)
+
+  // A failure 10 s after the last line gets a new one.
+  jest.advanceTimersByTime(10_000)
+  f.run()
+  expect(deliver).toHaveBeenCalledTimes(3)
+  expect(warn).toHaveBeenCalledTimes(2)
+
+  // Once the page takes it, the batch goes first and the rest follow, one frame each.
+  deliver.mockImplementation(() => undefined)
+  jest.advanceTimersByTime(OUTBOX_RETRY_MS)
+  f.run()
+  expect(deliver).toHaveBeenLastCalledWith([push(1), push(2)])
+  f.run()
+  expect(deliver).toHaveBeenLastCalledWith([push(3), push(4)])
+  expect(outbox.stats()).toEqual({ queued: 0, dropped: 0 })
+  expect(f.pending()).toBe(0)
+})
+
+test('a batch the page does not take waits 250 ms, not a frame, and goes at once on the next attach', () => {
+  jest.useFakeTimers()
+  const f = frames()
+  const outbox = createOutbox({ schedule: f.schedule })
+  let takes = false
+  const deliver = jest.fn((_b: NativeToDom[]) => takes)
+  outbox.post(push(1))
+  outbox.attach(deliver)
+  f.run()
+  expect(deliver).toHaveBeenCalledTimes(1)
+  expect(f.pending()).toBe(0)
+
+  outbox.post(push(2))
+  expect(f.pending()).toBe(0)
+  jest.advanceTimersByTime(OUTBOX_RETRY_MS - 1)
+  expect(f.pending()).toBe(0)
+  jest.advanceTimersByTime(1)
+  expect(f.pending()).toBe(1)
+  f.run()
+  expect(deliver).toHaveBeenCalledTimes(2)
+  expect(deliver).toHaveBeenLastCalledWith([push(1), push(2)])
+
+  // A page that never registers its handle: 4 tries a second, not 60.
+  for (let i = 0; i < 4; i++) {
+    jest.advanceTimersByTime(OUTBOX_RETRY_MS)
+    f.run()
+  }
+  expect(deliver).toHaveBeenCalledTimes(6)
+  expect(outbox.stats().queued).toBe(2)
+  expect(warn).not.toHaveBeenCalled()
+
+  // The page loads (a new attach): the next frame offers it, with no wait for the retry.
+  takes = true
+  outbox.attach(deliver)
+  expect(f.pending()).toBe(1)
+  f.run()
+  expect(deliver).toHaveBeenCalledTimes(7)
+  expect(outbox.stats().queued).toBe(0)
+  // The cancelled retry never fires.
+  jest.advanceTimersByTime(OUTBOX_RETRY_MS)
+  expect(f.pending()).toBe(0)
+  expect(deliver).toHaveBeenCalledTimes(7)
+
+  // A detach while a retry waits leaves no timer behind.
+  takes = false
+  outbox.post(push(3))
+  f.run()
+  expect(jest.getTimerCount()).toBe(1)
+  outbox.detach()
+  expect(jest.getTimerCount()).toBe(0)
+})
+
 test('past 2,000 queued the oldest go and are counted; clear drops the queue', () => {
   const f = frames()
   const outbox = createOutbox({ schedule: f.schedule })
@@ -317,20 +447,30 @@ test('a page whose handle has no deliver yet keeps the queue', async () => {
   const outbox = createOutbox({ schedule: f.schedule })
   const handle: Partial<DomHandle> = {}
   const { bridge } = await mount({ outbox, handle })
+  jest.useFakeTimers()
 
   outbox.post(push(1))
   await bridge(loaded)
   f.run()
   expect(outbox.stats().queued).toBe(1)
+  // Offered again after 250 ms, not on every frame.
+  expect(f.pending()).toBe(0)
+  jest.advanceTimersByTime(OUTBOX_RETRY_MS)
   expect(f.pending()).toBe(1)
+  f.run()
+  expect(outbox.stats().queued).toBe(1)
 
-  // The page registers its handle; the next frame delivers what was kept.
+  // The page registers its handle and says 'loaded' again: the next frame delivers what was
+  // kept, without waiting out the retry.
   const deliver = jest.fn()
   handle.deliver = deliver
+  await bridge(loaded)
+  expect(f.pending()).toBe(1)
   f.run()
   expect(deliver).toHaveBeenCalledWith([push(1)])
   expect(outbox.stats().queued).toBe(0)
   expect(f.pending()).toBe(0)
+  expect(jest.getTimerCount()).toBe(0)
 })
 
 test('a parent re-render with the same props does not re-render the DOM', async () => {
@@ -397,7 +537,10 @@ test('the screen may add WebView settings but not turn the modules bridge on', a
 })
 
 test('an https link opens in the browser and other schemes do not', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+  // React Native's jest setup makes openURL a shared jest.fn, so its calls carry over: clear them.
   const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
+  open.mockClear()
   const event = jest.fn()
   const { bridge } = await mount({ handlers: { event } })
 
@@ -423,10 +566,41 @@ test('an https link opens in the browser and other schemes do not', async () => 
   expect(event).toHaveBeenCalledTimes(1)
 
   // A browser that cannot open is only logged.
+  now.mockReturnValue(1_000_000 + LINK_OPEN_EVERY_MS)
   open.mockRejectedValueOnce(new Error('no browser'))
   expect(await bridge(link('https://openalgo.in'))).toEqual(ACCEPTED_REPLY)
   await Promise.resolve()
   expect(open).toHaveBeenCalledTimes(2)
+  expect(warn).toHaveBeenLastCalledWith('dom', 'could not open a link')
+})
+
+test('a page opens at most one link per 2 s; the rest are dropped with the limited warning', async () => {
+  expect(LINK_OPEN_EVERY_MS).toBe(2000)
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+  // React Native's jest setup makes openURL a shared jest.fn, so its calls carry over: clear them.
+  const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
+  open.mockClear()
+  const event = jest.fn()
+  const { bridge } = await mount({ handlers: { event } })
+
+  expect(await bridge(link('https://openalgo.in/a'))).toEqual(ACCEPTED_REPLY)
+  now.mockReturnValue(1_000_000 + LINK_OPEN_EVERY_MS - 1)
+  for (const p of ['b', 'c', 'd']) {
+    expect(await bridge(link(`https://openalgo.in/${p}`))).toEqual(REFUSED_REPLY)
+  }
+  expect(open).toHaveBeenCalledTimes(1)
+  expect(event).toHaveBeenCalledTimes(1)
+  // One line for the three, through the refusals' 10 s limit.
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith('dom', 'refused link')
+
+  // 2 s after the last open, the next one opens; a dropped link did not restart the 2 s.
+  now.mockReturnValue(1_000_000 + LINK_OPEN_EVERY_MS)
+  expect(await bridge(link('https://openalgo.in/e'))).toEqual(ACCEPTED_REPLY)
+  expect(open).toHaveBeenCalledTimes(2)
+  expect(open).toHaveBeenLastCalledWith('https://openalgo.in/e')
+  expect(event).toHaveBeenLastCalledWith(link('https://openalgo.in/e'))
+  expect(warn).toHaveBeenCalledTimes(1)
 })
 
 test.each(['onRenderProcessGone', 'onContentProcessDidTerminate'] as const)(
@@ -499,4 +673,86 @@ test('a remount (a new key) starts from an empty handle and delivers to the new 
   f.run()
   expect(pages[1]).toHaveBeenCalledWith([push(2)])
   expect(pages[0]).toHaveBeenCalledTimes(1)
+})
+
+test('the outbox is constant for the host life: a new one is ignored, with one warning in development', async () => {
+  const page = fakeDom()
+  const f = frames()
+  const first = createOutbox({ schedule: f.schedule })
+  const second = createOutbox({ schedule: f.schedule })
+  const host = (outbox: Outbox) => (
+    <DomHost
+      Dom={page.Dom}
+      props={DARK}
+      handlers={{}}
+      outbox={outbox}
+      testID="dom"
+      onGone={() => {}}
+    />
+  )
+  await render(host(first))
+  await screen.rerender(host(second))
+  await screen.rerender(host(createOutbox({ schedule: f.schedule })))
+  expect(page.seen.renders).toBe(1)
+  expect(__DEV__).toBe(true)
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith(
+    'dom',
+    'DomHost keeps its first outbox: give the host a new key to change it',
+  )
+
+  // 'loaded' attaches the first outbox, and only it.
+  first.post(push(1))
+  second.post(push(2))
+  await page.seen.last?.bridge(loaded as JSONValue)
+  f.run()
+  expect(page.handle.deliver).toHaveBeenCalledTimes(1)
+  expect(page.handle.deliver).toHaveBeenCalledWith([push(1)])
+  expect(second.stats().queued).toBe(1)
+
+  // The unmount detaches the outbox that was attached.
+  await screen.unmount()
+  first.post(push(3))
+  expect(f.pending()).toBe(0)
+})
+
+test('a page that had loaded is attached again when React runs the effects again (Activity)', async () => {
+  const page = fakeDom()
+  const f = frames()
+  const outbox = createOutbox({ schedule: f.schedule })
+  const host = (mode: 'visible' | 'hidden') => (
+    <Activity mode={mode}>
+      <DomHost
+        Dom={page.Dom}
+        props={DARK}
+        handlers={{}}
+        outbox={outbox}
+        testID="dom"
+        onGone={() => {}}
+      />
+    </Activity>
+  )
+  await render(host('visible'))
+
+  // Before 'loaded', hiding and showing again attaches nothing.
+  await screen.rerender(host('hidden'))
+  await screen.rerender(host('visible'))
+  outbox.post(push(1))
+  expect(f.pending()).toBe(0)
+
+  await page.seen.last?.bridge(loaded as JSONValue)
+  f.run()
+  expect(page.handle.deliver).toHaveBeenLastCalledWith([push(1)])
+
+  // Hidden: the effect's cleanup detaches.
+  await screen.rerender(host('hidden'))
+  outbox.post(push(2))
+  expect(f.pending()).toBe(0)
+
+  // Shown again: the setup attaches the loaded page again, with no new 'loaded'.
+  await screen.rerender(host('visible'))
+  expect(f.pending()).toBe(1)
+  f.run()
+  expect(page.handle.deliver).toHaveBeenLastCalledWith([push(2)])
+  expect(page.handle.deliver).toHaveBeenCalledTimes(2)
 })

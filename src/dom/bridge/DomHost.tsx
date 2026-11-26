@@ -49,6 +49,8 @@ export const REFUSED_REPLY: DomReply = {
 export const ACCEPTED_REPLY: DomReply = { status: 202, body: null }
 
 const WARN_EVERY_MS = 10_000
+/** A page opens at most one link per 2 s; the rest are dropped (design 7.7's link guard). */
+export const LINK_OPEN_EVERY_MS = 2_000
 const KINDS: ReadonlySet<string> = new Set([
   'request',
   'abort',
@@ -88,29 +90,39 @@ function isHttpsLink(url: string): boolean {
   return true
 }
 
-type Live = { handlers: DomHandlers; outbox: Outbox; onGone: () => void }
+type Live = { handlers: DomHandlers; onGone: () => void }
 
-/** One host's state. It lives as long as the host: a remount (a new `key`) makes a new one. */
-function createHost(initial: Live) {
+/** At most one line per 10 s, and never the page's payload. */
+function limitedWarn() {
+  let last = Number.NEGATIVE_INFINITY
+  return (msg: string, e?: unknown) => {
+    const now = Date.now()
+    if (now - last < WARN_EVERY_MS) return
+    last = now
+    if (e === undefined) log.warn('dom', msg)
+    else log.warn('dom', msg, e)
+  }
+}
+
+/** One host's state. It lives as long as the host: a remount (a new `key`) makes a new one. It
+ *  keeps the outbox it was made with for its whole life. */
+function createHost(initial: Live, outbox: Outbox) {
   let live = initial
   let loaded = false
-  let lastWarn = Number.NEGATIVE_INFINITY
+  let lastLink = Number.NEGATIVE_INFINITY
+  let outboxWarned = false
   const inflight = new Map<number, AbortController>()
   // The page's ref. Expo's wrapper fills a ref only while it is null and never clears it (spike
   // CHANGES.chart.md §9), so each host starts its own at null: a remounted page never inherits
   // the dead WebView's proxy.
   const handle: { current: DomHandle | null } = { current: null }
 
-  // At most one line per 10 s, and never the page's payload.
-  const warn = (msg: string, e?: unknown) => {
-    const now = Date.now()
-    if (now - lastWarn < WARN_EVERY_MS) return
-    lastWarn = now
-    if (e === undefined) log.warn('dom', msg)
-    else log.warn('dom', msg, e)
-  }
+  // Refusals and handler failures have a limit each, so a flood of malformed messages cannot hide
+  // a failed storage write.
+  const warnRefused = limitedWarn()
+  const warnFailed = limitedWarn()
   const refuse = (what: string): DomReply => {
-    warn(`refused ${what}`)
+    warnRefused(`refused ${what}`)
     return REFUSED_REPLY
   }
 
@@ -142,11 +154,14 @@ function createHost(initial: Live) {
   function event(e: DomEvent): DomReply {
     if (e.name === 'link') {
       if (!isHttpsLink(e.url)) return refuse('link')
+      const now = Date.now()
+      if (now - lastLink < LINK_OPEN_EVERY_MS) return refuse('link')
+      lastLink = now
       Linking.openURL(e.url).catch(() => log.warn('dom', 'could not open a link'))
     }
     if (e.name === 'loaded') {
       loaded = true
-      live.outbox.attach(deliver)
+      outbox.attach(deliver)
     }
     live.handlers.event?.(e)
     return ACCEPTED_REPLY
@@ -186,24 +201,29 @@ function createHost(initial: Live) {
       try {
         return await route(parsed.data)
       } catch (e) {
-        warn(`failed ${parsed.data.kind}`, e)
+        warnFailed(`failed ${parsed.data.kind}`, e)
         return REFUSED_REPLY
       }
     },
     gone() {
       loaded = false
-      live.outbox.detach()
+      outbox.detach()
       live.onGone()
     },
-    update(next: Live) {
+    update(next: Live, nextOutbox: Outbox) {
       live = next
+      if (__DEV__ && nextOutbox !== outbox && !outboxWarned) {
+        outboxWarned = true
+        log.warn('dom', 'DomHost keeps its first outbox: give the host a new key to change it')
+      }
     },
-    // React may run the cleanup and the setup again on the same host, so the setup re-attaches a
-    // page that had loaded. The cleanup stops deliveries and aborts what is in flight.
+    // React may run the cleanup and the setup again on the same host (StrictMode, Activity), so
+    // the setup re-attaches a page that had loaded. The cleanup stops deliveries and aborts what
+    // is in flight.
     mount(): () => void {
-      if (loaded) live.outbox.attach(deliver)
+      if (loaded) outbox.attach(deliver)
       return () => {
-        live.outbox.detach()
+        outbox.detach()
         for (const c of inflight.values()) c.abort()
         inflight.clear()
       }
@@ -217,6 +237,8 @@ export type DomHostProps<P extends object> = {
   /** What the page gets as props: JSON, as expo sends it. An equal object is the same props. */
   props: P
   handlers: DomHandlers
+  /** Constant for the host's life, as `Dom` is: the host attaches and detaches the outbox it got
+   *  first and ignores a new one (with a warning in development). A new outbox needs a new `key`. */
   outbox: Outbox
   /** Added to the WebView defaults; pass a constant, since a new object re-renders the page. */
   webview?: Partial<DOMProps>
@@ -233,9 +255,9 @@ function DomHostView<P extends object>({
   testID,
   onGone,
 }: DomHostProps<P>): JSX.Element {
-  const [host] = useState(() => createHost({ handlers, outbox, onGone }))
+  const [host] = useState(() => createHost({ handlers, onGone }, outbox))
   useLayoutEffect(() => {
-    host.update({ handlers, outbox, onGone })
+    host.update({ handlers, onGone }, outbox)
   }, [host, handlers, outbox, onGone])
   useEffect(() => host.mount(), [host])
 
