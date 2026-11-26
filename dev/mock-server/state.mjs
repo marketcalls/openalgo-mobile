@@ -70,7 +70,8 @@ const STORED = {
     v === null || (Number.isInteger(v) && v >= 1) || 'must be null or a child number from 1',
   marginUnsupported: isBool,
 }
-// One-shot actions: the feed or the order engine carries them out, and they are not stored.
+// One-shot actions: the feed, the order engine or the GTT engine carries them out, and they are
+// not stored.
 const ACTIONS = {
   // 1006 drops the connection; ws refuses to send 1004-1006 or anything outside these ranges.
   closeSockets: (v) =>
@@ -81,6 +82,8 @@ const ACTIONS = {
     v === true || (typeof v === 'object' && v !== null) || 'must be an object',
   // The order engine fills every working order at its own price.
   fillWorking: (v) => v === true || 'must be true',
+  // The GTT engine triggers every active GTT.
+  fireGtts: (v) => v === true || 'must be true',
 }
 
 export class ControlError extends Error {}

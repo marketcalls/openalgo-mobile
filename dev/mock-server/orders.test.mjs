@@ -5,9 +5,8 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import WebSocket from 'ws'
 import { startMockServer } from './server.mjs'
-import { runMain, within } from './test-helpers.mjs'
+import { call, control, KEY, mock, post, runMain, stats, within } from './test-helpers.mjs'
 
-const KEY = 'ab'.repeat(32)
 const MISSING = ['Missing data for required field.']
 const NOT_LISTED = (symbol, exchange) =>
   `Symbol '${symbol}' not found for exchange '${exchange}'. ` +
@@ -15,37 +14,6 @@ const NOT_LISTED = (symbol, exchange) =>
 const OLD_EXCHANGES = 'NSE, NFO, CDS, BSE, BFO, BCD, MCX, NCDEX, NSE_INDEX, BSE_INDEX'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-
-async function mock(t, o = {}) {
-  const m = await startMockServer({ wsPort: 'off', ...o })
-  t.after(() => m.close())
-  return m
-}
-
-async function call(m, method, path, body) {
-  const res = await fetch(m.origin + path, {
-    method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  const text = await res.text()
-  let json
-  try {
-    json = JSON.parse(text)
-  } catch {}
-  return { status: res.status, text, json }
-}
-
-/** POSTs an /api/v1 endpoint with the key added. */
-const post = (m, endpoint, body = {}) =>
-  call(m, 'POST', `/api/v1/${endpoint}`, { apikey: KEY, ...body })
-
-async function control(m, patch) {
-  const r = await call(m, 'POST', '/__mock/control', patch)
-  assert.equal(r.status, 200, `${JSON.stringify(patch)}: ${r.text}`)
-  return r.json
-}
-const stats = async (m) => (await call(m, 'GET', '/__mock/control')).json.stats
 
 const order = (o = {}) => ({
   strategy: 'mobile',

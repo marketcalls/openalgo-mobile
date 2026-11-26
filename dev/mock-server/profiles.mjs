@@ -15,6 +15,17 @@
 // CRYPTO (2.0.0.1) and NCO MCX_INDEX GLOBAL_INDEX (2.0.1.0). fractionalQty (2.0.0.1,
 // restx_api/schemas.py:6-19): quantities are Float and a fractional one is refused; before,
 // they are Int and 1.5 truncates to 1.
+//
+// GTT (plan C contract G1-G5): gtt serves the four GTT endpoints (2.0.0.8); sandboxGtt answers
+// them in analyzer mode (2.0.1.9; before, a 501); gttStatus is gttorderbook.status (2.0.2.4);
+// gttBrokers are the brokers with a gtt_api module, and every other one answers 501 in LIVE.
+//
+// | id       | gtt | sandboxGtt | gttStatus | gttBrokers                                        |
+// | 1.0.0.41 |  -  |     -      |     -     | -                                                 |
+// | 2.0.0.0  |  -  |     -      |     -     | -                                                 |
+// | 2.0.1.6  |  ✓  |     -      |     -     | zerodha dhan                                      |
+// | 2.0.2.0  |  ✓  |     ✓      |     -     | zerodha dhan                                      |
+// | 2.0.3.5  |  ✓  |     ✓      |     ✓     | zerodha dhan angel fyers upstox pocketful rupeezy |
 
 // VALID_EXCHANGES in its own order: the 2.0.0.0 set, and the c8b2896 set.
 const EXCHANGES_2_0_0_0 = Object.freeze([
@@ -45,6 +56,16 @@ const EXCHANGES_2_0_1_0 = Object.freeze([
   'GLOBAL_INDEX',
   'CRYPTO',
 ])
+const GTT_BROKERS_2_0_0_8 = Object.freeze(['zerodha', 'dhan'])
+const GTT_BROKERS_C8B2896 = Object.freeze([
+  'zerodha',
+  'dhan',
+  'angel',
+  'fyers',
+  'upstox',
+  'pocketful',
+  'rupeezy',
+])
 
 const V1 = {
   appInfo: false,
@@ -63,6 +84,10 @@ const V1 = {
   trading: false,
   exchanges: EXCHANGES_2_0_0_0,
   fractionalQty: false,
+  gtt: false,
+  sandboxGtt: false,
+  gttStatus: false,
+  gttBrokers: Object.freeze([]),
 }
 const V2_0_0_0 = {
   ...V1,
@@ -80,14 +105,18 @@ const V2_0_1_6 = {
   modeLabels: true,
   exchanges: EXCHANGES_2_0_1_0,
   fractionalQty: true,
+  gtt: true,
+  gttBrokers: GTT_BROKERS_2_0_0_8,
 }
-const V2_0_2_0 = { ...V2_0_1_6, withGreeks: true, portfolioSip: true }
+const V2_0_2_0 = { ...V2_0_1_6, withGreeks: true, portfolioSip: true, sandboxGtt: true }
 const V2_0_3_5 = {
   ...V2_0_2_0,
   missing: 'json404',
   close1012: true,
   omitAbsent: true,
   sectorRotation: true,
+  gttStatus: true,
+  gttBrokers: GTT_BROKERS_C8B2896,
 }
 
 export const PROFILES = Object.freeze({
@@ -125,6 +154,7 @@ const TRADING_ENDPOINTS = [
   'closeposition',
   'margin',
 ]
+const GTT_ENDPOINTS = ['placegttorder', 'modifygttorder', 'cancelgttorder', 'gttorderbook']
 
 /** The POST endpoint ids a profile serves under /api/v1. */
 export function endpointsOf(p) {
@@ -132,6 +162,7 @@ export function endpointsOf(p) {
     ...BASE_ENDPOINTS,
     ...(p.multiOptionGreeks ? ['multioptiongreeks'] : []),
     ...(p.trading ? TRADING_ENDPOINTS : []),
+    ...(p.gtt ? GTT_ENDPOINTS : []),
     ...(p.portfolioSip ? ['portfolio/backtest', 'sip/backtest'] : []),
     ...(p.sectorRotation ? ['sectorrotation'] : []),
   ]

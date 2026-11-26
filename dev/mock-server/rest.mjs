@@ -1,7 +1,9 @@
 // The stock server's HTTP side: /auth/app-info, /api/v1/swagger.json and the POST
 // endpoints, with the error shapes of openalgo at c8b2896 (plan contract S2-S9). The trading
-// endpoints' validation and handlers live in orders.mjs; this file routes them.
+// endpoints' validation and handlers live in orders.mjs, and the GTT endpoints' in gtt.mjs; this
+// file routes them.
 import { STATUS_CODES } from 'node:http'
+import { GTT_SCHEMAS } from './gtt.mjs'
 import { findInstrument, searchInstruments } from './instruments.mjs'
 import { TRADING_SCHEMAS } from './orders.mjs'
 import { depthLevels, quote, r05 } from './prices.mjs'
@@ -103,8 +105,16 @@ function pyRepr(v) {
 const SECTOR_REFUSAL =
   'These map settings were not accepted. Choose the benchmark and timeframe again, or use ' +
   'Reset to sectors if you added symbols.'
+// Each takes the errors; analyzerRepr also takes whether analyzer mode is on.
 const STYLES = {
   repr: (errors) => ({ status: 'error', message: pyRepr(errors) }), // analyzer, placeorder
+  // The GTT writes: str(), which emit_analyzer_error tags in analyzer mode
+  // (restx_api/place_gtt_order.py:31-35 and its two siblings).
+  analyzerRepr: (errors, analyzer) => ({
+    ...(analyzer ? { mode: 'analyze' } : {}),
+    status: 'error',
+    message: pyRepr(errors),
+  }),
   dict: (errors) => ({ status: 'error', message: errors }), // history, funds, quotes, …
   restx: (errors) => ({ status: 'error', message: 'Validation error', errors }), // optionchain
   failed: (errors) => ({ status: 'error', message: 'Validation failed', errors }), // multioptiongreeks
@@ -454,7 +464,7 @@ function loadBody(schema, body, version) {
   return errors ? { errors } : { data: body }
 }
 
-export function createRest({ state, prices, apiKey, orders }) {
+export function createRest({ state, prices, apiKey, orders, gtt }) {
   function apiCall(id, contentType, text) {
     // Flask 3.1 refuses request.json without a JSON Content-Type, and so does a body that
     // does not parse; each handler's `except Exception` turns that into this 500.
@@ -465,16 +475,18 @@ export function createRest({ state, prices, apiKey, orders }) {
     } catch {
       return UNEXPECTED
     }
-    const trading = TRADING_SCHEMAS[id]
-    const schema = trading ?? SCHEMAS[id]
-    const style = STYLES[schema.style]
+    // The trading and GTT endpoints load and answer through their engines.
+    const engine = TRADING_SCHEMAS[id] ? orders : GTT_SCHEMAS[id] ? gtt : null
+    const custom = TRADING_SCHEMAS[id] ?? GTT_SCHEMAS[id]
+    const schema = custom ?? SCHEMAS[id]
+    const refuse = (errors) => jsonReply(400, STYLES[schema.style](errors, state.current.analyzer))
     if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-      return jsonReply(400, style({ _schema: ['Invalid input type.'] }))
+      return refuse({ _schema: ['Invalid input type.'] })
     }
     state.noteBody(id, body)
     const version = state.version
-    const loaded = trading ? trading.load(body, version) : loadBody(schema, body, version)
-    if (loaded.errors) return jsonReply(400, style(loaded.errors))
+    const loaded = custom ? custom.load(body, version) : loadBody(schema, body, version)
+    if (loaded.errors) return refuse(loaded.errors)
     // restx_api/multi_option_greeks.py:104-110 answers a bad key with 401.
     if (body.apikey !== apiKey) {
       return jsonReply(id === 'multioptiongreeks' ? 401 : 403, INVALID_KEY)
@@ -482,7 +494,7 @@ export function createRest({ state, prices, apiKey, orders }) {
     // S3: search checks only the key; everything else also needs the broker session.
     if (state.current.brokerLoggedOut && id !== 'search') return jsonReply(403, INVALID_KEY)
     try {
-      const handler = trading ? orders.handlers[id] : HANDLERS[id]
+      const handler = engine ? engine.handlers[id] : HANDLERS[id]
       const [status, out] = handler(loaded.data, { state, prices, version })
       return jsonReply(status, out)
     } catch (e) {

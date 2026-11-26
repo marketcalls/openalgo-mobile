@@ -4,6 +4,7 @@
 import { findInstrument } from './instruments.mjs'
 
 // --- Validation, as marshmallow loads restx_api/schemas.py ------------------------------
+// loadFields, req, opt and the validators are shared with gtt.mjs.
 
 const NUMBER = /^\s*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?\s*$/
 const INTEGER = /^\s*[+-]?\d+\s*$/
@@ -24,10 +25,10 @@ const TYPES = {
   int: [toInt, 'Not a valid integer.'],
 }
 
-const oneOf = (choices) => (v) =>
+export const oneOf = (choices) => (v) =>
   choices.includes(v) ? null : `Must be one of: ${choices.join(', ')}.`
-const atLeast = (min, error) => (v) => (v >= min ? null : error)
-const above = (min, error) => (v) => (v > min ? null : error)
+export const atLeast = (min, error) => (v) => (v >= min ? null : error)
+export const above = (min, error) => (v) => (v > min ? null : error)
 const lengthBetween = (min, max, error) => (v) =>
   v.length >= min && v.length <= max ? null : error
 
@@ -59,8 +60,11 @@ function loadList(spec, raw) {
   return message ? { error: [message] } : { value }
 }
 
-/** Schema.load: { data } with the defaults filled in, or { errors } in field order. */
-function loadFields(fields, body) {
+/**
+ * Schema.load: { data } with the defaults filled in, or { errors } in field order. With
+ * `exclude` (Meta.unknown = EXCLUDE) an undeclared field is dropped instead of refused.
+ */
+export function loadFields(fields, body, { exclude = false } = {}) {
   const errors = {}
   const data = {}
   for (const [name, spec] of Object.entries(fields)) {
@@ -77,14 +81,14 @@ function loadFields(fields, body) {
     }
   }
   for (const name of Object.keys(body)) {
-    if (!Object.hasOwn(fields, name)) errors[name] = ['Unknown field.']
+    if (!exclude && !Object.hasOwn(fields, name)) errors[name] = ['Unknown field.']
   }
   return Object.keys(errors).length ? { errors } : { data }
 }
 
 const CRYPTO_EXCHANGES = ['CRYPTO']
 // The post_load of the order schemas from 2.0.0.1 (restx_api/schemas.py:6-19).
-function wholeQuantity(data) {
+export function wholeQuantity(data) {
   const q = data.quantity
   if (CRYPTO_EXCHANGES.includes(data.exchange) || q === Math.trunc(q)) return { data }
   return {
@@ -98,8 +102,8 @@ const ACTIONS = ['BUY', 'SELL', 'buy', 'sell']
 const PRICETYPES = ['MARKET', 'LIMIT', 'SL', 'SL-M']
 const PRODUCTS = ['MIS', 'NRML', 'CNC']
 
-const req = (type, validate) => ({ type, required: true, validate })
-const opt = (type, missing, validate) => ({ type, missing, validate })
+export const req = (type, validate) => ({ type, required: true, validate })
+export const opt = (type, missing, validate) => ({ type, missing, validate })
 
 const PRICE = atLeast(0, 'Price must be a non-negative number.')
 const TRIGGER = atLeast(0, 'Trigger price must be a non-negative number.')

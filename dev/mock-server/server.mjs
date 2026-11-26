@@ -1,6 +1,7 @@
 // startMockServer: the REST port, the WS proxy port and the /__mock control routes.
 import http from 'node:http'
 import { createFeed } from './feed.mjs'
+import { createGttEngine } from './gtt.mjs'
 import { createOrderEngine } from './orders.mjs'
 import { createPriceBook } from './prices.mjs'
 import { createRest } from './rest.mjs'
@@ -64,7 +65,8 @@ export async function startMockServer(o = {}) {
   const state = createState({ profile, broker })
   const prices = createPriceBook()
   const orders = createOrderEngine({ state, prices })
-  const rest = createRest({ state, prices, apiKey, orders })
+  const gtt = createGttEngine({ state, prices })
+  const rest = createRest({ state, prices, apiKey, orders, gtt })
   const snapshot = () => {
     const s = state.snapshot()
     s.stats.orders = orders.counts()
@@ -85,6 +87,7 @@ export async function startMockServer(o = {}) {
         state.reset()
         prices.reset()
         orders.reset()
+        gtt.reset()
         return reply(res, 200, snapshot())
       }
       return reply(res, 404, { error: `no mock route ${req.method} ${pathname}` })
