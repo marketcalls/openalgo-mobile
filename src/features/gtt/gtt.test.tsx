@@ -738,6 +738,57 @@ describe('modify', () => {
     expect(text('gtt-result')).toBe('Sandbox · GTT modified')
   })
 
+  test("(G2) an NRML GTT on NSE (Angel's MARGIN) is modified as NRML, never as its segment's CNC", async () => {
+    const NRML_ROW = { ...ROW, legs: [{ ...ROW.legs[0], product: 'NRML' }] }
+    await setup({
+      'POST /api/v1/gttorderbook': gttBook([NRML_ROW]),
+      'POST /api/v1/modifygttorder': PLACED,
+    })
+    await openModify('1001')
+    expect(screen.getByText('SELL · Single · NRML')).toBeTruthy()
+    await ltp(1800)
+    await type('gtt-trigger', '1450')
+    await press('gtt-review')
+    expect(text('gtt-summary')).toBe(
+      'GTT · SELL 1 RELIANCE · trigger 1,450.00 → LIMIT 1,499.00 · NRML',
+    )
+    await press('gtt-confirm')
+    expect(requests('modifygttorder')).toHaveLength(1)
+    expect(bodyOf('modifygttorder')).toMatchObject({
+      trigger_id: '1001',
+      exchange: 'NSE',
+      product: 'NRML',
+      pricetype: 'LIMIT',
+      triggerprice_sl: 1450,
+    })
+  })
+
+  test.each([
+    ['MIS', { product: 'MIS' }, "This GTT's product (MIS) can't be modified here."],
+    [
+      'no product',
+      { product: '' },
+      "This GTT's product isn't listed, so it can't be modified here.",
+    ],
+    [
+      'a MARKET leg',
+      { pricetype: 'MARKET', price: 0 },
+      "This GTT places a MARKET order, so it can't be modified here.",
+    ],
+  ])(
+    'a row whose leg the ticket cannot send as listed (%s): no form, nothing sent',
+    async (_, leg, refusal) => {
+      await setup({
+        'POST /api/v1/gttorderbook': gttBook([{ ...ROW, legs: [{ ...ROW.legs[0], ...leg }] }]),
+        'POST /api/v1/modifygttorder': PLACED,
+      })
+      await openModify('1001')
+      expect(text('gtt-refused')).toBe(refusal)
+      expect(screen.queryByTestId('gtt-review')).toBeNull()
+      expect(requests('modifygttorder')).toHaveLength(0)
+    },
+  )
+
   test('Semi-Auto in LIVE refuses it: the server text and the Action Center link, nothing retried', async () => {
     const REFUSAL = 'Modify GTT order is not allowed in Semi-Auto mode. Switch to Auto mode.'
     await setup({

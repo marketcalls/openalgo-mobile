@@ -6,8 +6,8 @@ import { qk } from '~/core/query/keys'
 import { useServices } from '~/core/services/services'
 import { QUEUED_COPY } from '~/market/components/SessionBanners'
 import { type GttCancel, reconcileGttCancel } from '~/market/gtt/reconcile'
-import type { GttRow, GttSpec } from '~/market/gtt/schemas'
-import { gttProduct, gttSummary } from '~/market/gtt/ticket'
+import type { GttRow } from '~/market/gtt/schemas'
+import { type GttShown, gttSummary } from '~/market/gtt/ticket'
 import type { InstrumentCache } from '~/market/instruments/cache'
 import { fmtTick } from '~/market/instruments/tick'
 import { type OrderMeta, sandboxed, sleep } from '~/market/orders/outcome'
@@ -44,17 +44,18 @@ export function rowMeta(
 }
 
 /**
- * The GTT as the book lists it, in the GTT ticket's terms, for its one-line summary. A row without
- * the legs its type needs has no side to show, and gives none.
+ * The GTT as the book lists it, in the GTT ticket's terms, for its one-line summary: its own
+ * product, as its row shows it, never its segment's. A row without the legs its type needs has no
+ * side to show, and gives none.
  */
-function specOf(row: GttRow): GttSpec | null {
+function specOf(row: GttRow): GttShown | null {
   const [first, second] = row.legs
   if (!first) return null
   const common = {
     exchange: row.exchange,
     symbol: row.symbol,
     action: first.action,
-    product: gttProduct(row.exchange),
+    product: first.product.trim(),
     quantity: first.quantity,
   }
   if (row.type === 'SINGLE') {

@@ -1535,6 +1535,20 @@ describe('the GTT segment', () => {
     expect(screen.getByTestId('gtt-row-1001')).toHaveStyle({ opacity: 0.6 })
   })
 
+  test("the cancel confirm names the GTT's own product, as its row does, never its segment's", async () => {
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': gttBook([
+        gtt({ legs: [{ ...GTT_ROW.legs[0], product: 'NRML' }] }),
+      ]),
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+    answer = false
+    await press('gtt-cancel')
+    expect(asked[0]?.body).toBe('GTT · SELL 1 RELIANCE · trigger 1,500.00 → LIMIT 1,499.00 · NRML')
+    expect(requests('cancelgttorder')).toHaveLength(0)
+  })
+
   test.each([
     [
       'cancelled',

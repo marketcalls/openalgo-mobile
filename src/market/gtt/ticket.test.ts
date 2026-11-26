@@ -272,6 +272,7 @@ describe('gttTicketFromRow', () => {
       action: 'SELL',
       type: 'SINGLE',
       qty: 1,
+      product: 'CNC',
       trigger: 1500,
       price: 1499,
     })
@@ -293,6 +294,7 @@ describe('gttTicketFromRow', () => {
       action: 'SELL',
       type: 'OCO',
       qty: 1,
+      product: 'CNC',
       slTrigger: 1420,
       slPrice: 1419,
       tgTrigger: 1520,
@@ -312,9 +314,71 @@ describe('gttTicketFromRow', () => {
   })
 
   test('a row without the legs its type needs gives no ticket: its side is not known', () => {
-    expect(gttTicketFromRow(rowOf({ ...KITE_SINGLE, legs: [] }), RELIANCE)).toBeNull()
+    expect(gttTicketFromRow(rowOf({ ...KITE_SINGLE, legs: [] }), RELIANCE)).toEqual({
+      refused: 'legs',
+    })
     const oneLeg = rowOf({ ...KITE_SINGLE, trigger_type: 'two-leg', trigger_prices: [1420, 1520] })
-    expect(gttTicketFromRow(oneLeg, RELIANCE)).toBeNull()
+    expect(gttTicketFromRow(oneLeg, RELIANCE)).toEqual({ refused: 'legs' })
+  })
+
+  test("(G2) an NRML GTT on NSE (Angel's MARGIN) keeps its product: the modify sends NRML, never CNC", () => {
+    const leg = { action: 'SELL', quantity: 1, price: 1499, pricetype: 'LIMIT', product: 'NRML' }
+    const t = gttTicketFromRow(rowOf({ ...KITE_SINGLE, legs: [leg] }), RELIANCE)
+    expect(t).toMatchObject({ exchange: 'NSE', product: 'NRML' })
+    if ('refused' in t) throw new Error('refused')
+    expect(planGtt(t, RELIANCE, 1800)).toMatchObject({ product: 'NRML' })
+    // as the book may word it
+    const lower = gttTicketFromRow(
+      rowOf({ ...KITE_SINGLE, legs: [{ ...leg, product: ' nrml ', pricetype: 'limit' }] }),
+      RELIANCE,
+    )
+    expect(lower).toMatchObject({ product: 'NRML' })
+  })
+
+  test('(G2) a product a GTT is not sent with, none, or two of them: no ticket, and the product named', () => {
+    const leg = { action: 'SELL', quantity: 1, price: 1499, pricetype: 'LIMIT', product: 'CNC' }
+    const withLegs = (legs: Record<string, unknown>[], o: Record<string, unknown> = {}) =>
+      gttTicketFromRow(rowOf({ ...KITE_SINGLE, ...o, legs }), RELIANCE)
+    expect(withLegs([{ ...leg, product: 'MIS' }])).toEqual({ refused: 'product', product: 'MIS' })
+    expect(withLegs([{ ...leg, product: 'MTF' }])).toEqual({ refused: 'product', product: 'MTF' })
+    expect(withLegs([{ ...leg, product: '' }])).toEqual({ refused: 'product', product: '' })
+    expect(withLegs([{ ...leg, product: undefined }])).toEqual({ refused: 'product', product: '' })
+    const twoLeg = { trigger_type: 'two-leg', trigger_prices: [1420, 1520] }
+    expect(
+      withLegs(
+        [
+          { ...leg, price: 1419 },
+          { ...leg, price: 1521, product: 'NRML' },
+        ],
+        twoLeg,
+      ),
+    ).toEqual({ refused: 'product', product: 'CNC / NRML' })
+  })
+
+  test('(design 17.3) a leg that places a MARKET order is not sent as a LIMIT one: no ticket', () => {
+    const leg = { action: 'SELL', quantity: 1, price: 0, pricetype: 'MARKET', product: 'CNC' }
+    expect(gttTicketFromRow(rowOf({ ...KITE_SINGLE, legs: [leg] }), RELIANCE)).toEqual({
+      refused: 'pricetype',
+      pricetype: 'MARKET',
+    })
+    const unlisted = { ...leg, price: 1499, pricetype: undefined }
+    expect(gttTicketFromRow(rowOf({ ...KITE_SINGLE, legs: [unlisted] }), RELIANCE)).toEqual({
+      refused: 'pricetype',
+      pricetype: '',
+    })
+    const twoLeg = rowOf({
+      ...KITE_SINGLE,
+      trigger_type: 'two-leg',
+      trigger_prices: [1420, 1520],
+      legs: [
+        { ...leg, price: 1419, pricetype: 'LIMIT' },
+        { ...leg, price: 0, pricetype: 'MARKET' },
+      ],
+    })
+    expect(gttTicketFromRow(twoLeg, RELIANCE)).toEqual({
+      refused: 'pricetype',
+      pricetype: 'MARKET',
+    })
   })
 })
 
@@ -346,6 +410,16 @@ describe('gttSummary', () => {
     )
     expect(gttSummary(spec, NIFTY_FUT)).toBe(
       `GTT · BUY 2L (130) ${FUT} · trigger 24,200.00 → LIMIT 24,210.00 · NRML`,
+    )
+  })
+
+  test("a book row's own product, or none when it lists none", () => {
+    const spec = planGtt(single(), RELIANCE, 1800)
+    expect(gttSummary({ ...spec, product: 'MIS' }, RELIANCE)).toBe(
+      'GTT · SELL 1 RELIANCE · trigger 1,500.00 → LIMIT 1,499.00 · MIS',
+    )
+    expect(gttSummary({ ...spec, product: '' }, RELIANCE)).toBe(
+      'GTT · SELL 1 RELIANCE · trigger 1,500.00 → LIMIT 1,499.00',
     )
   })
 })

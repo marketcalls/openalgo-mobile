@@ -17,6 +17,8 @@ export type GttTicketState = {
   type: GttType
   /** Lots on a derivative exchange, units elsewhere. */
   qty: number
+  /** A modify's own product, which it keeps; a new GTT takes its segment's (`gttProduct`). */
+  product?: GttSpec['product']
   /** SINGLE: the trigger and the limit price of the order it places. */
   trigger?: number
   price?: number
@@ -43,6 +45,9 @@ export type GttIssue =
 /** G2: CNC on cash, NRML on a derivative; MIS is refused, since a GTT outlives the day. */
 export const gttProduct = (exchange: string): GttSpec['product'] =>
   usesLots(exchange) ? 'NRML' : 'CNC'
+
+/** The products a GTT is sent with (G2), as a book row lists them. */
+const GTT_PRODUCTS: Record<string, GttSpec['product']> = { CNC: 'CNC', NRML: 'NRML' }
 
 const positive = (n: number | undefined): n is number =>
   n !== undefined && Number.isFinite(n) && n > 0
@@ -78,20 +83,50 @@ export function initialGttTicket(p: GttParams, meta: InstrumentMeta): GttTicketS
 }
 
 /**
+ * Why a book row can't be modified here. A modify replaces the GTT whole (G2), so it sends the
+ * row's own values: a row whose side, product or order type the ticket can't send as listed would
+ * go back changed.
+ */
+export type GttRowRefusal =
+  | { refused: 'legs' }
+  | { refused: 'product'; product: string }
+  | { refused: 'pricetype'; pricetype: string }
+
+/**
  * The ticket a modify starts from: the row's own values, the quantity in lots on a derivative.
  * The book pairs each leg with its own trigger and lists them ascending (RF 3), so an OCO's
- * stop-loss is its first leg, never its target. A row without the legs its type needs has no
- * side to keep, and gives no ticket.
+ * stop-loss is its first leg, never its target.
+ * - A row without the legs its type needs has no side to keep.
+ * - It keeps the row's product, which need not be its segment's: an NRML GTT on NSE (Angel's
+ *   MARGIN) sent back as CNC would fire as a delivery order. A product other than CNC or NRML, or
+ *   two legs with different ones, can't be sent (G2).
+ * - Each leg places a LIMIT order (design 17.3), so a leg with another order type (a MARKET one)
+ *   can't be sent as listed.
  */
-export function gttTicketFromRow(row: GttRow, meta: InstrumentMeta): GttTicketState | null {
+export function gttTicketFromRow(
+  row: GttRow,
+  meta: InstrumentMeta,
+): GttTicketState | GttRowRefusal {
   const [first, second] = row.legs
-  if (!first || (row.type === 'OCO' && !second)) return null
+  if (!first || (row.type === 'OCO' && !second)) return { refused: 'legs' }
+  const legs = row.type === 'OCO' && second ? [first, second] : [first]
+  const products = new Set(legs.map((l) => l.product.trim().toUpperCase()))
+  const product = products.size === 1 ? GTT_PRODUCTS[[...products][0] ?? ''] : undefined
+  if (!product) {
+    return {
+      refused: 'product',
+      product: [...new Set(legs.map((l) => l.product.trim()))].join(' / '),
+    }
+  }
+  const other = legs.find((l) => l.pricetype.trim().toUpperCase() !== 'LIMIT')
+  if (other) return { refused: 'pricetype', pricetype: other.pricetype.trim() }
   const t: GttTicketState = {
     exchange: row.exchange,
     symbol: row.symbol,
     action: first.action,
     type: row.type,
     qty: meta.lots ? first.quantity / meta.lotsize : first.quantity,
+    product,
   }
   if (row.type === 'SINGLE') return { ...t, trigger: row.triggers[0], price: first.price }
   return {
@@ -140,17 +175,17 @@ export function validateGtt(
 }
 
 /**
- * The GTT as it is sent: every price on the tick, the product its segment takes, the quantity in
- * units. A SINGLE above `ltp` fires on a rise, below it on a fall (RF 6); the review plans it with
- * the LTP of that moment, and confirm again with its own. Only a valid ticket is planned: a SINGLE
- * without an LTP has no direction, and is refused.
+ * The GTT as it is sent: every price on the tick, the modify's own product or else the one its
+ * segment takes, the quantity in units. A SINGLE above `ltp` fires on a rise, below it on a fall
+ * (RF 6); the review plans it with the LTP of that moment, and confirm again with its own. Only a
+ * valid ticket is planned: a SINGLE without an LTP has no direction, and is refused.
  */
 export function planGtt(t: GttTicketState, meta: InstrumentMeta, ltp?: number): GttSpec {
   const common = {
     exchange: t.exchange,
     symbol: t.symbol,
     action: t.action,
-    product: gttProduct(t.exchange),
+    product: t.product ?? gttProduct(t.exchange),
     quantity: unitsOf(t, meta),
   }
   if (t.type === 'OCO') {
@@ -204,21 +239,29 @@ export function gttIssueText(issue: GttIssue, { meta }: GttIssueContext): string
   }
 }
 
+/** A spec with any product in place of the two a GTT is sent with. */
+type AnyProduct<T> = T extends unknown ? Omit<T, 'product'> & { product: string } : never
+
+/** What a summary reads: a GTT as it is sent, or a book row's values with the product it lists. */
+export type GttShown = AnyProduct<GttSpec>
+
 /**
  * The GTT in one line, from what is sent: `GTT · SELL 1 RELIANCE · trigger 1,500.00 → LIMIT
  * 1,499.00 · CNC`, or `GTT OCO · SELL 1 RELIANCE · SL 1,300.00 → 1,299.00 · target 1,500.00 →
- * 1,501.00 · CNC`. Lots show as the order terms show them: `2L (130)`.
+ * 1,501.00 · CNC`. Lots show as the order terms show them: `2L (130)`. A row that lists no
+ * product shows none.
  */
-export function gttSummary(spec: GttSpec, meta: OrderMeta): string {
+export function gttSummary(spec: GttShown, meta: OrderMeta): string {
   const px = (n: number) => fmtTick(n, meta.tick, n)
   const lots = meta.lots ? spec.quantity / meta.lotsize : Number.NaN
   const qty = Number.isInteger(lots)
     ? `${fmtQty(lots)}L (${fmtQty(spec.quantity)})`
     : fmtQty(spec.quantity)
   const what = `${spec.action} ${qty} ${spec.symbol}`
+  const product = spec.product ? ` · ${spec.product}` : ''
   if (spec.type === 'SINGLE') {
-    return `GTT · ${what} · trigger ${px(spec.trigger)} → LIMIT ${px(spec.price)} · ${spec.product}`
+    return `GTT · ${what} · trigger ${px(spec.trigger)} → LIMIT ${px(spec.price)}${product}`
   }
   const leg = (l: { trigger: number; price: number }) => `${px(l.trigger)} → ${px(l.price)}`
-  return `GTT OCO · ${what} · SL ${leg(spec.sl)} · target ${leg(spec.tg)} · ${spec.product}`
+  return `GTT OCO · ${what} · SL ${leg(spec.sl)} · target ${leg(spec.tg)}${product}`
 }

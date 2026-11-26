@@ -66,7 +66,7 @@ export function GttForm(p: {
     <View style={styles.form}>
       {p.fixed ? (
         <Text tone="muted">
-          {`${t.action} · ${t.type === 'OCO' ? 'OCO' : 'Single'} · ${gttProduct(t.exchange)}`}
+          {`${t.action} · ${t.type === 'OCO' ? 'OCO' : 'Single'} · ${t.product ?? gttProduct(t.exchange)}`}
         </Text>
       ) : (
         <>

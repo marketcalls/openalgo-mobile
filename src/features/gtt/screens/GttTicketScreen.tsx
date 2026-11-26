@@ -20,6 +20,7 @@ import { BrokerBanner } from '~/market/components/SessionBanners'
 import { reconcileGttChange, reconcileGttPlacement } from '~/market/gtt/reconcile'
 import type { GttBook, GttReply, GttRow, GttSpec } from '~/market/gtt/schemas'
 import {
+  type GttRowRefusal,
   type GttTicketState,
   gttIssueText,
   gttSummary,
@@ -86,8 +87,22 @@ const STILL_SENDING = 'Your GTT is still being sent. Its outcome will show here.
 const HOLD_COPY = 'The GTT is being sent. Wait for its outcome.'
 const NOT_IN_BOOK = 'This GTT is no longer in the book.'
 const NOT_ACTIVE = 'Only an active GTT can be modified.'
-/** A row without the legs its type needs: its side is not known, and a modify replaces it all. */
-const UNREADABLE = "This GTT's legs can't be read, so it can't be modified here."
+/** A modify replaces the GTT whole (G2), so it sends only what it can send as the row lists it. */
+function refusalText(r: GttRowRefusal): string {
+  switch (r.refused) {
+    // A row without the legs its type needs: its side is not known.
+    case 'legs':
+      return "This GTT's legs can't be read, so it can't be modified here."
+    case 'product':
+      return r.product
+        ? `This GTT's product (${r.product}) can't be modified here.`
+        : "This GTT's product isn't listed, so it can't be modified here."
+    case 'pricetype':
+      return r.pricetype
+        ? `This GTT places a ${r.pricetype} order, so it can't be modified here.`
+        : "This GTT's order type isn't listed, so it can't be modified here."
+  }
+}
 
 const modeChanged = (mode: AnalyzerMode) =>
   `The server is now in ${MODE_LABEL[mode]} mode. Review again.`
@@ -180,10 +195,10 @@ function ModifyGtt({ triggerId }: { triggerId: string }) {
     <Listed exchange={row.exchange} symbol={row.symbol}>
       {(meta) => {
         const initial = gttTicketFromRow(row, meta)
-        return initial ? (
-          <Gtt meta={meta} initial={initial} triggerId={triggerId} />
+        return 'refused' in initial ? (
+          <Refused at={row} text={refusalText(initial)} />
         ) : (
-          <Refused at={row} text={UNREADABLE} />
+          <Gtt meta={meta} initial={initial} triggerId={triggerId} />
         )
       }}
     </Listed>
