@@ -36,10 +36,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       versionCode: build,
       allowBackup: false,
       predictiveBackGestureEnabled: false,
+      // The white OpenAlgo mark on black; assets/brand/README.md says how the images are made.
       adaptiveIcon: {
-        backgroundColor: '#E6F4FE',
+        backgroundColor: '#000000',
         foregroundImage: './assets/images/android-icon-foreground.png',
-        backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
     },
@@ -47,10 +47,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       [
         'expo-splash-screen',
+        // The white logo (mark and wordmark) on black, the same in light and dark mode.
         {
-          backgroundColor: '#0a0a0a',
+          backgroundColor: '#000000',
           image: './assets/images/splash-icon.png',
-          imageWidth: 76,
+          imageWidth: 200,
         },
       ],
       [
@@ -60,6 +61,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       './plugins/withReleaseSigning',
       ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
     ],
+    web: { favicon: './assets/images/favicon.png' },
     experiments: { typedRoutes: true, reactCompiler: true },
     extra: { minServerVersion: '2.0.0.0' },
   }
