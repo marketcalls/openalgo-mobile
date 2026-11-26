@@ -6,11 +6,18 @@ appId: in.openalgo.mobile
 ---
 - launchApp:
     clearState: true
-- runFlow: onboarding-live.yaml
+# Analyzer mode before onboarding, so the first mode the app reads is ANALYZE: GTT support is
+# detected for the header badge's mode, and the badge reads it on mount and on a foreground.
 - runScript:
     file: scripts/mock.js
     env:
       CONTROL: '{"analyzer":true}'
+- runFlow: onboarding-live.yaml
+# the header badge (its id is on the badge, the label on its child, so the label is matched)
+- extendedWaitUntil:
+    visible:
+      text: ANALYZE
+    timeout: 10000
 
 # "Create GTT" shows after the detection read
 - tapOn:

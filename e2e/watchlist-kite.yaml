@@ -8,7 +8,7 @@ appId: in.openalgo.mobile
     id: wl-count
     text: "7/250"
 
-# sort A to Z: HDFCBANK comes before TCS, which may sit below the fold
+# sort A to Z: HDFCBANK comes first, and TCS, which may sit below the fold, last, below SBIN
 - tapOn:
     id: wl-sort
 - tapOn:
@@ -20,6 +20,10 @@ appId: in.openalgo.mobile
       id: watch-row-NSE-TCS
     direction: DOWN
     timeout: 15000
+- assertVisible:
+    id: watch-row-NSE-TCS
+    below:
+      id: watch-row-NSE-SBIN
 
 # edit mode: a new group, then SBIN moves into it
 - tapOn:

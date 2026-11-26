@@ -72,3 +72,12 @@ test('the trading flows and the mock control script exist and start from a clean
   }
   assert.match(readFileSync(join(e2e, 'scripts', 'mock.js'), 'utf8'), /__mock\/control/)
 })
+
+test('gtt-analyzer sets analyzer mode before onboarding, so the first mode the app reads is ANALYZE', () => {
+  const text = readFileSync(join(e2e, 'gtt-analyzer.yaml'), 'utf8')
+  assert.match(text, /- launchApp:\n\s+clearState: true/)
+  const control = text.indexOf(`CONTROL: '{"analyzer":true}'`)
+  const onboarding = text.indexOf('- runFlow: onboarding-live.yaml')
+  assert.ok(control > 0 && onboarding > 0, 'both steps are in the flow')
+  assert.ok(control < onboarding, 'the analyzer control comes before onboarding')
+})

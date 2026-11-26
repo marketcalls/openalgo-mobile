@@ -24,8 +24,8 @@ Writing a flow:
 | `onboarding-live.yaml` | `PORT=5000 WS_PORT=8765` | server, key and live-feed steps; the watchlist shows a price within 10 s |
 | `onboarding-polling.yaml` | `PORT=5000 WS_PORT=off` | the feed test fails, the profile saves in polling mode, `badge-polling` shows, and the price updates |
 | `trading-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | add ITC, a LIMIT buy from its instrument sheet reviewed as ANALYZE, modify, cancel, the sheet's depth into a ticket, close a position, sell a holding |
-| `watchlist-kite.yaml` | `PORT=5000 WS_PORT=8765` | the `7/250` count, sort A to Z, a new group and a regroup in edit mode, the held marker, the index strip toggle, the instrument sheet's BUY and quote details |
-| `gtt-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer`; `PROFILE` 2.0.3.5 only | a SELL GTT from the instrument sheet reviewed as ANALYZE, listed active as 1001 in the Orders GTT segment, then cancelled |
+| `watchlist-kite.yaml` | `PORT=5000 WS_PORT=8765` | the `7/250` count, sort A to Z (TCS last, below SBIN), a new group and a regroup in edit mode, the held marker, the index strip toggle, the instrument sheet's BUY and quote details |
+| `gtt-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` (set before onboarding); `PROFILE` 2.0.3.5 only | the header badge reads ANALYZE; a SELL GTT from the instrument sheet reviewed as ANALYZE, listed active as 1001 in the Orders GTT segment, then cancelled |
 | `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
 | `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | in the instrument sheet at full height, the 20-level switch shows `depth-bid-19` |
 
