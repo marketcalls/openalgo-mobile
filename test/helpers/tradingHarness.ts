@@ -1,6 +1,7 @@
 // The trading layer over the mock: `makeApp` (real services, Node fetch and `ws`) plus the
 // trading pieces the order paths use, with the timings the compat suite needs.
 import { createEventWatch } from '~/market/books/eventWatch'
+import { createGttApi, type GttSeen } from '~/market/gtt/api'
 import { createInstrumentCache } from '~/market/instruments/cache'
 import { type AnalyzerMode, createAnalyzerGate } from '~/market/orders/analyzerGate'
 import { createOrderApi } from '~/market/orders/api'
@@ -15,6 +16,9 @@ export const SPLIT_TIMEOUT_MS = 2000
 /** How long an own order may go without its event before the watch demotes. */
 export const WATCH_TIMEOUT_MS = 1000
 
+/** What the GTT api recorded as evidence of support: `[served, mode]` per reply. */
+export type GttSeenLog = GttSeen & { calls: [boolean, 'live' | 'analyze'][] }
+
 export async function tradingHarness(mock: MockServerProcess) {
   const app: App = await makeApp(mock)
   const now = () => Date.now()
@@ -28,6 +32,13 @@ export async function tradingHarness(mock: MockServerProcess) {
   })
   const watch = createEventWatch({ now, timeoutMs: WATCH_TIMEOUT_MS })
   const offBus = app.orderEvents.subscribe((u) => watch.seen(u.orderid))
+
+  const gttSeen: GttSeenLog = {
+    calls: [],
+    record(ok, mode) {
+      gttSeen.calls.push([ok, mode])
+    },
+  }
 
   /** One write as the screens send it: the mode is read again and must match `shownMode`. */
   async function submit<R>(kind: ActionKind, send: () => Promise<R>, shownMode?: AnalyzerMode) {
@@ -45,6 +56,8 @@ export async function tradingHarness(mock: MockServerProcess) {
     app,
     api: app.api,
     orders: createOrderApi(app.api),
+    gtt: createGttApi(app.api, gttSeen),
+    gttSeen,
     gate,
     watch,
     realtime: app.realtime,

@@ -41,7 +41,10 @@ checks, `OPENALGO_TEST_WS_URL`. The test server needs `FLASK_HOST_IP='0.0.0.0'` 
 fails, and the suite never toggles the mode. Besides the connection and feed checks it reads the
 five books (none may drop a row), `/symbol`, and runs the analyzer order loop (strategy `mobile`):
 place a LIMIT BUY of 1 RELIANCE at 90% of the ltp, modify it, cancel it. While NSE is open it also
-buys 1 RELIANCE CNC at market and closes it with a smart order.
+buys 1 RELIANCE CNC at market and closes it with a smart order. On a server that lists the GTT book
+with `status` (2.0.2.4 or later) it also runs the GTT loop: place a SINGLE SELL of 1 RELIANCE CNC
+with its trigger at 120% of the ltp, watch the book for 12 s to see it stay active, modify the
+trigger to 125%, cancel it and see it cancelled.
 
 ## Checks
 

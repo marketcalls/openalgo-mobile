@@ -22,6 +22,9 @@ import { createRealtime, type WebSocketCtor } from '~/core/realtime/wsClient'
 import { capabilityReport } from '~/features/account/diagnostics'
 import { feedStep, keyStep, serverStep } from '~/features/onboarding/flow'
 import type { OrderRow } from '~/market/books/schemas'
+import { createGttApi } from '~/market/gtt/api'
+import type { GttRow, GttSpec } from '~/market/gtt/schemas'
+import { GTT_GATES } from '~/market/gtt/support'
 import { SymbolSchema, toMeta } from '~/market/instruments/meta'
 import { snapTick } from '~/market/instruments/tick'
 import { createOrderApi } from '~/market/orders/api'
@@ -340,6 +343,77 @@ function suite({ url, key, wsUrl }: TestEnv) {
           throw e
         }
       })
+
+      // The GTT loop (design 17.3): a SINGLE SELL whose trigger is above the market, so it must
+      // stay active (RF 6). The shim has no field heal, so the book's `status` needs 2.0.2.4.
+      test('GTT: place a SINGLE above the market, it stays active, modify it, cancel it', async () => {
+        safe()
+        if (!caps.endpoints?.includes('gttorderbook') || !atLeast(caps.version, GTT_GATES.status)) {
+          console.info('GTT loop skipped: the server does not list the GTT book with status')
+          return
+        }
+        const gtt = createGttApi(
+          { call: (id, body, schema, o) => http.request(id, body, schema, o) },
+          { record: () => {} },
+        )
+        const { tick, ltp } = await reliance()
+        const at = (f: number) => snapTick(ltp * f, tick, ltp)
+        const spec = (trigger: number): GttSpec => ({
+          type: 'SINGLE',
+          exchange: 'NSE',
+          symbol: 'RELIANCE',
+          action: 'SELL',
+          product: 'CNC',
+          quantity: 1,
+          trigger,
+          price: trigger,
+          above: true,
+        })
+        const row = async (id: string): Promise<GttRow | undefined> =>
+          (await gtt.book({ fresh: true })).rows.find((r) => r.triggerId === id)
+
+        await stillAnalyzer()
+        const placed = await gtt.place(spec(at(1.2)))
+        if (placed.kind !== 'ok') throw new Error(`the GTT place answered ${placed.kind}`)
+        const id = placed.triggerId
+        if (!placed.analyze) {
+          // a real GTT at the broker: cancel it before anything else
+          await gtt.cancel(id).catch(() => {})
+          throw new Error(LIVE_REPLY)
+        }
+        try {
+          // The sandbox scans every 5 s: watch for 12 s, so the first scan is in it, and fail
+          // if the row ever leaves active (a trigger in the wrong field fires on that scan).
+          const end = Date.now() + 12_000
+          do {
+            const r = await row(id)
+            expect(r?.status).toBe('active')
+            await wait(1000)
+          } while (Date.now() < end)
+
+          const next = at(1.25)
+          await stillAnalyzer()
+          const m = await gtt.modify(id, spec(next))
+          expect(m).toMatchObject({ kind: 'ok', analyze: true })
+          expect((await row(id))?.triggers).toEqual([next])
+
+          await stillAnalyzer()
+          const c = await gtt.cancel(id)
+          expect(c).toMatchObject({ kind: 'ok', analyze: true })
+          expect((await row(id))?.status).toBe('cancelled')
+        } catch (e) {
+          // Leave nothing active in the sandbox; in LIVE the GTT is not the sandbox's to touch.
+          if (
+            await stillAnalyzer().then(
+              () => true,
+              () => false,
+            )
+          ) {
+            await gtt.cancel(id).catch(() => {})
+          }
+          throw e
+        }
+      }, 60_000)
 
       const whileOpen = isExchangeOpen('NSE', Date.now()) ? test : test.skip
       whileOpen('MARKET BUY 1 CNC, then smartClose leaves the position flat', async () => {
