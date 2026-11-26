@@ -3,7 +3,7 @@
 // of T10: the mode read before it, the live confirm, one request at a time, never retried. An
 // outcome that may hide a placed order is checked against the order book and never re-sent.
 import { type Href, useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { hasEndpoint } from '~/core/capabilities/gates'
@@ -23,14 +23,7 @@ import { ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { MODE_LABEL } from '~/market/orders/confirmWrite'
-import { useSubmitGuard } from '~/market/orders/guard'
 import { settle, sleep } from '~/market/orders/outcome'
-import {
-  holdOrder,
-  takeUnseenOutcome,
-  useOtherOrderOut,
-  useUnseenOutcome,
-} from '~/market/orders/pending'
 import { noReplyDelays, reconcilePlacement, reconcileSplit } from '~/market/orders/reconcile'
 import type { PlaceReply, SplitReply } from '~/market/orders/schemas'
 import { type Outcome, submitOrderAction } from '~/market/orders/submit'
@@ -44,9 +37,9 @@ import {
   ticketSummary,
   validateTicket,
 } from '~/market/orders/ticket'
+import { useConfirmedReview } from '~/market/orders/useConfirmedReview'
 import { useFreshBook } from '~/market/orders/useFreshBook'
-import { useHoldSheet } from '~/market/orders/useHoldSheet'
-import { type BookSnapshot, useReviewBook } from '~/market/orders/useReviewBook'
+import type { BookSnapshot } from '~/market/orders/useReviewBook'
 import { openServerPage, useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
@@ -54,7 +47,6 @@ import { ErrorState } from '~/ui/ErrorState'
 import { fmtQty } from '~/ui/format'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-import { toast } from '~/ui/Toast'
 import { ResultView, resultLine, type TicketResult } from '../components/ResultView'
 import { ReviewStep } from '../components/ReviewStep'
 import { TicketForm } from '../components/TicketForm'
@@ -166,29 +158,9 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   const insets = useSafeAreaInsets()
   const blocked = useBrokerBlocked()
   const isEvented = useIsEvented()
-  const guard = useSubmitGuard()
   const ltp = useLiveQuote(exchange, symbol, 1)?.ltp
   const [ticket, setTicket] = useState(() => initialTicket(params, meta))
   const [step, setStep] = useState<Step>({ kind: 'edit' })
-  /** This ticket, as the session's list of orders still out knows it. */
-  const [me] = useState(() => ({}))
-  const otherOut = useOtherOrderOut(trading, me)
-  /** Where this ticket's order is: on its way, or being checked after an unknown outcome. */
-  const phase = useRef<'idle' | 'sending' | 'checking'>('idle')
-  const alive = useRef(true)
-  /** The last outcome line this ticket's order sent to the toast, once its sheet had gone. */
-  const goneLine = useRef<string | null>(null)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-      // The sheet went while the order was on its way (an Android sheet can always be swiped
-      // away): what comes of it shows as a toast.
-      if (phase.current === 'sending') toast(STILL_SENDING)
-    }
-  }, [])
-  useHoldSheet(step.kind === 'sending')
-  const onReview = step.kind === 'review'
   const readFresh = useFreshBook()
   const pid = s.profile.get().id
   const readIds = useCallback(async () => orderIds(await readFresh()), [readFresh])
@@ -196,18 +168,16 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     () => orderIds(s.queryClient.getQueryData<Orderbook>(qk.orderbook(pid))),
     [s, pid],
   )
-  const book = useReviewBook({ owner: me, otherOut, onReview, readIds, cachedIds })
-  // An earlier order's outcome that only the toast carried: on iOS the toast is beneath this
-  // sheet, so the review says it, whether it lands while this review waits or came before.
-  const unseen = useUnseenOutcome(trading)
-  const [earlierLine, setEarlierLine] = useState<string | null>(null)
-  useEffect(() => {
-    if (!onReview || unseen === null) return
-    const line = takeUnseenOutcome(trading)
-    if (line !== null) setEarlierLine(line)
-  }, [onReview, unseen, trading])
-  /** Each mode read; one for an earlier opening, or before a retry, is dropped. */
-  const modeReads = useRef(0)
+  // The order safety's shell: the hold on a new order, the review's mode and book reads, and an
+  // outcome on the sheet or, once it has gone (it may, mid-send), as a toast.
+  const shell = useConfirmedReview({
+    onReview: step.kind === 'review',
+    sending: step.kind === 'sending',
+    stillSending: STILL_SENDING,
+    readIds,
+    cachedIds,
+  })
+  const { book, guard, otherOut, earlierLine } = shell
   /** The placed order's status, once the book or its order event shows it. */
   const [placedStatus, setPlacedStatus] = useState<string | null>(null)
   const placedId =
@@ -263,20 +233,16 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   const plan = issueCodes.length === 0 ? planOrder(ticket, meta) : null
   const margin = useMarginPreview(plan ? plan.spec : null)
 
-  const readMode = (seq: number) => {
-    trading.analyzer.read().then(
-      (mode) => {
-        if (alive.current && modeReads.current === seq) {
-          setStep((st) => (st.kind === 'review' ? { ...st, mode, readError: undefined } : st))
-        }
-      },
-      (e: unknown) => {
-        if (alive.current && modeReads.current === seq) {
-          setStep((st) => (st.kind === 'review' ? { ...st, readError: e } : st))
-        }
-      },
+  const readMode = () =>
+    shell.readMode((r) =>
+      setStep((st) =>
+        st.kind !== 'review'
+          ? st
+          : 'mode' in r
+            ? { ...st, mode: r.mode, readError: undefined }
+            : { ...st, readError: r.error },
+      ),
     )
-  }
 
   /**
    * The review reads the server's mode and, afresh, the order book (ruling 26): the cache can
@@ -291,44 +257,30 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     }))
     setStep({ kind: 'review', mode: null })
     book.read()
-    readMode(++modeReads.current)
+    readMode()
   }
 
   const retryRead = () => {
     setStep((st) => (st.kind === 'review' ? { ...st, readError: undefined } : st))
-    readMode(++modeReads.current)
+    readMode()
   }
 
   /** When the send went, and what it knew of the book (`useReviewBook`'s snapshot). */
   type Sent = BookSnapshot & { at: number }
 
-  /**
-   * An outcome once the sheet has gone: the toast says it, and the session keeps the line for
-   * the next review, since on iOS a presented sheet hides that toast.
-   */
-  const tell = (line: string) => {
-    goneLine.current = line
-    toast(line)
-  }
-
   /** Shows `result` on the sheet, or as a toast once the sheet has gone (it may, mid-send). */
-  const show = (result: TicketResult) => {
-    if (alive.current) setStep({ kind: 'result', result })
-    else tell(resultLine(result))
-  }
+  const show = (result: TicketResult) =>
+    shell.onSheet(() => setStep({ kind: 'result', result }), resultLine(result))
 
   /** Back to edit with `error`, or the error as a toast once the sheet has gone. */
-  const refused = (error: string) => {
-    if (alive.current) setStep({ kind: 'edit', error })
-    else tell(error)
-  }
+  const refused = (error: string) => shell.onSheet(() => setStep({ kind: 'edit', error }), error)
 
   /**
    * It may have gone: the order book says what happened. Nothing is sent again. The check runs
    * to its end even when the sheet has closed, and then shows as a toast.
    */
   const reconcile = async (p: OrderPlan, sent: Sent, noReply: boolean) => {
-    phase.current = 'checking'
+    shell.checking()
     notifyWarning()
     // No reply: the server may still be sending it, so the check reads on past its broker timeout.
     const delaysMs = noReply
@@ -409,17 +361,18 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
         refused(r.message)
         return
       case 'mode_changed':
-        if (alive.current) {
-          setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) })
-          // The review's book is the old mode's (the sandbox's, or the live one): its order ids
-          // say nothing of the new mode's book, so a check after an unknown outcome would take an
-          // order already in it for this one. Confirm waits for the new mode's book.
-          book.read()
-        } else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
+        // The review shows again, and reads the new mode's book before confirm can send.
+        shell.modeChanged(
+          r.now,
+          () => setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) }),
+          NOT_SENT,
+        )
         return
       case 'cancelled':
-        if (alive.current) setStep({ kind: 'review', mode: shownMode, notice: r.message })
-        else tell(NOT_SENT)
+        shell.onSheet(
+          () => setStep({ kind: 'review', mode: shownMode, notice: r.message }),
+          NOT_SENT,
+        )
         return
     }
   }
@@ -427,23 +380,21 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   /**
    * The whole of confirm runs inside the guard: one at a time, then the cooldown. The session
    * holds the order as out until its outcome is known, the check after an unknown one included,
-   * so no other ticket sends meanwhile, even once this sheet has gone.
+   * so no other ticket sends meanwhile, even once this sheet has gone (`useConfirmedReview`).
    */
   const confirm = (shownMode: AnalyzerMode) =>
-    void guard.run(async () => {
-      // The LTP may have moved since the review: a stop now on the wrong side goes back to edit,
-      // which shows the issue, and says why it is back there.
-      if (validateTicket(ticket, meta, ltp, { splitAvailable }).length > 0) {
+    shell.confirm(
+      () => {
+        // The LTP may have moved since the review: a stop now on the wrong side goes back to
+        // edit, which shows the issue, and says why it is back there.
+        if (validateTicket(ticket, meta, ltp, { splitAvailable }).length === 0) return true
         notifyWarning()
         setStep({ kind: 'edit', error: MOVED })
-        return
-      }
-      const p = planOrder(ticket, meta)
-      const release = holdOrder(trading, me)
-      goneLine.current = null
-      phase.current = 'sending'
-      setStep({ kind: 'sending', mode: shownMode })
-      try {
+        return false
+      },
+      async () => {
+        const p = planOrder(ticket, meta)
+        setStep({ kind: 'sending', mode: shownMode })
         // `send` takes the snapshot just before the request; until then nothing is known.
         const sent: Sent = { at: Date.now(), knownIds: new Set(), complete: false }
         const send = (): Promise<PlaceReply | SplitReply> => {
@@ -461,12 +412,8 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
           books: s.books,
         })
         await showOutcome(out, p, sent, shownMode)
-      } finally {
-        phase.current = 'idle'
-        // An outcome only the toast carried goes to the review that waits for it, or the next.
-        release(goneLine.current)
-      }
-    })
+      },
+    )
 
   const body = () => {
     switch (step.kind) {

@@ -4,9 +4,10 @@
 // it, the live confirm, one request at a time, never retried. An outcome that may hide the write
 // is checked against the GTT book and never sent again.
 //
-// The session holds the write (`holdOrder`, on a new GTT or on this GTT) until its outcome is
-// known, the check included, so no other GTT ticket sends on it meanwhile, even once this sheet
-// has gone; an outcome only the toast carried is shown by the next review on that scope.
+// The session holds the write (on a new GTT or on this GTT) until its outcome is known, the check
+// included, so no other GTT ticket sends on it meanwhile, even once this sheet has gone; an
+// outcome only the toast carried is shown by the next review on that scope. That shell is the
+// order ticket's too (`useConfirmedReview`).
 import { type Href, useRouter } from 'expo-router'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
@@ -36,26 +37,17 @@ import { type GttParams, ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { MODE_LABEL } from '~/market/orders/confirmWrite'
-import { useSubmitGuard } from '~/market/orders/guard'
 import { settle, sleep } from '~/market/orders/outcome'
-import {
-  holdOrder,
-  NEW_GTT,
-  onGtt,
-  takeUnseenOutcome,
-  useOtherOrderOut,
-  useUnseenOutcome,
-} from '~/market/orders/pending'
+import { NEW_GTT, onGtt } from '~/market/orders/pending'
 import { noReplyDelays, RECONCILE_DELAYS_MS } from '~/market/orders/reconcile'
 import { type Outcome, submitOrderAction } from '~/market/orders/submit'
-import { useHoldSheet } from '~/market/orders/useHoldSheet'
-import { type BookSnapshot, useReviewBook } from '~/market/orders/useReviewBook'
+import { useConfirmedReview } from '~/market/orders/useConfirmedReview'
+import type { BookSnapshot } from '~/market/orders/useReviewBook'
 import { openServerPage, useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { ErrorState } from '~/ui/ErrorState'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-import { toast } from '~/ui/Toast'
 import { GttForm } from '../components/GttForm'
 import {
   changeLine,
@@ -276,32 +268,11 @@ function Gtt({
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const blocked = useBrokerBlocked()
-  const guard = useSubmitGuard()
   const ltp = useLiveQuote(exchange, symbol, 1)?.ltp
   const modify = triggerId !== undefined
-  const scope = triggerId === undefined ? NEW_GTT : onGtt(triggerId)
   const pid = s.profile.get().id
   const [ticket, setTicket] = useState(initial)
   const [step, setStep] = useState<Step>({ kind: 'edit' })
-  /** This ticket, as the session's writes still out know it. */
-  const [me] = useState(() => ({}))
-  const otherOut = useOtherOrderOut(trading, me, scope)
-  /** Where this ticket's GTT is: on its way, or being checked after an unknown outcome. */
-  const phase = useRef<'idle' | 'sending' | 'checking'>('idle')
-  const alive = useRef(true)
-  /** The last outcome line this ticket's GTT sent to the toast, once its sheet had gone. */
-  const goneLine = useRef<string | null>(null)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-      // The sheet went while the GTT was on its way (an Android sheet can always be swiped away):
-      // what comes of it shows as a toast.
-      if (phase.current === 'sending') toast(STILL_SENDING)
-    }
-  }, [])
-  useHoldSheet(step.kind === 'sending', HOLD_COPY)
-  const onReview = step.kind === 'review'
   // The review's GTT book, read afresh: its trigger ids are not the GTT this review sends.
   const readIds = useCallback(
     async () => triggerIds(await trading.gtt.book({ fresh: true })),
@@ -311,36 +282,32 @@ function Gtt({
     () => triggerIds(s.queryClient.getQueryData<GttBook>(qk.gttbook(pid))),
     [s, pid],
   )
-  const book = useReviewBook({ owner: me, otherOut, onReview, readIds, cachedIds, scope })
-  // An earlier GTT write's outcome that only the toast carried: on iOS the toast is beneath this
-  // sheet, so the review says it.
-  const unseen = useUnseenOutcome(trading, scope)
-  const [earlierLine, setEarlierLine] = useState<string | null>(null)
-  useEffect(() => {
-    if (!onReview || unseen === null) return
-    const line = takeUnseenOutcome(trading, scope)
-    if (line !== null) setEarlierLine(line)
-  }, [onReview, unseen, trading, scope])
-  /** Each mode read; one for an earlier opening, or before a retry, is dropped. */
-  const modeReads = useRef(0)
+  // The order safety's shell, as the order ticket's: the hold on a new GTT or on this one, the
+  // review's mode and book reads, and an outcome on the sheet or, once it has gone, as a toast.
+  const shell = useConfirmedReview({
+    scope: triggerId === undefined ? NEW_GTT : onGtt(triggerId),
+    onReview: step.kind === 'review',
+    sending: step.kind === 'sending',
+    holdCopy: HOLD_COPY,
+    stillSending: STILL_SENDING,
+    readIds,
+    cachedIds,
+  })
+  const { book, guard, otherOut, earlierLine } = shell
 
   const issueCodes = validateGtt(ticket, meta, ltp)
   const issues = issueCodes.map((issue) => ({ issue, text: gttIssueText(issue, { meta, ltp }) }))
 
-  const readMode = (seq: number) => {
-    trading.analyzer.read().then(
-      (mode) => {
-        if (alive.current && modeReads.current === seq) {
-          setStep((st) => (st.kind === 'review' ? { ...st, mode, readError: undefined } : st))
-        }
-      },
-      (e: unknown) => {
-        if (alive.current && modeReads.current === seq) {
-          setStep((st) => (st.kind === 'review' ? { ...st, readError: e } : st))
-        }
-      },
+  const readMode = () =>
+    shell.readMode((r) =>
+      setStep((st) =>
+        st.kind !== 'review'
+          ? st
+          : 'mode' in r
+            ? { ...st, mode: r.mode, readError: undefined }
+            : { ...st, readError: r.error },
+      ),
     )
-  }
 
   /** The review plans the GTT with the LTP of now, and reads the mode and the GTT book afresh. */
   const openReview = () => {
@@ -348,41 +315,27 @@ function Gtt({
     setTicket(t)
     setStep({ kind: 'review', spec: planGtt(t, meta, ltp), mode: null })
     book.read()
-    readMode(++modeReads.current)
+    readMode()
   }
 
   const retryRead = () => {
     setStep((st) => (st.kind === 'review' ? { ...st, readError: undefined } : st))
-    readMode(++modeReads.current)
-  }
-
-  /**
-   * An outcome once the sheet has gone: the toast says it, and the session keeps the line for the
-   * next review on this scope, since on iOS a presented sheet hides that toast.
-   */
-  const tell = (line: string) => {
-    goneLine.current = line
-    toast(line)
+    readMode()
   }
 
   /** Shows `result` on the sheet, or as a toast once the sheet has gone (it may, mid-send). */
-  const show = (result: GttResult) => {
-    if (alive.current) setStep({ kind: 'result', result })
-    else tell(gttResultLine(result, modify))
-  }
+  const show = (result: GttResult) =>
+    shell.onSheet(() => setStep({ kind: 'result', result }), gttResultLine(result, modify))
 
   /** Back to edit with `error`, or the error as a toast once the sheet has gone. */
-  const refused = (error: string) => {
-    if (alive.current) setStep({ kind: 'edit', error })
-    else tell(error)
-  }
+  const refused = (error: string) => shell.onSheet(() => setStep({ kind: 'edit', error }), error)
 
   /**
    * It may have gone: the GTT book says what happened. Nothing is sent again. The check runs to
    * its end even when the sheet has closed, and then shows as a toast.
    */
   const reconcile = async (spec: GttSpec, sent: BookSnapshot, noReply: boolean) => {
-    phase.current = 'checking'
+    shell.checking()
     notifyWarning()
     show({ kind: 'maybe', line: null })
     const polling = {
@@ -448,45 +401,44 @@ function Gtt({
         return
       case 'semi_auto_blocked':
         notifyWarning()
-        if (alive.current) setStep({ kind: 'edit', semiAuto: r.message })
-        else tell(r.message)
+        shell.onSheet(() => setStep({ kind: 'edit', semiAuto: r.message }), r.message)
         return
       case 'mode_changed':
-        if (alive.current) {
-          setStep({ kind: 'review', spec, mode: r.now, notice: modeChanged(r.now) })
-          // The review's book is the old mode's (the sandbox's, or the live one): its trigger ids
-          // say nothing of the new mode's book, so a check after an unknown outcome would take a
-          // GTT already in it for this one. Confirm waits for the new mode's book.
-          book.read()
-        } else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
+        // The review shows again, and reads the new mode's book before confirm can send.
+        shell.modeChanged(
+          r.now,
+          () => setStep({ kind: 'review', spec, mode: r.now, notice: modeChanged(r.now) }),
+          NOT_SENT,
+        )
         return
       case 'cancelled':
-        if (alive.current) setStep({ kind: 'review', spec, mode: shownMode, notice: r.message })
-        else tell(NOT_SENT)
+        shell.onSheet(
+          () => setStep({ kind: 'review', spec, mode: shownMode, notice: r.message }),
+          NOT_SENT,
+        )
         return
     }
   }
 
   /**
    * The whole of confirm runs inside the guard: one at a time, then the cooldown. The session
-   * holds the write until its outcome is known, the check after an unknown one included.
+   * holds the write until its outcome is known, the check after an unknown one included
+   * (`useConfirmedReview`).
    */
   const confirm = (shownMode: AnalyzerMode, reviewed: GttSpec) =>
-    void guard.run(async () => {
-      // Ruling 26: the LTP may have moved since the review. Planned again with the LTP of now, the
-      // GTT must be the one reviewed: a SINGLE the LTP has crossed would go the other way and
-      // fire on the next tick (RF 6). Back to edit, which shows any issue and says why.
-      const now = validateGtt(ticket, meta, ltp).length === 0 ? planGtt(ticket, meta, ltp) : null
-      if (now === null || !sameSpec(now, reviewed)) {
+    shell.confirm(
+      () => {
+        // Ruling 26: the LTP may have moved since the review. Planned again with the LTP of now,
+        // the GTT must be the one reviewed: a SINGLE the LTP has crossed would go the other way
+        // and fire on the next tick (RF 6). Back to edit, which shows any issue and says why.
+        const now = validateGtt(ticket, meta, ltp).length === 0 ? planGtt(ticket, meta, ltp) : null
+        if (now !== null && sameSpec(now, reviewed)) return true
         notifyWarning()
         setStep({ kind: 'edit', error: MOVED })
-        return
-      }
-      const release = holdOrder(trading, me, scope)
-      goneLine.current = null
-      phase.current = 'sending'
-      setStep({ kind: 'sending', spec: reviewed, mode: shownMode })
-      try {
+        return false
+      },
+      async () => {
+        setStep({ kind: 'sending', spec: reviewed, mode: shownMode })
         // `send` takes the snapshot just before the request; until then nothing is known.
         const sent: BookSnapshot = { knownIds: new Set(), complete: false }
         const send = (): Promise<GttReply> => {
@@ -504,12 +456,8 @@ function Gtt({
           books: s.books,
         })
         await showOutcome(out, reviewed, sent, shownMode)
-      } finally {
-        phase.current = 'idle'
-        // An outcome only the toast carried goes to the review that waits for it, or the next.
-        release(goneLine.current)
-      }
-    })
+      },
+    )
 
   const body = () => {
     switch (step.kind) {
