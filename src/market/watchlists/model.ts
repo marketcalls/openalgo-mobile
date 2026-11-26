@@ -40,7 +40,7 @@ export type Watchlists = z.output<typeof V2Schema>
 export type WatchList = Watchlists['lists'][number]
 
 /** A 0.1.0 document keeps its ids, names, items and active list; it gains no groups and the added order. */
-function migrateV1(v1: z.output<typeof V1Schema>): Watchlists {
+export function migrateV1(v1: z.output<typeof V1Schema>): Watchlists {
   return {
     version: 2,
     activeId: v1.activeId,
