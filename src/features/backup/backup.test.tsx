@@ -244,3 +244,44 @@ test('over 2 MB the screen names what was left out', async () => {
   )
   expect(JSON.parse(share.mock.calls.at(-1)?.[0] ?? '').content.chartDrawings).toBeUndefined()
 })
+
+test('a chart-write failure leaves the lists untouched, so a retry adds no duplicate lists', async () => {
+  await open()
+  const realSet = kv.set
+  let fail = true
+  kv.set = async (key: string, value: string) => {
+    if (fail && key.includes('chartDrawings')) throw new Error('disk')
+    return realSet(key, value)
+  }
+  await choose(backupText({ watchlists: FILE, chartDrawings: [{ k: DRAW, v: 'new' }] }))
+  await screen.findByTestId('backup-found')
+  await userEvent.press(screen.getByTestId('restore-merge'))
+  expect(await screen.findByTestId('backup-error')).toHaveTextContent(BACKUP_COPY.restoreFailed)
+  expect(saved()).toEqual(MINE)
+  fail = false
+  await userEvent.press(screen.getByTestId('restore-merge'))
+  await waitFor(() => expect(screen.queryByTestId('backup-found')).toBeNull())
+  expect(saved().lists).toHaveLength(MINE.lists.length + FILE.lists.length)
+})
+
+test('chart records the restore would skip are not counted, and the toast names lists and chart items', async () => {
+  await open()
+  await choose(
+    backupText({
+      watchlists: FILE,
+      chartDrawings: [
+        { k: DRAW, v: 'a' },
+        { k: 'not-widget:drawings:NSE:TCS', v: 'b' },
+      ],
+      chartPrefs: [{ k: DRAW, v: 'in the wrong section' }],
+    }),
+  )
+  expect(await screen.findByTestId('backup-summary')).toHaveTextContent(/1 chart item$/)
+  expect(screen.getByTestId('backup-note')).toBeOnTheScreen()
+  expect(BACKUP_COPY.restoredBoth(2, 5)).toBe('Restored 2 lists and 5 chart items.')
+  expect(BACKUP_COPY.restoredBoth(1, 1)).toBe('Restored 1 list and 1 chart item.')
+  await userEvent.press(screen.getByTestId('restore-merge'))
+  await waitFor(() => expect(screen.queryByTestId('backup-found')).toBeNull())
+  expect(kv.data.has('oa.p1.chartDrawings:NSE:INFY')).toBe(true)
+  expect(kv.data.size).toBeGreaterThan(0)
+})

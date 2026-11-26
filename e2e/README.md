@@ -157,7 +157,7 @@ Account
 - `diagnostics-copy`, `diagnostics-refresh`, `cap-{FEATURE}`, `lost-step-{N}`
 - `sign-out`, `sign-out-confirm`, `sign-out-delete`, `signout-backup`
 - `backup-screen`, `backup-create`, `backup-found`, `backup-summary`, `backup-note`,
-  `backup-error`, `backup-restore`, `restore-merge`, `restore-replace`
+  `backup-error`, `backup-dropped`, `backup-restore`, `restore-chart`, `restore-merge`, `restore-replace`
 
 Update banner (tabs)
 - `update-banner`, `update-view`, `update-dismiss`

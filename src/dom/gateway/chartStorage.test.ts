@@ -158,3 +158,33 @@ test('a section holds at most 2,000 records', async () => {
     (await h(msg({ op: 'set', key: 'oac-widget:chart:drawings:NSE:S5', value: '2' }))).status,
   ).toBe(204)
 })
+
+test('entries reads the records in one getMany when the store has it, else one by one', async () => {
+  const seed = {
+    'oa.p1.chartDrawings:NSE:INFY': JSON.stringify({ k: DRAW, v: 'a' }),
+    'oa.p1.chartDrawings:NSE:TCS': JSON.stringify({
+      k: 'oac-widget:chart:drawings:NSE:TCS',
+      v: 'b',
+    }),
+  }
+  const plain = memoryKV(seed)
+  const gets = jest.spyOn(plain, 'get')
+  const r1 = await createChartStorageHandler(profileStorage(plain, 'p1'))(
+    msg({ op: 'entries', prefix: 'oac-widget:chart:drawings:' }),
+  )
+  expect(gets).toHaveBeenCalledTimes(2)
+
+  const multi = memoryKV(seed)
+  const getMany = jest.fn(async (keys: string[]) => keys.map((k) => multi.data.get(k) ?? null))
+  const getOne = jest.spyOn(multi, 'get')
+  const r2 = await createChartStorageHandler(profileStorage({ ...multi, getMany }, 'p1'))(
+    msg({ op: 'entries', prefix: 'oac-widget:chart:drawings:' }),
+  )
+  expect(getMany).toHaveBeenCalledTimes(1)
+  expect(getOne).not.toHaveBeenCalled()
+  expect(r2).toEqual(r1)
+  expect(r2.body).toEqual([
+    [DRAW, 'a'],
+    ['oac-widget:chart:drawings:NSE:TCS', 'b'],
+  ])
+})

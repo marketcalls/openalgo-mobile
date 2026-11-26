@@ -89,6 +89,40 @@ describe('buildBackup', () => {
     }
     expect(() => buildBackup({ watchlists: named, now: NOW, appVersion: '1' })).not.toThrow()
   })
+
+  test('refuses an api key inside a chart record value (escaped in the text)', () => {
+    const chart = {
+      drawings: [],
+      prefs: [{ k: 'oac-widget:chart:state', v: JSON.stringify({ apikey: 'secret' }) }],
+    }
+    expect(() => buildBackup({ watchlists: W, chart, now: NOW, appVersion: '1' })).toThrow(
+      BackupLeakError,
+    )
+  })
+
+  test('a chart record the restore would skip is counted as left out at parse time', () => {
+    const text = JSON.stringify({
+      kind: 'openalgo-mobile-backup',
+      schema: 2,
+      content: {
+        chartDrawings: [
+          { k: 'oac-widget:chart:drawings:NSE:INFY', v: 'a' },
+          { k: 'other:drawings:NSE:TCS', v: 'b' },
+          { k: 'oac-widget:chart:state', v: 'c' },
+        ],
+        chartPrefs: [
+          { k: 'oac-widget:chart:drawings:NSE:INFY', v: 'd' },
+          { k: 'oac-widget:chart:state', v: 'e' },
+        ],
+      },
+    })
+    const r = parsed(text)
+    expect(r.file.content.chartDrawings).toEqual([
+      { k: 'oac-widget:chart:drawings:NSE:INFY', v: 'a' },
+    ])
+    expect(r.file.content.chartPrefs).toEqual([{ k: 'oac-widget:chart:state', v: 'e' }])
+    expect(r.trimmed).toBe(3)
+  })
 })
 
 describe('parseBackup (RF 5)', () => {

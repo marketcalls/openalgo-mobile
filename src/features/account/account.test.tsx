@@ -570,6 +570,24 @@ describe('sign out backup', () => {
     expect(useSession.getState().status).not.toBe('onboarding')
   })
 
+  test('a dropped-chart note is neutral, not the red error, and the keeps copy names drawings', async () => {
+    await setup()
+    await kv.set(
+      `oa.${PID}.chartDrawings:NSE:INFY`,
+      JSON.stringify({ k: 'oac-widget:chart:drawings:NSE:INFY', v: 'x'.repeat(1_000_000) }),
+    )
+    await kv.set(
+      `oa.${PID}.chartDrawings:NSE:TCS`,
+      JSON.stringify({ k: 'oac-widget:chart:drawings:NSE:TCS', v: 'x'.repeat(1_000_000) }),
+    )
+    await renderRouter(ROUTES, { initialUrl: '/account/sign-out' })
+    expect(SIGN_OUT_COPY.keeps).toMatch(/chart drawings/)
+    await userEvent.press(await screen.findByTestId('signout-backup'))
+    const note = await screen.findByTestId('signout-note')
+    expect(note).toHaveTextContent(/^Chart drawings were left out/)
+    expect(screen.queryByText(SIGN_OUT_COPY.backupFailed)).toBeNull()
+  })
+
   test('a failed backup says so and leaves the sign-out button usable', async () => {
     await setup()
     jest.mocked(Sharing.shareAsync).mockRejectedValueOnce(new Error('no space'))

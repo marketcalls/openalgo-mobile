@@ -2,6 +2,7 @@
 // whole format is tested without a file system. Never the key, the server address or the
 // profile id: only the content goes in, and the text is checked once more before it is shared.
 import { istClock, istDate } from '~/core/realtime/marketHours'
+import { chartRecordStorable } from '~/dom/gateway/chartStorage'
 import {
   type DomStoreRecord,
   MAX_DOM_KEY,
@@ -53,7 +54,7 @@ export class BackupLeakError extends Error {
 }
 
 /** A JSON key named apikey; a list or symbol that merely is called that is not a key. */
-const LEAK = /"api_?key"\s*:/i
+const LEAK = /\\*"api_?key\\*"\s*:/i
 
 export function buildBackup(o: {
   watchlists: Watchlists
@@ -131,7 +132,10 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const FIELD_MAX = 64
 
 /** The usable records of a chart section; `trimmed` counts those past the section's limit. */
-function cleanRecords(v: unknown): { records: DomStoreRecord[]; trimmed: number } {
+function cleanRecords(
+  v: unknown,
+  section: 'drawings' | 'prefs',
+): { records: DomStoreRecord[]; trimmed: number } {
   const records: DomStoreRecord[] = []
   let trimmed = 0
   for (const r of Array.isArray(v) ? v : []) {
@@ -145,7 +149,10 @@ function cleanRecords(v: unknown): { records: DomStoreRecord[]; trimmed: number 
     ) {
       continue
     }
-    if (records.length >= CHART_RECORDS_MAX) trimmed++
+    // A record the restore would skip (a key outside the widget's, or in the wrong section) is
+    // counted as left out here, so the summary matches what is restored.
+    if (!chartRecordStorable(section, r.k)) trimmed++
+    else if (records.length >= CHART_RECORDS_MAX) trimmed++
     else records.push({ k: r.k, v: r.v })
   }
   return { records, trimmed }
@@ -293,7 +300,7 @@ export function parseBackup(text: string, newId: () => string = fallbackId): Par
   }
   for (const key of ['chartDrawings', 'chartPrefs'] as const) {
     if (!(key in raw.content)) continue
-    const c = cleanRecords(raw.content[key])
+    const c = cleanRecords(raw.content[key], key === 'chartDrawings' ? 'drawings' : 'prefs')
     if (c.records.length > 0) content[key] = c.records
     trimmed += c.trimmed
   }

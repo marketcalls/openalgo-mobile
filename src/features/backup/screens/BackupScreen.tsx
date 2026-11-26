@@ -30,6 +30,8 @@ export const BACKUP_COPY = {
   nothing: 'This backup has nothing to restore.',
   restored: 'Backup restored',
   restoredChart: (n: number) => `Restored ${n} chart ${n === 1 ? 'item' : 'items'}.`,
+  restoredBoth: (lists: number, items: number) =>
+    `Restored ${lists} ${lists === 1 ? 'list' : 'lists'} and ${items} chart ${items === 1 ? 'item' : 'items'}.`,
   chartOnly: (n: number) => `${n} chart ${n === 1 ? 'item' : 'items'}`,
   skipped: (keys: string[]) => `Skipped data this version can't read: ${keys.join(', ')}.`,
   trimmed: (n: number) => `${n} entries were over the limits and were left out.`,
@@ -120,6 +122,9 @@ export function BackupScreen() {
     setBusy(true)
     setError(null)
     try {
+      // Chart records first: a same-key replace is idempotent, so a retry after a failure here
+      // cannot duplicate lists (a merge of the lists is not idempotent).
+      const items = await writeChartRecords(storage, chart)
       let leftOut = 0
       if (incoming) {
         await store.getState().apply((w) => {
@@ -128,9 +133,13 @@ export function BackupScreen() {
           return { next: r.value, result: 'ok' as const }
         })
       }
-      const items = await writeChartRecords(storage, chart)
       setPending(null)
-      const chartNote = items > 0 ? BACKUP_COPY.restoredChart(items) : null
+      const chartNote =
+        items === 0
+          ? null
+          : incoming && leftOut === 0
+            ? BACKUP_COPY.restoredBoth(incoming.lists.length, items)
+            : BACKUP_COPY.restoredChart(items)
       if (leftOut > 0) {
         const text = [BACKUP_COPY.leftOut(leftOut), chartNote].filter(Boolean).join(' ')
         notifyWarning()

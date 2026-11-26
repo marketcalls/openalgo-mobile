@@ -47,7 +47,12 @@ export async function readDomRecords(
   area: string,
 ): Promise<DomStoreRecord[]> {
   const out: DomStoreRecord[] = []
-  for (const name of (await storage.names(area)).sort()) {
+  const names = (await storage.names(area)).sort()
+  if (storage.getManyJSON && names.length > 0) {
+    for (const r of await storage.getManyJSON(names, RecordSchema)) if (r) out.push(r)
+    return out
+  }
+  for (const name of names) {
     const r = await storage.getJSON(name, RecordSchema)
     if (r) out.push(r)
   }

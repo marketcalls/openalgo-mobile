@@ -7,6 +7,9 @@ export const asyncStorageKV: KV = {
   get: (key) => AsyncStorage.getItem(key),
   set: (key, value) => AsyncStorage.setItem(key, value),
   del: (key) => AsyncStorage.removeItem(key),
+  async getMany(keys) {
+    return (await AsyncStorage.multiGet(keys)).map(([, v]) => v)
+  },
   async keys(prefix) {
     return (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefix))
   },

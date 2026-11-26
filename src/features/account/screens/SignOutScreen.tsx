@@ -12,7 +12,7 @@ import { ScreenHeader } from '../components/ScreenHeader'
 import { signOut } from '../signOut'
 
 export const SIGN_OUT_COPY = {
-  keeps: 'Your watchlists stay on this phone unless you delete them below.',
+  keeps: 'Your watchlists and chart drawings stay on this phone unless you delete them below.',
   notRevoked: 'Only regenerating the key on the OpenAlgo web cuts this phone off for good.',
   deleteLabel: 'Also delete watchlists and saved data on this phone',
   backupFailed: 'Could not create the backup. Try again.',
@@ -27,6 +27,7 @@ export function SignOutScreen() {
   const [busy, setBusy] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
 
   const run = async () => {
     setBusy(true)
@@ -43,9 +44,10 @@ export function SignOutScreen() {
   const backup = async () => {
     setBackingUp(true)
     setError(null)
+    setNote(null)
     try {
       const r = await backupNow(watchlists, s.storage)
-      setError(droppedNotice(r.dropped))
+      setNote(droppedNotice(r.dropped))
     } catch (e) {
       log.warn('account', 'backup before sign-out failed', e)
       setError(SIGN_OUT_COPY.backupFailed)
@@ -76,6 +78,11 @@ export function SignOutScreen() {
         onPress={() => void backup()}
       />
       {error ? <Text style={{ color: c.destructive }}>{error}</Text> : null}
+      {note ? (
+        <Text testID="signout-note" variant="caption" tone="muted">
+          {note}
+        </Text>
+      ) : null}
       <Button
         testID="sign-out-confirm"
         title="Sign out"

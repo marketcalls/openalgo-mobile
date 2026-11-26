@@ -42,6 +42,11 @@ export async function readChartRecords(
   }
 }
 
+/** True when `writeChartRecords` would store a record with this key in this section. */
+export function chartRecordStorable(section: 'drawings' | 'prefs', key: string): boolean {
+  return nameOf(key)?.startsWith(section === 'drawings' ? DRAWINGS : PREFS) ?? false
+}
+
 /** Restores records: same key replaced, the rest kept. A record in the wrong section is skipped. */
 export async function writeChartRecords(
   storage: ProfileStorage,
