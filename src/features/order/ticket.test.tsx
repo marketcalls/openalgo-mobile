@@ -930,6 +930,38 @@ describe('status unknown', () => {
     expect(requests('placeorder')).toHaveLength(1)
   })
 
+  test("the mode changed at confirm: the review reads the new mode's book, so an order already in it is not taken for this one", async () => {
+    const notSent = expectLog('info', /\[orders\] place: the server is now in live mode, not sent$/)
+    let mode: 'live' | 'analyze' = 'analyze'
+    await setup({
+      'POST /api/v1/analyzer': () => analyzer(mode),
+      'POST /api/v1/placeorder': BAD_GATEWAY,
+      // a strategy's LIVE order 30 s before, the same contract, side, product and quantity
+      'POST /api/v1/orderbook': () =>
+        book(mode === 'analyze' ? [] : [row({ orderid: 'LIVE1', quantity: 1, sec: -30 })]),
+    })
+    await open(RELIANCE)
+    await toReview()
+    expect(text('review-mode-badge')).toBe('ANALYZE')
+    expect(requests('orderbook')).toHaveLength(1)
+    mode = 'live'
+    // the gate's reading is older than 5 s
+    await pass(6_000)
+    await confirm()
+    expect(notSent).toHaveLength(1)
+    expect(screen.getByText('The server is now in LIVE mode. Review again.')).toBeTruthy()
+    // the sandbox's book is not the LIVE one: the review reads it again, and confirm waits
+    expect(requests('orderbook')).toHaveLength(2)
+    await pass(200)
+    expect(disabled('ticket-confirm')).toBe(false)
+    await confirm()
+    expect(requests('placeorder')).toHaveLength(1)
+    await pass(NO_REPLY_CHECK_MS)
+    expect(screen.queryByText(/Found in the order book/)).toBeNull()
+    expect(screen.getByText(NOT_FOUND)).toBeTruthy()
+    expect(requests('placeorder')).toHaveLength(1)
+  })
+
   test("the review reads the book afresh: the last ticket's order is not taken for this one", async () => {
     // A write only marks the cached book stale, and no screen refetches it: the last review's
     // book, from before the first order, is what the cache still holds.

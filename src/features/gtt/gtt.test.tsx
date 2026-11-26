@@ -610,6 +610,48 @@ describe('status unknown', () => {
     ).toBeTruthy()
   })
 
+  test("the mode changed at confirm: the review reads the new mode's book, so a GTT already in it is not taken for this one", async () => {
+    const notSent = expectLog(
+      'info',
+      /\[orders\] gttPlace: the server is now in live mode, not sent$/,
+    )
+    let mode: 'live' | 'analyze' = 'analyze'
+    // A strategy's LIVE GTT: the same contract, type and trigger, another side and quantity.
+    const LIVE_ROW = {
+      ...ROW,
+      trigger_id: '2002',
+      legs: [{ ...ROW.legs[0], action: 'BUY', quantity: 5 }],
+    }
+    await setup({
+      'POST /api/v1/analyzer': () => analyzer(mode),
+      'POST /api/v1/gttorderbook': () =>
+        mode === 'analyze' ? gttBook([]) : gttBook([LIVE_ROW], { analyze: false }),
+      'POST /api/v1/placegttorder': BAD_GATEWAY,
+    })
+    await reviewSell()
+    expect(text('gtt-mode-badge')).toBe('ANALYZE')
+    expect(requests('gttorderbook')).toHaveLength(1)
+    mode = 'live'
+    // the gate's reading is older than 5 s
+    await pass(6_000)
+    await press('gtt-confirm')
+    expect(notSent).toHaveLength(1)
+    expect(screen.getByText('The server is now in LIVE mode. Review again.')).toBeTruthy()
+    expect(text('gtt-mode-badge')).toBe('LIVE')
+    // the sandbox's book is not the LIVE one: the review reads it again, and confirm waits
+    expect(requests('gttorderbook')).toHaveLength(2)
+    await pass(200)
+    expect(disabled('gtt-confirm')).toBe(false)
+    await press('gtt-confirm')
+    expect(requests('placegttorder')).toHaveLength(1)
+    await pass(130_000)
+    expect(screen.queryByText(/The GTT book shows it/)).toBeNull()
+    expect(
+      screen.getByText('The GTT book does not show it. Check the GTT list before trying again.'),
+    ).toBeTruthy()
+    expect(requests('placegttorder')).toHaveLength(1)
+  })
+
   test('a GTT book that cannot be read says so', async () => {
     let sent = false
     await setup({

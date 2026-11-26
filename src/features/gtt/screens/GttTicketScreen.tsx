@@ -437,9 +437,13 @@ function Gtt({
         else tell(r.message)
         return
       case 'mode_changed':
-        if (alive.current)
+        if (alive.current) {
           setStep({ kind: 'review', spec, mode: r.now, notice: modeChanged(r.now) })
-        else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
+          // The review's book is the old mode's (the sandbox's, or the live one): its trigger ids
+          // say nothing of the new mode's book, so a check after an unknown outcome would take a
+          // GTT already in it for this one. Confirm waits for the new mode's book.
+          book.read()
+        } else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
         return
       case 'cancelled':
         if (alive.current) setStep({ kind: 'review', spec, mode: shownMode, notice: r.message })

@@ -409,8 +409,13 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
         refused(r.message)
         return
       case 'mode_changed':
-        if (alive.current) setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) })
-        else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
+        if (alive.current) {
+          setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) })
+          // The review's book is the old mode's (the sandbox's, or the live one): its order ids
+          // say nothing of the new mode's book, so a check after an unknown outcome would take an
+          // order already in it for this one. Confirm waits for the new mode's book.
+          book.read()
+        } else tell(`The server is now in ${MODE_LABEL[r.now]} mode. ${NOT_SENT}`)
         return
       case 'cancelled':
         if (alive.current) setStep({ kind: 'review', mode: shownMode, notice: r.message })
