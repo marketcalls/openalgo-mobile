@@ -14,9 +14,11 @@ import {
 const T0 = Date.UTC(2026, 10, 27, 5, 0)
 const midnight = Date.UTC(2026, 10, 27) - IST_OFFSET_MS
 
+const seen: unknown[] = []
 const Probe = () => {
   const cal = useSessionCalendars()
   const iv = useChartIntervals(true)
+  seen.push(iv)
   return <Text testID="out">{`${cal?.source ?? '-'}|${iv?.join(',') ?? '-'}`}</Text>
 }
 function setup(
@@ -44,16 +46,17 @@ function setup(
     profile: { get: () => ({ id: 'p1' }) },
     queryClient,
   } as unknown as Services
+  const tree = () => (
+    <ServicesProvider value={services}>
+      <QueryClientProvider client={queryClient}>
+        <Probe />
+      </QueryClientProvider>
+    </ServicesProvider>
+  )
   const mount = async () => {
-    await render(
-      <ServicesProvider value={services}>
-        <QueryClientProvider client={queryClient}>
-          <Probe />
-        </QueryClientProvider>
-      </ServicesProvider>,
-    )
+    await render(tree())
   }
-  return { calls, mount }
+  return { calls, mount, tree }
 }
 
 const settle = () =>
@@ -119,4 +122,35 @@ test('the exported query options warm the same cache entries the hooks read (rul
   const warm = calls.length
   await q.fetchQuery(sessionCalendarsQuery(api as never, 'p1', '2026-11-27'))
   expect(calls.length).toBe(warm)
+})
+
+test('useChartIntervals returns the same array on every render of the same data', async () => {
+  seen.length = 0
+  const { mount, tree } = setup()
+  await mount()
+  await settle()
+  const before = seen.length
+  await act(async () => screen.rerender(tree()))
+  const lists = seen.filter((x) => x !== undefined)
+  expect(seen.length).toBeGreaterThan(before)
+  expect(lists.length).toBeGreaterThan(1)
+  expect(new Set(lists).size).toBe(1)
+})
+
+test("the calendar query loads the key's own IST day, across an IST midnight", async () => {
+  const dates: string[] = []
+  const api = {
+    call: async (
+      id: string,
+      b: Record<string, unknown>,
+      schema: { parse(v: unknown): unknown },
+    ) => {
+      if (id === 'market/timings') dates.push(String(b.date))
+      return schema.parse({ status: 'success', data: [] })
+    },
+  }
+  // 2026-11-26 18:40 UTC is 00:10 IST on Friday the 27th; the key names Thursday the 26th.
+  jest.setSystemTime(Date.UTC(2026, 10, 26, 18, 40))
+  await createQueryClient().fetchQuery(sessionCalendarsQuery(api as never, 'p1', '2026-11-26'))
+  expect(dates[0]).toBe('2026-11-26')
 })

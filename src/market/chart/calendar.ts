@@ -2,7 +2,6 @@
 // of frontend/src/lib/trading/sessionHours.ts:32-121 (c8b2896), reading the app's key-bearing
 // /api/v1 `market/timings` and `market/holidays` where the web page reads its admin timings.
 // Nothing here may stop a chart drawing: every failure gives the server's default hours.
-import type { z } from 'zod'
 import type { Api } from '~/core/http/api'
 import { log } from '~/core/log/logger'
 import { istDate } from '~/core/realtime/marketHours'
@@ -198,20 +197,14 @@ export async function loadCalendars(api: Pick<Api, 'call'>, now: number): Promis
   let holidays: HolidayRow[] = []
   try {
     const years = await Promise.all(
-      yearsAround(today).map((year) =>
-        api.call('market/holidays', { year }, HolidaysSchema as z.ZodType<HolidayRow[]>),
-      ),
+      yearsAround(today).map((year) => api.call('market/holidays', { year }, HolidaysSchema)),
     )
     holidays = years.flat()
     let day = today
     for (let calls = 0, steps = 0; calls < MAX_TIMINGS_CALLS && steps < 14; steps++) {
       if (!isWeekend(day) && !isUnusual(day, holidays)) {
         calls++
-        const rows = await api.call(
-          'market/timings',
-          { date: day },
-          TimingsSchema as z.ZodType<Timing[]>,
-        )
+        const rows = await api.call('market/timings', { date: day }, TimingsSchema)
         if (rows.some((r) => r.exchange === 'NSE' || r.exchange === 'BSE')) {
           const offsets = timingOffsets(rows, day)
           if (!offsets) break

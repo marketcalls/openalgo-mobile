@@ -1,4 +1,5 @@
 import { ApiError } from '~/core/http/errors'
+import { log } from '~/core/log/logger'
 import {
   calendarExchange,
   calendarSpec,
@@ -65,7 +66,10 @@ describe('timingOffsets', () => {
       status: 'success',
       data: [nseRow('2026-11-27', 33_300_000, 54_000_000, 19_800_000)],
     })
+    const info = jest.spyOn(log, 'info').mockImplementation(() => {})
     expect(timingOffsets(rows, '2026-11-27')).toBeNull()
+    expect(info).toHaveBeenCalledWith('chart', 'timings not in IST hours: defaults')
+    info.mockRestore()
   })
 
   test('a skew that is not a multiple of 15 minutes, or beyond 14 hours, is refused', () => {

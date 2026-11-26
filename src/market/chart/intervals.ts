@@ -4,7 +4,7 @@ import type { z } from 'zod'
 import type { IntervalsSchema } from './schemas'
 
 /** The web's list when the server's cannot be read (terminal.ts:7869). */
-export const FALLBACK_INTERVALS = ['1m', '5m', '15m', '1h', 'D']
+export const FALLBACK_INTERVALS: readonly string[] = Object.freeze(['1m', '5m', '15m', '1h', 'D'])
 
 /**
  * The codes `history` accepts (2.0.0.0's OneOf). Before 2.0.2.2 `intervals` also lists the broker's
@@ -42,7 +42,7 @@ const HISTORY_INTERVALS = new Set([
 export function chartIntervals(
   data: z.output<typeof IntervalsSchema> | null,
   polling: boolean,
-): string[] {
+): readonly string[] {
   if (!data) return FALLBACK_INTERVALS
   const groups = [
     polling ? [] : data.seconds,

@@ -50,3 +50,9 @@ describe('chartIntervals', () => {
     ])
   })
 })
+
+test('the fallback list is frozen, so no caller can change it for every chart', () => {
+  expect(Object.isFrozen(FALLBACK_INTERVALS)).toBe(true)
+  expect(() => (FALLBACK_INTERVALS as string[]).push('2m')).toThrow()
+  expect(chartIntervals(null, false)).toBe(FALLBACK_INTERVALS)
+})
