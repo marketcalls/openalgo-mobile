@@ -71,6 +71,7 @@ type Json = Record<string, unknown>
 /**
  * The store's last ltp and ltt this subscription saw. The store merges patches, so a ws price
  * that came without a trade time keeps an earlier trade's: `stale` from then until a new ltt.
+ * An ltt from before the subscribe is stale from the start: it is never framed.
  */
 type Seen = { ltp?: number; ltt?: number; stale: boolean }
 /** What one subscription frames: its symbol at its mode, from the time it was made. */
@@ -217,7 +218,9 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
   ) {
     const key = quoteKey(exchange, symbol)
     const q = d.store.get(key)
-    const seen: Seen = { ltp: q?.ltp, ltt: q?.ltt, stale: false }
+    // An ltt already in the store may sit under a newer ltp (another stream's ltp-only patch),
+    // and the hold cannot tell: it is stale until a new one. So is a repeated subscribe's.
+    const seen: Seen = { ltp: q?.ltp, ltt: q?.ltt, stale: q?.ltt !== undefined }
     const sub: Sub = { key, exchange, symbol, mode, since: now(), seen }
     const release = d.realtime.acquire(
       mode === 3 ? { exchange, symbol, mode, depth } : { exchange, symbol, mode },

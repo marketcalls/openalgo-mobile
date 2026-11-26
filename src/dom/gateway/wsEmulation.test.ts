@@ -520,6 +520,59 @@ test("a ws price that came without a trade time is not framed on the earlier tra
   ])
 })
 
+test('an ltt stored before the subscribe is never framed, nor after a repeated subscribe', () => {
+  const t = setup()
+  // Another screen's streams: a trade time, then a price that came without one. The merge keeps
+  // the old ltt under the newer ltp, so the store's ltt is not its ltp's.
+  t.store.put(KEY, { ltp: 2400, ltt: OPEN_AT - 60_000 }, 'ws')
+  t.flush()
+  t.store.put(KEY, { ltp: 2405 }, 'ws')
+  t.flush()
+  expect(t.store.get(KEY)).toMatchObject({ ltp: 2405, ltt: OPEN_AT - 60_000 })
+  jest.advanceTimersByTime(1000)
+  t.authed(1)
+  t.sub(1, 'RELIANCE', 1)
+  t.sub(1, 'RELIANCE', 2)
+  t.sub(1, 'RELIANCE', 3)
+  t.replies(1)
+  const book = { buy: [{ price: 2404, quantity: 2 }], sell: [], levels: 1 }
+  // The three holds' frames; toEqual reads an undefined ltt as absent, as the frame leaves it out.
+  const framed = (ltp: number, ltt?: number) => [
+    tick('RELIANCE', 1, { ltp, ltt }),
+    tick('RELIANCE', 2, { ltp, ltt, volume: 1000 }),
+    tick('RELIANCE', 3, {
+      ltp,
+      ltt,
+      depth: { buy: [{ price: 2404, quantity: 2 }], sell: [] },
+    }),
+  ]
+
+  // A book and a volume at the price the subscribe found are not the old trade's.
+  t.store.put(KEY, { ltp: 2405, volume: 1000, depth: book }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual(framed(2405))
+
+  // A new trade time is this stream's, and is framed.
+  t.store.put(KEY, { ltp: 2406, ltt: OPEN_AT + 900 }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual(framed(2406, OPEN_AT + 900))
+
+  // A price without one leaves that ltt behind, and a repeated subscribe does not take it back.
+  t.store.put(KEY, { ltp: 2407 }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual(framed(2407))
+  t.sub(1, 'RELIANCE', 3)
+  t.replies(1)
+  t.store.put(KEY, { ltp: 2407, depth: book }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual(framed(2407))
+
+  // The next trade time is framed on every hold, the replaced one too.
+  t.store.put(KEY, { ltp: 2408, ltt: OPEN_AT + 2000 }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual(framed(2408, OPEN_AT + 2000))
+})
+
 test('a quote stored before the subscribe, or a seed, is never sent (RF 5)', () => {
   const t = setup()
   // Another screen streamed the symbol: the store holds its last quote, unflushed.
