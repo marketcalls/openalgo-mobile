@@ -1,5 +1,6 @@
-import { QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, onlineManager, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen } from '@testing-library/react-native'
+import { useSyncExternalStore } from 'react'
 import { Text } from 'react-native'
 import type { z } from 'zod'
 import type { Capabilities } from '~/core/capabilities/gates'
@@ -7,12 +8,13 @@ import { createCapabilityStore } from '~/core/capabilities/store'
 import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
 import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
-import { keepExpectedLogs } from '../../../test/helpers/consoleLogs'
+import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { TradingProvider } from '../trading'
 import { useGttBook, useGttSupport } from './queries'
@@ -50,9 +52,12 @@ const ROW = {
   expires_at: '2027-11-24 09:30:00',
 }
 
-type Book = 'live' | 'analyze' | 'broker501'
+type Book = 'live' | 'analyze' | 'broker501' | 'network' | 'ratelimit'
 
-/** The book reply in LIVE (no mode), from the sandbox, or the broker's 501 (G3). */
+/**
+ * The book reply in LIVE (no mode), from the sandbox, or the broker's 501 (G3); or a read that
+ * got no answer, or a 429. Neither of the last two records anything.
+ */
 function bookReply(book: Book, schema: z.ZodType) {
   if (book === 'broker501') {
     throw new ApiError({
@@ -61,6 +66,11 @@ function bookReply(book: Book, schema: z.ZodType) {
       endpoint: 'gttorderbook',
       serverMessage: "GTT orders are not supported for broker 'zerodha' yet",
     })
+  }
+  if (book === 'network')
+    throw new ApiError({ kind: 'Network', status: 0, endpoint: 'gttorderbook' })
+  if (book === 'ratelimit') {
+    throw new ApiError({ kind: 'RateLimited', status: 429, endpoint: 'gttorderbook' })
   }
   const body = { status: 'success', data: [ROW] }
   return schema.parse(book === 'analyze' ? { ...body, mode: 'analyze' } : body)
@@ -96,7 +106,7 @@ async function setup(o: { book?: Book; caps?: Capabilities } = {}) {
     )
     await pass(0)
   }
-  return { caps, reads: () => reads, mount }
+  return { caps, queryClient, reads: () => reads, mount }
 }
 
 const pass = (ms: number) =>
@@ -104,10 +114,60 @@ const pass = (ms: number) =>
     await jest.advanceTimersByTimeAsync(ms)
   })
 
+/** A boolean a test flips from outside the tree, read by components as an external store. */
+function flag(initial: boolean) {
+  let v = initial
+  const fns = new Set<() => void>()
+  return {
+    get: () => v,
+    set(next: boolean) {
+      v = next
+      for (const fn of fns) fn()
+    },
+    subscribe(fn: () => void) {
+      fns.add(fn)
+      return () => {
+        fns.delete(fn)
+      }
+    },
+  }
+}
+type Flag = ReturnType<typeof flag>
+const useFlag = (f: Flag) => useSyncExternalStore(f.subscribe, f.get)
+
+/**
+ * The app goes to the background and comes back. The screens' `useScreenActive` follows
+ * AppState, so their queries unsubscribe and subscribe again, and TanStack's focus event fires.
+ */
+async function background(app: Flag) {
+  await act(async () => {
+    app.set(false)
+    focusManager.setFocused(false)
+  })
+  await pass(0)
+  await act(async () => {
+    app.set(true)
+    focusManager.setFocused(true)
+  })
+  await pass(0)
+}
+
+/** The phone's network drops and comes back. */
+async function reconnect() {
+  await act(async () => onlineManager.setOnline(false))
+  await pass(0)
+  await act(async () => onlineManager.setOnline(true))
+  await pass(0)
+}
+
 const Support = ({ id = 'gtt', exchange = 'NSE' }: { id?: string; exchange?: string }) => {
   const g = useGttSupport(exchange)
   return <Text testID={id}>{g.state}</Text>
 }
+
+/** A `Support` mounted while `when` is true. */
+const Shown = ({ when, id }: { when: Flag; id: string }) =>
+  useFlag(when) ? <Support id={id} /> : null
 
 const BookProbe = ({ enabled }: { enabled?: boolean }) => {
   const q = useGttBook(enabled === undefined ? undefined : { enabled })
@@ -124,6 +184,8 @@ beforeEach(() => {
   useConnection.getState().set({ brokerSession: 'active', keyState: 'ok', analyzer: 'live' })
 })
 afterEach(() => {
+  focusManager.setFocused(undefined)
+  onlineManager.setOnline(true)
   jest.useRealTimers()
   jest.restoreAllMocks()
 })
@@ -140,6 +202,7 @@ describe('useGttSupport', () => {
   })
 
   test("a 501 makes it 'no', and nothing more is read within 30 s", async () => {
+    expectLog('warn', /GTT support read failed/)
     const h = await setup({ book: 'broker501' })
     await h.mount(<Support />)
     expect(h.reads()).toBe(1)
@@ -167,6 +230,84 @@ describe('useGttSupport', () => {
     )
     expect(h.reads()).toBe(1)
     expect([state('a'), state('b')]).toEqual(['yes', 'yes'])
+  })
+
+  // Design 12: the GTT book is read on demand only, and detection is ONE read. A read that
+  // cannot settle the answer leaves it unknown, and still nothing reads it again.
+  test.each([
+    ['a network failure', 'network', {}],
+    ['a 429', 'ratelimit', {}],
+    ['a reply in the other mode', 'analyze', { 'gtt:zerodha:analyze': true }],
+  ] as const)(
+    'a detection read that settles nothing (%s) is not repeated: not by a second screen, a remount, a foreground or a reconnect',
+    async (_, book, features) => {
+      if (book !== 'analyze') expectLog('warn', /GTT support read failed/)
+      const app = flag(true)
+      screenActive.mockImplementation(() => useFlag(app))
+      const second = flag(true)
+      const h = await setup({ book })
+      await h.mount(
+        <>
+          <Support id="a" />
+          <Shown when={second} id="b" />
+        </>,
+      )
+      expect(h.reads()).toBe(1)
+      expect(h.caps.get()?.features).toEqual(features)
+      expect([state('a'), state('b')]).toEqual(['unknown', 'unknown'])
+      // past the client's 5 s staleTime, where a remount or a focus would read a stale query again
+      await pass(10_000)
+      expect(h.reads()).toBe(1)
+
+      await act(async () => second.set(false))
+      await pass(0)
+      expect(screen.queryByTestId('b')).toBeNull()
+      await act(async () => second.set(true))
+      await pass(0)
+      expect(state('b')).toBe('unknown')
+
+      await background(app)
+      await reconnect()
+      await pass(30_000)
+      expect(h.reads()).toBe(1)
+      expect([state('a'), state('b')]).toEqual(['unknown', 'unknown'])
+    },
+  )
+
+  test('the detection runs again only for a new key: another mode, a re-probe or another broker, never a book poke', async () => {
+    const failed = expectLog('warn', /GTT support read failed/)
+    const h = await setup({ book: 'network' })
+    await h.mount(<Support />)
+    expect(h.reads()).toBe(1)
+    await pass(10_000)
+    expect(h.reads()).toBe(1)
+
+    // a write or an order event pokes the books; detection is not one of them
+    await act(async () => void h.queryClient.invalidateQueries({ queryKey: qk.gttbook(PID) }))
+    await pass(0)
+    expect(h.reads()).toBe(1)
+
+    // ANALYZE has not been checked: one read; back in LIVE, already read for this probe
+    await act(async () => useConnection.getState().set({ analyzer: 'analyze' }))
+    await pass(0)
+    expect(h.reads()).toBe(2)
+    await act(async () => useConnection.getState().set({ analyzer: 'live' }))
+    await pass(0)
+    expect(h.reads()).toBe(2)
+
+    // a re-probe forgets the features: LIVE is checked again, once
+    await act(async () => h.caps.save({ ...CAPS, probedAt: T0 + 60_000 }))
+    await pass(0)
+    expect(h.reads()).toBe(3)
+
+    // the server now names another broker: it is checked afresh, once
+    await act(async () => useConnection.getState().set({ broker: 'dhan' }))
+    await pass(0)
+    expect(h.reads()).toBe(4)
+    await pass(30_000)
+    expect(h.reads()).toBe(4)
+    expect(failed).toHaveLength(4)
+    expect(state()).toBe('unknown')
   })
 
   test('support already known: nothing is read', async () => {

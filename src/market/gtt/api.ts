@@ -15,7 +15,8 @@ import {
   gttPlaceBody,
 } from './schemas'
 
-type GttMode = 'live' | 'analyze'
+/** The server's mode a GTT reply came from: support is kept per broker and per mode. */
+export type GttMode = 'live' | 'analyze'
 
 /** Where each reply's evidence of support goes: `ok` is whether GTT was served in `mode`. */
 export type GttSeen = { record(ok: boolean, mode: GttMode): void }

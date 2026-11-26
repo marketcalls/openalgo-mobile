@@ -24,6 +24,7 @@ describe('qk', () => {
     qk.holdings(pid),
     qk.orderstatus(pid, '123'),
     qk.gttbook(pid),
+    qk.gttdetect(pid, 'https://algo.example.com', 'zerodha', 'live', 1),
   ]
 
   it('starts every key with [p, pid]', () => {
@@ -33,6 +34,12 @@ describe('qk', () => {
 
   it('the GTT book is its own key, beside the order books', () => {
     expect(qk.gttbook(A)).toEqual(['p', A, 'gttbook'])
+  })
+
+  it('the GTT support read is not under the GTT book, so a book poke or reset misses it', () => {
+    const k = qk.gttdetect(A, 'https://algo.example.com', 'zerodha', 'analyze', 7)
+    expect(k).toEqual(['p', A, 'gttdetect', 'https://algo.example.com', 'zerodha', 'analyze', 7])
+    expect(k.slice(0, 3)).not.toEqual(qk.gttbook(A))
   })
 
   it('contains no 64-hex string', () => {

@@ -22,4 +22,15 @@ export const qk = {
   holdings: (pid: string) => [...root(pid), 'holdings'] as const,
   orderstatus: (pid: string, id: string) => [...root(pid), 'orderstatus', id] as const,
   gttbook: (pid: string) => [...root(pid), 'gttbook'] as const,
+  /**
+   * The one GTT support read for a server, broker and mode, until a probe (`probedAt`) resets
+   * what was seen. Not a book: pokes and mode flips leave it alone.
+   */
+  gttdetect: (
+    pid: string,
+    host: string | null,
+    broker: string | null,
+    mode: string,
+    probedAt: number | null,
+  ) => [...root(pid), 'gttdetect', host, broker, mode, probedAt] as const,
 }

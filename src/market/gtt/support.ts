@@ -6,11 +6,10 @@
 import { type Capabilities, hasEndpoint } from '~/core/capabilities/gates'
 import { atLeast } from '~/core/config/version'
 import { isQuoteOnly } from '../instruments/exchanges'
+import type { GttMode } from './api'
 
 /** The first version with each part of GTT (G1). */
 export const GTT_GATES = { endpoints: '2.0.0.8', sandbox: '2.0.1.9', status: '2.0.2.4' } as const
-
-type GttMode = 'live' | 'analyze'
 
 /** Where the support for one broker in one mode is kept in `Capabilities.features`. */
 export const gttFeatureKey = (broker: string, mode: GttMode) => `gtt:${broker}:${mode}`
