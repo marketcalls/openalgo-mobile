@@ -3,7 +3,7 @@
 // close through the outbox. The channel is the base for every socket shape a page needs: the
 // chart's SocketLike here, and plan E's WebSocket class.
 import type { SocketLike } from 'openalgo-charts'
-import type { DomClient } from './client'
+import { type DomClient, isOk } from './client'
 
 export type SocketHandlers = { onOpen(): void; onMessage(d: string): void; onClose(): void }
 export type SocketChannel = {
@@ -11,7 +11,6 @@ export type SocketChannel = {
 }
 
 const ignore = () => {}
-const isAccepted = (status: number) => status >= 200 && status <= 299
 
 export function createSocketChannel(client: DomClient): SocketChannel {
   return {
@@ -37,7 +36,7 @@ export function createSocketChannel(client: DomClient): SocketChannel {
         }
       })
       client.call({ v: 1, kind: 'socket', sid, op: 'open', url }).then((r) => {
-        if (!isAccepted(r.status)) end()
+        if (!isOk(r)) end()
       }, end)
       return {
         // Like a socket that is not open yet, nothing is sent before native's open.

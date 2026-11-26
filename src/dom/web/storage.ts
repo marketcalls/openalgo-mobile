@@ -4,7 +4,7 @@
 // holds writes still pending when the page goes away.
 import type { AsyncStorageLike, StorageLike } from 'openalgo-charts/widget'
 import type { DomStorageMsg, JSONValue } from '~/dom/bridge/protocol'
-import type { DomClient } from './client'
+import { type DomClient, isOk } from './client'
 
 const PROBE_KEY = 'oa-dom:probe'
 
@@ -21,7 +21,7 @@ export function createBridgedStorage(
 ): AsyncStorageLike {
   async function ask(m: DomStorageMsg): Promise<JSONValue> {
     const r = await client.call(m)
-    if (r.status < 200 || r.status > 299) {
+    if (!isOk(r)) {
       throw new Error(`openalgo-mobile: storage ${m.op} refused (${r.status})`)
     }
     return r.body

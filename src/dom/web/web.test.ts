@@ -4,6 +4,7 @@
  */
 // A release DOM page is a file:// URL (preflight conflict 14), so relative fetches must resolve
 // against DOM_ORIGIN, not the page's location.
+import { runInThisContext } from 'node:vm'
 import {
   CHART_TOPICS,
   DOM_ORIGIN,
@@ -13,7 +14,7 @@ import {
   type JSONValue,
   NATIVE_KEY,
 } from '~/dom/bridge/protocol'
-import { createDomClient } from './client'
+import { createDomClient, isOk, nextRid } from './client'
 import { DOM_CSP, DOM_CSP_DEV, installCsp, probeCsp } from './csp'
 import { seedImportMetaEnv, VITE_ENV } from './env'
 import { createBridgedFetch } from './fetch'
@@ -91,26 +92,71 @@ describe('csp', () => {
     expect(meta.content).toBe(DOM_CSP)
   })
 
-  test('the dev policy differs only in connect-src self, for Metro and HMR', () => {
-    expect(DOM_CSP_DEV).toBe(DOM_CSP.replace("connect-src 'none'", "connect-src 'self'"))
-    expect(DOM_CSP_DEV).not.toBe(DOM_CSP)
+  /** A policy as directive → sources. */
+  const directives = (policy: string) =>
+    Object.fromEntries(
+      policy.split(';').map((d) => {
+        const [name, ...sources] = d.trim().split(/\s+/)
+        return [name, sources]
+      }),
+    )
+
+  test('the release policy has no eval; the dev policy adds eval and self connects, nothing else', () => {
+    expect(DOM_CSP).not.toContain("'unsafe-eval'")
+    expect(directives(DOM_CSP)['script-src']).toEqual(["'self'"])
+
+    expect(DOM_CSP_DEV).toBe(
+      "default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+        "font-src 'self' data:; connect-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; " +
+        "form-action 'none'; base-uri 'none'",
+    )
+    expect(directives(DOM_CSP_DEV)).toEqual({
+      ...directives(DOM_CSP),
+      'script-src': ["'self'", "'unsafe-eval'"],
+      'connect-src': ["'self'"],
+    })
     expect(installCsp(document, true).content).toBe(DOM_CSP_DEV)
     expect(cspMetas()).toHaveLength(1)
   })
 
-  test('the prelude seeds the env and installs the release policy', () => {
-    const g = globalThis as { __ExpoImportMetaRegistry?: { url: string; env: object } }
-    delete g.__ExpoImportMetaRegistry
-    try {
-      jest.isolateModules(() => {
-        require('./prelude')
-      })
+  describe('prelude', () => {
+    const g = globalThis as unknown as {
+      __DEV__: boolean
+      __ExpoImportMetaRegistry?: { url: string; env: object }
+    }
+    const runPrelude = (dev: boolean) => {
+      const was = g.__DEV__
+      g.__DEV__ = dev
+      try {
+        jest.isolateModules(() => {
+          require('./prelude')
+        })
+      } finally {
+        g.__DEV__ = was
+      }
+      return document.head.firstElementChild as HTMLMetaElement
+    }
+    beforeEach(() => {
+      delete g.__ExpoImportMetaRegistry
+    })
+    afterEach(() => {
+      delete g.__ExpoImportMetaRegistry
+    })
+
+    test('the prelude seeds the env and installs the release policy', () => {
+      expect(g.__DEV__).toBe(false)
+      const meta = runPrelude(false)
       expect(g.__ExpoImportMetaRegistry).toEqual({ url: location.href, env: VITE_ENV })
       expect(cspMetas()).toHaveLength(1)
-      expect((document.head.firstElementChild as HTMLMetaElement).content).toBe(DOM_CSP)
-    } finally {
-      delete g.__ExpoImportMetaRegistry
-    }
+      expect(meta.content).toBe(DOM_CSP)
+    })
+
+    test('the prelude picks the dev policy only under __DEV__', () => {
+      expect(runPrelude(true).content).toBe(DOM_CSP_DEV)
+      document.head.innerHTML = ''
+      expect(runPrelude(false).content).toBe(DOM_CSP)
+      expect(cspMetas()).toHaveLength(1)
+    })
   })
 
   describe('probe', () => {
@@ -197,17 +243,40 @@ describe('links', () => {
     expect(onLink).toHaveBeenCalledTimes(1)
   })
 
-  test('an http link is handed to native too, and a click off a link is left alone', () => {
+  test('an http link is cancelled in the page and never reaches native; a click off a link is left alone', () => {
     const onLink = jest.fn()
     const stop = guardLinks(document, onLink)
-    click(link('http://example.com/a'))
-    expect(onLink).toHaveBeenCalledWith('http://example.com/a')
+    expect(click(link('http://example.com/a')).defaultPrevented).toBe(true)
+    expect(click(link('HTTP://example.com/b')).defaultPrevented).toBe(true)
+    expect(onLink).not.toHaveBeenCalled()
 
     const div = document.createElement('div')
     document.body.append(div)
     expect(click(div).defaultPrevented).toBe(false)
-    expect(onLink).toHaveBeenCalledTimes(1)
+    expect(onLink).not.toHaveBeenCalled()
     stop()
+  })
+
+  test('a window capture listener that stops the click cannot take its link past the guard', () => {
+    const onLink = jest.fn()
+    // Added before the guard: stopPropagation still leaves the window's other listeners running.
+    const earlier = jest.fn((e: Event) => e.stopPropagation())
+    window.addEventListener('click', earlier, true)
+    const stop = guardLinks(document, onLink)
+    // Added after the guard: it runs second, so even stopImmediatePropagation is too late.
+    const later = jest.fn((e: Event) => e.stopImmediatePropagation())
+    window.addEventListener('click', later, true)
+    try {
+      const e = click(link('https://openalgo.in/a'))
+      expect(earlier).toHaveBeenCalledTimes(1)
+      expect(later).toHaveBeenCalledTimes(1)
+      expect(e.defaultPrevented).toBe(true)
+      expect(onLink).toHaveBeenCalledWith('https://openalgo.in/a')
+    } finally {
+      window.removeEventListener('click', earlier, true)
+      window.removeEventListener('click', later, true)
+      stop()
+    }
   })
 })
 
@@ -283,6 +352,27 @@ describe('client', () => {
     }
   })
 
+  test('isOk is a 2xx reply', () => {
+    const at = (status: number) => isOk({ status, body: null })
+    expect([199, 200, 202, 204, 299, 300, 400, 413].map(at)).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ])
+  })
+
+  test('nextRid counts up within the protocol range', () => {
+    const a = nextRid()
+    const b = nextRid()
+    expect(b).toBe(a + 1)
+    expect(Number.isSafeInteger(b) && a >= 0).toBe(true)
+  })
+
   test('nextSid stays within the protocol range and skips ids still listened to', () => {
     const { client } = bridged()
     const first = client.nextSid()
@@ -329,6 +419,35 @@ describe('fetch', () => {
     await expect(res.clone().text()).resolves.toBe('{"status":"success","data":[]}')
   })
 
+  test('json() is the body the bridge delivered, with no JSON work; a clone reads its own copy', async () => {
+    const bar = { close: 1 }
+    const body = { status: 'success', data: [bar] }
+    const { client } = bridged(() => ({ status: 200, body }))
+    const f = createBridgedFetch(client)
+    // The counts are read before restoring: mockRestore clears a spy's calls.
+    const stringify = jest.spyOn(JSON, 'stringify')
+    const parse = jest.spyOn(JSON, 'parse')
+    let jsonWork: number
+    let res: Response
+    let read: unknown
+    try {
+      res = await f('/api/v1/history')
+      read = await res.json()
+    } finally {
+      jsonWork = stringify.mock.calls.length + parse.mock.calls.length
+      stringify.mockRestore()
+      parse.mockRestore()
+    }
+    expect(read).toBe(body)
+    expect(jsonWork).toBe(0)
+
+    // The page changes what it read: the clone keeps its own copy, and text() writes out the body.
+    const copy = res.clone()
+    bar.close = 2
+    await expect(copy.json()).resolves.toEqual({ status: 'success', data: [{ close: 1 }] })
+    await expect(res.text()).resolves.toBe('{"status":"success","data":[{"close":2}]}')
+  })
+
   test('a GET carries its query; DOM_ORIGIN URLs and paths from the file page are the app', async () => {
     const { call, client } = bridged(() => ({ status: 403, body: { status: 'error' } }))
     const f = createBridgedFetch(client)
@@ -350,37 +469,75 @@ describe('fetch', () => {
     expect(res.statusText).toBe('Forbidden')
   })
 
-  test("a Request's url, method and signal are used; a Request's own body is refused", async () => {
-    const { call, client } = bridged(() => HISTORY)
-    const f = createBridgedFetch(client)
-    // jsdom has no Request global: a Request-shaped object stands in for one.
-    const req = (r: object) => r as unknown as Request
-    await f(req({ url: '/api/v1/search?q=INF', method: 'post', signal: null, body: null }), {
-      body: '{"query":"INF"}',
-    })
-    expect(sent(call)[0]).toMatchObject({
-      method: 'POST',
-      path: '/api/v1/search',
-      query: { q: 'INF' },
-      body: { query: 'INF' },
+  describe('a Request input', () => {
+    // jsdom has no fetch classes, so Node's own Request (WHATWG fetch, in Node's main context
+    // outside jsdom's window) stands in for the WebView's. It takes a signal of its own realm.
+    const NodeRequest = runInThisContext('Request') as typeof Request
+    const NodeAbortController = runInThisContext('AbortController') as typeof AbortController
+
+    test("a Request's url, method and signal are used; a Request's own body is refused", async () => {
+      const { call, client } = bridged((m) =>
+        m.kind === 'request' && m.path === '/slow' ? new Promise<DomReply>(() => {}) : HISTORY,
+      )
+      const f = createBridgedFetch(client)
+      await f(new NodeRequest(`${DOM_ORIGIN}/api/v1/search?q=INF`, { method: 'post' }), {
+        body: '{"query":"INF"}',
+      })
+      expect(sent(call)[0]).toMatchObject({
+        kind: 'request',
+        method: 'POST',
+        path: '/api/v1/search',
+        query: { q: 'INF' },
+        body: { query: 'INF' },
+      })
+
+      const aborted = new NodeAbortController()
+      aborted.abort()
+      const early = new NodeRequest(`${DOM_ORIGIN}/a`, { signal: aborted.signal })
+      await expect(f(early)).rejects.toMatchObject({ name: 'AbortError' })
+      const withBody = new NodeRequest(`${DOM_ORIGIN}/a`, { method: 'POST', body: '{}' })
+      await expect(f(withBody)).rejects.toThrow(TypeError)
+      expect(call).toHaveBeenCalledTimes(1)
+
+      // The Request's signal aborts a request in flight, and native is told its rid.
+      const ctl = new NodeAbortController()
+      const p = f(new NodeRequest(`${DOM_ORIGIN}/slow`, { signal: ctl.signal }))
+      await flush()
+      ctl.abort()
+      await expect(p).rejects.toMatchObject({ name: 'AbortError' })
+      const [, slow, abort] = sent(call)
+      expect(slow).toMatchObject({ kind: 'request', method: 'GET', path: '/slow' })
+      expect(abort).toEqual({ v: 1, kind: 'abort', rid: (slow as { rid: number }).rid })
     })
 
-    const ctl = new AbortController()
-    ctl.abort()
-    await expect(f(req({ url: '/a', method: 'GET', signal: ctl.signal }))).rejects.toMatchObject({
-      name: 'AbortError',
+    test('a relative Request resolves against the file:// page and is refused', async () => {
+      const { call, client } = bridged(() => HISTORY)
+      const f = createBridgedFetch(client)
+      // The WebView's new Request('/api/v1/history') resolves the path against the page's file://
+      // URL. Node's Request has no page to resolve against, so the test resolves it the same way.
+      const req = new NodeRequest(new URL('/api/v1/history', document.baseURI))
+      expect(req.url).toBe('file:///api/v1/history')
+      await expect(f(req)).rejects.toThrow(TypeError)
+      expect(call).not.toHaveBeenCalled()
     })
-    await expect(f(req({ url: '/a', method: 'POST', body: {} }))).rejects.toThrow(TypeError)
-    expect(call).toHaveBeenCalledTimes(1)
   })
 
-  test('each request has its own rid', async () => {
-    const { call, client } = bridged(() => HISTORY)
-    const f = createBridgedFetch(client)
-    const g = createBridgedFetch(client)
-    await Promise.all([f('/a'), f('/b'), g('/c')])
-    const rids = sent(call).map((m) => (m as { rid: number }).rid)
-    expect(new Set(rids).size).toBe(3)
+  test('every rid on the page comes from one sequence: two fetches on two clients and nextRid', async () => {
+    const a = bridged(() => HISTORY)
+    const b = bridged(() => HISTORY)
+    const f = createBridgedFetch(a.client)
+    const g = createBridgedFetch(b.client)
+    const first = nextRid()
+    await Promise.all([f('/a'), g('/b'), f('/c'), g('/d')])
+    const last = nextRid()
+
+    const rids = [...sent(a.call), ...sent(b.call)].map((m) => (m as { rid: number }).rid)
+    expect(new Set(rids).size).toBe(4)
+    for (const rid of rids) {
+      expect(rid).toBeGreaterThan(first)
+      expect(rid).toBeLessThan(last)
+    }
+    expect(last).toBe(first + 5)
   })
 
   test('an absolute URL to another host rejects and is never bridged', async () => {

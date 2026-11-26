@@ -2,8 +2,8 @@
 // bridged: a relative URL or one on DOM_ORIGIN. Relative URLs resolve against DOM_ORIGIN, never
 // the page's location, which is a file:// URL in a release build (preflight conflict 14).
 // Anything else rejects as a network error would, and nothing crosses the bridge.
-import { DOM_ORIGIN, type DomReply, type DomRequest } from '~/dom/bridge/protocol'
-import type { DomClient } from './client'
+import { DOM_ORIGIN, type DomReply, type DomRequest, type JSONValue } from '~/dom/bridge/protocol'
+import { type DomClient, isOk, nextRid } from './client'
 
 /** What the bridged fetch resolves with: the part of `Response` the page's code reads. */
 export type BridgedResponse = {
@@ -32,14 +32,10 @@ const STATUS_TEXT: Readonly<Record<number, string>> = {
   504: 'Gateway Timeout',
 }
 
-// One sequence for the whole page, so two fetches over one client never share a rid (DomHost
-// refuses a rid already in flight). It starts at the clock so a reloaded page does not reuse the
-// rid of a request the dead page left in flight.
-let lastRid = Date.now()
-
 type RequestLike = { url: string; method?: string; signal?: AbortSignal | null; body?: unknown }
 
-/** A Request (or anything shaped like one) passed as the input; a string or URL is not one. */
+/** A Request passed as the input; a string or URL is not one. A Request's url is absolute: one
+ *  made from a relative path resolved it against the file:// page, so it is refused below. */
 const requestOf = (input: RequestInfo | URL): RequestLike | null =>
   typeof input === 'object' && !(input instanceof URL) ? input : null
 
@@ -83,16 +79,22 @@ function toRequest(
   return out
 }
 
+/** A copy of a JSON body: what a clone reads, so changing one body leaves the other as it was. */
+const copyOf = (body: JSONValue): JSONValue => JSON.parse(JSON.stringify(body))
+
+// The bridge delivers the body already parsed. json() hands it over as it is and text() writes it
+// out only when asked, so a large history reply on the chart-open path is never stringified only
+// to be parsed again.
 function toResponse(reply: DomReply): BridgedResponse {
-  const text = JSON.stringify(reply.body)
+  const { status, body } = reply
   return {
-    ok: reply.status >= 200 && reply.status <= 299,
-    status: reply.status,
-    statusText: STATUS_TEXT[reply.status] ?? '',
+    ok: isOk(reply),
+    status,
+    statusText: STATUS_TEXT[status] ?? '',
     headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json' : null) },
-    json: async () => JSON.parse(text),
-    text: async () => text,
-    clone: () => toResponse(reply),
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+    clone: () => toResponse({ status, body: copyOf(body) }),
   }
 }
 
@@ -100,7 +102,7 @@ export function createBridgedFetch(client: DomClient): typeof fetch {
   async function bridgedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const signal = init?.signal ?? requestOf(input)?.signal
     if (signal?.aborted) throw abortError()
-    const rid = ++lastRid
+    const rid = nextRid()
     const request = toRequest(input, init, rid)
 
     // An abort rejects at once, here; native is told so it can drop the call.

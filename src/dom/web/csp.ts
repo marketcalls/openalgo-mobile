@@ -8,8 +8,14 @@ export const DOM_CSP =
   "font-src 'self' data:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; " +
   "form-action 'none'; base-uri 'none'"
 
-/** Dev builds only: Metro serves the page and HMR talks to it over the page's own origin. */
-export const DOM_CSP_DEV = DOM_CSP.replace("connect-src 'none'", "connect-src 'self'")
+/** Dev builds only (the prelude picks it under `__DEV__`, which a release build inlines as false):
+ *  Metro serves the page and talks to it over the page's own origin, and both Metro's HMR client
+ *  (metro-runtime HMRClient.js) and Expo's dev split-bundle loader (fetchThenEvalJs) run the code
+ *  they fetch with eval. The release policy allows neither. */
+export const DOM_CSP_DEV = DOM_CSP.replace(
+  "script-src 'self'",
+  "script-src 'self' 'unsafe-eval'",
+).replace("connect-src 'none'", "connect-src 'self'")
 
 const HTTP_EQUIV = 'Content-Security-Policy'
 const PROBE_URL = 'https://csp-probe.invalid/p.png'

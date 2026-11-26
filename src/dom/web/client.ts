@@ -23,6 +23,20 @@ export type DomClient = {
 
 const SIDS = 1000
 
+// One rid sequence for the whole page, whoever sends the request (the bridged fetch, plan E's XHR
+// shim), since DomHost refuses a rid already in flight. It starts at the clock so a reloaded page
+// does not reuse the rid of a request the dead page left in flight.
+let lastRid = Date.now()
+
+/** The page's next request id: every request, and its abort, carries one. */
+export function nextRid(): number {
+  lastRid += 1
+  return lastRid
+}
+
+/** Whether native accepted the message: a 2xx reply, as `Response.ok`. */
+export const isOk = (reply: DomReply): boolean => reply.status >= 200 && reply.status <= 299
+
 function isReply(x: unknown): x is DomReply {
   if (typeof x !== 'object' || x === null || Array.isArray(x)) return false
   const r = x as { status?: unknown; body?: unknown }
