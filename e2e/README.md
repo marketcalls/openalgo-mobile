@@ -51,7 +51,8 @@ Onboarding
 
 Watchlist
 - `watch-row-{ID}` *, `watch-ltp-{ID}` *, `watch-ex-{ID}`, `watch-held-{ID}` *, `watch-flash-{ID}`,
-  `watch-swipe-{ID}`, `watch-unknown-{ID}`
+  `watch-swipe-{ID}`, `watch-unknown-{ID}` (`watch-ltp-{ID}`, `watch-flash-{ID}` and
+  `watch-unknown-{ID}` are not shown in edit mode, where a row is its symbol and the controls)
 - `wl-tab-{LISTID}` (not for flows: list ids are lower case; tap a tab by its label), `wl-manage`
 - `wl-search-add` *, `wl-count` *, `wl-sort` *, `wl-sort-{SORT}` * (`ADDED`, `AZ`, `CHANGE`, `LTP`,
   `EXCHANGE`), `wl-edit` *, `wl-empty-add`

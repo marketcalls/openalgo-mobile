@@ -966,6 +966,20 @@ describe('WatchlistScreen', () => {
     expect(screen.queryByTestId('wl-new-group')).toBeNull()
   })
 
+  test('in edit mode a row is its symbol and the controls: the price column goes, so the symbol keeps its width', async () => {
+    const h = setup()
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    expect(screen.getByTestId('wl-up-NSE-RELIANCE')).toBeOnTheScreen()
+    expect(screen.queryByTestId('watch-ltp-NSE-RELIANCE')).toBeNull()
+    expect(screen.queryByTestId(/^watch-ltp-/)).toBeNull()
+    expect(screen.getByTestId('watch-row-NSE-RELIANCE')).toHaveTextContent(/RELIANCE/)
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toBeOnTheScreen()
+  })
+
   test('in edit mode, wl-new-group named Banks shows wl-group-0; wl-regroup then wl-move-0 puts HDFCBANK under it', async () => {
     const h = setup()
     await render(h.wrap(<WatchlistScreen />))
@@ -1287,6 +1301,34 @@ describe('WatchlistScreen', () => {
     expect(h.holds('NSE:RELIANCE')).toBe(1)
     await tick(h, 1502.5)
     expect(screen.getByTestId('watch-ltp-NSE-RELIANCE')).toHaveTextContent('1,502.50')
+  })
+
+  test("in edit mode an expired contract's badge goes too, so its symbol keeps the width", async () => {
+    const h = setup({
+      seed: lists({
+        id: 'a',
+        name: 'Mine',
+        items: [
+          { exchange: 'NSE', symbol: 'RELIANCE' },
+          { exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' },
+        ],
+      }),
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) =>
+          s.symbol === 'NIFTY25NOV25FUT'
+            ? { ...s, error: GONE }
+            : { ...s, data: { ltp: 1500, prev_close: 1490 } },
+        ),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    expect(screen.queryByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeNull()
+    expect(screen.getByTestId('watch-row-NFO-NIFTY25NOV25FUT')).toHaveTextContent(/NIFTY25NOV25FUT/)
+    expect(screen.getByTestId('wl-remove-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByTestId('wl-edit'))
+    expect(screen.getByTestId('watch-unknown-NFO-NIFTY25NOV25FUT')).toBeOnTheScreen()
   })
 
   test('the broker session turning active again forgets the refusals and asks again', async () => {

@@ -1,7 +1,9 @@
 // One watchlist row, plain as in Kite (design 17.1): the symbol over its exchange and the held
 // quantity, the LTP in the day change's colour over the change. A press opens the instrument
 // sheet; a left swipe asks to remove. It reads only its own symbol, so a tick re-renders this row
-// alone. An expired or unknown contract renders statically: no feed, no poll (ruling 8).
+// alone. An expired or unknown contract renders statically: no feed, no poll (ruling 8). In edit
+// mode, as in Kite, the row is the symbol and the edit controls: the price column (or the expired
+// badge) does not shrink, and beside four 44 pt controls it would leave the symbol a letter or two.
 import { type Href, useRouter } from 'expo-router'
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import {
@@ -108,6 +110,8 @@ type BodyProps = {
 function LiveBody(p: BodyProps & { reduceMotion?: boolean }) {
   const q = useLiveQuote(p.exchange, p.symbol, 2)
   const stale = useFeedStale()
+  // Edit mode keeps the quote held (the hooks above), so leaving it asks the server for nothing.
+  if (p.editing) return <Main {...p} dim={stale} />
   return (
     <>
       {p.reduceMotion ? null : <Flash id={p.id} ltp={q?.ltp} />}
@@ -125,7 +129,9 @@ function LiveBody(p: BodyProps & { reduceMotion?: boolean }) {
 function UnknownBody(p: BodyProps) {
   return (
     <Main {...p}>
-      <Badge testID={`watch-unknown-${p.id}`} label="Expired or unknown" tone="warning" />
+      {p.editing ? null : (
+        <Badge testID={`watch-unknown-${p.id}`} label="Expired or unknown" tone="warning" />
+      )}
     </Main>
   )
 }
@@ -133,7 +139,7 @@ function UnknownBody(p: BodyProps) {
 const REMOVE_ACTION = [{ name: 'remove', label: 'Remove' }]
 
 /** The pressable part: the symbol and what follows it; a press opens the instrument sheet. */
-function Main(p: BodyProps & { dim?: boolean; children: ReactNode }) {
+function Main(p: BodyProps & { dim?: boolean; children?: ReactNode }) {
   const router = useRouter()
   const onAction = (e: AccessibilityActionEvent) => {
     if (e.nativeEvent.actionName === 'remove') p.onRemove?.()
