@@ -49,8 +49,9 @@ module.exports = {
           },
         ],
       },
-      // openalgo-charts ships ESM (.mjs) only.
-      transformIgnorePatterns: ['/node_modules/(?!(openalgo-charts)/)'],
+      // openalgo-charts ships ESM (.mjs) only, and so does expo/dom, which a 'use dom' entry
+      // imports for useDOMImperativeHandle.
+      transformIgnorePatterns: ['/node_modules/(?!(openalgo-charts|expo/build/dom)/)'],
       moduleNameMapper,
       globals: { __DEV__: false },
       testPathIgnorePatterns: ['/node_modules/', '<rootDir>/openalgo/'],
