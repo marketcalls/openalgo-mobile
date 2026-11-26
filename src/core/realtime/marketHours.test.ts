@@ -1,4 +1,11 @@
-import { isAnyMarketOpen, isExchangeOpen, istClock, istDate, istParts } from './marketHours'
+import {
+  hasExchangeHours,
+  isAnyMarketOpen,
+  isExchangeOpen,
+  istClock,
+  istDate,
+  istParts,
+} from './marketHours'
 
 // IST = UTC+5:30. 2026-11-23 is a Monday.
 const ist = (day: number, h: number, m: number) =>
@@ -33,6 +40,20 @@ const cases = (): void => {
   })
   test('unknown exchange is closed; isAnyMarketOpen', () => {
     expect(isExchangeOpen('XYZ', ist(MON, 10, 0))).toBe(false)
+    // No window for these: closed to isExchangeOpen, and hasExchangeHours says why.
+    expect(isExchangeOpen('GLOBAL_INDEX', ist(MON, 10, 0))).toBe(false)
+    expect(['NSE', 'NSE_INDEX', 'MCX', 'CRYPTO'].map(hasExchangeHours)).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ])
+    expect(['GLOBAL_INDEX', 'NCDEX', 'XYZ', 'toString'].map(hasExchangeHours)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ])
     expect(isAnyMarketOpen(ist(MON, 10, 0))).toBe(true)
     expect(isAnyMarketOpen(ist(MON, 23, 56))).toBe(true) // CRYPTO
   })

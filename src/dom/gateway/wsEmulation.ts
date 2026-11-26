@@ -4,7 +4,7 @@
 // is a hold on the app's subscription manager, and the tick store's flushes come back as
 // market_data frames. Holds live until the page unsubscribes or closes, or closeAll(): a lock, a
 // 1012 or a reconnect of the app's feed never closes a DOM socket (RF 4).
-import { isExchangeOpen } from '~/core/realtime/marketHours'
+import { hasExchangeHours, isExchangeOpen } from '~/core/realtime/marketHours'
 import type { OrderEventBus } from '~/core/realtime/orderEvents'
 import type { PollingEngine } from '~/core/realtime/polling'
 import {
@@ -22,6 +22,15 @@ import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 
 /** The symbols one DOM socket may hold, whatever their modes. */
 export const MAX_DOM_SYMBOLS = 50
+/** The sockets one page may hold open at once; one more is closed as it opens. */
+export const MAX_DOM_SOCKETS_PER_PAGE = 4
+/**
+ * The distinct symbols one page may hold across its sockets: what it can take of the app's own
+ * subscription budget (a symbol costs one slot there whatever its modes and sockets). While it
+ * equals MAX_DOM_SOCKETS_PER_PAGE × MAX_DOM_SYMBOLS it refuses only the symbol past a full page;
+ * it bounds the page alone once either is raised. Raise any of the three only by constant.
+ */
+export const MAX_DOM_PAGE_SYMBOLS = 200
 
 export type EmulationDeps = {
   realtime: Pick<Realtime, 'acquire' | 'status' | 'onStatus'>
@@ -36,6 +45,12 @@ export type EmulationDeps = {
   post: (m: NativeToDom) => void
   /** Must agree with the clock TickStore.put stamps quotes with. Defaults to Date.now. */
   now?: () => number
+  /**
+   * Whether an exchange is in session at `now`: under 'relay' a polled quote is framed only
+   * then. Null when there is no known session window for it, and its quotes are not filtered.
+   * Defaults to the app's fixed hours (isExchangeOpen); the chart screen passes its calendar.
+   */
+  isOpen?: (exchange: string, now: number) => boolean | null
 }
 
 export type WsEmulation = {
@@ -53,8 +68,20 @@ const BY_LABEL: Record<string, Mode> = { LTP: 1, QUOTE: 2, DEPTH: 3 }
 const EXCHANGES: ReadonlySet<string> = new Set(ALL_EXCHANGES)
 
 type Json = Record<string, unknown>
+/**
+ * The store's last ltp and ltt this subscription saw. The store merges patches, so a ws price
+ * that came without a trade time keeps an earlier trade's: `stale` from then until a new ltt.
+ */
+type Seen = { ltp?: number; ltt?: number; stale: boolean }
 /** What one subscription frames: its symbol at its mode, from the time it was made. */
-type Sub = { key: string; exchange: string; symbol: string; mode: Mode; since: number }
+type Sub = {
+  key: string
+  exchange: string
+  symbol: string
+  mode: Mode
+  since: number
+  seen: Seen
+}
 type Hold = Sub & { stop: () => void }
 type Socket = {
   authed: boolean
@@ -64,6 +91,16 @@ type Socket = {
 }
 
 const isObj = (x: unknown): x is Json => typeof x === 'object' && x !== null && !Array.isArray(x)
+/** A symbol and an exchange, both non-empty strings: the server skips a pair without them. */
+const isPair = (x: unknown): x is Json & { symbol: string; exchange: string } =>
+  isObj(x) &&
+  typeof x.symbol === 'string' &&
+  typeof x.exchange === 'string' &&
+  x.symbol !== '' &&
+  x.exchange !== ''
+/** The app's fixed hours, for the exchanges it has them for. */
+const fixedHours = (exchange: string, now: number) =>
+  hasExchangeHours(exchange) ? isExchangeOpen(exchange, now) : null
 const error = (code: string, message: string) => ({ status: 'error', code, message })
 const NOT_AUTHENTICATED = error('NOT_AUTHENTICATED', 'You must authenticate first')
 
@@ -94,6 +131,7 @@ const levels = (a: DepthLevel[]) =>
 
 export function createWsEmulation(d: EmulationDeps): WsEmulation {
   const now = d.now ?? Date.now
+  const isOpen = d.isOpen ?? fixedHours
   const sockets = new Map<number, Socket>()
   let unwatch: (() => void) | null = null
 
@@ -106,14 +144,14 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
    * One hold's frame data, or null when there is nothing to send. JSON.stringify drops the
    * undefined fields, so what the quote lacks is absent from the frame.
    */
-  function dataOf(q: Quote, mode: Mode): Json | null {
+  function dataOf(q: Quote, mode: Mode, stale: boolean): Json | null {
     // RF 5's sibling (preflight conflict 5): the store merges patches, so a book from an earlier
     // ws Depth stream survives under polled quotes. Only a live ws quote's book is the market's.
     const book = mode === 3 && q.source === 'ws' && d.feedMode() === 'live' ? q.depth : undefined
     if (q.ltp === undefined && !book) return null
-    // A polled quote's ltt is a ws trade time the merge kept: the library would put the polled
-    // price on that trade's bar.
-    const out: Json = { ltp: q.ltp, ltt: q.source === 'ws' ? q.ltt : undefined }
+    // A polled quote's ltt, or one a newer ws price came without, is a trade time the merge
+    // kept: the library would put the new price on that trade's bar.
+    const out: Json = { ltp: q.ltp, ltt: q.source === 'ws' && !stale ? q.ltt : undefined }
     if (mode === 2) {
       Object.assign(out, {
         open: q.open,
@@ -137,16 +175,27 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
     return out
   }
 
+  /** Notes what the store holds now; true while its ltt is a trade before its ltp. */
+  function staleLtt(seen: Seen, q: Quote | undefined): boolean {
+    if (q?.ltt !== seen.ltt) seen.stale = false
+    else if (q?.ltp !== seen.ltp) seen.stale = true
+    seen.ltp = q?.ltp
+    seen.ltt = q?.ltt
+    return seen.stale
+  }
+
   /** The store flushed the subscription's key: one frame, if the quote is one it may see. */
   function onFlush(sid: number, h: Sub) {
     const q = d.store.get(h.key)
+    const stale = staleLtt(h.seen, q)
     // RF 5: no stored or seed quote, only ticks from the subscribe on.
     if (!q || q.source === 'seed' || q.ts < h.since) return
-    // Polling goes on outside the session, only slower: no candle after the close.
-    if (q.source === 'poll' && d.whenPolling === 'relay' && !isExchangeOpen(h.exchange, now())) {
+    // Polling goes on outside the session, only slower: no candle after the close. An exchange
+    // with no known session window is not filtered.
+    if (q.source === 'poll' && d.whenPolling === 'relay' && isOpen(h.exchange, now()) === false) {
       return
     }
-    const data = dataOf(q, h.mode)
+    const data = dataOf(q, h.mode, stale)
     if (!data) return
     send(sid, {
       type: 'market_data',
@@ -167,7 +216,9 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
     depth: DepthLevels,
   ) {
     const key = quoteKey(exchange, symbol)
-    const sub: Sub = { key, exchange, symbol, mode, since: now() }
+    const q = d.store.get(key)
+    const seen: Seen = { ltp: q?.ltp, ltt: q?.ltt, stale: false }
+    const sub: Sub = { key, exchange, symbol, mode, since: now(), seen }
     const release = d.realtime.acquire(
       mode === 3 ? { exchange, symbol, mode, depth } : { exchange, symbol, mode },
     )
@@ -200,23 +251,25 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
     const depth = depthOf(data)
     const b = broker()
     const entries: Json[] = []
-    const symbols = new Set(Array.from(s.holds.values(), (h) => h.key))
+    const keysOf = (x: Socket) => Array.from(x.holds.values(), (h) => h.key)
+    const symbols = new Set(keysOf(s))
+    const page = new Set(Array.from(sockets.values()).flatMap(keysOf))
     for (const p of pairs) {
-      if (!isObj(p)) continue
+      if (!isPair(p)) continue
       const { symbol, exchange } = p
-      if (typeof symbol !== 'string' || typeof exchange !== 'string' || !symbol || !exchange) {
-        continue // the server skips a pair without both
-      }
       const refuse = (message: string) =>
         entries.push({ symbol, exchange, status: 'error', message, broker: b })
       const key = quoteKey(exchange, symbol)
       if (!EXCHANGES.has(exchange)) refuse('Invalid exchange')
       else if (symbol.length > MAX_SYMBOL) refuse('Invalid symbol')
-      else if (!symbols.has(key) && symbols.size >= MAX_DOM_SYMBOLS) {
+      else if (!page.has(key) && page.size >= MAX_DOM_PAGE_SYMBOLS) {
+        refuse(`At most ${MAX_DOM_PAGE_SYMBOLS} symbols per page`)
+      } else if (!symbols.has(key) && symbols.size >= MAX_DOM_SYMBOLS) {
         refuse(`At most ${MAX_DOM_SYMBOLS} symbols per connection`)
       } else {
         hold(sid, s, exchange, symbol, mode, depth)
         symbols.add(key)
+        page.add(key)
         entries.push({
           symbol,
           exchange,
@@ -270,13 +323,12 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
       }
       for (const item of items) {
         if (!isObj(item)) continue
-        const { symbol, exchange } = item
         // A symbol's own mode, else the request's, else Quote.
         const mode = modeOf('mode' in item ? item.mode : 'mode' in data ? data.mode : 2)
         if (mode === null) {
           failed.push({
-            symbol,
-            exchange,
+            symbol: item.symbol,
+            exchange: item.exchange,
             mode: null,
             status: 'error',
             message: INVALID_MODE.message,
@@ -284,9 +336,8 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
           })
           continue
         }
-        if (typeof symbol !== 'string' || typeof exchange !== 'string' || !symbol || !exchange) {
-          continue
-        }
+        if (!isPair(item)) continue
+        const { symbol, exchange } = item
         // The server answers success for a subscription the client does not hold.
         const hk = `${quoteKey(exchange, symbol)}|${mode}`
         s.holds.get(hk)?.stop()
@@ -392,7 +443,11 @@ export function createWsEmulation(d: EmulationDeps): WsEmulation {
     // A reloaded page numbers its sockets afresh: the old socket on this sid goes silently, so
     // no close reaches the new page's socket.
     end(sid, false)
-    if (url !== DOM_WS_URL || (d.whenPolling === 'fail' && isPolling())) {
+    if (
+      url !== DOM_WS_URL ||
+      (d.whenPolling === 'fail' && isPolling()) ||
+      sockets.size >= MAX_DOM_SOCKETS_PER_PAGE
+    ) {
       d.post({ kind: 'socket', sid, event: 'close' })
       return
     }

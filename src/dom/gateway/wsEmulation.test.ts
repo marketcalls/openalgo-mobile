@@ -5,7 +5,13 @@ import type { SubRequest } from '~/core/realtime/subscriptions'
 import { createTickStore } from '~/core/realtime/tickStore'
 import type { FeedStatus } from '~/core/realtime/wsClient'
 import { DOM_WS_URL, type NativeToDom } from '~/dom/bridge/protocol'
-import { createWsEmulation, MAX_DOM_SYMBOLS } from './wsEmulation'
+import {
+  createWsEmulation,
+  type EmulationDeps,
+  MAX_DOM_PAGE_SYMBOLS,
+  MAX_DOM_SOCKETS_PER_PAGE,
+  MAX_DOM_SYMBOLS,
+} from './wsEmulation'
 
 // Thursday 2026-11-26, 10:00 IST: NSE is open. 17:30 IST: NSE has closed, MCX has not.
 const OPEN_AT = Date.parse('2026-11-26T04:30:00Z')
@@ -104,7 +110,13 @@ function fakeBus(): OrderEventBus & { listeners: () => number } {
 type Reply = Record<string, unknown>
 type SocketPost = Extract<NativeToDom, { kind: 'socket' }>
 
-function setup(o: { whenPolling?: 'relay' | 'fail'; feedMode?: 'live' | 'polling' } = {}) {
+function setup(
+  o: {
+    whenPolling?: 'relay' | 'fail'
+    feedMode?: 'live' | 'polling'
+    isOpen?: EmulationDeps['isOpen']
+  } = {},
+) {
   let pending: (() => void) | null = null
   const store = createTickStore((fn) => {
     pending = fn
@@ -124,6 +136,7 @@ function setup(o: { whenPolling?: 'relay' | 'fail'; feedMode?: 'live' | 'polling
     whenPolling: o.whenPolling ?? 'relay',
     active,
     post: (m) => posts.push(m),
+    ...(o.isOpen ? { isOpen: o.isOpen } : {}),
   })
 
   const open = (sid: number, url = DOM_WS_URL) =>
@@ -302,6 +315,18 @@ test('subscribe holds the app feed at the mode asked and acks like the server', 
     depth: 20,
   })
   expect(t.reply(1).subscriptions).toEqual([expect.objectContaining({ mode: 'Depth', depth: 20 })])
+
+  // A level the app's feed does not have is 5, and so is one that is not a number.
+  for (const level of [{ depth: 50 }, { depth_level: 7 }, { depth: '20' }]) {
+    t.send(1, { action: 'subscribe', symbol: 'SBIN', exchange: 'NSE', mode: 3, ...level })
+    expect(t.rt.acquire).toHaveBeenLastCalledWith({
+      exchange: 'NSE',
+      symbol: 'SBIN',
+      mode: 3,
+      depth: 5,
+    })
+    expect(t.reply(1).subscriptions).toEqual([expect.objectContaining({ mode: 'Depth', depth: 5 })])
+  }
 })
 
 test('a repeated subscribe replaces its hold: one hold, one frame per flush', () => {
@@ -422,20 +447,77 @@ test('ticks after the subscribe become one market_data frame per subscriber per 
   expect(t.posts).toEqual([])
 })
 
-test('a ws tick carries its trade time as ltt; a polled quote does not (conflict 5)', () => {
+test('a ws tick carries its trade time as ltt at every mode; a polled quote does not (conflict 5)', () => {
   const t = setup()
   t.authed(1)
   t.sub(1, 'RELIANCE', 1)
+  t.sub(1, 'RELIANCE', 2)
+  t.sub(1, 'RELIANCE', 3)
   t.replies(1)
+  const book = { buy: [{ price: 2499.5, quantity: 3 }], sell: [], levels: 1 }
 
-  t.store.put(KEY, { ltp: 2500, ltt: OPEN_AT - 500 }, 'ws')
+  t.store.put(KEY, { ltp: 2500, ltt: OPEN_AT - 500, volume: 900, depth: book }, 'ws')
   t.flush()
-  expect(t.replies(1)).toEqual([tick('RELIANCE', 1, { ltp: 2500, ltt: OPEN_AT - 500 })])
+  expect(t.replies(1)).toEqual([
+    tick('RELIANCE', 1, { ltp: 2500, ltt: OPEN_AT - 500 }),
+    tick('RELIANCE', 2, { ltp: 2500, ltt: OPEN_AT - 500, volume: 900 }),
+    tick('RELIANCE', 3, {
+      ltp: 2500,
+      ltt: OPEN_AT - 500,
+      depth: { buy: [{ price: 2499.5, quantity: 3 }], sell: [] },
+    }),
+  ])
 
   // The store keeps the ws trade time under the polled price; it is not this quote's.
   t.store.put(KEY, { ltp: 2502 }, 'poll')
   t.flush()
-  expect(t.replies(1)).toEqual([tick('RELIANCE', 1, { ltp: 2502 })])
+  expect(t.replies(1)).toEqual([
+    tick('RELIANCE', 1, { ltp: 2502 }),
+    tick('RELIANCE', 2, { ltp: 2502, volume: 900 }),
+    tick('RELIANCE', 3, { ltp: 2502, depth: { buy: [], sell: [] } }),
+  ])
+})
+
+test("a ws price that came without a trade time is not framed on the earlier trade's ltt", () => {
+  const t = setup()
+  // Another screen's stream left its last trade time in the store.
+  t.store.put(KEY, { ltp: 2400, ltt: OPEN_AT - 60_000 }, 'ws')
+  t.flush()
+  jest.advanceTimersByTime(1000)
+  t.authed(1)
+  t.sub(1, 'RELIANCE', 1)
+  t.sub(1, 'RELIANCE', 3)
+  t.replies(1)
+  const book = { buy: [{ price: 2409, quantity: 2 }], sell: [], levels: 1 }
+
+  // This stream sends no ltt: the merge keeps the old one under each new price.
+  t.store.put(KEY, { ltp: 2410 }, 'ws')
+  t.flush()
+  expect(t.store.get(KEY)?.ltt).toBe(OPEN_AT - 60_000)
+  expect(t.replies(1)).toEqual([
+    tick('RELIANCE', 1, { ltp: 2410 }),
+    tick('RELIANCE', 3, { ltp: 2410, depth: { buy: [], sell: [] } }),
+  ])
+
+  // A book at that same price is still not the old trade's.
+  t.store.put(KEY, { ltp: 2410, depth: book }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual([
+    tick('RELIANCE', 1, { ltp: 2410 }),
+    tick('RELIANCE', 3, { ltp: 2410, depth: { buy: [{ price: 2409, quantity: 2 }], sell: [] } }),
+  ])
+
+  // A new trade time is framed, and stays with its price while only the book moves.
+  t.store.put(KEY, { ltp: 2411, ltt: OPEN_AT + 900 }, 'ws')
+  t.flush()
+  t.store.put(KEY, { ltp: 2411, depth: book }, 'ws')
+  t.flush()
+  expect(t.replies(1).map((r) => (r.data as Reply).ltt)).toEqual([
+    OPEN_AT + 900,
+    OPEN_AT + 900,
+    OPEN_AT + 900,
+    OPEN_AT + 900,
+  ])
 })
 
 test('a quote stored before the subscribe, or a seed, is never sent (RF 5)', () => {
@@ -622,6 +704,52 @@ test('an off-hours poll is not framed; a ws tick, or a poll for a market still o
   expect(t.replies(1)).toEqual([tick('RELIANCE', 1, { ltp: 2501 })])
 })
 
+test('an exchange with no known session window is never filtered by the default hours', () => {
+  const t = setup({ feedMode: 'polling' })
+  t.authed(1)
+  t.sub(1, 'SPX', 1, 'GLOBAL_INDEX')
+  t.sub(1, 'GUARSEED', 1, 'NCDEX')
+  t.replies(1)
+
+  t.store.put('GLOBAL_INDEX:SPX', { ltp: 6800 }, 'poll')
+  t.store.put('NCDEX:GUARSEED', { ltp: 5400 }, 'poll')
+  t.flush()
+  expect(t.replies(1)).toEqual([
+    tick('SPX', 1, { ltp: 6800 }, 'GLOBAL_INDEX'),
+    tick('GUARSEED', 1, { ltp: 5400 }, 'NCDEX'),
+  ])
+})
+
+test('the open check is injectable: the chart passes its session calendar', () => {
+  // A holiday at 10:00 IST, by the calendar; MCX has a special session; NCDEX is unknown.
+  const isOpen = jest.fn((exchange: string, _now: number) =>
+    exchange === 'NSE' ? false : exchange === 'MCX' ? true : null,
+  )
+  const t = setup({ feedMode: 'polling', isOpen })
+  t.authed(1)
+  t.sub(1, 'RELIANCE', 1)
+  t.sub(1, 'CRUDEOIL26DECFUT', 1, 'MCX')
+  t.sub(1, 'GUARSEED', 1, 'NCDEX')
+  t.replies(1)
+
+  t.store.put(KEY, { ltp: 2500 }, 'poll')
+  t.store.put('MCX:CRUDEOIL26DECFUT', { ltp: 6100 }, 'poll')
+  t.store.put('NCDEX:GUARSEED', { ltp: 5400 }, 'poll')
+  t.flush()
+  expect(t.replies(1)).toEqual([
+    tick('CRUDEOIL26DECFUT', 1, { ltp: 6100 }, 'MCX'),
+    tick('GUARSEED', 1, { ltp: 5400 }, 'NCDEX'),
+  ])
+  expect(isOpen).toHaveBeenCalledWith('NSE', OPEN_AT)
+
+  // Only a polled quote asks: a ws tick on the holiday is the market's own.
+  isOpen.mockClear()
+  t.store.put(KEY, { ltp: 2501 }, 'ws')
+  t.flush()
+  expect(t.replies(1)).toEqual([tick('RELIANCE', 1, { ltp: 2501 })])
+  expect(isOpen).not.toHaveBeenCalled()
+})
+
 test('ping is answered locally', () => {
   const t = setup()
   t.open(1)
@@ -672,6 +800,79 @@ test('the 51st symbol on one socket is refused', () => {
   t.authed(2)
   t.sub(2, 'S51', 1)
   expect(t.reply(2).status).toBe('success')
+})
+
+test('a page opens at most 4 sockets at once; one more is closed as it opens', () => {
+  const t = setup()
+  expect(MAX_DOM_SOCKETS_PER_PAGE).toBe(4)
+  const sids = Array.from({ length: MAX_DOM_SOCKETS_PER_PAGE }, (_, i) => i + 1)
+  for (const sid of sids) t.authed(sid)
+  expect(t.em.openSockets()).toBe(4)
+
+  t.open(5)
+  expect(t.replies(5)).toEqual([{ event: 'close' }])
+  expect(t.em.openSockets()).toBe(4)
+  t.send(5, { action: 'authenticate', api_key: '__native__' })
+  expect(t.posts).toEqual([])
+
+  // A reopened sid takes its own place again; a closed one frees its place.
+  t.open(4)
+  expect(t.replies(4)).toEqual([{ event: 'open' }])
+  t.close(4)
+  t.open(5)
+  expect(t.replies(5)).toEqual([{ event: 'open' }])
+  expect(t.em.openSockets()).toBe(4)
+})
+
+test('a page holds at most 200 symbols across its sockets', () => {
+  const t = setup()
+  expect(MAX_DOM_PAGE_SYMBOLS).toBe(200)
+  // Four full sockets of their own symbols fill the page: the page's cap is the one that refuses.
+  const names = (sid: number) =>
+    Array.from({ length: MAX_DOM_SYMBOLS }, (_, i) => ({ symbol: `P${sid}X${i}`, exchange: 'NSE' }))
+  for (let sid = 1; sid < MAX_DOM_SOCKETS_PER_PAGE; sid++) {
+    t.authed(sid)
+    t.send(sid, { action: 'subscribe', symbols: names(sid), mode: 1 })
+    expect(t.reply(sid).status).toBe('success')
+  }
+  // The request that fills the page counts its own symbols as it goes.
+  t.authed(4)
+  t.send(4, {
+    action: 'subscribe',
+    symbols: [...names(4), { symbol: 'EXTRA', exchange: 'NSE' }],
+    mode: 1,
+  })
+  const filled = t.reply(4)
+  expect(filled.status).toBe('partial')
+  expect((filled.subscriptions as Reply[]).at(-1)).toEqual({
+    symbol: 'EXTRA',
+    exchange: 'NSE',
+    status: 'error',
+    message: 'At most 200 symbols per page',
+    broker: 'zerodha',
+  })
+  expect(t.rt.held()).toBe(200)
+
+  t.sub(3, 'EXTRA', 1)
+  expect(t.reply(3)).toMatchObject({
+    status: 'partial',
+    subscriptions: [expect.objectContaining({ message: 'At most 200 symbols per page' })],
+  })
+  expect(t.rt.held()).toBe(200)
+  // Another mode on a symbol the page holds is no new symbol.
+  t.sub(4, 'P4X0', 3)
+  expect(t.reply(4).status).toBe('success')
+
+  // A symbol let go on one socket frees a page place; the full socket still counts its own.
+  t.send(1, { action: 'unsubscribe', symbol: 'P1X0', exchange: 'NSE', mode: 1 })
+  t.replies(1)
+  t.sub(4, 'EXTRA', 1)
+  expect((t.reply(4).subscriptions as Reply[])[0]?.message).toBe(
+    'At most 50 symbols per connection',
+  )
+  t.sub(1, 'EXTRA', 1)
+  expect(t.reply(1).status).toBe('success')
+  expect(t.rt.held()).toBe(201) // 200 symbols, one of them at two modes
 })
 
 test('subscribe_orders forwards order updates', () => {
@@ -762,6 +963,22 @@ test("'fail': polling closes at once, and a live feed that drops to polling clos
 
   t.send(2, { action: 'ping' })
   expect(t.posts).toEqual([])
+})
+
+test("'fail': either the feed's state or feedMode() saying polling refuses an open", () => {
+  // The app socket's state says polling while feedMode() still says live.
+  const t = setup({ whenPolling: 'fail' })
+  t.rt.set({ state: 'polling' })
+  t.open(1)
+  expect(t.replies(1)).toEqual([{ event: 'close' }])
+  expect(t.em.openSockets()).toBe(0)
+
+  // feedMode() says polling while the state still says live.
+  const u = setup({ whenPolling: 'fail' })
+  u.setFeedMode('polling')
+  u.open(1)
+  expect(u.replies(1)).toEqual([{ event: 'close' }])
+  expect(u.em.openSockets()).toBe(0)
 })
 
 test("'relay': polling registers a quotes consumer with active, and polled quotes reach the socket", () => {
@@ -896,4 +1113,13 @@ test('modes and missing symbols follow the server (conflict 15)', () => {
     mode: 2,
   })
   expect(t.rt.held()).toBe(0)
+  t.replies(1)
+
+  // An item without both a symbol and an exchange is skipped, after its mode is read.
+  t.send(1, {
+    action: 'unsubscribe',
+    symbols: [{ exchange: 'NSE' }, { symbol: '', exchange: 'NSE' }, { symbol: 'TCS' }, 'TCS'],
+    mode: 1,
+  })
+  expect(t.reply(1)).toMatchObject({ type: 'unsubscribe', status: 'success', successful: [] })
 })

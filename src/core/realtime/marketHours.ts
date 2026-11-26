@@ -41,6 +41,11 @@ const WINDOWS: Record<string, Window> = {
   CRYPTO: 'always',
 }
 
+const KNOWN: ReadonlySet<string> = new Set(Object.keys(WINDOWS))
+
+/** Whether the app knows an exchange's hours: isExchangeOpen is false for any it does not. */
+export const hasExchangeHours = (exchange: string): boolean => KNOWN.has(exchange)
+
 export const isExchangeOpen = (exchange: string, now: Date | number): boolean => {
   const w = WINDOWS[exchange]
   if (!w) return false
