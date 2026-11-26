@@ -79,6 +79,19 @@ export function createAnalyzerGate({
     invalidate(): void {
       void queryClient.invalidateQueries({ queryKey })
     },
+
+    /**
+     * A read whose reply shows the server's mode (the GTT book: the sandbox tags it, G3), when the
+     * last reading says the other: the reading is dropped (`invalidate`), so the header badge, GTT
+     * support and the next write ask the server now, not on the next foreground. It never sets the
+     * mode itself, as `noteReply` does for a write: the read may have gone before the reading, and
+     * a stale ANALYZE would let a write go live without the live confirm. Nothing before the first
+     * reading.
+     */
+    noteMode(mode: AnalyzerMode): void {
+      const shown = queryClient.getQueryData<Analyzer>(queryKey)?.mode
+      if (shown !== undefined && shown !== mode) void queryClient.invalidateQueries({ queryKey })
+    },
   }
 }
 

@@ -184,18 +184,20 @@ export function createTrading(
   s: Pick<Services, 'api' | 'storage' | 'queryClient' | 'profile' | 'caps' | 'realtime'>,
   o: { now: () => number },
 ): Trading {
+  const analyzer = createAnalyzerGate({
+    queryClient: s.queryClient,
+    pid: s.profile.get().id,
+    api: s.api,
+  })
   return {
     instruments: createInstrumentCache({ api: s.api, storage: s.storage, now: o.now }),
     watchlists: createWatchlistsStore(s.storage),
     unknown: createUnknownKeys(o.now),
     depthDowngrades: createDepthDowngrades(),
     orders: createOrderApi(s.api),
-    gtt: createGttApi(s.api, gttSeen(s)),
-    analyzer: createAnalyzerGate({
-      queryClient: s.queryClient,
-      pid: s.profile.get().id,
-      api: s.api,
-    }),
+    // A GTT book read in the other mode drops the badge's reading, so support follows it now.
+    gtt: createGttApi(s.api, gttSeen(s), analyzer.noteMode),
+    analyzer,
     eventWatch: createEventWatch({ now: o.now }),
     flags: { marginOff: false },
   }

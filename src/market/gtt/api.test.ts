@@ -65,6 +65,7 @@ function overHttp(routes: Record<string, Route>) {
   const api: Api = { call: (id, body, schema, o) => http.request(id, body, schema, o) }
   const recorded: [boolean, 'live' | 'analyze'][] = []
   const seen: GttSeen = { record: (ok, mode) => void recorded.push([ok, mode]) }
+  const modes: ('live' | 'analyze')[] = []
   const bodies = (id: string) =>
     fetch.calls
       .filter((c) => c.url.endsWith(`/api/v1/${id}`))
@@ -72,7 +73,7 @@ function overHttp(routes: Record<string, Route>) {
         const { apikey: _, ...rest } = c.body as Record<string, unknown>
         return rest
       })
-  return { gtt: createGttApi(api, seen), recorded, bodies }
+  return { gtt: createGttApi(api, seen, (m) => void modes.push(m)), recorded, modes, bodies }
 }
 
 async function failure(p: Promise<unknown>): Promise<ApiError> {
@@ -247,6 +248,29 @@ describe('what a reply shows about support, by its own mode (RF 2)', () => {
     expect(await failure(h.gtt.place(SPEC))).toMatchObject({ kind: 'Validation' })
     expect(await failure(h.gtt.book())).toMatchObject({ kind: 'Server' })
     expect(h.recorded).toEqual([])
+  })
+})
+
+describe("what a book read shows about the server's mode", () => {
+  test('each book success tells its own mode; a write, a refusal or no reply tells none', async () => {
+    let tagged = true
+    const h = overHttp({
+      'POST /api/v1/gttorderbook': () => ({
+        status: 200,
+        body: { status: 'success', data: [], ...(tagged ? { mode: 'analyze' } : {}) },
+      }),
+      'POST /api/v1/placegttorder': ok({ trigger_id: '1001', mode: 'analyze' }),
+    })
+    await h.gtt.book()
+    tagged = false
+    await h.gtt.book()
+    expect(h.modes).toEqual(['analyze', 'live'])
+    // a write's reply is the order safety's (submit: noteReply, invalidate)
+    await h.gtt.place(SPEC)
+    expect(h.modes).toEqual(['analyze', 'live'])
+    const refused = overHttp({ 'POST /api/v1/gttorderbook': SANDBOX_501 })
+    await failure(refused.gtt.book())
+    expect(refused.modes).toEqual([])
   })
 })
 

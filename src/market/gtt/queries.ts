@@ -55,7 +55,9 @@ export function useGttSupport(exchange?: string): GttSupport {
   // reset leaves it alone, and nothing repeats it: not another screen, a remount, a foreground or
   // a reconnect. A read that settles nothing (no answer, a 429, a reply from the other mode)
   // still counts as made, since a query without data is stale whatever its staleTime: the GTT
-  // segment's own reads, a mode or broker change, or the next probe settle it later.
+  // segment's own reads, a mode or broker change, or the next probe settle it later. A reply from
+  // the other mode drops the badge's reading (`createGttApi`'s noteMode), so the badge reads the
+  // mode again at once, and with it this key: the reply has already recorded that mode's answer.
   useQuery({
     queryKey: qk.gttdetect(profile.get().id, c?.host ?? null, broker, mode, c?.probedAt ?? null),
     queryFn: () =>

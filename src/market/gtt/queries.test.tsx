@@ -1,6 +1,6 @@
-import { focusManager, onlineManager, QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, onlineManager, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { act, render, screen } from '@testing-library/react-native'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { Text } from 'react-native'
 import type { z } from 'zod'
 import type { Capabilities } from '~/core/capabilities/gates'
@@ -8,12 +8,13 @@ import { createCapabilityStore } from '~/core/capabilities/store'
 import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { AnalyzerSchema } from '~/core/http/schemas'
 import { qk } from '~/core/query/keys'
 import { createQueryClient } from '~/core/query/queryClient'
 import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { useScreenActive } from '~/core/realtime/useScreenActive'
 import { useConnection } from '~/core/services/connection'
-import { type Services, ServicesProvider } from '~/core/services/services'
+import { type Services, ServicesProvider, useServices } from '~/core/services/services'
 import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { TradingProvider } from '../trading'
@@ -76,12 +77,21 @@ function bookReply(book: Book, schema: z.ZodType) {
   return schema.parse(book === 'analyze' ? { ...body, mode: 'analyze' } : body)
 }
 
-async function setup(o: { book?: Book; caps?: Capabilities } = {}) {
+async function setup(
+  o: { book?: Book | (() => Book); caps?: Capabilities; server?: () => 'live' | 'analyze' } = {},
+) {
   let reads = 0
+  let modeReads = 0
   const call = async (id: string, _body: unknown, schema: z.ZodType) => {
+    if (id === 'analyzer' && o.server) {
+      modeReads++
+      const mode = o.server()
+      return schema.parse({ status: 'success', data: { mode, analyze_mode: mode === 'analyze' } })
+    }
     if (id !== 'gttorderbook') throw new Error(`unexpected ${id}`)
     reads++
-    return bookReply(o.book ?? 'live', schema)
+    const book = typeof o.book === 'function' ? o.book() : o.book
+    return bookReply(book ?? 'live', schema)
   }
   const caps = createCapabilityStore(profileStorage(memoryKV(), PID))
   await caps.save(o.caps ?? CAPS)
@@ -106,7 +116,7 @@ async function setup(o: { book?: Book; caps?: Capabilities } = {}) {
     )
     await pass(0)
   }
-  return { caps, queryClient, reads: () => reads, mount }
+  return { caps, queryClient, reads: () => reads, modeReads: () => modeReads, mount }
 }
 
 const pass = (ms: number) =>
@@ -176,6 +186,24 @@ const BookProbe = ({ enabled }: { enabled?: boolean }) => {
 
 const state = (id = 'gtt') => screen.getByTestId(id).props.children
 
+/**
+ * The header badge as the tabs layout mounts it (useAnalyzer, in features/account): the
+ * analyzer query the gate shares, read on mount and stale after 5 s, written to `conn.analyzer`.
+ */
+function Badge() {
+  const { api, profile } = useServices()
+  const q = useQuery({
+    queryKey: qk.analyzer(profile.get().id),
+    queryFn: () => api.call('analyzer', {}, AnalyzerSchema),
+    staleTime: 5_000,
+  })
+  const mode = q.data?.mode ?? 'unknown'
+  useEffect(() => {
+    useConnection.getState().set({ analyzer: mode })
+  }, [mode])
+  return null
+}
+
 beforeEach(() => {
   jest.useFakeTimers({ now: T0 })
   keepExpectedLogs()
@@ -218,6 +246,53 @@ describe('useGttSupport', () => {
     expect(h.reads()).toBe(1)
     expect(h.caps.get()?.features).toEqual({ 'gtt:zerodha:analyze': true })
     expect(state()).toBe('unknown')
+  })
+
+  test.each([
+    ['ANALYZE', 'live', 'analyze'],
+    ['LIVE', 'analyze', 'live'],
+  ] as const)(
+    'the server switched to %s while the app showed the other: the detection read re-reads the mode at once, and support follows it',
+    async (_, before, after) => {
+      let server: 'live' | 'analyze' = before
+      const h = await setup({ server: () => server, book: () => server })
+      const sheet = flag(false)
+      await h.mount(
+        <>
+          <Badge />
+          <Shown when={sheet} id="gtt" />
+        </>,
+      )
+      expect(useConnection.getState().analyzer).toBe(before)
+      expect(h.modeReads()).toBe(1)
+      // the mode changes on the web, the app in the foreground; then the sheet opens
+      server = after
+      await pass(60_000)
+      expect(h.modeReads()).toBe(1)
+      await act(async () => sheet.set(true))
+      await pass(0)
+      // the detection read, keyed by the badge's mode, came back in the other mode
+      expect(h.caps.get()?.features).toEqual({ [`gtt:zerodha:${after}`]: true })
+      expect(h.modeReads()).toBe(2)
+      expect(useConnection.getState().analyzer).toBe(after)
+      expect(state()).toBe('yes')
+      // the new mode's support is known: nothing more is read
+      await pass(30_000)
+      expect([h.reads(), h.modeReads()]).toEqual([1, 2])
+    },
+  )
+
+  test("a detection read in the badge's own mode reads the mode no more", async () => {
+    const h = await setup({ server: () => 'live', book: 'live' })
+    await h.mount(
+      <>
+        <Badge />
+        <Support />
+      </>,
+    )
+    await pass(0)
+    expect(state()).toBe('yes')
+    expect([h.reads(), h.modeReads()]).toEqual([1, 1])
   })
 
   test('two screens waiting on the same answer share one read', async () => {

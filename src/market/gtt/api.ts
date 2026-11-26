@@ -50,7 +50,16 @@ function recordRefusal(seen: GttSeen, e: unknown): void {
   }
 }
 
-export function createGttApi(api: Api, seen: GttSeen): GttApi {
+/**
+ * `noteMode` hears the mode of each book read's reply (the sandbox tags it, G3), so a reading of
+ * the other mode is dropped (`AnalyzerGate.noteMode`): the badge and GTT support follow a mode
+ * the server changed without waiting for a foreground. A write's reply is the order safety's.
+ */
+export function createGttApi(
+  api: Api,
+  seen: GttSeen,
+  noteMode: (mode: GttMode) => void = () => {},
+): GttApi {
   /**
    * Only an `ok` reply shows GTT served: a Semi-Auto place is queued before the server checks
    * the mode or the broker (place_gtt_order_service.py:227), and no_id shows nothing. Modify and
@@ -88,6 +97,7 @@ export function createGttApi(api: Api, seen: GttSeen): GttApi {
         throw e
       }
       seen.record(true, modeOf(book.analyze))
+      noteMode(modeOf(book.analyze))
       return book
     },
   }

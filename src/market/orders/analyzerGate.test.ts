@@ -115,6 +115,27 @@ describe('createAnalyzerGate', () => {
     expect(calls).toHaveLength(2)
   })
 
+  test("noteMode: a read's reply in another mode drops the reading, but never sets one", async () => {
+    const { api, calls } = fakeApi(liveFixture, analyzeFixture)
+    const gate = createAnalyzerGate({ queryClient: qc, pid: PID, api })
+    // no reading yet: nothing to drop
+    gate.noteMode('analyze')
+    expect(qc.getQueryState(qk.analyzer(PID))).toBeUndefined()
+    expect(await gate.read()).toBe('live')
+    // the same mode: the reading stands
+    gate.noteMode('live')
+    expect(qc.getQueryState(qk.analyzer(PID))?.isInvalidated).toBe(false)
+    expect(await gate.read()).toBe('live')
+    expect(calls).toHaveLength(1)
+    // another mode: dropped, not overwritten (the reply may predate the reading)
+    jest.setSystemTime(T0 + 1_000)
+    gate.noteMode('analyze')
+    expect(qc.getQueryState(qk.analyzer(PID))?.isInvalidated).toBe(true)
+    expect(gate.peek()).toBe('live')
+    expect(await gate.read()).toBe('analyze')
+    expect(calls).toHaveLength(2)
+  })
+
   test('peek gives the last reading, however old, and never calls', async () => {
     const { api, calls } = fakeApi(analyzeFixture)
     const gate = createAnalyzerGate({ queryClient: qc, pid: PID, api })
