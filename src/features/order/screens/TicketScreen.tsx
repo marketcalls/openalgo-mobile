@@ -3,7 +3,7 @@
 // of T10: the mode read before it, the live confirm, one request at a time, never retried. An
 // outcome that may hide a placed order is checked against the order book and never re-sent.
 import { type Href, useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { hasEndpoint } from '~/core/capabilities/gates'
@@ -13,6 +13,7 @@ import { qk } from '~/core/query/keys'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import { useServices } from '~/core/services/services'
 import { useIsEvented } from '~/market/books/queries'
+import type { Orderbook } from '~/market/books/schemas'
 import { snapPrice } from '~/market/components/OrderFields'
 import { BrokerBanner } from '~/market/components/SessionBanners'
 import { defaultProduct, isQuoteOnly } from '~/market/instruments/exchanges'
@@ -43,7 +44,9 @@ import {
   ticketSummary,
   validateTicket,
 } from '~/market/orders/ticket'
+import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useHoldSheet } from '~/market/orders/useHoldSheet'
+import { type BookSnapshot, useReviewBook } from '~/market/orders/useReviewBook'
 import { openServerPage, useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
@@ -56,7 +59,6 @@ import { ResultView, resultLine, type TicketResult } from '../components/ResultV
 import { ReviewStep } from '../components/ReviewStep'
 import { TicketForm } from '../components/TicketForm'
 import { useMarginPreview } from '../hooks/useMarginPreview'
-import { type BookSnapshot, useReviewBook } from '../hooks/useReviewBook'
 
 type Step =
   | { kind: 'edit'; error?: string }
@@ -83,6 +85,8 @@ const MOVED = 'The price moved since the review. The order was not sent.'
 
 const modeChanged = (mode: AnalyzerMode) =>
   `The server is now in ${MODE_LABEL[mode]} mode. Review again.`
+
+const orderIds = (b: Orderbook | undefined): string[] => b?.orders.map((o) => o.orderid) ?? []
 
 /** "1,755 + 65": the full children, counted when there are several, then the rest. */
 function breakdown(plan: Extract<OrderPlan, { kind: 'split' }>): string {
@@ -185,7 +189,14 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   }, [])
   useHoldSheet(step.kind === 'sending')
   const onReview = step.kind === 'review'
-  const book = useReviewBook({ owner: me, otherOut, onReview })
+  const readFresh = useFreshBook()
+  const pid = s.profile.get().id
+  const readIds = useCallback(async () => orderIds(await readFresh()), [readFresh])
+  const cachedIds = useCallback(
+    () => orderIds(s.queryClient.getQueryData<Orderbook>(qk.orderbook(pid))),
+    [s, pid],
+  )
+  const book = useReviewBook({ owner: me, otherOut, onReview, readIds, cachedIds })
   // An earlier order's outcome that only the toast carried: on iOS the toast is beneath this
   // sheet, so the review says it, whether it lands while this review waits or came before.
   const unseen = useUnseenOutcome(trading)

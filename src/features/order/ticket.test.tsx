@@ -21,6 +21,7 @@ import {
 import { ticketHref } from '~/market/links'
 import { LIVE_SURPRISE } from '~/market/orders/submit'
 import { HOLD_COPY } from '~/market/orders/useHoldSheet'
+import { BOOK_WAIT_MS } from '~/market/orders/useReviewBook'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
 import type { TicketParams } from '~/market/types'
 import { ToastHost } from '~/ui/Toast'
@@ -37,7 +38,6 @@ import {
 import { AUTH_OK, fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { earlierOutcome, OTHER_OUT } from './components/ReviewStep'
-import { BOOK_WAIT_MS } from './hooks/useReviewBook'
 import { STILL_SENDING } from './screens/TicketScreen'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
@@ -170,13 +170,19 @@ let fetchFake = scriptedFetch({})
 let trading: Trading | undefined
 const INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 }
 
-/** The real container over a scripted server; `live` opens the feed for a zerodha server. */
-async function setup(routes: Record<string, Route> = {}, o: { live?: boolean } = {}) {
+/**
+ * The real container over a scripted server; `live` opens the feed for a zerodha server, and
+ * `caps` replaces the stored capabilities.
+ */
+async function setup(
+  routes: Record<string, Route> = {},
+  o: { live?: boolean; caps?: Capabilities } = {},
+) {
   fetchFake = scriptedFetch({ ...BASE_ROUTES, ...routes })
   const sockets = fakeSockets()
   const kv = memoryKV({
     [`oa.${PID}.hasKey`]: '1',
-    [`oa.${PID}.caps`]: JSON.stringify(CAPS),
+    [`oa.${PID}.caps`]: JSON.stringify(o.caps ?? CAPS),
   })
   await createProfileRepo(kv).save(PROFILE)
   const deps: AppDeps = {
@@ -1428,6 +1434,38 @@ describe('Semi-Auto', () => {
     expect(useConnection.getState().semiAutoSeen).toBe(true)
     await press('open-action-center')
     expect(Linking.openURL).toHaveBeenCalledWith(`${ORIGIN}/action-center`)
+  })
+})
+
+describe('Create GTT', () => {
+  test('shown when the server serves GTT here; it replaces the ticket with the GTT ticket', async () => {
+    await setup({}, { caps: { ...CAPS, features: { 'gtt:zerodha:live': true } } })
+    useConnection.getState().set({ analyzer: 'live' })
+    await open({ ...NIFTY_FUT, action: 'SELL' })
+    await type('ticket-qty', '3')
+    expect(text('ticket-gtt')).toBe('Create GTT')
+    await press('ticket-gtt')
+    // the side and the quantity in units, as the GTT ticket's link takes them
+    expect(mockRouter.replace).toHaveBeenCalledWith(
+      `/gtt/new?exchange=NFO&symbol=${FUT}&action=SELL&quantity=195`,
+    )
+    expect(requests('gttorderbook')).toHaveLength(0)
+  })
+
+  test('hidden while support is not known, and where the broker has no GTT', async () => {
+    await setup()
+    await open(RELIANCE)
+    expect(screen.queryByTestId('ticket-gtt')).toBeNull()
+
+    await cleanup()
+    if (services) disposeServices(services)
+    view = null
+    await setup({}, { caps: { ...CAPS, features: { 'gtt:zerodha:live': false } } })
+    useConnection.getState().set({ analyzer: 'live' })
+    await open(RELIANCE)
+    expect(screen.getByTestId('ticket-review')).toBeTruthy()
+    expect(screen.queryByTestId('ticket-gtt')).toBeNull()
+    expect(requests('gttorderbook')).toHaveLength(0)
   })
 })
 

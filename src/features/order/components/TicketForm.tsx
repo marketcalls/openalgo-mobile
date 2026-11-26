@@ -1,6 +1,8 @@
 // The ticket's edit step (design 7.10): side, product, price type, quantity (lots on a
 // derivative), price and trigger snapped to the tick when the field is left, the LTP, the margin
-// and what stops the order going to review.
+// and what stops the order going to review. Where the server serves GTT for this contract, the
+// ticket gives way to the GTT ticket for the same side and quantity (design 17.3).
+import { type Href, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import {
@@ -12,9 +14,11 @@ import {
   Segments,
   snapPrice,
 } from '~/market/components/OrderFields'
+import { useGttSupport } from '~/market/gtt/queries'
 import { productOptionsFor } from '~/market/instruments/exchanges'
 import type { InstrumentMeta } from '~/market/instruments/meta'
 import { fmtTick } from '~/market/instruments/tick'
+import { gttHref } from '~/market/links'
 import { type TicketIssue, type TicketState, ticketUnits } from '~/market/orders/ticket'
 import { PRICE_TYPES, type PriceType } from '~/market/types'
 import { Button } from '~/ui/Button'
@@ -40,6 +44,8 @@ export function TicketForm(p: {
   onReview: () => void
 }) {
   const { ticket: t, meta } = p
+  const router = useRouter()
+  const gtt = useGttSupport(t.exchange)
   const [qty, setQty] = useState(() => fieldText(t.qty))
   const [price, setPrice] = useState(() => fieldText(t.price))
   const [trigger, setTrigger] = useState(() => fieldText(t.trigger))
@@ -156,6 +162,23 @@ export function TicketForm(p: {
         disabled={!p.canReview}
         onPress={p.onReview}
       />
+      {gtt.state === 'yes' ? (
+        <Button
+          testID="ticket-gtt"
+          title="Create GTT"
+          variant="secondary"
+          onPress={() =>
+            router.replace(
+              gttHref({
+                exchange: t.exchange,
+                symbol: t.symbol,
+                action: t.action,
+                quantity: ticketUnits(t, meta),
+              }) as Href,
+            )
+          }
+        />
+      ) : null}
     </View>
   )
 }

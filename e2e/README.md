@@ -86,6 +86,15 @@ Order ticket and review
   `review-wait`, `review-earlier`, `ticket-confirm` *, `split-summary`, `split-child-{N}`
 - `order-result` *, `order-result-id`, `order-result-status`, `result-reconcile`, `result-wait`,
   `result-sandbox`, `view-orderbook`, `open-action-center` *, `ticket-done` *
+- `ticket-gtt` ("Create GTT", while the server serves GTT for the broker in this mode)
+
+GTT ticket (new and modify)
+- `gtt-screen`, `gtt-ltp`, `gtt-type-{TYPE}` (`SINGLE`, `OCO`; not on a modify), `gtt-side-buy`,
+  `gtt-side-sell` (not on a modify), `gtt-qty`, `gtt-trigger`, `gtt-price`, `gtt-sl-trigger`,
+  `gtt-sl-price`, `gtt-tg-trigger`, `gtt-tg-price`, `gtt-issue-{ISSUE}` (the issue in upper case,
+  such as `LTP_UNKNOWN`), `gtt-error`, `gtt-refused`, `gtt-review`
+- `gtt-review-step`, `gtt-mode-badge`, `gtt-summary`, `gtt-confirm`, `gtt-back`
+- `gtt-result`, `gtt-result-id`, `gtt-done`, `gtt-view-list` (also after an unknown outcome)
 
 Orders
 - `orders-screen`, `orders-list`, `orders-stats`, `orders-cancel-all`, `orders-seg-{SEGMENT}`,
