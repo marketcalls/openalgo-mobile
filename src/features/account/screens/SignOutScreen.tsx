@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { ScrollView, StyleSheet, Switch, View } from 'react-native'
 import { log } from '~/core/log/logger'
 import { useServices } from '~/core/services/services'
-import { backupNow } from '~/features/backup'
+import { backupNow, droppedNotice } from '~/features/backup'
 import { useTrading } from '~/market/trading'
 import { Button } from '~/ui/Button'
 import { Text } from '~/ui/Text'
@@ -44,7 +44,8 @@ export function SignOutScreen() {
     setBackingUp(true)
     setError(null)
     try {
-      await backupNow(watchlists)
+      const r = await backupNow(watchlists, s.storage)
+      setError(droppedNotice(r.dropped))
     } catch (e) {
       log.warn('account', 'backup before sign-out failed', e)
       setError(SIGN_OUT_COPY.backupFailed)

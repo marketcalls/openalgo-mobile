@@ -20,6 +20,8 @@ export interface ProfileStorage {
   getJSON<S extends z.ZodType>(name: string, schema: S): Promise<z.output<S> | null>
   setJSON(name: string, value: unknown): Promise<void>
   del(name: string): Promise<void>
+  /** The stored names that start with `prefix` (the profile's own, without the `oa.<pid>.`). */
+  names(prefix: string): Promise<string[]>
   clearAll(o: { keepUserContent: boolean }): Promise<void>
 }
 
@@ -42,10 +44,15 @@ export function profileStorage(kv: KV, pid: string): ProfileStorage {
     async del(name) {
       await kv.del(prefix + name)
     },
+    async names(p) {
+      return (await kv.keys(prefix + p)).map((key) => key.slice(prefix.length))
+    },
     async clearAll({ keepUserContent }) {
-      const keep = new Set<string>(keepUserContent ? USER_CONTENT : [])
+      // A user-content name also owns its `<name>:*` records (chart drawings per instrument).
+      const kept = (name: string) =>
+        keepUserContent && USER_CONTENT.some((n) => name === n || name.startsWith(`${n}:`))
       for (const key of await kv.keys(prefix)) {
-        if (!keep.has(key.slice(prefix.length))) await kv.del(key)
+        if (!kept(key.slice(prefix.length))) await kv.del(key)
       }
     },
   }

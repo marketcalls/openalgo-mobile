@@ -6,6 +6,8 @@ import {
   BackupLeakError,
   backupFileName,
   buildBackup,
+  droppedNotice,
+  fitBackup,
   MAX_BACKUP_BYTES,
   parseBackup,
 } from './format'
@@ -111,8 +113,8 @@ describe('parseBackup (RF 5)', () => {
   })
 
   test('a newer schema keeps the known keys and lists the rest', () => {
-    const r = parsed(wrap({ watchlists: W, chartDrawings: { a: 1 } }, { schema: 3 }))
-    expect(r.skipped).toEqual(['chartDrawings'])
+    const r = parsed(wrap({ watchlists: W, strategyPortfolio: { a: 1 } }, { schema: 3 }))
+    expect(r.skipped).toEqual(['strategyPortfolio'])
     expect(r.file.content.watchlists?.lists).toHaveLength(2)
     expect(Object.keys(r.file.content)).toEqual(['watchlists'])
   })
@@ -217,9 +219,9 @@ describe('parseBackup (RF 5)', () => {
   })
 
   test('a file with nothing to restore is still a backup', () => {
-    const r = parsed(wrap({ chartPrefs: {} }))
+    const r = parsed(wrap({ strategyPortfolio: {} }))
     expect(r.file.content.watchlists).toBeUndefined()
-    expect(r.skipped).toEqual(['chartPrefs'])
+    expect(r.skipped).toEqual(['strategyPortfolio'])
   })
 })
 
@@ -392,4 +394,79 @@ test('the file name is the IST time', () => {
   expect(backupFileName(new Date(Date.UTC(2026, 11, 31, 19, 5)))).toBe(
     'openalgo-backup-20270101-0035.json',
   )
+})
+
+describe('chart content', () => {
+  const rec = (k: string, v = 'v') => ({ k, v })
+  const chart = {
+    drawings: [rec('oac-widget:chart:drawings:NSE:INFY')],
+    prefs: [rec('oac-widget:chart:state')],
+  }
+
+  test('a backup carries chart drawings and prefs and they parse back', () => {
+    const { text, dropped } = fitBackup({ watchlists: W, chart, now: NOW, appVersion: '1' })
+    expect(dropped).toEqual([])
+    const r = parsed(text)
+    expect(r.file.content.chartDrawings).toEqual(chart.drawings)
+    expect(r.file.content.chartPrefs).toEqual(chart.prefs)
+    expect(r.skipped).toEqual([])
+    expect(r.file.schema).toBe(2)
+  })
+
+  test('over 2 MB, drawings go first and are named', () => {
+    const big = { k: 'oac-widget:chart:drawings:NSE:INFY', v: 'x'.repeat(1_000_000) }
+    const big2 = { k: 'oac-widget:chart:drawings:NSE:TCS', v: 'x'.repeat(1_000_000) }
+    const r = fitBackup({
+      watchlists: W,
+      chart: { drawings: [big, big2], prefs: chart.prefs },
+      now: NOW,
+      appVersion: '1',
+    })
+    expect(r.dropped).toEqual(['chartDrawings'])
+    expect(r.text.length).toBeLessThanOrEqual(MAX_BACKUP_BYTES)
+    const f = parsed(r.text).file
+    expect(f.content.chartDrawings).toBeUndefined()
+    expect(f.content.chartPrefs).toEqual(chart.prefs)
+    expect(droppedNotice(r.dropped)).toBe(
+      'Chart drawings were left out: the backup would be larger than 2 MB.',
+    )
+  })
+
+  test('prefs go next when the drawings alone did not make it fit', () => {
+    const bigPref = (i: number) => ({ k: `oac-widget:p${i}`, v: 'x'.repeat(900_000) })
+    const r = fitBackup({
+      watchlists: W,
+      chart: { drawings: chart.drawings, prefs: [bigPref(1), bigPref(2), bigPref(3)] },
+      now: NOW,
+      appVersion: '1',
+    })
+    expect(r.dropped).toEqual(['chartDrawings', 'chartPrefs'])
+    expect(droppedNotice(r.dropped)).toContain('Chart preferences were left out')
+  })
+
+  test('a hand-edited chart record is skipped and the rest restores', () => {
+    const r = parsed(
+      wrap({
+        watchlists: { version: 1, lists: [{ id: 'a', name: 'A', items: [] }] },
+        chartDrawings: [
+          rec('k'.repeat(300)),
+          { k: 'oac-widget:a', v: 5 },
+          null,
+          { v: 'no key' },
+          rec('oac-widget:chart:drawings:NSE:SBIN'),
+        ],
+        chartPrefs: 'nope',
+      }),
+    )
+    expect(r.file.content.watchlists?.lists).toHaveLength(1)
+    expect(r.file.content.chartDrawings).toEqual([rec('oac-widget:chart:drawings:NSE:SBIN')])
+    expect(r.file.content.chartPrefs).toBeUndefined()
+  })
+
+  test('at most 2,000 records per section; a value over 1,000,000 is skipped', () => {
+    const many = Array.from({ length: 2001 }, (_, i) => rec(`oac-widget:k${i}`))
+    const r = parsed(wrap({ chartPrefs: [...many, rec('oac-widget:big', 'x'.repeat(1_000_001))] }))
+    expect(r.file.content.chartPrefs).toHaveLength(2000)
+    expect(r.trimmed).toBe(1)
+  })
 })

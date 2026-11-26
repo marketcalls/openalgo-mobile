@@ -2,6 +2,7 @@
 // whole format is tested without a file system. Never the key, the server address or the
 // profile id: only the content goes in, and the text is checked once more before it is shared.
 import { istClock, istDate } from '~/core/realtime/marketHours'
+import { type DomStoreRecord, MAX_DOM_VALUE } from '~/dom/gateway/domStorage'
 import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 import {
   WATCH_SORTS,
@@ -16,17 +17,29 @@ export const BACKUP_KIND = 'openalgo-mobile-backup'
 export const BACKUP_SCHEMA = 2
 export const MAX_BACKUP_BYTES = 2_000_000
 
-/** Content keys are USER_CONTENT names; M3 to M5 add `strategyPortfolio`, `chartDrawings`, `chartPrefs`. */
+/** A parsed chart record: its key at most 256 characters, its value a string of at most 1,000,000. */
+const RECORD_KEY_MAX = 256
+/** Records per chart section; the rest are counted as trimmed. */
+const CHART_RECORDS_MAX = 2000
+
+export type ChartRecords = { drawings: DomStoreRecord[]; prefs: DomStoreRecord[] }
+export type ChartSection = 'chartDrawings' | 'chartPrefs'
+
+/** Content keys are USER_CONTENT names; M4 adds `strategyPortfolio`. */
 export type BackupFile = {
   kind: typeof BACKUP_KIND
   schema: number
   createdAt: string
   appVersion: string
-  content: { watchlists?: Watchlists } & Record<string, unknown>
+  content: {
+    watchlists?: Watchlists
+    chartDrawings?: DomStoreRecord[]
+    chartPrefs?: DomStoreRecord[]
+  } & Record<string, unknown>
 }
 
 /** The content keys this version can restore; any other key in a file is skipped, at any schema. */
-const RESTORABLE = ['watchlists'] as const
+const RESTORABLE = ['watchlists', 'chartDrawings', 'chartPrefs'] as const
 
 export class BackupLeakError extends Error {
   constructor() {
@@ -40,19 +53,62 @@ const LEAK = /"api_?key"\s*:/i
 
 export function buildBackup(o: {
   watchlists: Watchlists
+  chart?: ChartRecords
   now: Date | number
   appVersion: string
 }): string {
+  const content: BackupFile['content'] = { watchlists: o.watchlists }
+  if (o.chart?.drawings.length) content.chartDrawings = o.chart.drawings
+  if (o.chart?.prefs.length) content.chartPrefs = o.chart.prefs
   const file: BackupFile = {
     kind: BACKUP_KIND,
     schema: BACKUP_SCHEMA,
     createdAt: new Date(typeof o.now === 'number' ? o.now : o.now.getTime()).toISOString(),
     appVersion: o.appVersion,
-    content: { watchlists: o.watchlists },
+    content,
   }
   const text = JSON.stringify(file, null, 2)
   if (LEAK.test(text)) throw new BackupLeakError()
   return text
+}
+
+/**
+ * The backup text, within MAX_BACKUP_BYTES: drawings are left out first, then preferences, and
+ * `dropped` names what was. The watchlists always stay.
+ */
+export function fitBackup(o: {
+  watchlists: Watchlists
+  chart: ChartRecords
+  now: Date | number
+  appVersion: string
+}): { text: string; dropped: ChartSection[] } {
+  const dropped: ChartSection[] = []
+  let chart = o.chart
+  let text = buildBackup({ ...o, chart })
+  if (text.length > MAX_BACKUP_BYTES && chart.drawings.length > 0) {
+    dropped.push('chartDrawings')
+    chart = { ...chart, drawings: [] }
+    text = buildBackup({ ...o, chart })
+  }
+  if (text.length > MAX_BACKUP_BYTES && chart.prefs.length > 0) {
+    dropped.push('chartPrefs')
+    chart = { ...chart, prefs: [] }
+    text = buildBackup({ ...o, chart })
+  }
+  return { text, dropped }
+}
+
+const DROPPED_NAME: Record<ChartSection, string> = {
+  chartDrawings: 'Chart drawings',
+  chartPrefs: 'Chart preferences',
+}
+
+/** What to tell the user when a backup left chart content out; null when nothing was. */
+export function droppedNotice(dropped: readonly ChartSection[]): string | null {
+  if (dropped.length === 0) return null
+  return dropped
+    .map((d) => `${DROPPED_NAME[d]} were left out: the backup would be larger than 2 MB.`)
+    .join(' ')
 }
 
 /**
@@ -68,6 +124,27 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
 const FIELD_MAX = 64
+
+/** The usable records of a chart section; `trimmed` counts those past the section's limit. */
+function cleanRecords(v: unknown): { records: DomStoreRecord[]; trimmed: number } {
+  const records: DomStoreRecord[] = []
+  let trimmed = 0
+  for (const r of Array.isArray(v) ? v : []) {
+    if (
+      !isRecord(r) ||
+      typeof r.k !== 'string' ||
+      r.k === '' ||
+      r.k.length > RECORD_KEY_MAX ||
+      typeof r.v !== 'string' ||
+      r.v.length > MAX_DOM_VALUE
+    ) {
+      continue
+    }
+    if (records.length >= CHART_RECORDS_MAX) trimmed++
+    else records.push({ k: r.k, v: r.v })
+  }
+  return { records, trimmed }
+}
 
 /** An entry, its exchange upper-cased ('nse' is NSE); 'unlisted' when no server accepts it. */
 const cleanItem = (v: unknown): (WatchItem & { rawGroup?: string }) | 'unlisted' | null => {
@@ -208,6 +285,12 @@ export function parseBackup(text: string, newId: () => string = fallbackId): Par
       trimmed = w.trimmed
       unlisted = w.unlisted
     }
+  }
+  for (const key of ['chartDrawings', 'chartPrefs'] as const) {
+    if (!(key in raw.content)) continue
+    const c = cleanRecords(raw.content[key])
+    if (c.records.length > 0) content[key] = c.records
+    trimmed += c.trimmed
   }
   return {
     ok: true,

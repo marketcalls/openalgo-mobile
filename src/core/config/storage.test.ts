@@ -39,3 +39,32 @@ test('del removes one name', async () => {
   await profileStorage(kv, 'p1').del('caps')
   expect(kv.data.size).toBe(0)
 })
+
+test('names lists stored names under a prefix', async () => {
+  const kv = memoryKV({
+    'oa.p1.chartDrawings:NSE:INFY': '{}',
+    'oa.p1.chartDrawings:NSE:TCS': '{}',
+    'oa.p1.chartPrefs:x': '{}',
+    'oa.p2.chartDrawings:NSE:SBIN': '{}',
+  })
+  expect((await profileStorage(kv, 'p1').names('chartDrawings:')).sort()).toEqual([
+    'chartDrawings:NSE:INFY',
+    'chartDrawings:NSE:TCS',
+  ])
+})
+
+test('clearAll keeps chartDrawings:* and chartPrefs:* when user content is kept', async () => {
+  const kv = memoryKV({
+    'oa.p1.chartDrawings:NSE:INFY': '{}',
+    'oa.p1.chartPrefs:oac-widget:chart:state': '{}',
+    'oa.p1.chartDrawingsX': '{}',
+    'oa.p1.caps': '{}',
+  })
+  await profileStorage(kv, 'p1').clearAll({ keepUserContent: true })
+  expect([...kv.data.keys()].sort()).toEqual([
+    'oa.p1.chartDrawings:NSE:INFY',
+    'oa.p1.chartPrefs:oac-widget:chart:state',
+  ])
+  await profileStorage(kv, 'p1').clearAll({ keepUserContent: false })
+  expect(kv.data.size).toBe(0)
+})

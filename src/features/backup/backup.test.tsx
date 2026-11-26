@@ -88,6 +88,7 @@ const choose = async (text: string | null) => {
   await userEvent.press(screen.getByTestId('backup-restore'))
 }
 
+beforeEach(() => share.mockClear())
 afterEach(() => jest.restoreAllMocks())
 
 test('create builds the file from the lists and shares it under the IST name', async () => {
@@ -119,9 +120,9 @@ test('cancelling the picker shows nothing', async () => {
 
 test('the file is summed up with its notes, and the lists stay until the confirm', async () => {
   await open()
-  await choose(backupText({ watchlists: FILE, chartDrawings: { a: 1 } }, 2))
+  await choose(backupText({ watchlists: FILE, strategyPortfolio: { a: 1 } }, 2))
   expect(await screen.findByTestId('backup-summary')).toHaveTextContent('2 lists, 3 symbols')
-  expect(screen.getByText(BACKUP_COPY.skipped(['chartDrawings']))).toBeOnTheScreen()
+  expect(screen.getByText(BACKUP_COPY.skipped(['strategyPortfolio']))).toBeOnTheScreen()
   expect(saved()).toEqual(MINE)
 
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
@@ -188,4 +189,58 @@ test('the fixed sentences', () => {
   expect(BACKUP_COPY.tooLarge).toBe('This file is too large to be an OpenAlgo backup.')
   expect(BACKUP_COPY.notBackup).toBe("This isn't an OpenAlgo Mobile backup file.")
   expect(BACKUP_COPY.skipped(['a', 'b'])).toBe("Skipped data this version can't read: a, b.")
+})
+
+const DRAW = 'oac-widget:chart:drawings:NSE:INFY'
+
+test('a backup carries chart drawings and prefs; restore replaces same-k records and keeps the rest', async () => {
+  await open()
+  kv.data.set('oa.p1.chartDrawings:NSE:INFY', JSON.stringify({ k: DRAW, v: 'old' }))
+  kv.data.set(
+    'oa.p1.chartDrawings:NSE:TCS',
+    JSON.stringify({ k: 'oac-widget:chart:drawings:NSE:TCS', v: 'keep' }),
+  )
+  kv.data.set(
+    'oa.p1.chartPrefs:oac-widget:chart:state',
+    JSON.stringify({ k: 'oac-widget:chart:state', v: 's1' }),
+  )
+  await userEvent.press(screen.getByTestId('backup-create'))
+  await waitFor(() => expect(share).toHaveBeenCalledTimes(1))
+  const made = JSON.parse(share.mock.calls[0]?.[0] ?? '').content
+  expect(made.chartDrawings).toHaveLength(2)
+  expect(made.chartPrefs).toEqual([{ k: 'oac-widget:chart:state', v: 's1' }])
+  expect(screen.queryByTestId('backup-dropped')).toBeNull()
+
+  await choose(
+    backupText({
+      chartDrawings: [{ k: DRAW, v: 'new' }],
+      chartPrefs: [{ k: 'oac-widget:chart:state', v: 's2' }],
+    }),
+  )
+  expect(await screen.findByTestId('backup-summary')).toHaveTextContent('2 chart items')
+  expect(screen.getByTestId('restore-chart')).toBeOnTheScreen()
+  await userEvent.press(screen.getByTestId('restore-chart'))
+  await waitFor(() => expect(screen.queryByTestId('backup-found')).toBeNull())
+  expect(JSON.parse(kv.data.get('oa.p1.chartDrawings:NSE:INFY') ?? '')).toEqual({
+    k: DRAW,
+    v: 'new',
+  })
+  expect(kv.data.has('oa.p1.chartDrawings:NSE:TCS')).toBe(true)
+  expect(JSON.parse(kv.data.get('oa.p1.chartPrefs:oac-widget:chart:state') ?? '').v).toBe('s2')
+  expect(saved()).toEqual(MINE)
+  expect(BACKUP_COPY.restoredChart(2)).toBe('Restored 2 chart items.')
+})
+
+test('over 2 MB the screen names what was left out', async () => {
+  await open()
+  kv.data.set('oa.p1.chartDrawings:NSE:INFY', JSON.stringify({ k: DRAW, v: 'x'.repeat(1_000_000) }))
+  kv.data.set(
+    'oa.p1.chartDrawings:NSE:TCS',
+    JSON.stringify({ k: 'oac-widget:chart:drawings:NSE:TCS', v: 'x'.repeat(1_000_000) }),
+  )
+  await userEvent.press(screen.getByTestId('backup-create'))
+  expect(await screen.findByTestId('backup-dropped')).toHaveTextContent(
+    'Chart drawings were left out: the backup would be larger than 2 MB.',
+  )
+  expect(JSON.parse(share.mock.calls.at(-1)?.[0] ?? '').content.chartDrawings).toBeUndefined()
 })
