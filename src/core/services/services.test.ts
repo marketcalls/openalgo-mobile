@@ -831,6 +831,79 @@ describe('services', () => {
     expect(h.count('POST /api/v1/depth')).toBe(1)
   })
 
+  describe('the broker, when nothing has named it (ruling 11)', () => {
+    const PING_OK = {
+      status: 200,
+      body: { status: 'success', data: { message: 'pong', broker: 'zerodha' } },
+    }
+    const stored = (h: Harness) =>
+      JSON.parse(h.kv.data.get('oa.profiles.v1') ?? '{}').profiles?.[0] as ServerProfile
+
+    test('polling, onboarded while the broker was logged out: once it is logged in, one ping names it, and the profile keeps it', async () => {
+      const h = setup({
+        profile: { wsUrl: null, feedMode: 'polling', broker: null },
+        routes: { 'POST /api/v1/funds': BAD_KEY, 'POST /api/v1/ping': PING_OK },
+      })
+      await h.s.lifecycle.coldStart()
+      await h.s.lock.unlock()
+      await flush()
+      expect(conn().brokerSession).toBe('logged_out')
+      // the ping needs a logged-in broker (c8b2896 ping_service.py:47-50 answers 403)
+      expect(h.count('POST /api/v1/ping')).toBe(0)
+
+      h.routes['POST /api/v1/funds'] = FUNDS_OK
+      await h.s.broker.check()
+      await flush()
+      expect(h.count('POST /api/v1/ping')).toBe(1)
+      expect(conn().broker).toBe('zerodha')
+      expect(h.s.profile.get().broker).toBe('zerodha')
+      expect(stored(h).broker).toBe('zerodha')
+
+      // named now: a foreground, or the session turning active again, asks no more
+      const settle = async (p: Promise<unknown>) => {
+        await jest.advanceTimersByTimeAsync(5_000)
+        await p
+      }
+      await settle(h.s.lifecycle.appState('background'))
+      await settle(h.s.lifecycle.appState('active'))
+      h.routes['POST /api/v1/funds'] = BAD_KEY
+      await settle(h.s.broker.check())
+      expect(conn().brokerSession).toBe('logged_out')
+      h.routes['POST /api/v1/funds'] = FUNDS_OK
+      await settle(h.s.broker.check())
+      expect(conn().brokerSession).toBe('active')
+      await jest.advanceTimersByTimeAsync(30_000)
+      expect(h.count('POST /api/v1/ping')).toBe(1)
+    })
+
+    test('a broker the profile or the feed already names: no ping', async () => {
+      const named = setup({ routes: { 'POST /api/v1/ping': PING_OK } })
+      await ready(named)
+      await flush()
+      expect(conn().brokerSession).toBe('active')
+      expect(named.count('POST /api/v1/ping')).toBe(0)
+    })
+
+    test('a ping that fails is not repeated until the session turns active again', async () => {
+      const h = setup({
+        profile: { wsUrl: null, feedMode: 'polling', broker: null },
+        routes: { 'POST /api/v1/ping': { status: 500, body: { status: 'error', message: 'x' } } },
+      })
+      await h.s.lifecycle.coldStart()
+      await h.s.lock.unlock()
+      await jest.advanceTimersByTimeAsync(30_000)
+      const pings = h.count('POST /api/v1/ping')
+      expect(pings).toBeGreaterThanOrEqual(1)
+      expect(h.s.profile.get().broker).toBeNull()
+      // still active: the session did not turn active again
+      const check = h.s.broker.check()
+      await jest.advanceTimersByTimeAsync(30_000)
+      await check
+      expect(conn().brokerSession).toBe('active')
+      expect(h.count('POST /api/v1/ping')).toBe(pings)
+    })
+  })
+
   test('dispose locks the vault, resets the store, clears the queries and stops the feed', async () => {
     const h = setup()
     const sock = await ready(h)

@@ -266,6 +266,31 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
   const api = createApi({ http, scheduler, fields: caps })
   const broker = createBrokerStatus({ api, http, conn, now: deps.now })
 
+  /** The broker's name while one ping for it is out. */
+  let naming: Promise<void> | null = null
+  /**
+   * Ruling 11's residue: the feed's auth reply names the broker, and else only onboarding's ping,
+   * which needs a logged-in broker (c8b2896 services/ping_service.py:47-50 answers 403 otherwise).
+   * A profile onboarded while the broker was logged out and run in polling mode (a v0.1.0 one
+   * too) would never learn it, and GTT would stay "the broker is not known yet". So when the
+   * broker session turns active with no broker named, one ping names it (the connection's, at
+   * once), and the profile keeps it, as onboarding would have. A failed ping waits for the next
+   * time the session turns active.
+   */
+  function learnBroker(): void {
+    if (naming || realtime.status().broker || conn.getState().broker || profile.get().broker) {
+      return
+    }
+    naming = broker
+      .fetchBrokerName()
+      .then(async (name) => {
+        if (name && profile.get().broker === null) await profile.update({ broker: name })
+      })
+      .finally(() => {
+        naming = null
+      })
+  }
+
   /** One probe at a time; a probe that does not come back ok keeps the caps there are. */
   function reprobe(): Promise<void> {
     probing ??= (async () => {
@@ -366,7 +391,10 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
         scheduler.halt(KEY_INVALID())
         realtime.stop()
       }
-      if (st.brokerSession === 'active' && prev.brokerSession !== 'active') startFeed()
+      if (st.brokerSession === 'active' && prev.brokerSession !== 'active') {
+        startFeed()
+        learnBroker()
+      }
     }),
     onlineManager.subscribe((online) => {
       if (online) realtime.networkBack()
