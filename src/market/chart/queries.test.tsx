@@ -4,7 +4,12 @@ import { Text } from 'react-native'
 import { createQueryClient } from '~/core/query/queryClient'
 import { type Services, ServicesProvider } from '~/core/services/services'
 import { DEFAULT_TIMINGS, IST_OFFSET_MS } from './calendar'
-import { useChartIntervals, useSessionCalendars } from './queries'
+import {
+  chartIntervalsQuery,
+  sessionCalendarsQuery,
+  useChartIntervals,
+  useSessionCalendars,
+} from './queries'
 
 const T0 = Date.UTC(2026, 10, 27, 5, 0)
 const midnight = Date.UTC(2026, 10, 27) - IST_OFFSET_MS
@@ -93,4 +98,25 @@ test('a calendar that fell back to defaults is read again after 5 minutes', asyn
   await settle()
   expect(count(calls, 'market/holidays')).toBeGreaterThan(before)
   expect(count(calls, 'intervals')).toBe(1)
+})
+
+test('the exported query options warm the same cache entries the hooks read (ruling 34)', async () => {
+  const calls: string[] = []
+  const q = createQueryClient()
+  const api = {
+    call: async (id: string, _b: unknown, schema: { parse(v: unknown): unknown }) => {
+      calls.push(id)
+      return schema.parse({
+        status: 'success',
+        data: id === 'intervals' ? { minutes: ['1m'], days: [] } : [],
+      })
+    },
+  }
+  await q.fetchQuery(chartIntervalsQuery(api as never, 'p1'))
+  await q.fetchQuery(chartIntervalsQuery(api as never, 'p1'))
+  expect(count(calls, 'intervals')).toBe(1)
+  await q.fetchQuery(sessionCalendarsQuery(api as never, 'p1', '2026-11-27'))
+  const warm = calls.length
+  await q.fetchQuery(sessionCalendarsQuery(api as never, 'p1', '2026-11-27'))
+  expect(calls.length).toBe(warm)
 })
