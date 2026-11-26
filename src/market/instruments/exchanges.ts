@@ -24,6 +24,8 @@ export const DERIVATIVE_EXCHANGES: ReadonlySet<string> = new Set([
 ])
 
 export const isQuoteOnly = (ex: string): boolean => QUOTE_ONLY.has(ex)
+/** The section label for an exchange: the index exchanges share one. */
+export const exchangeLabel = (ex: string): string => (isQuoteOnly(ex) ? 'INDICES' : ex)
 export const usesLots = (ex: string): boolean => DERIVATIVE_EXCHANGES.has(ex)
 
 export const productOptionsFor = (ex: string): Product[] =>

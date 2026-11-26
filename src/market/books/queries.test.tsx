@@ -168,6 +168,11 @@ const AllBooks = () => {
   return null
 }
 
+const HeldProbe = () => {
+  useHoldings({ staleTime: 60_000 })
+  return null
+}
+
 const Funds = ({ enabled = true }: { enabled?: boolean }) => {
   const f = useFunds({ enabled })
   return <Text testID="cash">{f.data?.availablecash ?? '-'}</Text>
@@ -210,6 +215,23 @@ describe('book queries', () => {
       expect(h.count(id)).toBe(1)
     }
     expect(screen.queryByTestId('orders')).toBeNull()
+  })
+
+  test('a book read without a staleTime keeps the client default (5 s); an explicit one wins', async () => {
+    const h = setup()
+    await h.mount(<AllBooks />)
+    const stale = (name: BookName) =>
+      h.queryClient.getQueryCache().find({ queryKey: qk[name](PID) })?.observers[0]?.options
+        .staleTime
+    expect(stale('orderbook')).toBe(5_000)
+    expect(stale('holdings')).toBe(5_000)
+  })
+
+  test('an explicit staleTime on a book is used', async () => {
+    const h = setup()
+    await h.mount(<HeldProbe />)
+    const q = h.queryClient.getQueryCache().find({ queryKey: qk.holdings(PID) })
+    expect(q?.observers[0]?.options.staleTime).toBe(60_000)
   })
 
   test.each<[string, Partial<ConnectionState>]>([

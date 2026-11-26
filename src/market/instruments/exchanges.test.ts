@@ -1,6 +1,7 @@
 import {
   ALL_EXCHANGES,
   defaultProduct,
+  exchangeLabel,
   isQuoteOnly,
   productOptionsFor,
   searchExchanges,
@@ -8,6 +9,11 @@ import {
 } from './exchanges'
 
 describe('exchange rules (C2, C9)', () => {
+  test('labels indices', () => {
+    expect(exchangeLabel('NSE_INDEX')).toBe('INDICES')
+    expect(exchangeLabel('NFO')).toBe('NFO')
+  })
+
   test('products by segment', () => {
     expect(productOptionsFor('MCX')).toEqual(['MIS', 'NRML'])
     expect(productOptionsFor('NSE')).toEqual(['MIS', 'CNC'])

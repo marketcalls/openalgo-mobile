@@ -1,5 +1,5 @@
 import type { WatchItem, WatchList } from '~/market/watchlists/model'
-import { buildRows, exchangeLabel, rowOffsets, sortItems } from './rows'
+import { buildRows, rowOffsets, sortItems } from './rows'
 
 const it_ = (symbol: string, exchange = 'NSE', group?: string): WatchItem => ({
   exchange,
@@ -109,15 +109,10 @@ describe('buildRows', () => {
   })
 })
 
-describe('rowOffsets and labels', () => {
+describe('rowOffsets', () => {
   it('accumulates the three heights', () => {
     const item = { kind: 'item', item: it_('A'), key: 'NSE:A', first: true, last: true } as const
     const group = { kind: 'group', group: { id: 'g', name: 'G' }, index: 0, count: 1 } as const
     expect(rowOffsets([item, group, item])).toEqual([0, 56, 96])
-  })
-
-  it('labels indices', () => {
-    expect(exchangeLabel('NSE_INDEX')).toBe('INDICES')
-    expect(exchangeLabel('NFO')).toBe('NFO')
   })
 })

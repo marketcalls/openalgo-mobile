@@ -37,7 +37,7 @@ function useBook<T>(name: BookName, read: () => Promise<T>, staleTime?: number) 
     enabled: !blocked,
     subscribed: active,
     gcTime: KEEP,
-    staleTime,
+    ...(staleTime !== undefined && { staleTime }),
   })
 }
 

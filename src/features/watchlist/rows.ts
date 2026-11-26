@@ -1,14 +1,11 @@
 // The watchlist screen's rows: items and group headers in one flat list, sorted per the list's
 // sort, with the heights `getItemLayout` needs.
 import { quoteKey } from '~/core/realtime/protocol'
-import { isQuoteOnly } from '~/market/instruments/exchanges'
 import type { WatchGroup, WatchItem, WatchList, WatchSort } from '~/market/watchlists/model'
 
 export const ROW_HEIGHT = 56
 export const GROUP_HEIGHT = 40
 export const NEW_GROUP_HEIGHT = 48
-
-export const exchangeLabel = (ex: string): string => (isQuoteOnly(ex) ? 'INDICES' : ex)
 
 type QuoteOf = (key: string) => { ltp?: number; changePct?: number } | undefined
 
