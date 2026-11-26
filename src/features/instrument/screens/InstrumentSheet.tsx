@@ -1,189 +1,176 @@
-// The instrument sheet (design 7.5): symbol, name, price, and what you can do next: trade, chart,
-// depth, option chain, or keep it in the active watchlist. An expired or unknown contract shows
-// only that, and takes no feed slot.
+// The instrument sheet (design 17.2), Kite's: it opens at half height, and its header drags, or
+// its handle taps, it to full height. The header holds the symbol, the price and the watchlist
+// toggle; the body BUY and SELL, the chart, option chain and GTT links, the depth, and at full
+// height the day's quote. The depth panel holds the sheet's one subscription (an index, with no
+// book, holds its mode-2 quote instead); the rest only read its quote. An expired or unknown
+// contract shows only that, and takes no feed slot.
 import { type Href, useRouter } from 'expo-router'
 import { useState } from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
-import { log } from '~/core/log/logger'
+import { Pressable, StyleSheet, View } from 'react-native'
 import { useLiveQuote } from '~/core/realtime/useLive'
+import { DepthPanel } from '~/features/depth'
 import { BrokerBanner } from '~/market/components/SessionBanners'
+import { useGttSupport } from '~/market/gtt/queries'
 import { isQuoteOnly } from '~/market/instruments/exchanges'
 import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
-import { chartHref, depthHref, ticketHref, toolHref } from '~/market/links'
+import { chartHref, gttHref, optionChainHref, ticketHref } from '~/market/links'
+import { optionChainTarget } from '~/market/optionChain'
 import { useBrokerBlocked } from '~/market/session'
-import { useTrading, useWatchlists } from '~/market/trading'
 import type { Side } from '~/market/types'
-import { addItem, removeItem, type Watchlists } from '~/market/watchlists/model'
 import { Badge } from '~/ui/Badge'
+import { BottomSheet } from '~/ui/BottomSheet'
 import { Button } from '~/ui/Button'
-import { Change } from '~/ui/Change'
-import { Price } from '~/ui/Price'
+import { Icon, type IconName } from '~/ui/Icon'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-import { toast } from '~/ui/Toast'
+import { useTheme } from '~/ui/theme'
+import { QuoteDetails } from '../components/QuoteDetails'
+import { SheetHeader } from '../components/SheetHeader'
 
-/** No option chain for these (M4 replaces this with a symbol-master check). */
-const NO_OPTION_CHAIN: ReadonlySet<string> = new Set([
-  'CDS',
-  'BCD',
-  'CRYPTO',
-  'GLOBAL_INDEX',
-  'MCX_INDEX',
-  'NCDEX',
-])
+const SNAP_POINTS = [0.5, 1] as const
+const CHART: IconName = { ios: 'chart.xyaxis.line', android: 'show_chart' }
+const CHAIN: IconName = { ios: 'list.bullet.rectangle', android: 'view_list' }
+const GTT: IconName = { ios: 'clock', android: 'schedule' }
 
-const activeOf = (w: Watchlists) => w.lists.find((l) => l.id === w.activeId) ?? w.lists[0]
+type Key = { exchange: string; symbol: string }
 
-export function InstrumentSheet({ exchange, symbol }: { exchange: string; symbol: string }) {
+export function InstrumentSheet({ exchange, symbol }: Key) {
+  const router = useRouter()
   const refused = useIsUnknown(exchange, symbol)
   const inst = useInstrument(exchange, symbol)
   const unknown = refused || inst.unknown
+  const [expanded, setExpanded] = useState(false)
   return (
-    <ScrollView contentContainerStyle={styles.body} testID="instrument-sheet">
-      <BrokerBanner />
-      <View style={styles.head}>
-        <Text variant="title">{symbol}</Text>
-        {inst.meta?.name ? (
-          <Text tone="muted" numberOfLines={2}>
-            {inst.meta.name}
-          </Text>
-        ) : null}
-        <Text variant="caption" tone="muted">
-          {exchange}
-        </Text>
+    <BottomSheet
+      testID="instrument-sheet"
+      snapPoints={SNAP_POINTS}
+      onClose={router.back}
+      onSnap={(index) => setExpanded(index === 1)}
+      header={<SheetHeader exchange={exchange} symbol={symbol} priced={!unknown} />}
+    >
+      <View style={styles.body}>
+        <BrokerBanner />
         {unknown ? (
           <Badge testID="inst-unknown" label="Expired or unknown" tone="warning" />
         ) : inst.loading ? (
           <Skeleton />
         ) : (
-          <Quote exchange={exchange} symbol={symbol} />
+          <Body exchange={exchange} symbol={symbol} name={inst.meta?.name} expanded={expanded} />
         )}
       </View>
-      {unknown || inst.loading ? null : <Actions exchange={exchange} symbol={symbol} />}
-      <WatchToggle exchange={exchange} symbol={symbol} />
-    </ScrollView>
+    </BottomSheet>
   )
 }
 
-function Quote({ exchange, symbol }: { exchange: string; symbol: string }) {
-  const q = useLiveQuote(exchange, symbol, 2)
-  return (
-    <View>
-      <Price value={q?.ltp} testID="inst-ltp" />
-      <Change change={q?.change} pct={q?.changePct} testID="inst-change" />
-    </View>
-  )
-}
-
-function Actions({ exchange, symbol }: { exchange: string; symbol: string }) {
+function Body(p: Key & { name?: string; expanded: boolean }) {
+  const { exchange, symbol } = p
   const router = useRouter()
-  const blocked = useBrokerBlocked()
-  // The sheet is replaced, not stacked under: a push after a sheet would sit beneath it on iOS.
+  const gtt = useGttSupport(exchange)
+  // The sheet is replaced, not stacked under: a push after a modal would sit beneath it on iOS.
   const go = (href: string) => router.replace(href as Href)
+  const quoteOnly = isQuoteOnly(exchange)
+  const chain = optionChainTarget({ exchange, symbol, name: p.name ?? '' })
+  return (
+    <>
+      {quoteOnly ? (
+        <IndexQuote exchange={exchange} symbol={symbol} />
+      ) : (
+        <Trade exchange={exchange} symbol={symbol} go={go} />
+      )}
+      <View style={styles.actions}>
+        <Action
+          testID="inst-chart"
+          icon={CHART}
+          title="View chart"
+          onPress={() => go(chartHref(exchange, symbol))}
+        />
+        {chain ? (
+          <Action
+            testID="inst-optionchain"
+            icon={CHAIN}
+            title="Option chain"
+            onPress={() => go(optionChainHref(chain.exchange, chain.symbol))}
+          />
+        ) : null}
+        {gtt.state === 'yes' ? (
+          <Action
+            testID="inst-gtt"
+            icon={GTT}
+            title="Create GTT"
+            onPress={() => go(gttHref({ exchange, symbol }))}
+          />
+        ) : null}
+      </View>
+      {quoteOnly ? null : (
+        <DepthPanel exchange={exchange} symbol={symbol} onLevel={(t) => go(ticketHref(t))} />
+      )}
+      {p.expanded ? <QuoteDetails exchange={exchange} symbol={symbol} /> : null}
+    </>
+  )
+}
+
+/** An index has no book for a depth panel to hold: its mode-2 quote is the sheet's feed. */
+function IndexQuote({ exchange, symbol }: Key) {
+  useLiveQuote(exchange, symbol, 2)
+  return null
+}
+
+/** BUY (green) and SELL (red), side by side; disabled while the broker is blocked. */
+function Trade({ exchange, symbol, go }: Key & { go: (href: string) => void }) {
+  const blocked = useBrokerBlocked()
   const trade = (action: Side) => go(ticketHref({ exchange, symbol, action }))
   return (
-    <View style={styles.actions}>
-      {isQuoteOnly(exchange) ? null : (
-        <View style={styles.pair}>
-          <View style={styles.fill}>
-            <Button
-              testID="inst-buy"
-              title="BUY"
-              variant="buy"
-              disabled={blocked}
-              onPress={() => trade('BUY')}
-            />
-          </View>
-          <View style={styles.fill}>
-            <Button
-              testID="inst-sell"
-              title="SELL"
-              variant="sell"
-              disabled={blocked}
-              onPress={() => trade('SELL')}
-            />
-          </View>
-        </View>
-      )}
-      <Button
-        testID="inst-chart"
-        title="Chart"
-        variant="secondary"
-        onPress={() => go(chartHref(exchange, symbol))}
-      />
-      <Button
-        testID="inst-depth"
-        title="Market depth"
-        variant="secondary"
-        onPress={() => go(depthHref(exchange, symbol))}
-      />
-      {NO_OPTION_CHAIN.has(exchange) ? null : (
+    <View style={styles.pair}>
+      <View style={styles.fill}>
         <Button
-          testID="inst-optionchain"
-          title="Option chain"
-          variant="secondary"
-          onPress={() => go(toolHref('optionchain', { u: `${exchange}:${symbol}` }))}
+          testID="inst-buy"
+          title="BUY"
+          variant="buy"
+          disabled={blocked}
+          onPress={() => trade('BUY')}
         />
-      )}
+      </View>
+      <View style={styles.fill}>
+        <Button
+          testID="inst-sell"
+          title="SELL"
+          variant="sell"
+          disabled={blocked}
+          onPress={() => trade('SELL')}
+        />
+      </View>
     </View>
   )
 }
 
-/** Adds the symbol to the active list, or removes it when it is already there. */
-function WatchToggle({ exchange, symbol }: { exchange: string; symbol: string }) {
-  const { watchlists } = useTrading()
-  const list = useWatchlists(activeOf)
-  const inList = list?.items.some((i) => i.exchange === exchange && i.symbol === symbol) ?? false
-  const [busy, setBusy] = useState(false)
-
-  const onPress = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      // the store is shared with the watchlist tab; changing unloaded defaults would overwrite it
-      if (!watchlists.getState().loaded) await watchlists.getState().load()
-      const target = activeOf(watchlists.getState().data)
-      if (!target) return
-      const item = { exchange, symbol }
-      const has = target.items.some((i) => i.exchange === exchange && i.symbol === symbol)
-      if (has) {
-        await watchlists.getState().apply(removeItem, target.id, item)
-        toast(`Removed ${symbol} from ${target.name}`)
-      } else {
-        const r = await watchlists.getState().apply(addItem, target.id, item)
-        toast(
-          r === 'added'
-            ? `Added ${symbol} to ${target.name}`
-            : r === 'full'
-              ? 'This list is full'
-              : 'Already in this list',
-        )
-      }
-    } catch (e) {
-      log.warn('instrument', 'could not save the lists', e)
-      toast('Could not save your lists. Try again.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
+function Action(p: { testID: string; icon: IconName; title: string; onPress: () => void }) {
+  const { c } = useTheme()
   return (
-    <View style={styles.actions}>
-      <Button
-        testID="inst-watch"
-        title={inList ? `Remove from ${list?.name ?? 'list'}` : `Add to ${list?.name ?? 'list'}`}
-        variant="secondary"
-        disabled={busy}
-        onPress={() => void onPress()}
-      />
-    </View>
+    <Pressable
+      testID={p.testID}
+      accessibilityRole="button"
+      onPress={p.onPress}
+      style={[styles.action, { borderColor: c.border }]}
+    >
+      <Icon name={p.icon} size={16} color={c.primary} />
+      <Text style={[styles.actionLabel, { color: c.primary }]}>{p.title}</Text>
+    </Pressable>
   )
 }
 
 const styles = StyleSheet.create({
-  body: { padding: 16, gap: 16 },
-  head: { gap: 4 },
-  actions: { gap: 12 },
+  body: { paddingHorizontal: 16, paddingBottom: 16, gap: 16 },
   pair: { flexDirection: 'row', gap: 12 },
   fill: { flex: 1 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  action: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+  },
+  actionLabel: { fontWeight: '600' },
 })

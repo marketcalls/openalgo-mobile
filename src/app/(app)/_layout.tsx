@@ -150,12 +150,13 @@ function AppShell({ s }: { s: Services }) {
                       headerShadowVisible: false,
                     }}
                   />
+                  {/* The instrument sheet draws its own sheet and backdrop (BottomSheet). */}
                   <Stack.Screen
                     name="instrument/[key]"
                     options={{
-                      presentation: 'formSheet',
-                      sheetAllowedDetents: [0.6, 1],
-                      sheetGrabberVisible: true,
+                      presentation: 'transparentModal',
+                      animation: 'fade',
+                      contentStyle: { backgroundColor: 'transparent' },
                     }}
                   />
                   <Stack.Screen
@@ -195,6 +196,16 @@ function AppShell({ s }: { s: Services }) {
                     options={{
                       headerShown: true,
                       title: 'Market depth',
+                      headerStyle: { backgroundColor: c.background },
+                      headerTintColor: c.foreground,
+                      headerShadowVisible: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="optionchain/[key]"
+                    options={{
+                      headerShown: true,
+                      title: 'Option chain',
                       headerStyle: { backgroundColor: c.background },
                       headerTintColor: c.foreground,
                       headerShadowVisible: false,

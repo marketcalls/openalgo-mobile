@@ -19,6 +19,8 @@ const keySegment = (ex: string, sym: string) => enc(`${ex}:${sym}`)
 export const instrumentHref = (ex: string, sym: string) => `/instrument/${keySegment(ex, sym)}`
 export const depthHref = (ex: string, sym: string) => `/depth/${keySegment(ex, sym)}`
 export const chartHref = (ex: string, sym: string) => `/chart/${keySegment(ex, sym)}`
+/** The chain of an underlying, such as `optionChainTarget` names. */
+export const optionChainHref = (ex: string, sym: string) => `/optionchain/${keySegment(ex, sym)}`
 
 /** The exchange and symbol of a `[key]` param, split at the first colon; null if malformed. */
 export function parseKey(param: string): { exchange: string; symbol: string } | null {

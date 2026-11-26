@@ -23,9 +23,9 @@ Writing a flow:
 |---|---|---|
 | `onboarding-live.yaml` | `PORT=5000 WS_PORT=8765` | server, key and live-feed steps; the watchlist shows a price within 10 s |
 | `onboarding-polling.yaml` | `PORT=5000 WS_PORT=off` | the feed test fails, the profile saves in polling mode, `badge-polling` shows, and the price updates |
-| `trading-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | add ITC, a LIMIT buy from its instrument sheet reviewed as ANALYZE, modify, cancel, depth into a ticket, close a position, sell a holding |
+| `trading-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | add ITC, a LIMIT buy from its instrument sheet reviewed as ANALYZE, modify, cancel, the sheet's depth into a ticket, close a position, sell a holding |
 | `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
-| `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | the 20-level switch shows `depth-bid-19` |
+| `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | in the instrument sheet at full height, the 20-level switch shows `depth-bid-19` |
 
 The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5. The trading flows start with the mock
 restarted on `PORT=5000 WS_PORT=8765` and reset (`POST /__mock/reset`) before each flow;
@@ -68,8 +68,17 @@ Search
   `search-chip-{EXCHANGE}`, `search-status`
 
 Instrument sheet
-- `instrument-sheet`, `inst-ltp`, `inst-change`, `inst-unknown`, `inst-buy` *, `inst-sell`,
-  `inst-watch`, `inst-depth` *, `inst-chart`, `inst-optionchain`
+- `instrument-sheet`, `instrument-sheet-handle` * (a button: half or full height),
+  `instrument-sheet-backdrop` (closes the sheet)
+- the header: `inst-sub` (the exchange, LTP and change), `inst-ltp`, `inst-change`, `inst-watch`
+  (an icon button: its label is "Add to {list}" or "Remove from {list}")
+- `inst-unknown`, `inst-buy` *, `inst-sell`, `inst-chart`, `inst-optionchain`, `inst-gtt`
+  ("Create GTT", while the server serves GTT for the broker in this mode)
+- the depth below them carries the Depth ids (`depth-ladder`, `depth-levels-{N}`,
+  `depth-bid-{N}`, `depth-ask-{N}`, the totals)
+- at full height: `inst-quote-details`, `inst-q-{FIGURE}` (not for flows: the figure is lower
+  case, one of open, high, low, close, volume, avg, ltq, ltt, oi, lc and uc; each shows only when
+  the quote carries it)
 
 Depth
 - `depth-screen`, `depth-ladder`, `depth-levels-{N}` *, `depth-levels-note`, `depth-bid-{N}` *,

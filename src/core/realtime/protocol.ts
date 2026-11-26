@@ -32,6 +32,14 @@ const levels = z
 
 const TickDataSchema = z.object({
   ltp: num,
+  // The last trade's quantity: brokers name it differently (dhan and many adapters send `ltq`).
+  last_quantity: num,
+  last_trade_quantity: num,
+  ltq: num,
+  /** The last trade's time, in epoch seconds or ms. */
+  ltt: num,
+  upper_circuit: num,
+  lower_circuit: num,
   open: num,
   high: num,
   low: num,
@@ -197,6 +205,12 @@ export type QuotePatch = {
   ask?: number
   totalBuyQty?: number
   totalSellQty?: number
+  /** The last trade's quantity. */
+  lastQty?: number
+  /** The last trade's time, epoch ms. */
+  ltt?: number
+  upperCircuit?: number
+  lowerCircuit?: number
   depth?: DepthBook
 }
 
@@ -208,8 +222,15 @@ export type Quote = QuotePatch & {
   source: 'ws' | 'poll' | 'seed'
 }
 
+/** A value above 0, else absent: brokers send 0 for a price, quantity or time they lack. */
 const price = (v: number | undefined): number | undefined =>
   v !== undefined && v > 0 ? v : undefined
+
+/** Epoch seconds become ms; a value already in ms (from 1e12, the year 2001) stays. */
+const epochMs = (v: number | undefined): number | undefined => {
+  const t = price(v)
+  return t === undefined ? undefined : t < 1e12 ? t * 1000 : t
+}
 
 const priced = (a: readonly DepthLevel[] | undefined): DepthLevel[] =>
   (a ?? [])
@@ -243,12 +264,17 @@ export const tickToPatch = (d: TickData): QuotePatch =>
     ask: price(d.ask),
     totalBuyQty: d.total_buy_quantity,
     totalSellQty: d.total_sell_quantity,
+    lastQty: price(d.last_quantity ?? d.last_trade_quantity ?? d.ltq),
+    ltt: epochMs(d.ltt),
+    upperCircuit: price(d.upper_circuit),
+    lowerCircuit: price(d.lower_circuit),
     depth: d.depth ? book(priced(d.depth.buy), priced(d.depth.sell)) : undefined,
   })
 
 const RestLevels = z.array(LevelSchema.nullable().catch(null)).catch([])
 const RestDepth = z.looseObject({
   ltp: num,
+  ltq: num,
   open: num,
   high: num,
   low: num,
@@ -272,6 +298,7 @@ export const depthRestToPatch = (d: unknown): QuotePatch => {
   const x = p.data
   return compact({
     ltp: price(x.ltp),
+    lastQty: price(x.ltq),
     open: price(x.open),
     high: price(x.high),
     low: price(x.low),

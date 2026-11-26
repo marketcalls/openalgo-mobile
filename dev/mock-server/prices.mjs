@@ -110,7 +110,9 @@ export function step(st, at = Date.now()) {
   st.ltp = r05(st.ltp + (st.rng() - 0.5) * 2 * tick)
   if (st.ltp > st.high) st.high = st.ltp
   if (st.ltp < st.low) st.low = st.ltp
-  st.volume += 1 + Math.floor(st.rng() * 500)
+  // the step is one trade: its quantity is the volume it adds
+  st.lastQty = 1 + Math.floor(st.rng() * 500)
+  st.volume += st.lastQty
   if (st.isDeriv) st.oi = Math.max(0, st.oi + 75 * Math.round((st.rng() - 0.5) * 20))
 }
 
@@ -145,7 +147,8 @@ export function quote(st) {
 
 /**
  * The `data` of a market_data frame (S11). An undefined value is a field the broker did
- * not send; the feed omits it or sends 0, depending on the profile.
+ * not send; the feed omits it or sends 0, depending on the profile. `ltt` is epoch seconds,
+ * as most adapters send it; `last_quantity` is the last step's trade (none before the first).
  */
 export function tickData(st, mode, levels) {
   const ltt = Math.floor(Date.now() / 1000)
@@ -158,6 +161,7 @@ export function tickData(st, mode, levels) {
     low: st.low,
     close: st.close,
     volume: st.volume,
+    last_quantity: st.lastQty,
     oi: st.oi,
     average_price: r2((st.open + st.high + st.low + st.ltp) / 4),
     total_buy_quantity: 1000 + Math.floor(st.rng() * 900_000),

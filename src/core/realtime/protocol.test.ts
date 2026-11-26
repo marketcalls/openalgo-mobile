@@ -208,6 +208,7 @@ describe('patches', () => {
     })
     expect(p).toMatchObject({
       ltp: 1424,
+      lastQty: 5,
       open: 1,
       high: 2,
       low: 0.5,
@@ -220,6 +221,39 @@ describe('patches', () => {
     expect(p.depth?.buy).toHaveLength(3)
     expect(p.depth?.sell).toHaveLength(5)
     expect(p.depth?.levels).toBe(5)
+  })
+
+  /** The patch of a market_data frame carrying `data`, as the socket delivers it. */
+  const tickOf = (data: Record<string, unknown>) => {
+    const m = parse({ type: 'market_data', symbol: 'RELIANCE', exchange: 'NSE', mode: 2, data })
+    if (m?.t !== 'tick') throw new Error('not a tick')
+    return tickToPatch(m.data)
+  }
+
+  test('ltt in epoch seconds becomes ms; one already in ms stays', () => {
+    expect(tickOf({ ltt: 1764150000 }).ltt).toBe(1764150000000)
+    expect(tickOf({ ltt: '1764150000' }).ltt).toBe(1764150000000)
+    expect(tickOf({ ltt: 1764150000123 }).ltt).toBe(1764150000123)
+  })
+
+  test('the circuits are read, from strings too', () => {
+    expect(tickOf({ upper_circuit: '1500.5', lower_circuit: 1227.7 })).toEqual({
+      upperCircuit: 1500.5,
+      lowerCircuit: 1227.7,
+    })
+  })
+
+  test('the last traded quantity comes from last_quantity, else last_trade_quantity, else ltq', () => {
+    expect(tickOf({ last_quantity: 25 }).lastQty).toBe(25)
+    expect(tickOf({ last_trade_quantity: '30' }).lastQty).toBe(30)
+    expect(tickOf({ ltq: 5 }).lastQty).toBe(5)
+    expect(tickOf({ last_quantity: 25, last_trade_quantity: 30, ltq: 5 }).lastQty).toBe(25)
+  })
+
+  test('a 0 (a field the broker did not send) or an unreadable value sets none of them', () => {
+    expect(tickOf({ ltp: 10, ltt: 0, ltq: 0, upper_circuit: 0, lower_circuit: 'n/a' })).toEqual({
+      ltp: 10,
+    })
   })
 
   test('multiquoteToPatch maps prev_close to close', () => {

@@ -10,10 +10,11 @@ appId: in.openalgo.mobile
     env:
       CONTROL: '{"maxDepth":20}'
 
+# the instrument sheet opens at half height; its handle takes it to full height
 - tapOn:
     id: watch-row-NSE-RELIANCE
 - tapOn:
-    id: inst-depth
+    id: instrument-sheet-handle
 - tapOn:
     id: depth-levels-20
 # a sixth row shows only once 20 levels arrive
@@ -21,7 +22,7 @@ appId: in.openalgo.mobile
     visible:
       id: depth-bid-5
     timeout: 15000
-# row 19 is below the fold (20 rows of 36 dp under the quote header): ruling 30
+# row 19 is below the fold (20 rows of 36 dp under the sheet's buttons): ruling 30
 - scrollUntilVisible:
     element:
       id: depth-bid-19

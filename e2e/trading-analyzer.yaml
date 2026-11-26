@@ -99,7 +99,7 @@ appId: in.openalgo.mobile
     visible: No open orders
     timeout: 15000
 
-# depth: a tapped level fills the ticket as a LIMIT
+# depth: a tapped level in the instrument sheet fills the ticket as a LIMIT
 - tapOn: Watchlist
 - scrollUntilVisible:
     element:
@@ -108,8 +108,6 @@ appId: in.openalgo.mobile
     timeout: 15000
 - tapOn:
     id: watch-row-NSE-ITC
-- tapOn:
-    id: inst-depth
 - tapOn:
     id: depth-ask-0
 - assertVisible:
@@ -130,10 +128,9 @@ appId: in.openalgo.mobile
     timeout: 15000
 - assertVisible:
     id: order-result
+# the ticket replaced the sheet, so Done returns to the watchlist
 - tapOn:
     id: ticket-done
-# Done returns to the depth screen, a full-screen card over the tabs: leave it
-- back
 
 # Portfolio: close the position, then sell a holding
 - tapOn: Portfolio

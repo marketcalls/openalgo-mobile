@@ -6,6 +6,7 @@ import {
   gttModifyHref,
   instrumentHref,
   modifyHref,
+  optionChainHref,
   ordersHref,
   parseGttParams,
   parseKey,
@@ -22,7 +23,13 @@ const query = (href: string) => Object.fromEntries(new URLSearchParams(href.spli
 
 describe('route keys', () => {
   test.each(SYMBOLS)('%s round-trips through every key link', (sym) => {
-    for (const href of [instrumentHref('NSE', sym), depthHref('NSE', sym), chartHref('NSE', sym)]) {
+    const hrefs = [
+      instrumentHref('NSE', sym),
+      depthHref('NSE', sym),
+      chartHref('NSE', sym),
+      optionChainHref('NSE', sym),
+    ]
+    for (const href of hrefs) {
       expect(parseKey(lastSegment(href))).toEqual({ exchange: 'NSE', symbol: sym })
     }
   })
@@ -31,6 +38,7 @@ describe('route keys', () => {
     expect(instrumentHref('NSE', 'M&M')).toBe('/instrument/NSE%3AM%26M')
     expect(depthHref('NFO', 'NIFTY30DEC2624000CE')).toBe('/depth/NFO%3ANIFTY30DEC2624000CE')
     expect(chartHref('NSE', 'SBIN')).toBe('/chart/NSE%3ASBIN')
+    expect(optionChainHref('NSE_INDEX', 'NIFTY')).toBe('/optionchain/NSE_INDEX%3ANIFTY')
   })
 
   test('parseKey splits at the first colon and rejects what has no two parts', () => {
