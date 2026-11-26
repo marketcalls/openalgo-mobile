@@ -1,5 +1,7 @@
 // Bundle budgets: each platform bundle may grow at most `growth` over the committed baseline
 // and may never pass its absolute limit. `--update` rewrites the baseline from a fresh export.
+// A passing bundle names its room under the limit, so the growth across PRs is tracked against
+// the limit too, and warns when that room is less than one PR may add.
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,8 +51,16 @@ export function compare(measured, cfg) {
       }
     }
     if (problems.length) ok = false
+    let room = ''
+    if (!problems.length) {
+      room = `, ${limit - size} B under the limit`
+      const onePr = typeof base === 'number' ? Math.round(base * cfg.growth) : null
+      if (onePr !== null && limit - size < onePr) {
+        room += `, less than one ${Math.round(cfg.growth * 100)}% PR (${onePr} B)`
+      }
+    }
     lines.push(
-      `${name}: ${size}${growth} ${problems.length ? `FAIL, ${problems.join('; ')}` : 'ok'}`,
+      `${name}: ${size}${growth} ${problems.length ? `FAIL, ${problems.join('; ')}` : 'ok'}${room}`,
     )
   }
   return { ok, lines }

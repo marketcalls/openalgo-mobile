@@ -39,6 +39,20 @@ test('a null baseline is skipped', () => {
   assert.match(r.lines.join('\n'), /toolDom: not built \(skipped\)/)
 })
 
+test('a passing bundle names its room under the limit, and warns when one PR could use it up', () => {
+  const hermes = { ...limits, android: 6000000, ios: 6000000 }
+  const sizes = { android: 5720691, ios: 5620055 }
+  const r = compare(sizes, cfg({ ...base, ...sizes }, { limits: hermes }))
+  assert.equal(r.ok, true)
+  const [android, ios] = r.lines
+  // 279,309 B is less than the 286,035 B one 5% PR may add: the limit trips before the rule
+  assert.equal(
+    android,
+    'android: 5720691 (+0.0%) ok, 279309 B under the limit, less than one 5% PR (286035 B)',
+  )
+  assert.equal(ios, 'ios: 5620055 (+0.0%) ok, 379945 B under the limit')
+})
+
 test('measure reads bundle sizes from metadata.json', () => {
   const dir = mkdtempSync(join(tmpdir(), 'bundles-'))
   mkdirSync(join(dir, '_expo/static/js/android'), { recursive: true })
