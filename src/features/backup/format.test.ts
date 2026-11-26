@@ -413,6 +413,19 @@ describe('chart content', () => {
     expect(r.file.schema).toBe(2)
   })
 
+  test('the size is in UTF-8 bytes, as the picker measures the file', () => {
+    const hindi = { k: 'oac-widget:chart:drawings:NSE:INFY', v: 'नमस्ते'.repeat(100_000) }
+    const r = fitBackup({
+      watchlists: W,
+      chart: { drawings: [hindi, { ...hindi, k: 'oac-widget:chart:drawings:NSE:TCS' }], prefs: [] },
+      now: NOW,
+      appVersion: '1',
+    })
+    // Each value is 600,000 characters but 1,800,000 bytes: two are under 2M characters, not bytes.
+    expect(r.dropped).toEqual(['chartDrawings'])
+    expect(new TextEncoder().encode(r.text).length).toBeLessThanOrEqual(MAX_BACKUP_BYTES)
+  })
+
   test('over 2 MB, drawings go first and are named', () => {
     const big = { k: 'oac-widget:chart:drawings:NSE:INFY', v: 'x'.repeat(1_000_000) }
     const big2 = { k: 'oac-widget:chart:drawings:NSE:TCS', v: 'x'.repeat(1_000_000) }

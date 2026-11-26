@@ -130,3 +130,31 @@ test('readChartRecords and writeChartRecords round-trip; same key replaced, the 
   ])
   expect(r.prefs).toEqual([{ k: 'oac-widget:chart:state', v: 's' }])
 })
+
+test('a set that would take the stored records past the total budget is refused with 413', async () => {
+  const kv = memoryKV()
+  const h = createChartStorageHandler(profileStorage(kv, 'p1'))
+  const big = 'x'.repeat(MAX_DOM_VALUE)
+  expect((await h(msg({ op: 'set', key: DRAW, value: big }))).status).toBe(204)
+  expect((await h(msg({ op: 'set', key: 'oac-widget:a', value: big }))).status).toBe(413)
+  // Replacing a record counts only its new size; a small one still fits.
+  expect((await h(msg({ op: 'set', key: DRAW, value: big }))).status).toBe(204)
+  expect((await h(msg({ op: 'set', key: 'oac-widget:b', value: 'y' }))).status).toBe(204)
+  // Bytes, not characters: 200,000 Hindi characters are 600,000 bytes.
+  expect(
+    (await h(msg({ op: 'set', key: 'oac-widget:c', value: 'न'.repeat(200_000) }))).status,
+  ).toBe(413)
+})
+
+test('a section holds at most 2,000 records', async () => {
+  const h = createChartStorageHandler(profileStorage(memoryKV(), 'p1'))
+  for (let i = 0; i < 2000; i++) {
+    await h(msg({ op: 'set', key: `oac-widget:chart:drawings:NSE:S${i}`, value: '1' }))
+  }
+  expect(
+    (await h(msg({ op: 'set', key: 'oac-widget:chart:drawings:NSE:X', value: '1' }))).status,
+  ).toBe(413)
+  expect(
+    (await h(msg({ op: 'set', key: 'oac-widget:chart:drawings:NSE:S5', value: '2' }))).status,
+  ).toBe(204)
+})

@@ -2,7 +2,7 @@
 // whole format is tested without a file system. Never the key, the server address or the
 // profile id: only the content goes in, and the text is checked once more before it is shared.
 import { istClock, istDate } from '~/core/realtime/marketHours'
-import { type DomStoreRecord, MAX_DOM_VALUE } from '~/dom/gateway/domStorage'
+import { type DomStoreRecord, MAX_DOM_VALUE, utf8Length } from '~/dom/gateway/domStorage'
 import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 import {
   WATCH_SORTS,
@@ -85,12 +85,13 @@ export function fitBackup(o: {
   const dropped: ChartSection[] = []
   let chart = o.chart
   let text = buildBackup({ ...o, chart })
-  if (text.length > MAX_BACKUP_BYTES && chart.drawings.length > 0) {
+  // The picker refuses a file by its bytes on disk (UTF-8), so that is what is measured.
+  if (utf8Length(text) > MAX_BACKUP_BYTES && chart.drawings.length > 0) {
     dropped.push('chartDrawings')
     chart = { ...chart, drawings: [] }
     text = buildBackup({ ...o, chart })
   }
-  if (text.length > MAX_BACKUP_BYTES && chart.prefs.length > 0) {
+  if (utf8Length(text) > MAX_BACKUP_BYTES && chart.prefs.length > 0) {
     dropped.push('chartPrefs')
     chart = { ...chart, prefs: [] }
     text = buildBackup({ ...o, chart })

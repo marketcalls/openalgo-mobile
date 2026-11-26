@@ -9,8 +9,30 @@ import type { DomReply, DomStorageMsg } from '~/dom/bridge/protocol'
 export type DomStoreRecord = { k: string; v: string }
 
 export const MAX_DOM_VALUE = 1_000_000
+/** All the records of one handler together, in UTF-8 bytes of key and value: what a backup can carry. */
+export const MAX_DOM_TOTAL = 1_500_000
+/** Records per area; the backup reads no more per section. */
+export const MAX_DOM_RECORDS = 2000
 /** The longest widget key the phone stores. */
 export const MAX_DOM_KEY = 256
+
+/** The UTF-8 size of `s`, without a TextEncoder (the JS engine may not have one). */
+export function utf8Length(s: string): number {
+  let n = 0
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    if (c < 0x80) n += 1
+    else if (c < 0x800) n += 2
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+      const d = s.charCodeAt(i + 1)
+      if (d >= 0xdc00 && d <= 0xdfff) {
+        n += 4
+        i++
+      } else n += 3
+    } else n += 3
+  }
+  return n
+}
 
 const RecordSchema = z.object({ k: z.string(), v: z.string() })
 
@@ -52,6 +74,31 @@ export function createDomStorageHandler(o: {
     return run
   }
 
+  // Sets are checked against the budget one at a time, so two cannot both fit by racing.
+  let budgetTail: Promise<unknown> = Promise.resolve()
+  const inBudget = <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = budgetTail.then(fn, fn)
+    budgetTail = run.catch(() => {})
+    return run
+  }
+
+  /** True when storing `k`/`v` (replacing any record of that name) stays within the budget. */
+  const fits = async (name: string, k: string, v: string): Promise<boolean> => {
+    let total = utf8Length(k) + utf8Length(v)
+    let inArea = 1
+    const area = areas.find((a) => name.startsWith(a))
+    for (const a of areas) {
+      for (const n of await storage.names(a)) {
+        if (n === name) continue
+        const r = await storage.getJSON(n, RecordSchema)
+        if (!r) continue
+        total += utf8Length(r.k) + utf8Length(r.v)
+        if (area !== undefined && n.startsWith(area)) inArea++
+      }
+    }
+    return total <= MAX_DOM_TOTAL && inArea <= MAX_DOM_RECORDS
+  }
+
   const keyName = (key: string) => (key.length > MAX_DOM_KEY ? null : nameOf(key))
 
   return async (m) => {
@@ -75,8 +122,11 @@ export function createDomStorageHandler(o: {
         const name = keyName(m.key)
         if (name === null) return FORBIDDEN
         if (m.value.length > MAX_DOM_VALUE) return TOO_LARGE
-        await queued(name, () => storage.setJSON(name, { k: m.key, v: m.value }))
-        return NO_CONTENT
+        return inBudget(async () => {
+          if (!(await fits(name, m.key, m.value))) return TOO_LARGE
+          await queued(name, () => storage.setJSON(name, { k: m.key, v: m.value }))
+          return NO_CONTENT
+        })
       }
       case 'remove': {
         const name = keyName(m.key)

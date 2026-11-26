@@ -21,7 +21,7 @@ import { pickBackup } from '../io'
 
 export const BACKUP_COPY = {
   intro:
-    'A backup holds your watchlists and chart drawings and preferences. It never contains your API key or server address.',
+    'A backup holds your watchlists and chart drawings. It never contains your API key or server address.',
   tooLarge: 'This file is too large to be an OpenAlgo backup.',
   notBackup: "This isn't an OpenAlgo Mobile backup file.",
   createFailed: 'Could not create the backup. Try again.',
