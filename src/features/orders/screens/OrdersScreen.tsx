@@ -1,11 +1,14 @@
-// The Orders tab (design 7.6, 7.10): Open (the default, working orders), All orders (newest first)
-// and Trades, with the order book's statistics in the header. A tap on an order opens its actions;
-// Cancel all cancels every open order in the account. The books refresh on order events, after the
-// app's own writes and from a poll while the tab is in front; while the broker is blocked they
-// show what was last read, dimmed. The broker banner is the tabs layout's (ruling 9).
+// The Orders tab (design 7.6, 7.10, 17.3): Open (the default, working orders), All orders (newest
+// first), Trades, and GTT while the server serves GTT for the broker in this mode, with the order
+// book's statistics in the header (not on GTT, whose book they are not). A tap on an order opens
+// its actions; Cancel all cancels every open order in the account. The books refresh on order
+// events, after the app's own writes and from a poll while the tab is in front (the GTT book
+// only on demand, design 12); while the broker is blocked they show what was last read, dimmed.
+// The broker banner is the tabs layout's (ruling 9).
 import { type Href, useLocalSearchParams, useRouter } from 'expo-router'
 import { type ReactElement, useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, View } from 'react-native'
+import { GttList, useGttWrites } from '~/features/gtt'
 import { type BookName, useBookPolling, useOrderbook, useTradebook } from '~/market/books/queries'
 import {
   isWorking,
@@ -18,6 +21,7 @@ import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { OutcomeLine } from '~/market/components/OutcomeLine'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import { StaleNote } from '~/market/components/StaleNote'
+import { useGttSupport } from '~/market/gtt/queries'
 import { chartHref, depthHref, modifyHref } from '~/market/links'
 import { onOrder, useScopesOut } from '~/market/orders/pending'
 import { useBrokerBlocked } from '~/market/session'
@@ -34,12 +38,13 @@ import { knownMeta, OrderRow, orderSummary, timeText } from '../components/Order
 import { TradeRow } from '../components/TradeRow'
 import { NOT_READ, useOrderWrites } from '../hooks/useOrderWrites'
 
-type Segment = 'open' | 'all' | 'trades'
+type Segment = 'open' | 'all' | 'trades' | 'gtt'
 
 const SEGMENTS: readonly { id: Segment; label: string }[] = [
   { id: 'open', label: 'Open' },
   { id: 'all', label: 'All orders' },
   { id: 'trades', label: 'Trades' },
+  { id: 'gtt', label: 'GTT' },
 ]
 
 /** The tab's own books, which its poll refreshes (ruling 11). */
@@ -95,6 +100,13 @@ export function OrdersScreen() {
   }, [param])
   const book = useOrderbook()
   const writes = useOrderWrites()
+  const gtt = useGttWrites()
+  // GTT shows only while it is served for the broker in this mode; a link to it, or the segment
+  // left on when that changes, shows Open meanwhile.
+  const gttShown = useGttSupport().state === 'yes'
+  const shown: Segment = segment === 'gtt' && !gttShown ? 'open' : segment
+  // The notices of the shown segment's writes: one outcome line and one Semi-Auto banner (ruling 29).
+  const notices = shown === 'gtt' ? gtt : writes
   useBookPolling(true, BOOKS)
   const open = book.data?.orders.filter(isWorking).length ?? 0
   // A write still out on an order (a modify or a cancel): cancel all waits for its outcome too.
@@ -102,26 +114,26 @@ export function OrdersScreen() {
 
   return (
     <View style={[styles.fill, { backgroundColor: c.background }]} testID="orders-screen">
-      {writes.liveSurprise !== null ? (
+      {notices.liveSurprise !== null ? (
         <View style={styles.notice}>
-          <LiveSurpriseNotice text={writes.liveSurprise} onDismiss={writes.dismissLiveSurprise} />
+          <LiveSurpriseNotice text={notices.liveSurprise} onDismiss={notices.dismissLiveSurprise} />
         </View>
       ) : null}
-      {writes.semiBlocked !== null ? (
-        <SemiAutoBlockedBanner message={writes.semiBlocked} />
+      {notices.semiBlocked !== null ? (
+        <SemiAutoBlockedBanner message={notices.semiBlocked} />
       ) : (
         <SemiAutoBanner />
       )}
-      {writes.outcome !== null ? (
-        <OutcomeLine outcome={writes.outcome} onDismiss={writes.dismissOutcome} />
+      {notices.outcome !== null ? (
+        <OutcomeLine outcome={notices.outcome} onDismiss={notices.dismissOutcome} />
       ) : null}
       <View style={styles.segments}>
-        {SEGMENTS.map((s) => (
+        {SEGMENTS.filter((s) => s.id !== 'gtt' || gttShown).map((s) => (
           <SegmentTab
             key={s.id}
             id={s.id}
             label={s.label}
-            on={segment === s.id}
+            on={shown === s.id}
             onPress={() => {
               setSegment(s.id)
               setExpanded(null)
@@ -129,24 +141,28 @@ export function OrdersScreen() {
           />
         ))}
       </View>
-      <View style={styles.header}>
-        <Text variant="caption" tone="muted" testID="orders-stats" style={styles.stats}>
-          {statsText(book.data?.stats)}
-        </Text>
-        <Button
-          testID="orders-cancel-all"
-          title={`Cancel all (${open})`}
-          variant="destructive"
-          disabled={open === 0 || blocked || writes.busy || anyOrderOut}
-          onPress={() => writes.cancelAll(open)}
-        />
-      </View>
-      {segment === 'trades' ? (
+      {shown === 'gtt' ? null : (
+        <View style={styles.header}>
+          <Text variant="caption" tone="muted" testID="orders-stats" style={styles.stats}>
+            {statsText(book.data?.stats)}
+          </Text>
+          <Button
+            testID="orders-cancel-all"
+            title={`Cancel all (${open})`}
+            variant="destructive"
+            disabled={open === 0 || blocked || writes.busy || anyOrderOut}
+            onPress={() => writes.cancelAll(open)}
+          />
+        </View>
+      )}
+      {shown === 'gtt' ? (
+        <GttList writes={gtt} />
+      ) : shown === 'trades' ? (
         <Trades />
       ) : (
         <Orders
           q={book}
-          segment={segment}
+          segment={shown}
           expanded={expanded}
           onToggle={(id) => setExpanded((e) => (e === id ? null : id))}
           writes={writes}

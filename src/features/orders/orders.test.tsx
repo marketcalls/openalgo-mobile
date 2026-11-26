@@ -19,6 +19,8 @@ import {
   ServicesProvider,
 } from '~/core/services/services'
 import { BrokerBanner } from '~/market/components/SessionBanners'
+import { CHECKING } from '~/market/orders/outcome'
+import { CONFIRM_FAILED, liveSurpriseText } from '~/market/orders/submit'
 import { TradingProvider } from '~/market/trading'
 import { ToastHost } from '~/ui/Toast'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
@@ -51,6 +53,9 @@ jest.mock('expo-local-authentication', () => ({
   authenticateAsync: jest.fn(),
   getEnrolledLevelAsync: jest.fn(),
 }))
+const auth: { authenticateAsync: jest.Mock; getEnrolledLevelAsync: jest.Mock } = jest.requireMock(
+  'expo-local-authentication',
+)
 
 const ORIGIN = 'https://algo.example.com'
 const PID = 'p0123456789ab'
@@ -142,16 +147,23 @@ let services: Services | null = null
 let fetchFake = scriptedFetch({})
 const INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 }
 
-/** The real container over a scripted server; the instrument cache already knows the future. */
-async function setup(routes: Record<string, Route> = {}) {
+/**
+ * The real container over a scripted server; the instrument cache already knows the future.
+ * `features`: what earlier GTT replies showed, as the caps keep it. `unknown`: the contracts
+ * today's metadata cache marks expired or unknown (`EXCHANGE:SYMBOL`).
+ */
+async function setup(
+  routes: Record<string, Route> = {},
+  o: { features?: Capabilities['features']; unknown?: string[] } = {},
+) {
   fetchFake = scriptedFetch({ ...BASE_ROUTES, ...routes })
   const kv = memoryKV({
     [`oa.${PID}.hasKey`]: '1',
-    [`oa.${PID}.caps`]: JSON.stringify(CAPS),
+    [`oa.${PID}.caps`]: JSON.stringify({ ...CAPS, features: o.features ?? {} }),
     [`oa.${PID}.instruments`]: JSON.stringify({
       day: '2026-11-24',
       items: [FUT_META],
-      unknown: [],
+      unknown: (o.unknown ?? []).map((k) => ({ k, at: T0 })),
     }),
   })
   await createProfileRepo(kv).save(PROFILE)
@@ -1233,5 +1245,508 @@ describe('order events', () => {
     expect(requests('orderbook')).toHaveLength(2)
     await pass(1_000)
     expect(requests('orderbook')).toHaveLength(2)
+  })
+})
+
+describe('the GTT segment', () => {
+  /** A G4 row as the sandbox lists it: SELL 1 RELIANCE, trigger 1500 → LIMIT 1499. */
+  const GTT_ROW = {
+    trigger_id: '1001',
+    trigger_type: 'single',
+    status: 'active',
+    symbol: 'RELIANCE',
+    exchange: 'NSE',
+    trigger_prices: [1500],
+    last_price: 1800,
+    legs: [{ action: 'SELL', quantity: 1, price: 1499, pricetype: 'LIMIT', product: 'CNC' }],
+    created_at: '2026-11-24T04:00:00.000Z',
+    updated_at: '2026-11-24T04:00:00.000Z',
+    expires_at: '2027-11-24T04:00:00.000Z',
+  }
+  const gtt = (o: Record<string, unknown> = {}) => ({ ...GTT_ROW, ...o })
+  /** An OCO in Kite's shape: the stop-loss SELL 1419 at 1420, the target SELL 1521 at 1520. */
+  const OCO = gtt({
+    trigger_id: '1002',
+    trigger_type: 'two-leg',
+    trigger_prices: [1420, 1520],
+    legs: [
+      { action: 'SELL', quantity: 1, price: 1419, pricetype: 'LIMIT', product: 'CNC' },
+      { action: 'SELL', quantity: 1, price: 1521, pricetype: 'LIMIT', product: 'CNC' },
+    ],
+  })
+  /** The book; the sandbox tags the envelope with `mode` (G3). */
+  const gttBook = (rows: unknown[], mode: 'live' | 'analyze' = 'analyze') =>
+    ok({ status: 'success', data: rows, ...(mode === 'analyze' ? { mode } : {}) })
+  const CANCELLED = ok({ status: 'success', trigger_id: '1001', mode: 'analyze' })
+  const NOT_ACTIVE = "No active GTT with trigger_id '1001'"
+  const SUMMARY = 'GTT · SELL 1 RELIANCE · trigger 1,500.00 → LIMIT 1,499.00 · CNC'
+
+  /**
+   * A server that serves GTT for zerodha in `mode`, as an earlier GTT reply showed, with the
+   * header badge on that mode; the book holds `GTT_ROW` unless `routes` say otherwise.
+   */
+  async function setupGtt(
+    mode: 'live' | 'analyze',
+    routes: Record<string, Route> = {},
+    o: { unknown?: string[] } = {},
+  ) {
+    const s = await setup(
+      {
+        'POST /api/v1/analyzer': analyzer(mode),
+        'POST /api/v1/gttorderbook': gttBook([GTT_ROW], mode),
+        ...routes,
+      },
+      { features: { [`gtt:zerodha:${mode}`]: true }, unknown: o.unknown },
+    )
+    useConnection.getState().set({ analyzer: mode })
+    return s
+  }
+
+  /** The Orders tab on its GTT segment, with the book read. */
+  async function openGtt() {
+    await show(['orders'])
+    await press('orders-seg-gtt')
+    // the read waits its turn in the read lane's bucket
+    await pass(1_000)
+  }
+
+  const gttRowIds = () =>
+    screen.queryAllByTestId(/^gtt-row-/).map((n) => String(n.props.testID).slice('gtt-row-'.length))
+
+  test('served here: the segment lists the GTT book, each row with its status, triggers and legs', async () => {
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': gttBook([GTT_ROW, OCO]),
+    })
+    await show(['orders'])
+    expect(text('orders-seg-gtt')).toBe('GTT')
+    await press('orders-seg-gtt')
+    await pass(1_000)
+    expect(screen.getByTestId('orders-seg-gtt').props.accessibilityState?.selected).toBe(true)
+    expect(gttRowIds()).toEqual(['1001', '1002'])
+    expect(text('gtt-status-1001')).toBe('active')
+
+    const single = screen.getByTestId('gtt-row-1001')
+    for (const part of [
+      'RELIANCE',
+      'NSE',
+      'Single',
+      'Trigger 1,500.00',
+      'SELL 1 @ 1,499.00 LIMIT · CNC',
+    ]) {
+      expect(single).toHaveTextContent(part, { exact: false })
+    }
+    const oco = screen.getByTestId('gtt-row-1002')
+    for (const part of [
+      'OCO',
+      'Trigger 1,420.00 / 1,520.00',
+      'SELL 1 @ 1,419.00 LIMIT · CNC',
+      'SELL 1 @ 1,521.00 LIMIT · CNC',
+    ]) {
+      expect(oco).toHaveTextContent(part, { exact: false })
+    }
+    // the live price, once the feed or the poll gives one
+    expect(text('gtt-ltp-1001')).toBe('--')
+    await act(async () => services?.store.put('NSE:RELIANCE', { ltp: 1800 }, 'poll'))
+    await pass(20)
+    expect(text('gtt-ltp-1001')).toBe('1,800.00')
+
+    // the order book's header is not the GTT book's: no statistics, and Cancel all cancels no GTT
+    expect(screen.queryByTestId('orders-stats')).toBeNull()
+    expect(screen.queryByTestId('orders-cancel-all')).toBeNull()
+    await press('orders-seg-open')
+    expect(screen.getByTestId('orders-cancel-all')).toBeTruthy()
+  })
+
+  test('opening the segment reads the GTT book once, and 60 s add no read', async () => {
+    await setupGtt('analyze')
+    await show(['orders'])
+    // support was known: no detection read either
+    expect(requests('gttorderbook')).toHaveLength(0)
+    await press('orders-seg-gtt')
+    await pass(1_000)
+    expect(requests('gttorderbook')).toHaveLength(1)
+    await pass(60_000)
+    expect(requests('gttorderbook')).toHaveLength(1)
+  })
+
+  test('not served for the broker in this mode: no segment, and a link to it opens Open', async () => {
+    await setup({}, { features: { 'gtt:zerodha:live': false } })
+    useConnection.getState().set({ analyzer: 'live' })
+    mockParams = { segment: 'gtt' }
+    await show(['orders'])
+    expect(screen.queryByTestId('orders-seg-gtt')).toBeNull()
+    expect(screen.getByTestId('orders-seg-open').props.accessibilityState?.selected).toBe(true)
+    expect(rowIds()).toEqual(['A1'])
+    expect(requests('gttorderbook')).toHaveLength(0)
+  })
+
+  test("served here, a link to the segment opens it (the GTT ticket's View in GTT list)", async () => {
+    await setupGtt('analyze')
+    mockParams = { segment: 'gtt' }
+    await show(['orders'])
+    await pass(1_000)
+    expect(screen.getByTestId('orders-seg-gtt').props.accessibilityState?.selected).toBe(true)
+    expect(gttRowIds()).toEqual(['1001'])
+  })
+
+  test('the empty book, rows it could not read, and a book that cannot be read', async () => {
+    let up = true
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': () => (up ? gttBook([gtt({ trigger_id: undefined })]) : 'throw'),
+    })
+    await openGtt()
+    expect(text('gtt-empty')).toBe('No GTTs')
+    expect(text('books-dropped')).toBe('1 row could not be read')
+    await cleanup()
+    if (services) disposeServices(services)
+    view = null
+
+    up = false
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': () => (up ? gttBook([GTT_ROW]) : 'throw'),
+    })
+    await openGtt()
+    // the read's own two retries
+    await pass(10_000)
+    expect(
+      screen.getByText("Can't reach the server. Check your connection and try again."),
+    ).toBeTruthy()
+    up = true
+    await fireEvent.press(screen.getByText('Try again'))
+    await pass(1_000)
+    expect(gttRowIds()).toEqual(['1001'])
+  })
+
+  test('a known derivative shows its lots and tick; an unknown contract takes no live price', async () => {
+    await setupGtt(
+      'analyze',
+      {
+        'POST /api/v1/gttorderbook': gttBook([
+          gtt({
+            trigger_id: '1002',
+            exchange: 'NFO',
+            symbol: FUT,
+            trigger_prices: [24000.3],
+            legs: [
+              { action: 'BUY', quantity: 130, price: 24010, pricetype: 'LIMIT', product: 'NRML' },
+            ],
+          }),
+          gtt({ trigger_id: '1003', exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' }),
+        ]),
+      },
+      { unknown: ['NFO:NIFTY25NOV25FUT'] },
+    )
+    await openGtt()
+    const fut = screen.getByTestId('gtt-row-1002')
+    expect(fut).toHaveTextContent('Trigger 24,000.30', { exact: false })
+    expect(fut).toHaveTextContent('BUY 2L (130) @ 24,010.00 LIMIT · NRML', { exact: false })
+    expect(screen.getByTestId('gtt-ltp-1002')).toBeTruthy()
+    // expired or unknown: no feed slot and no quote call for it (ruling 8)
+    expect(screen.queryByTestId('gtt-ltp-1003')).toBeNull()
+    await pass(10_000)
+    const asked = requests('multiquotes').flatMap(
+      (r) => (r.body as { symbols: { symbol: string }[] }).symbols,
+    )
+    expect(asked.map((x) => x.symbol)).toContain(FUT)
+    expect(asked.map((x) => x.symbol)).not.toContain('NIFTY25NOV25FUT')
+  })
+
+  test('a pull reads the GTT book again', async () => {
+    await setupGtt('analyze')
+    await openGtt()
+    expect(requests('gttorderbook')).toHaveLength(1)
+    // the list's scroll view takes the pull (its RefreshControl)
+    const [scroll] = screen
+      .getByTestId('gtt-list')
+      .queryAll((n) => typeof n.props.onRefresh === 'function')
+    if (!scroll) throw new Error('no pull to refresh')
+    await fireEvent(scroll, 'refresh')
+    await pass(1_000)
+    expect(requests('gttorderbook')).toHaveLength(2)
+  })
+
+  test('an active row offers Modify and Cancel; disabled only Cancel; triggered neither, and the dead rows dim', async () => {
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': gttBook([
+        GTT_ROW,
+        gtt({ trigger_id: '1002', status: 'disabled' }),
+        gtt({ trigger_id: '1003', status: 'triggered' }),
+        gtt({ trigger_id: '1004', status: 'cancelled' }),
+      ]),
+    })
+    await openGtt()
+    expect(screen.queryByTestId('gtt-modify')).toBeNull()
+    await press('gtt-row-1001')
+    expect(screen.getByTestId('gtt-cancel')).toBeTruthy()
+    await press('gtt-modify')
+    expect(mockRouter.push).toHaveBeenCalledWith('/gtt/1001/modify')
+
+    await press('gtt-row-1002')
+    expect(screen.queryByTestId('gtt-modify')).toBeNull()
+    expect(screen.getByTestId('gtt-cancel')).toBeTruthy()
+
+    await press('gtt-row-1003')
+    expect(text('gtt-status-1003')).toBe('triggered')
+    expect(screen.queryByTestId('gtt-modify')).toBeNull()
+    expect(screen.queryByTestId('gtt-cancel')).toBeNull()
+    // only an active GTT takes a live price
+    expect(screen.queryByTestId('gtt-ltp-1003')).toBeNull()
+    expect(screen.getByTestId('gtt-ltp-1001')).toBeTruthy()
+
+    expect(screen.getByTestId('gtt-row-1004')).toHaveStyle({ opacity: 0.6 })
+    expect(screen.getByTestId('gtt-row-1003')).not.toHaveStyle({ opacity: 0.6 })
+    expect(screen.getByTestId('gtt-row-1001')).not.toHaveStyle({ opacity: 0.6 })
+  })
+
+  test('cancel: "ANALYZE · Cancel this GTT?" with the GTT, one cancelgttorder, then "Sandbox · GTT cancelled"', async () => {
+    let cancelled = false
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': () =>
+        gttBook([gtt({ status: cancelled ? 'cancelled' : 'active' })]),
+      'POST /api/v1/cancelgttorder': () => {
+        cancelled = true
+        return CANCELLED
+      },
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+
+    answer = false
+    await press('gtt-cancel')
+    expect(asked).toEqual([
+      { title: 'ANALYZE · Cancel this GTT?', body: SUMMARY, ok: 'Cancel GTT', keep: 'Keep GTT' },
+    ])
+    expect(requests('cancelgttorder')).toHaveLength(0)
+
+    answer = true
+    await pass(200)
+    await press('gtt-cancel')
+    expect(requests('cancelgttorder')).toHaveLength(1)
+    expect(bodyOf('cancelgttorder')).toEqual({
+      apikey: KEY,
+      strategy: 'mobile',
+      trigger_id: '1001',
+    })
+    expect(text('write-outcome-text')).toBe('Sandbox · GTT cancelled')
+    expect(text('toast')).toBe('Sandbox · GTT cancelled')
+    // the write's poke reads the GTT book again: the row shows the cancel
+    await pass(1_500)
+    expect(text('gtt-status-1001')).toBe('cancelled')
+    expect(screen.getByTestId('gtt-row-1001')).toHaveStyle({ opacity: 0.6 })
+  })
+
+  test.each([
+    [
+      'cancelled',
+      () => gttBook([gtt({ status: 'cancelled' })]),
+      'The GTT book shows it cancelled.',
+    ],
+    ['deleted', () => gttBook([gtt({ status: 'deleted' })]), 'The GTT book shows it deleted.'],
+    ['gone', () => gttBook([]), 'The GTT is no longer in the book.'],
+    [
+      'still active',
+      () => gttBook([GTT_ROW]),
+      'The GTT book still shows it active. Check it before trying again.',
+    ],
+    [
+      'not readable',
+      (): ScriptedReply | 'throw' => 'throw',
+      "Couldn't check the GTT book. Check it before trying again.",
+    ],
+  ])(
+    'MaybePlaced, then the book shows it %s: CHECKING, then its line, and nothing sent again',
+    async (_, after, line) => {
+      let sent = false
+      await setupGtt('analyze', {
+        'POST /api/v1/gttorderbook': () => (sent ? after() : gttBook([GTT_ROW])),
+        'POST /api/v1/cancelgttorder': () => {
+          sent = true
+          return BAD_GATEWAY
+        },
+      })
+      await openGtt()
+      await press('gtt-row-1001')
+      await press('gtt-cancel')
+      expect(text('write-outcome-text')).toBe(CHECKING)
+      // no reply: the check reads on past the broker's timeout (127 s)
+      await pass(130_000)
+      expect(text('write-outcome-text')).toBe(line)
+      expect(requests('cancelgttorder')).toHaveLength(1)
+    },
+  )
+
+  test('no reply: the check reads on past the broker timeout, never answering early', async () => {
+    let sent = false
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': gttBook([GTT_ROW]),
+      'POST /api/v1/cancelgttorder': () => {
+        sent = true
+        return BAD_GATEWAY
+      },
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+    await press('gtt-cancel')
+    expect(sent).toBe(true)
+    // the short series (2, 5 and 10 s) would have answered by now
+    await pass(20_000)
+    expect(text('write-outcome-text')).toBe(CHECKING)
+    await pass(110_000)
+    expect(text('write-outcome-text')).toBe(
+      'The GTT book still shows it active. Check it before trying again.',
+    )
+  })
+
+  test('a success without a trigger id is checked too, on the short series', async () => {
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': gttBook([GTT_ROW]),
+      'POST /api/v1/cancelgttorder': ok({ status: 'success', mode: 'analyze' }),
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+    await press('gtt-cancel')
+    expect(text('write-outcome-text')).toBe(CHECKING)
+    await pass(17_100)
+    expect(text('write-outcome-text')).toBe(
+      'The GTT book still shows it active. Check it before trying again.',
+    )
+    expect(requests('cancelgttorder')).toHaveLength(1)
+  })
+
+  test('the check stops at the first read that settles it', async () => {
+    let sent = false
+    await setupGtt('analyze', {
+      'POST /api/v1/gttorderbook': () => gttBook([gtt({ status: sent ? 'deleted' : 'active' })]),
+      'POST /api/v1/cancelgttorder': () => {
+        sent = true
+        return BAD_GATEWAY
+      },
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+    await press('gtt-cancel')
+    await pass(2_100)
+    expect(text('write-outcome-text')).toBe('The GTT book shows it deleted.')
+    expect(text('toast')).toBe('The GTT book shows it deleted.')
+  })
+
+  describe('order safety', () => {
+    test('a double tap sends one cancel', async () => {
+      await setupGtt('analyze', { 'POST /api/v1/cancelgttorder': CANCELLED })
+      await openGtt()
+      await press('gtt-row-1001')
+      await fireEvent.press(screen.getByTestId('gtt-cancel'))
+      await fireEvent.press(screen.getByTestId('gtt-cancel'))
+      await pass(500)
+      expect(asked).toHaveLength(1)
+      expect(requests('cancelgttorder')).toHaveLength(1)
+    })
+
+    test('the mode flips between the confirm and the send: nothing is sent', async () => {
+      let mode: 'live' | 'analyze' = 'analyze'
+      await setupGtt('analyze', {
+        'POST /api/v1/analyzer': () => analyzer(mode),
+        'POST /api/v1/cancelgttorder': CANCELLED,
+      })
+      await openGtt()
+      await press('gtt-row-1001')
+      // the confirm stays up while the server goes LIVE, until its reading is over 5 s old
+      let yes: AlertButton['onPress']
+      jest.spyOn(Alert, 'alert').mockImplementation((title, _body, buttons?: AlertButton[]) => {
+        asked.push({ title: String(title) })
+        yes = buttons?.find((b) => b.style !== 'cancel')?.onPress
+      })
+      await press('gtt-cancel')
+      expect(asked).toEqual([{ title: 'ANALYZE · Cancel this GTT?' }])
+      mode = 'live'
+      await pass(6_000)
+      await act(async () => yes?.())
+      await pass(500)
+      expect(requests('cancelgttorder')).toHaveLength(0)
+      expect(text('write-outcome-text')).toBe('The server is now in LIVE mode. Nothing was sent.')
+    })
+
+    test('confirmed as ANALYZE, answered without the sandbox tag: the danger notice, never a success', async () => {
+      const warned = expectLiveSurprise('gttCancel')
+      const error = jest.spyOn(haptics, 'notifyError')
+      await setupGtt('analyze', {
+        'POST /api/v1/cancelgttorder': ok({ status: 'success', trigger_id: '1001' }),
+      })
+      await openGtt()
+      await press('gtt-row-1001')
+      await press('gtt-cancel')
+      expect(asked[0]?.title).toBe('ANALYZE · Cancel this GTT?')
+      expect(requests('cancelgttorder')).toHaveLength(1)
+      expect(text('live-surprise')).toContain(liveSurpriseText('gttCancel'))
+      expect(text('write-outcome-text')).toBe('GTT cancelled')
+      expect(error).toHaveBeenCalledTimes(1)
+      expect(warned).toHaveLength(1)
+    })
+
+    test('LIVE with confirmLiveWrites on: a failed biometric check sends nothing', async () => {
+      usePrefs.setState({ confirmLiveWrites: true })
+      auth.getEnrolledLevelAsync.mockResolvedValue(3)
+      auth.authenticateAsync.mockResolvedValueOnce({ success: false, error: 'lockout' })
+      await setupGtt('live', { 'POST /api/v1/cancelgttorder': CANCELLED })
+      await openGtt()
+      await press('gtt-row-1001')
+      await press('gtt-cancel')
+      expect(asked[0]?.title).toBe('LIVE · Cancel this GTT?')
+      expect(auth.authenticateAsync).toHaveBeenCalledWith({
+        promptMessage: 'Confirm live order',
+        disableDeviceFallback: false,
+      })
+      expect(requests('cancelgttorder')).toHaveLength(0)
+      expect(text('toast')).toBe(CONFIRM_FAILED)
+    })
+  })
+
+  test('a cancel answered "No active GTT" (it fired after the list was read): its text, the book read again, the segment kept', async () => {
+    await setupGtt('analyze', {
+      'POST /api/v1/cancelgttorder': {
+        status: 404,
+        body: { status: 'error', message: NOT_ACTIVE, mode: 'analyze' },
+      },
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+    const reads = requests('gttorderbook').length
+    await press('gtt-cancel')
+    await pass(100)
+    expect(text('write-outcome-text')).toBe(NOT_ACTIVE)
+    // read again at once, before the write's own poke (500 ms)
+    expect(requests('gttorderbook')).toHaveLength(reads + 1)
+    expect(requests('cancelgttorder')).toHaveLength(1)
+    // not a missing route: GTT is still served here
+    expect(screen.getByTestId('orders-seg-gtt').props.accessibilityState?.selected).toBe(true)
+  })
+
+  test('Semi-Auto in LIVE refuses the cancel: the server reason and the Action Center link', async () => {
+    const REFUSAL = 'Cancel GTT order is not allowed in Semi-Auto mode. Switch to Auto mode.'
+    await setupGtt('live', {
+      'POST /api/v1/cancelgttorder': { status: 403, body: { status: 'error', message: REFUSAL } },
+    })
+    await openGtt()
+    await press('gtt-row-1001')
+    await press('gtt-cancel')
+    expect(text('banner-semi-auto-blocked')).toContain(REFUSAL)
+    expect(screen.queryByTestId('banner-semi-auto')).toBeNull()
+    await press('blocked-open-action-center')
+    expect(Linking.openURL).toHaveBeenCalledWith(`${ORIGIN}/action-center`)
+    await pass(30_000)
+    expect(requests('cancelgttorder')).toHaveLength(1)
+  })
+
+  test('blocked: the rows stay, dimmed, and Modify and Cancel are disabled', async () => {
+    await setupGtt('analyze')
+    await openGtt()
+    await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
+    await pass(10)
+    expect(gttRowIds()).toEqual(['1001'])
+    expect(screen.getByTestId('gtt-list')).toHaveStyle({ opacity: 0.5 })
+    expect(screen.getByTestId('stale-note')).toBeTruthy()
+    await press('gtt-row-1001')
+    expect(disabled('gtt-modify')).toBe(true)
+    expect(disabled('gtt-cancel')).toBe(true)
   })
 })

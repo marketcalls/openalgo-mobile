@@ -97,10 +97,14 @@ GTT ticket (new and modify)
 - `gtt-result`, `gtt-result-id`, `gtt-done`, `gtt-view-list` (also after an unknown outcome)
 
 Orders
-- `orders-screen`, `orders-list`, `orders-stats`, `orders-cancel-all`, `orders-seg-{SEGMENT}`,
-  `order-row-{ID}`, `order-status-{ID}`, `order-side-{ID}`, `order-qty-{ID}`, `order-price-{ID}`,
-  `order-time-{ID}`, `trade-row-{ID}`
+- `orders-screen`, `orders-list`, `orders-stats`, `orders-cancel-all` (not on GTT),
+  `orders-seg-{SEGMENT}`, `orders-seg-gtt` ("GTT", while the server serves GTT for the broker in
+  this mode), `order-row-{ID}`, `order-status-{ID}`, `order-side-{ID}`, `order-qty-{ID}`,
+  `order-price-{ID}`, `order-time-{ID}`, `trade-row-{ID}`
 - `order-modify` *, `order-cancel` *, `order-depth`, `order-chart`, `order-pending`
+- the GTT segment: `gtt-list`, `gtt-empty`, `gtt-row-{TRIGGER}`, `gtt-status-{TRIGGER}` (its text is
+  the status, such as `active`), `gtt-ltp-{TRIGGER}` (active GTTs only), `gtt-modify`, `gtt-cancel`
+  (confirm: tap `Cancel GTT`), `gtt-pending`; `{TRIGGER}` is a trigger id (the mock's are digits)
 - `stale-note`, `books-dropped`, `live-surprise`, `live-surprise-dismiss`
 - `write-outcome`, `write-outcome-text`, `write-outcome-orderbook`, `write-outcome-dismiss` (the
   last write's line on the Orders and Portfolio tabs)
