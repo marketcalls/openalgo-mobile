@@ -30,6 +30,11 @@ const rulesFrom = (file) =>
         .map((v) => v.rule.name),
     ),
   ].sort()
+// What a fixture file's breaches of one rule point at (resolved paths).
+const targets = (rule, file) =>
+  violations()
+    .filter((v) => v.rule.name === rule && v.from.endsWith(file))
+    .map((v) => v.to)
 
 const ERROR_RULES = [
   'no-cross-feature',
@@ -40,6 +45,8 @@ const ERROR_RULES = [
   'dom-content-no-secrets-reachable',
   'dom-entries-only',
   'dom-no-dynamic-import',
+  'dom-protocol-no-runtime-imports',
+  'ui-tokens-no-runtime-imports',
   'features-dom-bridge-only',
   'core-logic-pure',
   'market-no-features',
@@ -102,6 +109,41 @@ test('DOM content imports only its own folder, dom/web, the protocol and the tok
   assert.deepEqual(rulesFrom('dom/chart/uses-market.ts'), ['dom-content-allowlist'])
   assert.deepEqual(rulesFrom('dom/chart/uses-tools.ts'), ['dom-content-allowlist'])
   assert.deepEqual(rulesFrom('dom/web/bad-native.ts'), ['dom-content-no-native-packages'])
+})
+
+test('DOM content refuses React Native and Expo packages whatever their name, expo/dom aside', () => {
+  const refused = {
+    'dom/web/bad-native.ts': 'node_modules/react-native/',
+    'dom/web/uses-rn-library.ts': 'node_modules/react-native-safe-area-context/',
+    'dom/chart/uses-expo-scoped.ts': 'node_modules/@expo/metro-runtime/',
+    // named for neither: refused because its package.json needs react-native
+    'dom/tools/uses-flash-list.ts': 'node_modules/@shopify/flash-list/',
+    'dom/chart/uses-expo-root.ts': 'node_modules/expo/',
+  }
+  for (const [file, pkg] of Object.entries(refused)) {
+    assert.deepEqual(rulesFrom(file), ['dom-content-no-native-packages'], file)
+    const to = targets('dom-content-no-native-packages', file)
+    assert.equal(to.length, 1, `${file}: ${to}`)
+    assert.ok(to[0].includes(pkg), `${file} -> ${to[0]}`)
+  }
+  // the DOM page's own API stays allowed: ok.ts imports expo/dom and expo/dom/global
+  assert.deepEqual(rulesFrom('dom/chart/ok.ts'), [])
+})
+
+test('the protocol and the tokens import nothing at run time, so they carry nothing into a page', () => {
+  // ok.ts imports both and stays clean: the DOM rules check only a page file's own imports
+  assert.deepEqual(rulesFrom('dom/chart/ok.ts'), [])
+  assert.deepEqual(rulesFrom('dom/bridge/protocol.ts'), ['dom-protocol-no-runtime-imports'])
+  const fromProtocol = targets('dom-protocol-no-runtime-imports', 'dom/bridge/protocol.ts')
+  assert.equal(fromProtocol.length, 2, String(fromProtocol))
+  assert.ok(fromProtocol.some((to) => to.includes('node_modules/zod/')))
+  assert.ok(fromProtocol.some((to) => to.endsWith('src/market/x.ts')))
+  // its import type of expo/dom is erased by the compiler, so it is not refused
+  assert.ok(!fromProtocol.some((to) => to.includes('node_modules/expo/')))
+  assert.deepEqual(rulesFrom('ui/tokens.ts'), ['ui-tokens-no-runtime-imports'])
+  const fromTokens = targets('ui-tokens-no-runtime-imports', 'ui/tokens.ts')
+  assert.equal(fromTokens.length, 1, String(fromTokens))
+  assert.ok(fromTokens[0].includes('node_modules/react-native/'))
 })
 
 test('a dynamic import in DOM content fails', () => {

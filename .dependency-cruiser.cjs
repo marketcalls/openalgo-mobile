@@ -1,11 +1,47 @@
 // Import boundaries (design 7.4). Paths are matched as (?:^|/)src/... so the same rules run on
 // the real src and on test/fixtures/boundaries/src.
+const { readFileSync } = require('node:fs')
+const { join } = require('node:path')
+
 const SRC = '(?:^|/)src/'
 const RN = '(react-native|@react-native[^/]*|expo-[^/]+)'
 // WebView content (design 7.7): what runs inside a DOM page.
 const DOM_CONTENT = `${SRC}dom/(chart|tools|web)/`
 // What native may import from a DOM folder: its 'use dom' entry, e.g. dom/chart/ChartDom.tsx.
 const DOM_ENTRY = `${SRC}dom/(chart|tools)/[A-Z][A-Za-z]*Dom\\.tsx$`
+
+// Packages a DOM page cannot run. By name: react-native*, @react-native*/*, expo-*, @expo/*.
+// By need, whatever the name (e.g. @shopify/flash-list, expo itself): every package.json
+// dependency whose own package.json needs react-native or expo, as a dependency or as a peer that
+// is not optional. Universal packages (react, react-dom, zod, openalgo-charts) need neither.
+const readJson = (file) => {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    return {}
+  }
+}
+const needsNative = (pkg) =>
+  ['react-native', 'expo'].some(
+    (name) =>
+      pkg.dependencies?.[name] ||
+      (pkg.peerDependencies?.[name] && !pkg.peerDependenciesMeta?.[name]?.optional),
+  )
+const NATIVE_FAMILIES = [
+  'react-native[^/]*',
+  '@react-native[^/]*/[^/]+',
+  'expo-[^/]+',
+  '@expo/[^/]+',
+]
+const inFamily = new RegExp(`^(${NATIVE_FAMILIES.join('|')})$`)
+const app = readJson(join(__dirname, 'package.json'))
+const NATIVE_DEPS = Object.keys({ ...app.dependencies, ...app.devDependencies })
+  .filter((name) => !inFamily.test(name))
+  .filter((name) => needsNative(readJson(join(__dirname, 'node_modules', name, 'package.json'))))
+  .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+const NATIVE_PACKAGES = `(?:^|/)node_modules/(${[...NATIVE_FAMILIES, ...NATIVE_DEPS].join('|')})/`
+// expo/dom (and expo/dom/global, /internal, /entry) is the DOM page's own API.
+const EXPO_DOM = '(?:^|/)node_modules/expo/(build/)?dom/'
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -70,7 +106,8 @@ module.exports = {
       severity: 'error',
       comment:
         'WebView content imports only its own folder, dom/web, the bridge protocol and the tokens ' +
-        '(packages are checked by dom-content-no-native-packages).',
+        '(packages are checked by dom-content-no-native-packages; the protocol and the tokens ' +
+        'import nothing at run time, by their own rules).',
       from: { path: DOM_CONTENT },
       to: {
         path: SRC,
@@ -87,11 +124,31 @@ module.exports = {
     {
       name: 'dom-content-no-native-packages',
       severity: 'error',
-      comment: 'WebView content runs in a browser: no react-native or expo-* package.',
+      comment:
+        'WebView content runs in a browser: no React Native or Expo package (react-native*, ' +
+        '@react-native*/*, expo-*, @expo/*, or any dependency that needs react-native or expo). ' +
+        'expo/dom is the exception.',
       from: { path: DOM_CONTENT },
-      to: {
-        path: '(?:^|/)node_modules/(react-native[^/]*|@react-native[^/]*|expo-[^/]+|@react-native-async-storage|@react-native-community)/',
-      },
+      to: { path: NATIVE_PACKAGES, pathNot: EXPO_DOM },
+    },
+    {
+      name: 'dom-protocol-no-runtime-imports',
+      severity: 'error',
+      comment:
+        'Every DOM page loads the bridge protocol, and the DOM rules check only their own imports, ' +
+        'so the protocol imports nothing at run time: no zod (that is dom/bridge/schemas.ts, native ' +
+        'only), no package, no other module. An import type is erased, so it stays allowed.',
+      from: { path: `${SRC}dom/bridge/protocol\\.ts$` },
+      to: { dependencyTypesNot: ['type-only'] },
+    },
+    {
+      name: 'ui-tokens-no-runtime-imports',
+      severity: 'error',
+      comment:
+        'DOM pages load the theme tokens too, so tokens.ts imports nothing at run time (an import ' +
+        'type stays allowed).',
+      from: { path: `${SRC}ui/tokens\\.ts$` },
+      to: { dependencyTypesNot: ['type-only'] },
     },
     {
       name: 'dom-entries-only',
