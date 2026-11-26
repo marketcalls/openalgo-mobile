@@ -24,6 +24,8 @@ describe('qk', () => {
     qk.holdings(pid),
     qk.orderstatus(pid, '123'),
     qk.gttbook(pid),
+    qk.intervals(pid),
+    qk.calendar(pid, '2026-11-27'),
     qk.gttdetect(pid, 'https://algo.example.com', 'zerodha', 'live', 1),
   ]
 

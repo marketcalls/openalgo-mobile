@@ -21,6 +21,8 @@ export const qk = {
   positionbook: (pid: string) => [...root(pid), 'positionbook'] as const,
   holdings: (pid: string) => [...root(pid), 'holdings'] as const,
   orderstatus: (pid: string, id: string) => [...root(pid), 'orderstatus', id] as const,
+  intervals: (pid: string) => [...root(pid), 'intervals'] as const,
+  calendar: (pid: string, istDay: string) => [...root(pid), 'calendar', istDay] as const,
   gttbook: (pid: string) => [...root(pid), 'gttbook'] as const,
   /**
    * The one GTT support read for a server, broker and mode, until a probe (`probedAt`) resets
