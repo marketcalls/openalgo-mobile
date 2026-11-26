@@ -24,9 +24,10 @@ import { Change } from '~/ui/Change'
 import { Price } from '~/ui/Price'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
+import { ROW_HEIGHT } from '../rows'
 import { EditControls } from './EditControls'
 
-export const ROW_HEIGHT = 56
+export { ROW_HEIGHT }
 export const FLASH_MS = 400
 /** How far left a row must be dragged to ask to remove it. */
 export const SWIPE_REMOVE_PX = 80

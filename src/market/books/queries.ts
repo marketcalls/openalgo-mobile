@@ -27,7 +27,7 @@ const KEEP = Number.POSITIVE_INFINITY
  * A book, read while nothing is blocked. A screen that is not focused neither fetches nor
  * refetches on an invalidation (ruling 11: the tabs stay mounted); focus refetches it if stale.
  */
-function useBook<T>(name: BookName, read: () => Promise<T>) {
+function useBook<T>(name: BookName, read: () => Promise<T>, staleTime?: number) {
   const { profile } = useServices()
   const blocked = useBrokerBlocked()
   const active = useScreenActive()
@@ -37,6 +37,7 @@ function useBook<T>(name: BookName, read: () => Promise<T>) {
     enabled: !blocked,
     subscribed: active,
     gcTime: KEEP,
+    staleTime,
   })
 }
 
@@ -50,14 +51,16 @@ export function useTradebook() {
   return useBook('tradebook', () => orders.tradebook())
 }
 
-export function usePositionbook() {
+type BookOptions = { staleTime?: number }
+
+export function usePositionbook({ staleTime }: BookOptions = {}) {
   const { orders } = useTrading()
-  return useBook('positionbook', () => orders.positionbook())
+  return useBook('positionbook', () => orders.positionbook(), staleTime)
 }
 
-export function useHoldings() {
+export function useHoldings({ staleTime }: BookOptions = {}) {
   const { orders } = useTrading()
-  return useBook('holdings', () => orders.holdings())
+  return useBook('holdings', () => orders.holdings(), staleTime)
 }
 
 /**
