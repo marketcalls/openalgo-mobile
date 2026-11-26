@@ -196,29 +196,70 @@ describe('reconcileGttChange', () => {
   })
 
   test('an OCO compares each leg with its own trigger', async () => {
-    const swapped = rawOco({ legs: [leg(1901), leg(1699)], trigger_prices: [1700, 1900] })
-    const fetchBook = fetches(book(swapped))
-    expect(
-      (await reconcileGttChange({ fetchBook, triggerId: '1001', spec: OCO, sleep })).found,
-    ).toBe('unchanged')
-    const right = fetches(
-      book(rawOco({ trigger_prices: [1900, 1700], legs: [leg(1901), leg(1699)] })),
-    )
-    expect(
-      (await reconcileGttChange({ fetchBook: right, triggerId: '1001', spec: OCO, sleep })).found,
-    ).toBe('applied')
+    const change = (row: object, spec: GttSpec = OCO) =>
+      reconcileGttChange({ fetchBook: fetches(book(row)), triggerId: '1001', spec, sleep })
+    const right = rawOco({ trigger_prices: [1900, 1700], legs: [leg(1901), leg(1699)] })
+    expect((await change(right)).found).toBe('applied')
+    // Limits that sit beyond both triggers keep the row's pairing, so swapped limits differ.
+    const low: GttSpec = {
+      ...OCO,
+      sl: { trigger: 1700, price: 1650 },
+      tg: { trigger: 1900, price: 1600 },
+    }
+    expect((await change(rawOco({ legs: [leg(1650), leg(1600)] }), low)).found).toBe('applied')
+    expect((await change(rawOco({ legs: [leg(1600), leg(1650)] }), low)).found).toBe('unchanged')
   })
 
-  test('a broker that replaces the GTT: a new active row with the new values is applied', async () => {
+  test('a Fyers OCO (target leg first, triggers sorted) with the new values is applied', async () => {
+    // c8b2896 broker/fyers/mapping/gtt_data.py, map_gtt_book: legs [target, stop-loss].
+    const fyers = rawOco({ trigger_prices: [1700, 1900], legs: [leg(1901), leg(1699)] })
+    const fetchBook = fetches(book(fyers))
+    expect(await reconcileGttChange({ fetchBook, triggerId: '1001', spec: OCO, sleep })).toEqual({
+      found: 'applied',
+      checked: true,
+    })
+    expect(fetchBook).toHaveBeenCalledTimes(1)
+  })
+
+  test('a broker that replaces the GTT: once the old row has left, a new active row with the new values is applied', async () => {
+    const replacement = raw({ trigger_id: '2002', trigger_prices: [1510], legs: [leg(1509)] })
+    for (const old of [[raw({ status: 'cancelled' })], []]) {
+      const fetchBook = fetches(book(replacement, ...old))
+      expect(
+        await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+      ).toEqual({ found: 'applied', checked: true })
+    }
+  })
+
+  test('another active GTT with the new values is not the change while the row is still active with the old ones', async () => {
+    // A (1001) is modified to B's (2002) values, and the send never reached the broker.
     const fetchBook = fetches(
-      book(
-        raw({ trigger_id: '2002', trigger_prices: [1510], legs: [leg(1509)] }),
-        raw({ status: 'cancelled' }),
-      ),
+      book(raw(), raw({ trigger_id: '2002', trigger_prices: [1510], legs: [leg(1509)] })),
     )
     expect(
       await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
-    ).toEqual({ found: 'applied', checked: true })
+    ).toEqual({ found: 'unchanged', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
+  })
+
+  test('no longer active, beside an unreadable row that could be its replacement: not checked', async () => {
+    const out = await reconcileGttChange({
+      fetchBook: fetches(book(raw({ status: 'cancelled' }), unreadable())),
+      triggerId: '1001',
+      spec: MODIFIED,
+      sleep,
+    })
+    expect(out).toEqual({ found: 'gone', checked: false })
+  })
+
+  test('still active with the old values beside an unreadable row: unchanged, checked', async () => {
+    const out = await reconcileGttChange({
+      fetchBook: fetches(book(raw(), unreadable())),
+      triggerId: '1001',
+      spec: MODIFIED,
+      sleep,
+    })
+    expect(out).toEqual({ found: 'unchanged', checked: true })
   })
 
   test('a new row that is not active is not the change', async () => {

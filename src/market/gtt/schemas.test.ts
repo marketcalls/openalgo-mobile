@@ -101,6 +101,64 @@ describe('GttBookSchema (RF 3)', () => {
     ])
   })
 
+  /**
+   * An OCO as Fyers' mapper sends it (c8b2896 broker/fyers/mapping/gtt_data.py, map_gtt_book):
+   * leg1 is the target (above the LTP) and leg2 the stop-loss, while `trigger_prices` is sorted
+   * on its own, so leg i does not go with trigger i.
+   */
+  const fyersOco = (target: number, stoploss: number) => ({
+    trigger_id: '25112600001',
+    trigger_type: 'two-leg',
+    status: 'active',
+    symbol: 'RELIANCE',
+    exchange: 'NSE',
+    trigger_prices: [1420, 1520],
+    last_price: 1470,
+    legs: [
+      { action: 'SELL', quantity: 1, price: target, pricetype: 'LIMIT', product: 'CNC' },
+      { action: 'SELL', quantity: 1, price: stoploss, pricetype: 'LIMIT', product: 'CNC' },
+    ],
+    created_at: '26-Nov-2026 09:30:00',
+    updated_at: '',
+    expires_at: '',
+  })
+
+  test.each([
+    ['limits past their triggers', 1521, 1419],
+    ['limits at their triggers', 1520, 1420],
+    ['limits short of their triggers', 1519, 1421],
+  ])(
+    'a Fyers OCO (target leg first, triggers sorted): the stop-loss keeps its own limit, %s',
+    (_, target, stoploss) => {
+      const [row] = book([fyersOco(target, stoploss)]).rows
+      expect(row?.type).toBe('OCO')
+      expect(row?.triggers).toEqual([1420, 1520])
+      expect(row?.legs.map((l) => [l.trigger, l.price])).toEqual([
+        [1420, stoploss],
+        [1520, target],
+      ])
+    },
+  )
+
+  test('limits beyond the same end of both triggers cannot tell the pairing: the row order stands', () => {
+    // A Kite OCO, legs in trigger order, whose target sells at any price from 1300 up.
+    const [row] = book([
+      {
+        ...KITE_SINGLE,
+        trigger_type: 'two-leg',
+        trigger_prices: [1420, 1520],
+        legs: [
+          { action: 'SELL', quantity: 1, price: 1410, pricetype: 'LIMIT', product: 'CNC' },
+          { action: 'SELL', quantity: 1, price: 1300, pricetype: 'LIMIT', product: 'CNC' },
+        ],
+      },
+    ]).rows
+    expect(row?.legs.map((l) => [l.trigger, l.price])).toEqual([
+      [1420, 1410],
+      [1520, 1300],
+    ])
+  })
+
   test.each([
     ['two-leg', 'OCO'],
     ['TWO-LEG', 'OCO'],

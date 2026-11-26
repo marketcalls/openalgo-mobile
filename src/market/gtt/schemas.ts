@@ -136,9 +136,30 @@ const GttLegSchema = z.object({
 const OCO_TYPE = /^(two-leg|oco)$/i
 
 /**
+ * The trigger each leg goes with, when the row lists one trigger per leg (RF 3). Leg i takes
+ * trigger i, except on a two-leg row whose pairing crosses: Fyers lists its target leg first but
+ * sorts the triggers (c8b2896 broker/fyers/mapping/gtt_data.py, map_gtt_book), which would put
+ * the target's limit on the stop-loss trigger. A leg's limit sits near its own trigger: when the
+ * row pairs the higher limit with the lower trigger, the other pairing puts the limits nearer
+ * their triggers in total, and the legs take it. The one exception is two limits at or beyond the
+ * same end of the triggers' span (an aggressive limit): there either pairing is as near, so the
+ * row's own order stands. These are exact comparisons, not sums of distances, so a tie cannot
+ * turn on a rounding error.
+ */
+function legTriggers(prices: readonly number[], triggers: readonly number[]) {
+  if (prices.length !== triggers.length) return prices.map(() => undefined)
+  if (prices.length !== 2) return [...triggers]
+  const [p0 = 0, p1 = 0] = prices
+  const [t0 = 0, t1 = 0] = triggers
+  const crossed = (p0 < p1 && t0 > t1) || (p0 > p1 && t0 < t1)
+  const sameEnd = Math.max(p0, p1) <= Math.min(t0, t1) || Math.min(p0, p1) >= Math.max(t0, t1)
+  return crossed && !sameEnd ? [t1, t0] : [t0, t1]
+}
+
+/**
  * One row in any broker's shape (RF 3): the trigger id is the only field it cannot do without.
- * Leg i takes the i-th trigger when there is one per leg, so an OCO whose legs come in another
- * order still pairs each leg with its own trigger; then both sort by trigger.
+ * Each leg takes its own trigger (`legTriggers`), so an OCO whose legs come in another order
+ * still pairs each leg with its own trigger; then both sort by trigger.
  */
 const GttRowSchema = z
   .object({
@@ -155,15 +176,20 @@ const GttRowSchema = z
   })
   .transform((r): GttRow => {
     const triggers = r.trigger_prices ?? []
-    const paired = r.legs?.length === triggers.length
-    const legs = (r.legs ?? []).map(
+    const given = r.legs ?? []
+    const paired = given.length === triggers.length
+    const own = legTriggers(
+      given.map((l) => l.price),
+      triggers,
+    )
+    const legs = given.map(
       (l, i): GttLeg => ({
         action: l.action,
         quantity: l.quantity,
         price: l.price,
         pricetype: l.pricetype,
         product: l.product,
-        trigger: paired ? triggers[i] : undefined,
+        trigger: own[i],
         orderId: l.triggered_order_id,
       }),
     )

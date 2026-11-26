@@ -69,10 +69,13 @@ export function reconcileGttPlacement({
 export type GttChange = 'applied' | 'unchanged' | 'gone'
 
 /**
- * After a modify: `applied` when the row shows the spec's values, or when a new active row does
- * (a broker that replaces the GTT gives it a new id); `unchanged` when the row is still active
- * with other values; `gone` when it is absent or no longer active. The book lags the write, so
- * only `applied` stops the reads early.
+ * After a modify: `applied` when the row shows the spec's values; `unchanged` when the row is
+ * still active with other values; `gone` when it is absent or no longer active. A broker that
+ * replaces the GTT gives it a new id and cancels or drops the old row, so once the row by id has
+ * left, another active row with the spec's values is the change, `applied`. While the row by id
+ * is still active, such a row is some other GTT: the modify has not shown, whatever it matches.
+ * The book lags the write, so only `applied` stops the reads early. An unreadable row could be
+ * the row by id, or once that has left its replacement, so it leaves such an answer unchecked.
  */
 export function reconcileGttChange({
   fetchBook,
@@ -89,11 +92,12 @@ export function reconcileGttChange({
     fetchBook,
     ({ rows, dropped }): Reconciled<GttChange> => {
       const row = rows.find((r) => r.triggerId === triggerId)
+      if (row && hasSpec(row, spec)) return { found: 'applied', checked: true }
+      if (row?.status === 'active') return { found: 'unchanged', checked: true }
       const replaced = rows.some(
         (r) => r.triggerId !== triggerId && r.status === 'active' && hasSpec(r, spec),
       )
-      if ((row && hasSpec(row, spec)) || replaced) return { found: 'applied', checked: true }
-      if (row) return { found: row.status === 'active' ? 'unchanged' : 'gone', checked: true }
+      if (replaced) return { found: 'applied', checked: true }
       return { found: 'gone', checked: dropped === 0 }
     },
     (found) => found === 'applied',
