@@ -24,10 +24,12 @@ Writing a flow:
 | `onboarding-live.yaml` | `PORT=5000 WS_PORT=8765` | server, key and live-feed steps; the watchlist shows a price within 10 s |
 | `onboarding-polling.yaml` | `PORT=5000 WS_PORT=off` | the feed test fails, the profile saves in polling mode, `badge-polling` shows, and the price updates |
 | `trading-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | add ITC, a LIMIT buy from its instrument sheet reviewed as ANALYZE, modify, cancel, the sheet's depth into a ticket, close a position, sell a holding |
+| `watchlist-kite.yaml` | `PORT=5000 WS_PORT=8765` | the `7/250` count, sort A to Z, a new group and a regroup in edit mode, the held marker, the index strip toggle, the instrument sheet's BUY and quote details |
+| `gtt-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer`; `PROFILE` 2.0.3.5 only | a SELL GTT from the instrument sheet reviewed as ANALYZE, listed active as 1001 in the Orders GTT segment, then cancelled |
 | `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
 | `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | in the instrument sheet at full height, the 20-level switch shows `depth-bid-19` |
 
-The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5. The trading flows start with the mock
+The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5 (`gtt-analyzer.yaml` only for 2.0.3.5). The trading flows start with the mock
 restarted on `PORT=5000 WS_PORT=8765` and reset (`POST /__mock/reset`) before each flow;
 `depth-levels.yaml` needs the mock started with `BROKER=dhan` as well. A flow sets the mock's
 controls with `scripts/mock.js` (env `CONTROL`, a JSON patch for `POST /__mock/control`). Run the mock yourself with
@@ -48,20 +50,20 @@ Onboarding
 - `update-back`, `start-retry`, `start-forget`
 
 Watchlist
-- `watch-row-{ID}` *, `watch-ltp-{ID}` *, `watch-ex-{ID}`, `watch-held-{ID}`, `watch-flash-{ID}`,
+- `watch-row-{ID}` *, `watch-ltp-{ID}` *, `watch-ex-{ID}`, `watch-held-{ID}` *, `watch-flash-{ID}`,
   `watch-swipe-{ID}`, `watch-unknown-{ID}`
 - `wl-tab-{LISTID}` (not for flows: list ids are lower case; tap a tab by its label), `wl-manage`
-- `wl-search-add` *, `wl-count`, `wl-sort`, `wl-sort-{SORT}` (`ADDED`, `AZ`, `CHANGE`, `LTP`,
-  `EXCHANGE`), `wl-edit`, `wl-empty-add`
-- edit mode: `wl-up-{ID}`, `wl-down-{ID}`, `wl-regroup-{ID}` (once the list has a group),
-  `wl-remove-{ID}`, `wl-new-group`, `wl-move-{N}`, `wl-move-none`
-- groups: `wl-group-{N}`, and in edit mode `wl-group-up-{N}`, `wl-group-down-{N}`,
+- `wl-search-add` *, `wl-count` *, `wl-sort` *, `wl-sort-{SORT}` * (`ADDED`, `AZ`, `CHANGE`, `LTP`,
+  `EXCHANGE`), `wl-edit` *, `wl-empty-add`
+- edit mode: `wl-up-{ID}`, `wl-down-{ID}`, `wl-regroup-{ID}` * (once the list has a group),
+  `wl-remove-{ID}`, `wl-new-group` *, `wl-move-{N}` *, `wl-move-none`
+- groups: `wl-group-{N}` *, and in edit mode `wl-group-up-{N}`, `wl-group-down-{N}`,
   `wl-group-menu-{N}` (a native menu: tap Rename or Delete by its text)
 - the manage sheet: `wl-list-{N}`, `wl-list-up-{N}`, `wl-list-down-{N}`, `wl-list-rename-{N}`,
   `wl-list-delete-{N}`, `wl-new`, `wl-manage-done`
-- the name sheet: `wl-name-input`, `wl-name-save`, `wl-name-cancel`
-- `index-strip`, `index-toggle`, `index-edit`, `index-edit-done`, `index-panel`,
-  `index-panel-{ID}`, `index-pick-{ID}`, `index-{ID}`
+- the name sheet: `wl-name-input` *, `wl-name-save` *, `wl-name-cancel`
+- `index-strip`, `index-toggle` *, `index-edit`, `index-edit-done`, `index-panel`,
+  `index-panel-{ID}`, `index-pick-{ID}`, `index-{ID}` *
 
 Search
 - `search-input` *, `search-row-{ID}` *, `search-added-{ID}` *, `search-open-{ID}` (add mode),
@@ -72,11 +74,11 @@ Instrument sheet
   `instrument-sheet-backdrop` (closes the sheet)
 - the header: `inst-sub` (the exchange, LTP and change), `inst-ltp`, `inst-change`, `inst-watch`
   (an icon button: its label is "Add to {list}" or "Remove from {list}")
-- `inst-unknown`, `inst-buy` *, `inst-sell`, `inst-chart`, `inst-optionchain`, `inst-gtt`
+- `inst-unknown`, `inst-buy` *, `inst-sell`, `inst-chart`, `inst-optionchain`, `inst-gtt` *
   ("Create GTT", while the server serves GTT for the broker in this mode)
 - the depth below them carries the Depth ids (`depth-ladder`, `depth-levels-{N}`,
   `depth-bid-{N}`, `depth-ask-{N}`, the totals)
-- at full height: `inst-quote-details`, `inst-q-{FIGURE}` (not for flows: the figure is lower
+- at full height: `inst-quote-details` *, `inst-q-{FIGURE}` (not for flows: the figure is lower
   case, one of open, high, low, close, volume, avg, ltq, ltt, oi, lc and uc; each shows only when
   the quote carries it)
 
@@ -99,11 +101,11 @@ Order ticket and review
 
 GTT ticket (new and modify)
 - `gtt-screen`, `gtt-ltp`, `gtt-type-{TYPE}` (`SINGLE`, `OCO`; not on a modify), `gtt-side-buy`,
-  `gtt-side-sell` (not on a modify), `gtt-qty`, `gtt-trigger`, `gtt-price`, `gtt-sl-trigger`,
+  `gtt-side-sell` * (not on a modify), `gtt-qty`, `gtt-trigger` *, `gtt-price` *, `gtt-sl-trigger`,
   `gtt-sl-price`, `gtt-tg-trigger`, `gtt-tg-price`, `gtt-issue-{ISSUE}` (the issue in upper case,
-  such as `LTP_UNKNOWN`), `gtt-error`, `gtt-refused`, `gtt-review`
-- `gtt-review-step`, `gtt-mode-badge`, `gtt-summary`, `gtt-confirm`, `gtt-back`
-- `gtt-result`, `gtt-result-id`, `gtt-done`, `gtt-view-list` (also after an unknown outcome)
+  such as `LTP_UNKNOWN`), `gtt-error`, `gtt-refused`, `gtt-review` *
+- `gtt-review-step`, `gtt-mode-badge` *, `gtt-summary`, `gtt-confirm` *, `gtt-back`
+- `gtt-result` *, `gtt-result-id`, `gtt-done`, `gtt-view-list` * (also after an unknown outcome)
 
 Orders
 - `orders-screen`, `orders-list`, `orders-stats`, `orders-cancel-all` (not on GTT),
@@ -111,8 +113,8 @@ Orders
   this mode), `order-row-{ID}`, `order-status-{ID}`, `order-side-{ID}`, `order-qty-{ID}`,
   `order-price-{ID}`, `order-time-{ID}`, `trade-row-{ID}`
 - `order-modify` *, `order-cancel` *, `order-depth`, `order-chart`, `order-pending`
-- the GTT segment: `gtt-list`, `gtt-empty`, `gtt-row-{TRIGGER}`, `gtt-status-{TRIGGER}` (its text is
-  the status, such as `active`), `gtt-ltp-{TRIGGER}` (active GTTs only), `gtt-modify`, `gtt-cancel`
+- the GTT segment: `gtt-list`, `gtt-empty`, `gtt-row-{TRIGGER}` *, `gtt-status-{TRIGGER}` * (its text is
+  the status, such as `active`), `gtt-ltp-{TRIGGER}` (active GTTs only), `gtt-modify`, `gtt-cancel` *
   (confirm: tap `Cancel GTT`), `gtt-pending`; `{TRIGGER}` is a trigger id (the mock's are digits)
 - `stale-note`, `books-dropped`, `live-surprise`, `live-surprise-dismiss`
 - `write-outcome`, `write-outcome-text`, `write-outcome-orderbook`, `write-outcome-dismiss` (the

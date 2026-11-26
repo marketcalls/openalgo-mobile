@@ -1,0 +1,85 @@
+# The Kite-style watchlist against the mock server (CI job e2e-android): count, sort, a group,
+# regrouping, the held marker, the index strip toggle and the instrument sheet. Needs the mock
+# started with PORT=5000 WS_PORT=8765 and reset before the flow.
+appId: in.openalgo.mobile
+---
+- runFlow: onboarding-live.yaml
+- assertVisible:
+    id: wl-count
+    text: "7/250"
+
+# sort A to Z: HDFCBANK comes before TCS, which may sit below the fold
+- tapOn:
+    id: wl-sort
+- tapOn:
+    id: wl-sort-AZ
+- assertVisible:
+    id: watch-row-NSE-HDFCBANK
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-TCS
+    direction: DOWN
+    timeout: 15000
+
+# edit mode: a new group, then SBIN moves into it
+- tapOn:
+    id: wl-edit
+- tapOn:
+    id: wl-new-group
+- tapOn:
+    id: wl-name-input
+- inputText: Banks
+- hideKeyboard
+- tapOn:
+    id: wl-name-save
+- assertVisible:
+    id: wl-group-0
+- scrollUntilVisible:
+    element:
+      id: wl-regroup-NSE-SBIN
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: wl-regroup-NSE-SBIN
+- tapOn:
+    id: wl-move-0
+- tapOn:
+    id: wl-edit
+
+# the mock holds 10 RELIANCE
+- scrollUntilVisible:
+    element:
+      id: watch-held-NSE-RELIANCE
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: watch-held-NSE-RELIANCE
+
+# the index strip hides and shows again
+- scrollUntilVisible:
+    element:
+      id: index-toggle
+    direction: UP
+    timeout: 15000
+- tapOn:
+    id: index-toggle
+- assertNotVisible:
+    id: index-NIFTY
+- tapOn:
+    id: index-toggle
+
+# the instrument sheet: BUY at half height, the quote details at full height
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-RELIANCE
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: watch-row-NSE-RELIANCE
+- assertVisible:
+    id: inst-buy
+- tapOn:
+    id: instrument-sheet-handle
+- assertVisible:
+    id: inst-quote-details
+- back

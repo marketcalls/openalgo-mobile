@@ -316,10 +316,15 @@ jobs:
           stop_mock
           # the trading flows: the mock is reset before each one
           start_mock 8765
-          for flow in trading-analyzer trading-semiauto; do
+          for flow in trading-analyzer trading-semiauto watchlist-kite; do
             reset_mock
             run_flow "$flow"
           done
+          # GTT needs the 2.0.3.5 server; its first trigger id is 1001 after a reset
+          if [ "$PROFILE" = "2.0.3.5" ]; then
+            reset_mock
+            run_flow gtt-analyzer
+          fi
           stop_mock
           start_mock 8765 dhan
           reset_mock

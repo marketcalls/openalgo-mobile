@@ -1,0 +1,68 @@
+# A GTT in analyzer (sandbox) mode against the mock server (CI job e2e-android, PROFILE 2.0.3.5
+# only: the earlier server has no GTT): create a SELL GTT from the instrument sheet, find it in
+# the Orders GTT segment and cancel it. Needs the mock started with PORT=5000 WS_PORT=8765 and
+# reset before the flow, so the first trigger id is 1001.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"analyzer":true}'
+
+# "Create GTT" shows after the detection read
+- tapOn:
+    id: watch-row-NSE-RELIANCE
+- extendedWaitUntil:
+    visible:
+      id: inst-gtt
+    timeout: 10000
+- tapOn:
+    id: inst-gtt
+- tapOn:
+    id: gtt-side-sell
+- tapOn:
+    id: gtt-trigger
+- inputText: "1500"
+- hideKeyboard
+- tapOn:
+    id: gtt-price
+- inputText: "1499"
+- hideKeyboard
+- tapOn:
+    id: gtt-review
+- assertVisible:
+    id: gtt-mode-badge
+    text: ANALYZE
+# Confirm stays disabled until the review has read the mode
+- tapOn:
+    id: gtt-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible:
+      id: gtt-result
+    timeout: 15000
+- tapOn:
+    id: gtt-view-list
+
+# the GTT segment lists it as active; cancel it
+- scrollUntilVisible:
+    element:
+      id: gtt-row-1001
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: gtt-status-1001
+    text: active
+- tapOn:
+    id: gtt-row-1001
+- tapOn:
+    id: gtt-cancel
+- tapOn: Cancel GTT
+- extendedWaitUntil:
+    visible:
+      id: write-outcome-text
+      text: "Sandbox · GTT cancelled"
+    timeout: 20000
