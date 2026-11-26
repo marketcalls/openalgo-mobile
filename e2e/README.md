@@ -149,12 +149,15 @@ Account
 - `link-server`, `link-key`, `link-diagnostics`, `link-lost-phone`, `link-backup`
 - `server-save`, `key-save`, `broker-status`, `broker-login`
 - `analyzer-toggle`, `analyzer-error`, `analyzer-semi-auto`
-- `pref-app-lock`, `pref-confirm-live`, `pref-hide-content`, `app-lock-unavailable`,
+- `pref-app-lock`, `pref-confirm-live`, `pref-hide-content`, `pref-update-check`, `account-update`, `app-lock-unavailable`,
   `confirm-live-unavailable`, `lock-after-{MS}`, `theme-{MODE}`
 - `diagnostics-copy`, `diagnostics-refresh`, `cap-{FEATURE}`, `lost-step-{N}`
 - `sign-out`, `sign-out-confirm`, `sign-out-delete`, `signout-backup`
 - `backup-screen`, `backup-create`, `backup-found`, `backup-summary`, `backup-note`,
   `backup-error`, `backup-restore`, `restore-merge`, `restore-replace`
+
+Update banner (tabs)
+- `update-banner`, `update-view`, `update-dismiss`
 
 Shared
 - `skeleton`, `sheet-backdrop`, `toast`

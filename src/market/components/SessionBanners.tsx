@@ -90,7 +90,7 @@ export function SemiAutoBlockedBanner({ message }: { message: string }) {
 }
 
 /** A banner with a row of actions under its text (ui's Banner holds one beside it). */
-function SessionBanner(p: { testID: string; tone: Tone; text: string; actions: Action[] }) {
+export function SessionBanner(p: { testID: string; tone: Tone; text: string; actions: Action[] }) {
   const { bg, fg } = useToneColors(p.tone)
   return (
     <View testID={p.testID} style={[styles.banner, { backgroundColor: bg }]}>

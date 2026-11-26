@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useConnection } from '~/core/services/connection'
 import { type ShellBanner, shellBanners, useServices } from '~/core/services/services'
 import { useAnalyzer } from '~/features/account/api'
+import { UpdateBanner, useUpdateNotice } from '~/features/account/update'
 import { BrokerBanner } from '~/market/components/SessionBanners'
 import { Banner } from '~/ui/Banner'
 import { StatusBadges } from '~/ui/StatusBadges'
@@ -24,6 +25,7 @@ export default function TabsLayout() {
   const conn = useConnection()
   // the header badge reads conn.analyzer, which only this hook writes (ruling 10)
   useAnalyzer()
+  const update = useUpdateNotice()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { c } = useTheme()
@@ -46,6 +48,7 @@ export default function TabsLayout() {
       {banners.filter((b) => b.tone === 'danger').map(show)}
       <BrokerBanner />
       {banners.filter((b) => b.tone !== 'danger').map(show)}
+      {update.notice ? <UpdateBanner notice={update.notice} onDismiss={update.dismiss} /> : null}
       <View style={styles.fill}>
         <NativeTabs backgroundColor={c.background} tintColor={c.foreground}>
           {TABS.map((t) => (

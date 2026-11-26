@@ -41,6 +41,7 @@ import { ANALYZER_COPY, CONFIRM_FAILED, LIVE_PROMPT, useAnalyzer, useToggleAnaly
 import { LOST_PHONE_STEPS } from './screens/LostPhoneScreen'
 import { SIGN_OUT_COPY } from './screens/SignOutScreen'
 import { signOut } from './signOut'
+import { resetUpdateCheck, useUpdateNotice } from './update'
 
 const mockDeps = {} as AppDeps
 jest.mock('~/core/services/deps', () => ({
@@ -197,7 +198,7 @@ const confirmAlert = async (spy: jest.SpyInstance) => {
 beforeEach(() => {
   useSession.setState({ status: 'ready', profileId: PID })
   useConnection.getState().reset()
-  usePrefs.setState({ confirmLiveWrites: false })
+  usePrefs.setState({ confirmLiveWrites: false, updateCheck: true })
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
   for (const m of ['debug', 'info', 'warn', 'error'] as const) {
     jest.spyOn(console, m).mockImplementation(() => {})
@@ -364,6 +365,68 @@ describe('useToggleAnalyzer', () => {
   })
 })
 
+// before any renderRouter test: renderHook does not render once the router test library has run
+describe('useUpdateNotice', () => {
+  const releaseFetch = () =>
+    scriptedFetch({
+      'GET /repos/marketcalls/openalgo-mobile/releases/latest': {
+        status: 200,
+        body: {
+          tag_name: 'v99.0.0',
+          html_url: 'https://github.com/marketcalls/openalgo-mobile/releases/tag/v99.0.0',
+        },
+      },
+    })
+
+  beforeEach(() => {
+    resetUpdateCheck()
+    usePrefs.setState({ updateCheck: true })
+  })
+
+  test('turning the switch off stops the check', async () => {
+    await setup()
+    mockDeps.fetch = releaseFetch()
+    usePrefs.setState({ updateCheck: false })
+    await renderHook(() => useUpdateNotice())
+    await act(async () => {})
+    expect((mockDeps.fetch as ReturnType<typeof scriptedFetch>).calls).toHaveLength(0)
+  })
+
+  test('a mount before the prefs load sends nothing when the saved choice is off', async () => {
+    await setup()
+    const f = releaseFetch()
+    mockDeps.fetch = f
+    let finish: () => void = () => {}
+    const hydrated = jest.spyOn(usePrefs.persist, 'hasHydrated').mockReturnValue(false)
+    const onFinish = jest.spyOn(usePrefs.persist, 'onFinishHydration').mockImplementation((fn) => {
+      finish = () => fn(usePrefs.getState())
+      return () => {}
+    })
+    try {
+      await renderHook(() => useUpdateNotice())
+      await act(async () => {})
+      expect(f.calls).toHaveLength(0)
+      usePrefs.setState({ updateCheck: false }) // the saved value arrives
+      hydrated.mockReturnValue(true)
+      await act(async () => finish())
+      expect(f.calls).toHaveLength(0)
+    } finally {
+      hydrated.mockRestore()
+      onFinish.mockRestore()
+    }
+  })
+
+  test('two concurrent mounts send one request and both get the notice', async () => {
+    await setup()
+    const f = releaseFetch()
+    mockDeps.fetch = f
+    const { result } = await renderHook(() => [useUpdateNotice(), useUpdateNotice()] as const)
+    await waitFor(() => expect(result.current?.[0].notice?.version).toBe('99.0.0'))
+    expect(result.current?.[1].notice?.version).toBe('99.0.0')
+    expect(f.calls).toHaveLength(1)
+  })
+})
+
 describe('account screen', () => {
   test('shows the URL, and "unknown, 2.0.0.0 or later" when the version is not known', async () => {
     await setup({}, { ...PROFILE, serverVersion: null })
@@ -406,6 +469,25 @@ describe('account screen', () => {
     const sw = screen.getByTestId('pref-confirm-live')
     expect(sw.props.value).toBe(false)
     expect(sw.props.disabled).toBe(true)
+  })
+
+  test('the update switch is on by default, saves its choice, and shows a stored notice', async () => {
+    await setup()
+    await kv.set(
+      'oa.update.v1',
+      JSON.stringify({ checkedAt: 1, latest: { version: '99.0.0', url: 'u' } }),
+    )
+    usePrefs.setState({ updateCheck: true })
+    await renderRouter(ROUTES, { initialUrl: '/' })
+    const sw = await screen.findByTestId('pref-update-check')
+    expect(sw.props.value).toBe(true)
+    expect(await screen.findByTestId('account-update')).toHaveTextContent(
+      'Version 99.0.0 is available',
+    )
+    expect(screen.getByText(/Nothing about you or your server is sent/)).toBeOnTheScreen()
+    await act(async () => fireEvent(sw, 'valueChange', false))
+    expect(usePrefs.getState().updateCheck).toBe(false)
+    expect(screen.queryByTestId('account-update')).toBeNull()
   })
 
   test('About shows the OpenAlgo mark with the app name and version', async () => {

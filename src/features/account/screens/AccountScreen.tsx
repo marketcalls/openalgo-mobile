@@ -16,6 +16,7 @@ import { ListRow } from '~/ui/ListRow'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
 import { useAnalyzer, useToggleAnalyzer } from '../api'
+import { useStoredUpdate } from '../update'
 
 export const ACCOUNT_COPY = {
   versionUnknown: 'unknown, 2.0.0.0 or later',
@@ -26,6 +27,9 @@ export const ACCOUNT_COPY = {
   login: 'Log in to your broker',
   hideContent: 'Hide content in screenshots and recent apps',
   confirmLive: 'Confirm live actions with biometrics',
+  updateCheck: 'Check for app updates',
+  updateCaption:
+    'Once a day the app asks GitHub for the latest release. Nothing about you or your server is sent.',
 } as const
 
 const LOCK_AFTER = [
@@ -49,6 +53,7 @@ export function AccountScreen() {
   const conn = useConnection()
   const prefs = usePrefs()
   const mode = useAnalyzer()
+  const update = useStoredUpdate()
   const { toggle, pending, error } = useToggleAnalyzer()
   const [lockAvailable, setLockAvailable] = useState(true)
 
@@ -196,6 +201,21 @@ export function AccountScreen() {
             {ACCOUNT_COPY.noPasscodeConfirm}
           </Text>
         )}
+        <View style={styles.rowBetween}>
+          <Text style={styles.fill}>{ACCOUNT_COPY.updateCheck}</Text>
+          <Switch
+            testID="pref-update-check"
+            accessibilityLabel={ACCOUNT_COPY.updateCheck}
+            value={prefs.updateCheck}
+            onValueChange={(v) => prefs.setPrefs({ updateCheck: v })}
+          />
+        </View>
+        <Text variant="caption" tone="muted">
+          {ACCOUNT_COPY.updateCaption}
+        </Text>
+        {update && prefs.updateCheck ? (
+          <Text testID="account-update">{`Version ${update.version} is available`}</Text>
+        ) : null}
         {Platform.OS === 'android' ? (
           <View style={styles.rowBetween}>
             <Text style={styles.fill}>{ACCOUNT_COPY.hideContent}</Text>

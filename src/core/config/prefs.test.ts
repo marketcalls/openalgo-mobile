@@ -14,7 +14,14 @@ test('defaults', () => {
     lockAfterMs: DEFAULT_LOCK_AFTER_MS,
     hideContentAndroid: false,
     confirmLiveWrites: false,
+    updateCheck: true,
   })
+})
+
+test('a stored pref without updateCheck loads as on', async () => {
+  await kv.set('oa.prefs.v1', JSON.stringify({ state: { theme: 'dark' }, version: 0 }))
+  await usePrefs.persist.rehydrate()
+  expect(usePrefs.getState().updateCheck).toBe(true)
 })
 
 test('setPrefs persists under oa.prefs.v1 and survives a reload', async () => {

@@ -13,6 +13,7 @@ const PrefsSchema = z.object({
     .catch(DEFAULT_LOCK_AFTER_MS),
   hideContentAndroid: z.boolean().catch(false),
   confirmLiveWrites: z.boolean().catch(false),
+  updateCheck: z.boolean().catch(true),
 })
 export type Prefs = z.infer<typeof PrefsSchema>
 
@@ -29,12 +30,20 @@ export const usePrefs = create<PrefsStore>()(
     {
       name: 'oa.prefs.v1',
       storage: persistStorage,
-      partialize: ({ theme, appLock, lockAfterMs, hideContentAndroid, confirmLiveWrites }) => ({
+      partialize: ({
         theme,
         appLock,
         lockAfterMs,
         hideContentAndroid,
         confirmLiveWrites,
+        updateCheck,
+      }) => ({
+        theme,
+        appLock,
+        lockAfterMs,
+        hideContentAndroid,
+        confirmLiveWrites,
+        updateCheck,
       }),
       merge: (persisted, current) => ({
         ...current,
