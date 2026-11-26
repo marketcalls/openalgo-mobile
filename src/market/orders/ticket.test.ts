@@ -361,6 +361,30 @@ describe('initial tickets', () => {
     expect(t.pricetype).toBe('LIMIT')
   })
 
+  test('a stop link opens as SL with the price and the trigger on the tick', () => {
+    const t = initialTicket(
+      { exchange: 'NSE', symbol: 'RELIANCE', action: 'SELL', price: 1419.93, trigger: 1421.03 },
+      RELIANCE,
+    )
+    expect(t).toMatchObject({ pricetype: 'SL', price: 1419.95, trigger: 1421.05 })
+    // a trigger alone is an SL with no price yet, which the ticket's own rules then ask for
+    const only = initialTicket(
+      { exchange: 'NSE', symbol: 'RELIANCE', action: 'SELL', trigger: 1400 },
+      RELIANCE,
+    )
+    expect(only).toMatchObject({ pricetype: 'SL', trigger: 1400 })
+    expect(only.price).toBeUndefined()
+    expect(validateTicket(only, RELIANCE, undefined, SPLIT)).toEqual(['price_required'])
+  })
+
+  test('a named type wins over the trigger default', () => {
+    const t = initialTicket(
+      { exchange: 'NSE', symbol: 'RELIANCE', action: 'SELL', pricetype: 'SL-M', trigger: 1400 },
+      RELIANCE,
+    )
+    expect(t).toMatchObject({ pricetype: 'SL-M', trigger: 1400 })
+  })
+
   test('a derivative quantity in units becomes lots', () => {
     const t = initialTicket(
       { exchange: 'NFO', symbol: 'NIFTY30DEC26FUT', action: 'BUY', quantity: 130 },

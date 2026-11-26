@@ -33,6 +33,7 @@ import { BrokerBanner, SemiAutoBlockedBanner } from '~/market/components/Session
 import type { InstrumentMeta } from '~/market/instruments/meta'
 import { fmtTick } from '~/market/instruments/tick'
 import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
+import type { ModifyPreset } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { useSubmitGuard } from '~/market/orders/guard'
@@ -81,11 +82,17 @@ const MODIFIED_LIVE = liveSurpriseText('modify')
 /** The same, in the one line a toast holds once the sheet has gone. */
 const MODIFIED_LIVE_LINE = 'Modified in LIVE mode. The server switched to LIVE after your review.'
 
-export function ModifySheet({ orderid }: { orderid: string }) {
+/**
+ * `preset` only fills the form's price and trigger (a drag on the chart): the mode badge, the
+ * rules and the confirm are the sheet's own. `source: 'chart'` sends the change as 'mobile-chart'.
+ */
+type Start = { preset?: ModifyPreset; source?: 'chart' }
+
+export function ModifySheet({ orderid, preset, source }: { orderid: string } & Start) {
   return (
     <View style={styles.fill} testID="modify-screen">
       <BrokerBanner />
-      <OpenOrder orderid={orderid} />
+      <OpenOrder orderid={orderid} preset={preset} source={source} />
     </View>
   )
 }
@@ -97,7 +104,7 @@ export function ModifySheet({ orderid }: { orderid: string }) {
  * the row is read afresh before the form shows: a modify sets absolute values, so a form from
  * before that write would undo it.
  */
-function OpenOrder({ orderid }: { orderid: string }) {
+function OpenOrder({ orderid, preset, source }: { orderid: string } & Start) {
   const s = useServices()
   const trading = useTrading()
   const blocked = useBrokerBlocked()
@@ -180,7 +187,7 @@ function OpenOrder({ orderid }: { orderid: string }) {
     if (row) {
       // a fresh read starts the form again from that row
       return isWorking(row) ? (
-        <Instrument key={held?.read ?? 0} row={row} me={me} />
+        <Instrument key={held?.read ?? 0} row={row} me={me} preset={preset} source={source} />
       ) : (
         <EmptyState title={GONE} />
       )
@@ -202,7 +209,7 @@ function OpenOrder({ orderid }: { orderid: string }) {
 }
 
 /** The contract's metadata decides the rest: unknown shows only that, and takes no feed slot. */
-function Instrument({ row, me }: { row: OrderRow; me: object }) {
+function Instrument({ row, me, preset, source }: { row: OrderRow; me: object } & Start) {
   const s = useServices()
   const refused = useIsUnknown(row.exchange, row.symbol)
   const inst = useInstrument(row.exchange, row.symbol)
@@ -217,7 +224,8 @@ function Instrument({ row, me }: { row: OrderRow; me: object }) {
       </View>
     )
   }
-  if (inst.meta) return <ModifyForm row={row} meta={inst.meta} me={me} />
+  if (inst.meta)
+    return <ModifyForm row={row} meta={inst.meta} me={me} preset={preset} source={source} />
   if (inst.loading) return <Skeleton />
   const queryKey = qk.symbol(s.profile.get().id, row.exchange, row.symbol)
   return (
@@ -234,13 +242,23 @@ type Form = { pricetype: PriceType | null; qty: number; price?: number; trigger?
 const positive = (n: number | undefined): n is number => n !== undefined && n > 0
 
 /** The row as the form shows it: lots on a derivative, and only the prices it carries. */
-function initialForm(row: OrderRow, meta: InstrumentMeta): Form {
+function initialForm(row: OrderRow, meta: InstrumentMeta, preset?: ModifyPreset): Form {
   const pt = row.pricetype.trim().toUpperCase()
   return {
     pricetype: PRICE_TYPES.find((t) => t === pt) ?? null,
     qty: meta.lots ? row.quantity / meta.lotsize : row.quantity,
-    price: positive(row.price) ? row.price : undefined,
-    trigger: positive(row.trigger_price) ? row.trigger_price : undefined,
+    price:
+      preset?.price !== undefined
+        ? snapPrice(preset.price, meta)
+        : positive(row.price)
+          ? row.price
+          : undefined,
+    trigger:
+      preset?.trigger_price !== undefined
+        ? snapPrice(preset.trigger_price, meta)
+        : positive(row.trigger_price)
+          ? row.trigger_price
+          : undefined,
   }
 }
 
@@ -275,7 +293,13 @@ type Step =
   | { kind: 'modified_live' }
 
 /** `me` is this sheet, as the session's writes still out know it. */
-function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me: object }) {
+function ModifyForm({
+  row,
+  meta,
+  me,
+  preset,
+  source,
+}: { row: OrderRow; meta: InstrumentMeta; me: object } & Start) {
   const s = useServices()
   const trading = useTrading()
   const router = useRouter()
@@ -284,7 +308,7 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
   const guard = useSubmitGuard()
   const readBook = useFreshBook()
   const ltp = useLiveQuote(row.exchange, row.symbol, 1)?.ltp
-  const [form, setForm] = useState(() => initialForm(row, meta))
+  const [form, setForm] = useState(() => initialForm(row, meta, preset))
   const [step, setStep] = useState<Step>({ kind: 'edit' })
   const [mode, setMode] = useState<{ now: AnalyzerMode | null; error?: unknown }>({ now: null })
   /** This sheet's change is held on the order for the session until its outcome is known. */
@@ -376,7 +400,10 @@ function ModifyForm({ row, meta, me }: { row: OrderRow; meta: InstrumentMeta; me
         const out = await submitOrderAction({
           kind: 'modify',
           shownMode,
-          send: () => trading.orders.modify(row, change),
+          send: () =>
+            trading.orders.modify(row, change, {
+              strategy: source === 'chart' ? 'mobile-chart' : 'mobile',
+            }),
           gate: trading.analyzer,
           confirmLive: confirmLiveOrder,
           books: s.books,

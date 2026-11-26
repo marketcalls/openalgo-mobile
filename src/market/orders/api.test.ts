@@ -184,6 +184,48 @@ describe('createOrderApi', () => {
   )
 })
 
+describe('the strategy option', () => {
+  const sig = { signal: new AbortController().signal }
+
+  test('smartClose, modify and cancel send mobile-chart on request, and keep the other options', async () => {
+    const { orders, calls } = fakeApi({
+      placesmartorder: { status: 'success', orderid: '1' },
+      modifyorder: { status: 'success', orderid: ROW.orderid },
+      cancelorder: { status: 'success', orderid: ROW.orderid },
+    })
+    await orders.smartClose(POSITION, { ...sig, strategy: 'mobile-chart' })
+    await orders.modify(ROW, { price: 16.4 }, { ...sig, strategy: 'mobile-chart' })
+    await orders.cancel(ROW.orderid, { ...sig, strategy: 'mobile-chart' })
+    expect(calls.map((c) => c.body.strategy)).toEqual([
+      'mobile-chart',
+      'mobile-chart',
+      'mobile-chart',
+    ])
+    // the strategy is a body field, not a request option
+    expect(calls.map((c) => c.o)).toEqual([sig, sig, sig])
+  })
+
+  test('place and split send the strategy of the spec', async () => {
+    const { orders, calls } = fakeApi({
+      placeorder: { status: 'success', orderid: '1' },
+      splitorder: splitOrder,
+    })
+    await orders.place({ ...SPEC, strategy: 'mobile-chart' })
+    await orders.split({ ...SPEC, quantity: 105, strategy: 'mobile-chart' }, 20)
+    expect(calls.map((c) => c.body.strategy)).toEqual(['mobile-chart', 'mobile-chart'])
+  })
+
+  test('without it every write is mobile', async () => {
+    const { orders, calls } = fakeApi({
+      placesmartorder: { status: 'success', orderid: '1' },
+      cancelorder: { status: 'success', orderid: ROW.orderid },
+    })
+    await orders.smartClose(POSITION)
+    await orders.cancel(ROW.orderid, {})
+    expect(calls.map((c) => c.body.strategy)).toEqual(['mobile', 'mobile'])
+  })
+})
+
 /** The order API over the real HTTP client, so a reply goes through its classification. */
 function overHttp(routes: Record<string, Route>) {
   const fetch = scriptedFetch(routes)

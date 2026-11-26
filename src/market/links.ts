@@ -53,10 +53,24 @@ export function ticketHref(p: TicketParams): string {
     ['price', p.price],
     ['product', p.product],
     ['quantity', p.quantity],
+    ['trigger', p.trigger],
+    ['source', p.source],
   ])
 }
 
-export const modifyHref = (orderid: string) => `/order/${enc(orderid)}/modify`
+/** What a link into the modify sheet can preset: a new price or trigger for the order. */
+export type ModifyPreset = { price?: number; trigger_price?: number }
+
+/** The sheet only fills its fields from a preset; `source: 'chart'` sends the change as 'mobile-chart'. */
+export function modifyHref(orderid: string, o: ModifyPreset & { source?: 'chart' } = {}): string {
+  const path = `/order/${enc(orderid)}/modify`
+  const q: [string, number | string | undefined][] = [
+    ['price', o.price],
+    ['trigger_price', o.trigger_price],
+    ['source', o.source],
+  ]
+  return q.some(([, v]) => v !== undefined) ? withQuery(path, q) : path
+}
 
 /** What a link into the GTT ticket can preset. `quantity` is in units, whatever the exchange. */
 export type GttParams = { exchange: string; symbol: string; action?: Side; quantity?: number }
@@ -101,6 +115,12 @@ function quantityOf(v: string): number | null {
   return Number.isInteger(n) && n >= 1 ? n : null
 }
 
+/** A price param that an order can carry: finite and above 0, else null. */
+function positiveOf(v: string): number | null {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 /**
  * Ticket presets from route params. Null when any given field is invalid, so a broken link
  * opens an "incomplete" message rather than a half-filled ticket. A quote-only exchange
@@ -136,6 +156,44 @@ export function parseTicketParams(raw: Raw): TicketParams | null {
     const n = quantityOf(qty)
     if (n === null) return null
     out.quantity = n
+  }
+  const trigger = one(raw, 'trigger')
+  if (trigger !== undefined) {
+    const n = positiveOf(trigger)
+    if (n === null) return null
+    out.trigger = n
+  }
+  const src = one(raw, 'source')
+  if (src !== undefined) {
+    if (src !== 'chart') return null
+    out.source = src
+  }
+  return out
+}
+
+/**
+ * Modify presets from route params (the order id is the route's own and not read here). `{}` when
+ * none is given; null when one is invalid, so a broken link opens an "incomplete" message rather
+ * than a sheet that quietly ignores it.
+ */
+export function parseModifyParams(raw: Raw): (ModifyPreset & { source?: 'chart' }) | null {
+  const out: ModifyPreset & { source?: 'chart' } = {}
+  const price = one(raw, 'price')
+  if (price !== undefined) {
+    const n = positiveOf(price)
+    if (n === null) return null
+    out.price = n
+  }
+  const trigger = one(raw, 'trigger_price')
+  if (trigger !== undefined) {
+    const n = positiveOf(trigger)
+    if (n === null) return null
+    out.trigger_price = n
+  }
+  const src = one(raw, 'source')
+  if (src !== undefined) {
+    if (src !== 'chart') return null
+    out.source = src
   }
   return out
 }

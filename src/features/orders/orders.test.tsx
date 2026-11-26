@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native'
-import { Alert, type AlertButton, BackHandler, Linking } from 'react-native'
+import { Alert, type AlertButton, BackHandler, Linking, Pressable } from 'react-native'
 import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import OrdersTab from '~/app/(app)/(tabs)/orders'
 import ModifyOrderRoute from '~/app/(app)/order/[id]/modify'
@@ -18,6 +18,7 @@ import {
   type Services,
   ServicesProvider,
 } from '~/core/services/services'
+import type { OrderRow } from '~/market/books/schemas'
 import { BrokerBanner } from '~/market/components/SessionBanners'
 import { CHECKING } from '~/market/orders/outcome'
 import { CONFIRM_FAILED, liveSurpriseText } from '~/market/orders/submit'
@@ -36,6 +37,7 @@ import {
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { earlierChange, ORDER_OUT, ROW_OUT } from './hooks/useOrderWrites'
+import { orderSummary, useOrderWrites } from './index'
 import { MODIFY_HOLD, MODIFY_STILL_SENDING } from './screens/ModifySheet'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
@@ -191,7 +193,32 @@ async function setup(
   return s
 }
 
-type Shown = 'orders' | 'modify'
+/** What the chart does: a cancel of its own, through the feature's index, tagged 'mobile-chart'. */
+function ChartCancel() {
+  const w = useOrderWrites()
+  const row = {
+    orderid: 'A1',
+    symbol: 'YESBANK',
+    exchange: 'NSE',
+    action: 'BUY',
+    product: 'MIS',
+    pricetype: 'LIMIT',
+    quantity: 1,
+    price: 16.5,
+    trigger_price: 0,
+    status: 'open',
+    timestamp: '',
+    placedAt: null,
+  } as OrderRow
+  return (
+    <Pressable
+      testID="chart-cancel"
+      onPress={() => w.cancel(row, orderSummary(row, undefined), { strategy: 'mobile-chart' })}
+    />
+  )
+}
+
+type Shown = 'orders' | 'modify' | 'chart'
 
 /** The app shell: the Orders tab under the tabs layout's own broker banner (ruling 9). */
 const tree = (s: Services, shown: readonly Shown[]) => (
@@ -210,6 +237,7 @@ const tree = (s: Services, shown: readonly Shown[]) => (
                 </>
               ) : null}
               {shown.includes('modify') ? <ModifyOrderRoute /> : null}
+              {shown.includes('chart') ? <ChartCancel /> : null}
               <ToastHost />
             </LiveContext.Provider>
           </TickStoreContext.Provider>
@@ -231,8 +259,11 @@ async function show(shown: readonly Shown[]) {
 }
 
 /** The modify sheet for `id` over the Orders tab, as the stack shows it. */
-async function openModify(id: string, o: { alone?: boolean } = {}) {
-  mockParams = { id }
+async function openModify(
+  id: string,
+  o: { alone?: boolean; preset?: Record<string, string> } = {},
+) {
+  mockParams = { id, ...o.preset }
   await show(o.alone ? ['modify'] : ['orders', 'modify'])
   // the reads it makes wait their turn in the read bucket
   await pass(1_000)
@@ -664,6 +695,23 @@ describe('cancel', () => {
   })
 })
 
+describe('from the chart', () => {
+  test('a chart cancel asks the same confirm and sends mobile-chart; the tab keeps mobile', async () => {
+    await setup({ 'POST /api/v1/cancelorder': ok({ status: 'success', orderid: 'A1' }) })
+    await show(['orders', 'chart'])
+    await press('chart-cancel')
+    expect(asked.map((a) => [a.title, a.body])).toEqual([
+      ['LIVE · Cancel this order?', 'BUY LIMIT 1 YESBANK @ 16.50 · MIS'],
+    ])
+    expect(bodyOf('cancelorder')).toEqual({ apikey: KEY, orderid: 'A1', strategy: 'mobile-chart' })
+
+    await pass(200)
+    await press('order-row-A1')
+    await press('order-cancel')
+    expect(bodyOf('cancelorder', 1)).toMatchObject({ strategy: 'mobile' })
+  })
+})
+
 describe('cancel all', () => {
   const twoOpen = () =>
     book([
@@ -796,6 +844,54 @@ describe('modify', () => {
     expect(Object.keys(sent)).toHaveLength(12)
     expect(text('toast')).toBe('Order modified')
     expect(mockRouter.back).toHaveBeenCalledTimes(1)
+  })
+
+  test('a modify preset fills the sheet and still needs the confirm; a chart one sends mobile-chart', async () => {
+    await setup({ 'POST /api/v1/modifyorder': ok({ status: 'success', orderid: 'A1' }) })
+    await show(['orders'])
+    await openModify('A1', { preset: { price: '17.03', source: 'chart' } })
+    // the price snaps to the tick (0.05) and shows; nothing has been sent
+    expect(screen.getByTestId('modify-price').props.value).toBe('17.05')
+    expect(text('modify-mode-badge')).toBe('LIVE')
+    expect(requests('modifyorder')).toHaveLength(0)
+    expect(disabled('modify-confirm')).toBe(false)
+    await press('modify-confirm')
+    expect(requests('modifyorder')).toHaveLength(1)
+    expect(bodyOf('modifyorder')).toMatchObject({
+      strategy: 'mobile-chart',
+      price: 17.05,
+      quantity: 1,
+    })
+  })
+
+  test('a trigger preset fills an SL order, and its form rules still apply', async () => {
+    await setup({
+      'POST /api/v1/orderbook': book([
+        order({
+          pricetype: 'SL',
+          price: 16.5,
+          trigger_price: 16.4,
+          order_status: 'trigger pending',
+        }),
+      ]),
+      'POST /api/v1/modifyorder': ok({ status: 'success', orderid: 'A1' }),
+    })
+    await show(['orders'])
+    await openModify('A1', { preset: { trigger_price: '16.2' } })
+    expect(screen.getByTestId('modify-trigger').props.value).toBe('16.2')
+    expect(screen.getByTestId('modify-price').props.value).toBe('16.5')
+    expect(requests('modifyorder')).toHaveLength(0)
+    await press('modify-confirm')
+    // no source: the sheet's own write, as ever
+    expect(bodyOf('modifyorder')).toMatchObject({ strategy: 'mobile', trigger_price: 16.2 })
+  })
+
+  test('a bad preset opens the incomplete message, not the sheet', async () => {
+    await setup()
+    await show(['orders'])
+    await openModify('A1', { preset: { price: 'x' } })
+    expect(screen.queryByTestId('modify-screen')).toBeNull()
+    expect(screen.getByText('This link is incomplete.')).toBeTruthy()
   })
 
   test('a 400 keeps the sheet open with the message', async () => {

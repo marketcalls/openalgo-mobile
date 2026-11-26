@@ -42,7 +42,7 @@ import { useFreshBook } from '~/market/orders/useFreshBook'
 import type { BookSnapshot } from '~/market/orders/useReviewBook'
 import { openServerPage, useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
-import type { TicketParams } from '~/market/types'
+import type { Strategy, TicketParams } from '~/market/types'
 import { ErrorState } from '~/ui/ErrorState'
 import { fmtQty } from '~/ui/format'
 import { Skeleton } from '~/ui/Skeleton'
@@ -399,9 +399,12 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
         const sent: Sent = { at: Date.now(), knownIds: new Set(), complete: false }
         const send = (): Promise<PlaceReply | SplitReply> => {
           Object.assign(sent, book.snapshot(), { at: Date.now() })
+          // an order that starts on the chart is told apart on the server by its strategy
+          const strategy: Strategy = params.source === 'chart' ? 'mobile-chart' : 'mobile'
+          const spec = { ...p.spec, strategy }
           return p.kind === 'split'
-            ? trading.orders.split(p.spec, p.splitsize)
-            : trading.orders.place(p.spec)
+            ? trading.orders.split(spec, p.splitsize)
+            : trading.orders.place(spec)
         }
         const out = await submitOrderAction({
           kind: p.kind === 'split' ? 'split' : 'place',

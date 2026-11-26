@@ -11,6 +11,7 @@ import { reconcileCancelAll } from '~/market/orders/reconcile'
 import { useConfirmedWrite } from '~/market/orders/useConfirmedWrite'
 import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useTrading } from '~/market/trading'
+import type { Strategy } from '~/market/types'
 
 export const NOT_READ = "The order book can't be read right now."
 export const MODIFIED = 'Order modified'
@@ -39,8 +40,8 @@ export function useOrderWrites() {
   const readBook = useFreshBook()
   const { run: write, ...notices } = useConfirmedWrite({ scopeOut: ROW_OUT })
 
-  /** `summary` is the row's one line, the confirm's body. */
-  const cancel = (row: OrderRow, summary: string) =>
+  /** `summary` is the row's one line, the confirm's body; a cancel from the chart is 'mobile-chart'. */
+  const cancel = (row: OrderRow, summary: string, o?: { strategy?: Strategy }) =>
     write({
       kind: 'cancel',
       endpoint: 'cancelorder',
@@ -51,7 +52,7 @@ export function useOrderWrites() {
         ok: 'Cancel order',
         cancel: 'Keep order',
       },
-      send: () => trading.orders.cancel(row.orderid),
+      send: () => trading.orders.cancel(row.orderid, { strategy: o?.strategy }),
       unknown: (reply) => reply.kind === 'no_id',
       done: (reply) => ({
         line: sandboxed(CANCELLED, reply.kind === 'ok' && reply.analyze),

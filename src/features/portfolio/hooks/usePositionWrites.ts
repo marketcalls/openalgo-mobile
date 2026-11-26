@@ -31,6 +31,7 @@ import {
 import { type ActionKind, liveSurpriseText, submitOrderAction } from '~/market/orders/submit'
 import { useFreshBook } from '~/market/orders/useFreshBook'
 import { useTrading } from '~/market/trading'
+import type { Strategy } from '~/market/types'
 import { toast } from '~/ui/Toast'
 
 export const NOT_READ = "The positions can't be read right now."
@@ -239,7 +240,8 @@ export function usePositionWrites() {
     return warn(exit.checked ? stillOpenNoExit(qty) : stillOpen(qty))
   }
 
-  const closeOne = (row: PositionRow) => {
+  /** A close from the chart is 'mobile-chart'. */
+  const closeOne = (row: PositionRow, o?: { strategy?: Strategy }) => {
     let sentAt = Date.now()
     return write({
       kind: 'closeOne',
@@ -253,7 +255,7 @@ export function usePositionWrites() {
       },
       send: () => {
         sentAt = Date.now()
-        return trading.orders.smartClose(row)
+        return trading.orders.smartClose(row, { strategy: o?.strategy })
       },
       unknown: (reply) => reply.kind === 'no_id',
       done: (reply) => {

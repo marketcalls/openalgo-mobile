@@ -1,6 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native'
-import { Alert, type AlertButton, Linking } from 'react-native'
+import { Alert, type AlertButton, Linking, Pressable } from 'react-native'
 import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import PortfolioTab from '~/app/(app)/(tabs)/portfolio'
 import type { Capabilities } from '~/core/capabilities/gates'
@@ -17,6 +17,7 @@ import {
   type Services,
   ServicesProvider,
 } from '~/core/services/services'
+import type { PositionRow } from '~/market/books/schemas'
 import { chartHref, ticketHref } from '~/market/links'
 import { TradingProvider } from '~/market/trading'
 import { ToastHost } from '~/ui/Toast'
@@ -26,6 +27,7 @@ import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
+import { usePositionWrites } from './index'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
@@ -154,7 +156,16 @@ const pass = (ms: number) =>
     await jest.advanceTimersByTimeAsync(ms)
   })
 
-async function show() {
+/** What the chart does: a close of its own, through the feature's index, tagged 'mobile-chart'. */
+function ChartClose() {
+  const w = usePositionWrites()
+  const row = { symbol: 'RELIANCE', exchange: 'NSE', product: 'CNC', quantity: 10 } as PositionRow
+  return (
+    <Pressable testID="chart-close" onPress={() => w.closeOne(row, { strategy: 'mobile-chart' })} />
+  )
+}
+
+async function show(o: { chart?: boolean } = {}) {
   if (!services) throw new Error('setup first')
   await render(
     <SafeAreaInsetsContext.Provider value={INSETS}>
@@ -170,6 +181,7 @@ async function show() {
                 }}
               >
                 <PortfolioTab />
+                {o.chart ? <ChartClose /> : null}
                 <ToastHost />
               </LiveContext.Provider>
             </TickStoreContext.Provider>
@@ -315,6 +327,15 @@ describe('close one', () => {
       disclosed_quantity: '0',
     })
     expect(text('toast')).toBe('Close order sent')
+  })
+
+  test('a chart close sends mobile-chart, behind the same confirm', async () => {
+    await setup({ 'POST /api/v1/placesmartorder': placed })
+    await show({ chart: true })
+    await press('chart-close')
+    expect(asked.map((a) => a.title)).toEqual(['LIVE · Close RELIANCE CNC?'])
+    expect(requests('placesmartorder')).toHaveLength(1)
+    expect(bodyOf('placesmartorder')).toMatchObject({ strategy: 'mobile-chart', product: 'CNC' })
   })
 
   test('a flat reply says "Already flat"', async () => {

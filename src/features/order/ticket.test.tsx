@@ -526,6 +526,64 @@ describe('review and send', () => {
     expect(mockRouter.back).toHaveBeenCalledTimes(1)
   })
 
+  test('a chart ticket places with strategy mobile-chart, and nothing else changes', async () => {
+    await setup()
+    await open({ ...RELIANCE, source: 'chart' })
+    await toReview()
+    await confirm()
+    expect(requests('placeorder')).toHaveLength(1)
+    expect(bodyOf('placeorder')).toEqual({
+      apikey: KEY,
+      strategy: 'mobile-chart',
+      exchange: 'NSE',
+      symbol: 'RELIANCE',
+      action: 'BUY',
+      quantity: 1,
+      pricetype: 'MARKET',
+      product: 'CNC',
+      price: 0,
+      trigger_price: 0,
+      disclosed_quantity: 0,
+    })
+  })
+
+  test('a chart ticket above the freeze limit splits with mobile-chart too', async () => {
+    await setup({
+      'POST /api/v1/splitorder': ok({
+        status: 'success',
+        total_quantity: 1820,
+        split_size: 1755,
+        results: [
+          { order_num: 1, quantity: 1755, status: 'success', orderid: 'S1' },
+          { order_num: 2, quantity: 65, status: 'success', orderid: 'S2' },
+        ],
+      }),
+    })
+    await open({ ...NIFTY_FUT, source: 'chart' })
+    await type('ticket-qty', '28')
+    await toReview()
+    await confirm()
+    expect(bodyOf('splitorder')).toMatchObject({ strategy: 'mobile-chart', splitsize: 1755 })
+  })
+
+  test('a stop link opens as SL with price and trigger set', async () => {
+    await setup()
+    await open({ ...RELIANCE, action: 'SELL', price: 1400, trigger: 1405, source: 'chart' })
+    expect(selected('ticket-type-SL')).toBe(true)
+    expect(screen.getByTestId('ticket-price').props.value).toBe('1400')
+    expect(screen.getByTestId('ticket-trigger').props.value).toBe('1405')
+    expect(disabled('ticket-review')).toBe(false)
+    await toReview()
+    await confirm()
+    expect(bodyOf('placeorder')).toMatchObject({
+      strategy: 'mobile-chart',
+      action: 'SELL',
+      pricetype: 'SL',
+      price: 1400,
+      trigger_price: 1405,
+    })
+  })
+
   test('after "Order placed" the book says what became of it: a broker rejection in danger', async () => {
     const error = jest.spyOn(haptics, 'notifyError')
     let placed = false

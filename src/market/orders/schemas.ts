@@ -5,12 +5,12 @@ import { z } from 'zod'
 import { int, num } from '~/core/http/coerce'
 import { envelope } from '~/core/http/schemas'
 import { type OrderRow, orderId, type PositionRow } from '../books/schemas'
-import type { PriceType, Product, Side } from '../types'
+import type { PriceType, Product, Side, Strategy } from '../types'
 
 // --- Requests --------------------------------------------------------------------------
 
 /** The strategy label on every order and GTT write (design 7.10). */
-export const STRATEGY = 'mobile'
+export const STRATEGY: Strategy = 'mobile'
 
 export type OrderSpec = {
   exchange: string
@@ -22,6 +22,8 @@ export type OrderSpec = {
   product: Product
   price: number
   trigger_price: number
+  /** Default 'mobile'; 'mobile-chart' when the order starts on the chart. */
+  strategy?: Strategy
 }
 
 /** What modify can change; every other field is the row's own. */
@@ -39,7 +41,7 @@ function priceFields(pricetype: string, price: number, trigger: number) {
 
 export function placeBody(o: OrderSpec) {
   return {
-    strategy: STRATEGY,
+    strategy: o.strategy ?? STRATEGY,
     exchange: o.exchange,
     symbol: o.symbol,
     action: o.action,
@@ -57,9 +59,9 @@ export const splitBody = (o: OrderSpec, size: number) => ({ ...placeBody(o), spl
 export type PositionToClose = Pick<PositionRow, 'symbol' | 'exchange' | 'product' | 'quantity'>
 
 /** Closes one net position at market: position_size 0 for the row's own product. */
-export function smartCloseBody(row: PositionToClose) {
+export function smartCloseBody(row: PositionToClose, s: Strategy = STRATEGY) {
   return {
-    strategy: STRATEGY,
+    strategy: s,
     exchange: row.exchange,
     symbol: row.symbol,
     product: row.product,
@@ -75,11 +77,11 @@ export function smartCloseBody(row: PositionToClose) {
 }
 
 /** All twelve fields are required (with the apikey); the row has no disclosed quantity, so 0. */
-export function modifyBody(row: OrderRow, change: ModifyChange) {
+export function modifyBody(row: OrderRow, change: ModifyChange, s: Strategy = STRATEGY) {
   const pricetype = change.pricetype ?? row.pricetype
   return {
     orderid: row.orderid,
-    strategy: STRATEGY,
+    strategy: s,
     symbol: row.symbol,
     action: row.action,
     exchange: row.exchange,
@@ -95,7 +97,7 @@ export function modifyBody(row: OrderRow, change: ModifyChange) {
   }
 }
 
-export const cancelBody = (orderid: string) => ({ orderid, strategy: STRATEGY })
+export const cancelBody = (orderid: string, s: Strategy = STRATEGY) => ({ orderid, strategy: s })
 
 /** Cancel all and close all take the strategy only; any other field gets a 400. */
 export const cancelAllBody = () => ({ strategy: STRATEGY })

@@ -380,6 +380,31 @@ describe('request bodies (C3)', () => {
     })
   })
 
+  test('chart writes carry mobile-chart and every other write mobile', () => {
+    const row = { symbol: 'NHPC', exchange: 'NSE', product: 'MIS', quantity: -1 }
+    expect(placeBody({ ...SPEC, strategy: 'mobile-chart' }).strategy).toBe('mobile-chart')
+    expect(splitBody({ ...SPEC, strategy: 'mobile-chart' }, 5).strategy).toBe('mobile-chart')
+    expect(smartCloseBody(row, 'mobile-chart').strategy).toBe('mobile-chart')
+    expect(modifyBody(ROW, { price: 1185 }, 'mobile-chart').strategy).toBe('mobile-chart')
+    expect(cancelBody('250408000989443', 'mobile-chart')).toEqual({
+      orderid: '250408000989443',
+      strategy: 'mobile-chart',
+    })
+    // the default and an explicit 'mobile' are the same tag
+    expect(placeBody(SPEC).strategy).toBe('mobile')
+    expect(placeBody({ ...SPEC, strategy: 'mobile' }).strategy).toBe('mobile')
+    expect(smartCloseBody(row).strategy).toBe('mobile')
+    expect(modifyBody(ROW, {}).strategy).toBe('mobile')
+    expect(cancelBody('1').strategy).toBe('mobile')
+    // the tag changes nothing else in the body
+    expect({ ...placeBody({ ...SPEC, strategy: 'mobile-chart' }), strategy: 'mobile' }).toEqual(
+      placeBody(SPEC),
+    )
+    // cancel all and close all are never chart writes
+    expect(cancelAllBody().strategy).toBe('mobile')
+    expect(closeAllBody().strategy).toBe('mobile')
+  })
+
   test('cancel, cancel all and close all', () => {
     expect(cancelBody('250408000989443')).toEqual({
       orderid: '250408000989443',

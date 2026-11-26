@@ -10,6 +10,7 @@ import {
   ordersHref,
   parseGttParams,
   parseKey,
+  parseModifyParams,
   parseTicketParams,
   searchHref,
   ticketHref,
@@ -169,6 +170,58 @@ describe('other links', () => {
     expect(href).toBe('/order/250408%2F00%2098/modify')
     expect(decodeURIComponent(href.split('/')[2] ?? '')).toBe(id)
     expect(href.endsWith('/modify')).toBe(true)
+  })
+
+  test('ticket links round-trip source=chart and trigger', () => {
+    const p = {
+      exchange: 'NSE',
+      symbol: 'RELIANCE',
+      action: 'SELL' as const,
+      price: 1419.9,
+      trigger: 1421,
+      source: 'chart' as const,
+    }
+    const href = ticketHref(p)
+    expect(query(href)).toMatchObject({ source: 'chart', trigger: '1421' })
+    expect(parseTicketParams(query(href))).toEqual(p)
+    // neither is written when unset
+    expect(query(ticketHref({ exchange: 'NSE', symbol: 'SBIN', action: 'BUY' }))).toEqual({
+      exchange: 'NSE',
+      symbol: 'SBIN',
+      action: 'BUY',
+    })
+  })
+
+  test('a ticket link with a bad source or trigger does not parse', () => {
+    const base = { exchange: 'NSE', symbol: 'SBIN', action: 'BUY' }
+    for (const bad of [{ source: 'web' }, { trigger: '0' }, { trigger: '-1' }, { trigger: 'x' }]) {
+      expect(parseTicketParams({ ...base, ...bad })).toBeNull()
+    }
+  })
+
+  test('modify links carry a price or trigger preset; a bad preset does not parse', () => {
+    expect(modifyHref('1')).toBe('/order/1/modify')
+    const href = modifyHref('250408/00 98', { price: 101.5, trigger_price: 100, source: 'chart' })
+    expect(href.startsWith('/order/250408%2F00%2098/modify?')).toBe(true)
+    expect(parseModifyParams(query(href))).toEqual({
+      price: 101.5,
+      trigger_price: 100,
+      source: 'chart',
+    })
+    expect(parseModifyParams(query(modifyHref('1', { price: 5 })))).toEqual({ price: 5 })
+    // the route's own id param is not a preset, and no preset is an empty one
+    expect(parseModifyParams({ id: '1' })).toEqual({})
+    expect(parseModifyParams({ id: ['1'], price: ['7'] })).toEqual({ price: 7 })
+    for (const bad of [
+      { price: 'x' },
+      { price: '0' },
+      { price: '-2' },
+      { trigger_price: 'NaN' },
+      { trigger_price: '0' },
+      { source: 'web' },
+    ]) {
+      expect(parseModifyParams({ id: '1', ...bad })).toBeNull()
+    }
   })
 
   test('tools, orders and backup', () => {

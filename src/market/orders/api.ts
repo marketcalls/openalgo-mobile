@@ -9,6 +9,7 @@ import {
   PositionbookSchema,
   TradebookSchema,
 } from '../books/schemas'
+import type { Strategy } from '../types'
 import {
   CancelAllReplySchema,
   CloseAllReplySchema,
@@ -30,18 +31,21 @@ import {
   splitBody,
 } from './schemas'
 
+/** The options of a write that can start on the chart: its strategy is a body field, not an option. */
+type WriteOptions = RequestOptions & { strategy?: Strategy }
+
 export function createOrderApi(api: Api) {
   return {
     place: (o: OrderSpec, opts?: RequestOptions) =>
       api.call('placeorder', placeBody(o), PlaceReplySchema, opts),
     split: (o: OrderSpec, size: number, opts?: RequestOptions) =>
       api.call('splitorder', splitBody(o, size), SplitReplySchema, opts),
-    smartClose: (row: PositionToClose, opts?: RequestOptions) =>
-      api.call('placesmartorder', smartCloseBody(row), SmartReplySchema, opts),
-    modify: (row: OrderRow, change: ModifyChange, opts?: RequestOptions) =>
-      api.call('modifyorder', modifyBody(row, change), IdReplySchema, opts),
-    cancel: (orderid: string, opts?: RequestOptions) =>
-      api.call('cancelorder', cancelBody(orderid), IdReplySchema, opts),
+    smartClose: (row: PositionToClose, { strategy, ...opts }: WriteOptions = {}) =>
+      api.call('placesmartorder', smartCloseBody(row, strategy), SmartReplySchema, opts),
+    modify: (row: OrderRow, change: ModifyChange, { strategy, ...opts }: WriteOptions = {}) =>
+      api.call('modifyorder', modifyBody(row, change, strategy), IdReplySchema, opts),
+    cancel: (orderid: string, { strategy, ...opts }: WriteOptions = {}) =>
+      api.call('cancelorder', cancelBody(orderid, strategy), IdReplySchema, opts),
     cancelAll: (opts?: RequestOptions) =>
       api.call('cancelallorder', cancelAllBody(), CancelAllReplySchema, opts),
     closeAll: (opts?: RequestOptions) =>

@@ -77,7 +77,8 @@ export function initialTicket(p: TicketParams, meta: InstrumentMeta): TicketStat
       p.product && productOptionsFor(p.exchange).includes(p.product)
         ? p.product
         : defaultProduct(p.exchange),
-    pricetype: p.pricetype ?? 'MARKET',
+    // a stop link names a trigger and no type: it is an SL
+    pricetype: p.pricetype ?? (p.trigger === undefined ? 'MARKET' : 'SL'),
     qty:
       p.quantity === undefined
         ? 1
@@ -86,6 +87,7 @@ export function initialTicket(p: TicketParams, meta: InstrumentMeta): TicketStat
           : p.quantity,
   }
   if (p.price !== undefined) t.price = snap(p.price, meta)
+  if (p.trigger !== undefined) t.trigger = snap(p.trigger, meta)
   return t
 }
 
