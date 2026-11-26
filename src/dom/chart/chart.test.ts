@@ -13,7 +13,7 @@ import {
   registeredSeriesTransforms,
   SessionCalendar,
 } from 'openalgo-charts'
-import type { AsyncStorageLike } from 'openalgo-charts/widget'
+import { type AsyncStorageLike, createWidget } from 'openalgo-charts/widget'
 import { act, createElement, type ReactElement } from 'react'
 import {
   type CalendarSpecJson,
@@ -34,7 +34,7 @@ import { createChartFeeds } from './feeds'
 import { ensureInterval, pickInterval, widgetIntervals } from './intervals'
 import { DOM_BUNDLE } from './marker'
 import { stubCanvas } from './testCanvas'
-import { chartTheme } from './theme'
+import { chartTheme, keepAppPalette } from './theme'
 import { LOADING, savedInterval, widgetOptions } from './widgetOptions'
 
 const NSE: CalendarSpecJson = {
@@ -252,6 +252,82 @@ describe('widget options and theme', () => {
     expect(tokens.trade.dark.buy).toBe('#00a63e')
     expect(tokens.trade.light.sell).toBe('#e7000b')
   })
+
+  /** A widget with the page's options and an empty history, outside ChartDom. */
+  function openWidget() {
+    const container = document.createElement('div')
+    document.body.append(container)
+    const feed = { getBars: async () => [] }
+    const w = createWidget(
+      container,
+      widgetOptions(INIT, { scheme: 'dark', feed, storage: storage() }),
+    )
+    return { w, container }
+  }
+
+  test("the widget's own Theme control keeps BUY green and SELL red", async () => {
+    const { w, container } = openWidget()
+    const seen: string[] = []
+    const tick = () => new Promise((r) => setTimeout(r, 0))
+    try {
+      const stop = keepAppPalette(w)
+      w.on('theme', (e) => seen.push(e.chartTheme.upColor))
+      for (const name of ['light', 'dark'] as const) {
+        seen.length = 0
+        // What the topbar's Theme button and the mobile More sheet's theme row call.
+        w.setTheme(name)
+        await tick()
+        expect(w.theme()).toBe(name)
+        expect(w.chart.theme()).toMatchObject({
+          upColor: '#00a63e',
+          downColor: '#e7000b',
+          wickUpColor: '#00a63e',
+          wickDownColor: '#e7000b',
+          buy: '#00a63e',
+          sell: '#e7000b',
+          background: tokens[name].background,
+        })
+        // The library's palette once, then the app's, which is not applied again.
+        const lib = name === 'dark' ? darkTheme : lightTheme
+        expect(seen).toEqual([lib.upColor, '#00a63e'])
+      }
+      // A palette chartTheme built stays as it is: one event, no second setTheme.
+      seen.length = 0
+      w.setTheme(chartTheme('light'))
+      await tick()
+      expect(seen).toEqual(['#00a63e'])
+      // The app's own palette set in the same task, after the tap, is the one that stays.
+      w.setTheme('light')
+      w.setTheme(chartTheme('dark'))
+      await tick()
+      expect(w.chart.theme()).toMatchObject({
+        background: tokens.dark.background,
+        upColor: '#00a63e',
+      })
+      // Stopped, even with the app's palette already on its way back, the library's stays.
+      w.setTheme('light')
+      stop()
+      await tick()
+      expect(w.chart.theme().upColor).toBe(lightTheme.upColor)
+      w.setTheme('dark')
+      await tick()
+      expect(w.chart.theme().upColor).toBe(darkTheme.upColor)
+    } finally {
+      w.destroy()
+      container.remove()
+    }
+  })
+
+  test('a chart destroyed right after its Theme control gets no palette', async () => {
+    const { w, container } = openWidget()
+    keepAppPalette(w)
+    const setTheme = jest.spyOn(w, 'setTheme')
+    w.setTheme('light')
+    w.destroy()
+    container.remove()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(setTheme.mock.calls).toEqual([['light']])
+  })
 })
 
 describe('feeds', () => {
@@ -419,6 +495,7 @@ describe('ChartDom', () => {
     mounted.push(unmount)
     const events = () => sent.flatMap((m) => (m.kind === 'event' ? [m] : []))
     return {
+      container,
       sent,
       atLoaded,
       events,
@@ -592,6 +669,30 @@ describe('ChartDom', () => {
     expect(chart.theme()).toMatchObject({ background: tokens.dark.background, buy: '#00a63e' })
     await page.rerender('light')
     expect(chart.theme()).toMatchObject({ background: tokens.light.background, sell: '#e7000b' })
+  })
+
+  test("the chart's own Theme button keeps the app's BUY and SELL colours", async () => {
+    const applied = jest.spyOn(Chart.prototype, 'setSessionCalendar')
+    const page = await mountChart({ scheme: 'dark' })
+    page.push(CHART_TOPICS.init, INIT)
+    await waitFor(page.ready)
+    const chart = applied.mock.contexts[0] as Chart
+    const button = page.container.querySelector<HTMLButtonElement>('.oac-topbar__theme')
+    expect(button).not.toBeNull()
+    for (const scheme of ['light', 'dark'] as const) {
+      await act(async () => button?.click())
+      expect(chart.theme()).toMatchObject({
+        background: tokens[scheme].background,
+        upColor: '#00a63e',
+        downColor: '#e7000b',
+        buy: '#00a63e',
+        sell: '#e7000b',
+      })
+    }
+    // The app's scheme still wins when it changes.
+    await page.rerender('light')
+    expect(chart.theme()).toMatchObject({ background: tokens.light.background, upColor: '#00a63e' })
+    expect(page.errors()).toEqual([])
   })
 
   test('captures and exports say the page cannot save files', async () => {

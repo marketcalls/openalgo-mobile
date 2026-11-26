@@ -30,7 +30,7 @@ import { createBridgedStorage, safeLocalStorage } from '~/dom/web/storage'
 import type { SessionCalendars } from './calendars'
 import { createChartFeeds } from './feeds'
 import { DOM_BUNDLE } from './marker'
-import { chartTheme } from './theme'
+import { chartTheme, keepAppPalette } from './theme'
 import { savedInterval, widgetOptions } from './widgetOptions'
 
 type Scheme = ChartDomProps['scheme']
@@ -98,6 +98,7 @@ function openPage(
   let disposed = false
   let widget: Widget | null = null
   let live: OpenAlgoLiveDataFeed | null = null
+  let stopPalette: (() => void) | null = null
   let calendars: SessionCalendars | null = null
   // A calendars push that comes before the widget exists, for the widget to open with.
   let pendingCalendars: Record<string, CalendarSpecJson> | null = null
@@ -134,6 +135,8 @@ function openPage(
     const w = createWidget(root, options)
     widget = w
     withoutDownloads(w)
+    // The widget's own Theme control would put the library's teal and off-red on the candles.
+    stopPalette = keepAppPalette(w)
     let settled = false
     const off = w.on('data', (e) => {
       if (settled) return
@@ -186,6 +189,7 @@ function openPage(
     dispose() {
       disposed = true
       for (const off of offs) off()
+      stopPalette?.()
       widget?.destroy()
       live?.close()
     },
