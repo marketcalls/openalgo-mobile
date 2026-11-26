@@ -26,11 +26,17 @@ const pick = jest.mocked(pickBackup)
 const share = jest.mocked(shareBackup)
 
 const MINE: Watchlists = {
-  version: 1,
+  version: 2,
   activeId: 'a',
   lists: [
-    { id: 'a', name: 'Watchlist', items: [{ exchange: 'NSE', symbol: 'TCS' }] },
-    { id: 'b', name: 'Options', items: [] },
+    {
+      id: 'a',
+      name: 'Watchlist',
+      items: [{ exchange: 'NSE', symbol: 'TCS' }],
+      groups: [],
+      sort: 'added',
+    },
+    { id: 'b', name: 'Options', items: [], groups: [], sort: 'added' },
   ],
 }
 const FILE = {

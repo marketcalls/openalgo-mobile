@@ -3,10 +3,17 @@
 // profile id: only the content goes in, and the text is checked once more before it is shared.
 import { istClock, istDate } from '~/core/realtime/marketHours'
 import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
-import { WATCHLIST_LIMITS, type WatchItem, type Watchlists } from '~/market/watchlists/model'
+import {
+  WATCH_SORTS,
+  WATCHLIST_LIMITS,
+  type WatchGroup,
+  type WatchItem,
+  type Watchlists,
+  type WatchSort,
+} from '~/market/watchlists/model'
 
 export const BACKUP_KIND = 'openalgo-mobile-backup'
-export const BACKUP_SCHEMA = 1
+export const BACKUP_SCHEMA = 2
 export const MAX_BACKUP_BYTES = 2_000_000
 
 /** Content keys are USER_CONTENT names; M3 to M5 add `strategyPortfolio`, `chartDrawings`, `chartPrefs`. */
@@ -63,13 +70,15 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const FIELD_MAX = 64
 
 /** An entry, its exchange upper-cased ('nse' is NSE); 'unlisted' when no server accepts it. */
-const cleanItem = (v: unknown): WatchItem | 'unlisted' | null => {
+const cleanItem = (v: unknown): (WatchItem & { rawGroup?: string }) | 'unlisted' | null => {
   if (!isRecord(v) || typeof v.exchange !== 'string' || typeof v.symbol !== 'string') return null
   const exchange = v.exchange.trim().toUpperCase()
   const symbol = v.symbol.trim()
   if (!exchange || !symbol || exchange.length > FIELD_MAX || symbol.length > FIELD_MAX) return null
   if (!ALL_EXCHANGES.includes(exchange)) return 'unlisted'
-  return { exchange, symbol }
+  return typeof v.group === 'string'
+    ? { exchange, symbol, rawGroup: v.group }
+    : { exchange, symbol }
 }
 
 /** An id not in `taken`: from `newId` when it gives a fresh one, else numbered from its last try. */
@@ -81,6 +90,38 @@ function freshId(newId: () => string, taken: Set<string>): string {
 }
 
 const cut = (name: string) => name.slice(0, WATCHLIST_LIMITS.nameMax)
+
+/**
+ * A list's groups: a record with a non-blank name, cut to 30 characters, at most 20 (the extras
+ * count in `trimmed`), ids unique within the list. `known` maps a file's group id to the kept id:
+ * a repeated id keeps its items with the first group.
+ */
+function cleanGroups(
+  v: unknown,
+  newId: () => string,
+): { groups: WatchGroup[]; known: Map<string, string>; trimmed: number } {
+  const groups: WatchGroup[] = []
+  const known = new Map<string, string>()
+  const taken = new Set<string>()
+  let trimmed = 0
+  for (const g of Array.isArray(v) ? v : []) {
+    if (!isRecord(g) || typeof g.name !== 'string') continue
+    const name = cut(g.name.trim())
+    if (!name) continue
+    if (groups.length >= WATCHLIST_LIMITS.groups) {
+      trimmed++
+      continue
+    }
+    const given = typeof g.id === 'string' && g.id !== '' ? g.id : null
+    const id = given !== null && !taken.has(given) ? given : freshId(newId, taken)
+    taken.add(id)
+    if (given !== null && !known.has(given)) known.set(given, id)
+    groups.push({ id, name })
+  }
+  return { groups, known, trimmed }
+}
+
+const isSort = (v: unknown): v is WatchSort => (WATCH_SORTS as readonly unknown[]).includes(v)
 
 /** The lists of a `watchlists` value that are usable, within the limits; null when none are. */
 function cleanWatchlists(
@@ -100,6 +141,8 @@ function cleanWatchlists(
       trimmed++
       continue
     }
+    const g = cleanGroups(raw.groups, newId)
+    trimmed += g.trimmed
     const seen = new Set<string>()
     const items: WatchItem[] = []
     for (const r of Array.isArray(raw.items) ? raw.items : []) {
@@ -113,16 +156,23 @@ function cleanWatchlists(
       if (seen.has(k)) continue
       seen.add(k)
       if (items.length >= WATCHLIST_LIMITS.items) trimmed++
-      else items.push(item)
+      else {
+        const group = item.rawGroup === undefined ? undefined : g.known.get(item.rawGroup)
+        items.push(
+          group === undefined
+            ? { exchange: item.exchange, symbol: item.symbol }
+            : { exchange: item.exchange, symbol: item.symbol, group },
+        )
+      }
     }
     const given = typeof raw.id === 'string' && raw.id !== '' ? raw.id : null
     const id = given !== null && !taken.has(given) ? given : freshId(newId, taken)
     taken.add(id)
-    lists.push({ id, name, items })
+    lists.push({ id, name, items, groups: g.groups, sort: isSort(raw.sort) ? raw.sort : 'added' })
   }
   if (lists.length === 0) return null
   const active = typeof v.activeId === 'string' && taken.has(v.activeId) ? v.activeId : lists[0]?.id
-  return { value: { version: 1, activeId: active, lists }, trimmed, unlisted }
+  return { value: { version: 2, activeId: active, lists }, trimmed, unlisted }
 }
 
 const fallbackId = () => `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -211,7 +261,7 @@ export function applyRestore(
     const name = restoredName(l.name, names)
     ids.add(id)
     names.add(name.toLowerCase())
-    lists.push({ id, name, items: l.items })
+    lists.push({ id, name, items: l.items, groups: l.groups, sort: l.sort })
   }
   return { value: { ...current, lists }, leftOut }
 }

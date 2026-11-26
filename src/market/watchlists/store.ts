@@ -4,16 +4,36 @@ import { DEFAULT_WATCHLISTS, type Reduced, type Watchlists, WatchlistsSchema } f
 
 const NAME = 'watchlists'
 
-/** An A-T21 document has no `activeId`, and a stale one names no list: the first list is active. */
-function withActive(w: Watchlists): Watchlists {
-  if (w.activeId !== undefined && w.lists.some((l) => l.id === w.activeId)) return w
-  return { ...w, activeId: w.lists[0]?.id }
+/**
+ * An A-T21 document has no `activeId`, and a stale one names no list: the first list is active.
+ * An item whose `group` names no group of its list is ungrouped.
+ */
+export function normalizeWatchlists(w: Watchlists): Watchlists {
+  const stale = (l: Watchlists['lists'][number]) =>
+    l.items.some((i) => i.group !== undefined && !l.groups.some((g) => g.id === i.group))
+  const lists = w.lists.some(stale)
+    ? w.lists.map((l) =>
+        stale(l)
+          ? {
+              ...l,
+              items: l.items.map((i) =>
+                i.group !== undefined && !l.groups.some((g) => g.id === i.group)
+                  ? { exchange: i.exchange, symbol: i.symbol }
+                  : i,
+              ),
+            }
+          : l,
+      )
+    : w.lists
+  const activeOk = w.activeId !== undefined && lists.some((l) => l.id === w.activeId)
+  if (lists === w.lists && activeOk) return w
+  return { ...w, lists, activeId: activeOk ? w.activeId : lists[0]?.id }
 }
 
 /** The saved lists; the first run (or an unreadable value) stores and returns the defaults. */
 export async function loadWatchlists(s: ProfileStorage): Promise<Watchlists> {
   const saved = await s.getJSON(NAME, WatchlistsSchema)
-  if (saved) return withActive(saved)
+  if (saved) return normalizeWatchlists(saved)
   await s.setJSON(NAME, DEFAULT_WATCHLISTS)
   return DEFAULT_WATCHLISTS
 }

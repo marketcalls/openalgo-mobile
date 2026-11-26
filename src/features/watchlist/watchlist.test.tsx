@@ -219,9 +219,17 @@ describe('watchlist storage', () => {
     const s = profileStorage(memoryKV(), 'p1')
     await loadWatchlists(s)
     const mine = {
-      version: 1 as const,
+      version: 2 as const,
       activeId: 'default',
-      lists: [{ id: 'default', name: 'Mine', items: [{ exchange: 'NSE', symbol: 'ITC' }] }],
+      lists: [
+        {
+          id: 'default',
+          name: 'Mine',
+          items: [{ exchange: 'NSE', symbol: 'ITC' }],
+          groups: [],
+          sort: 'added' as const,
+        },
+      ],
     }
     await saveWatchlists(s, mine)
     expect(await loadWatchlists(s)).toEqual(mine)
@@ -310,7 +318,12 @@ describe('newListId', () => {
     const t = 1_764_000_000_000
     const w = { ...DEFAULT_WATCHLISTS, lists: [] }
     expect(newListId(w, t)).toBe(`l${t.toString(36)}`)
-    const taken = { ...w, lists: [{ id: `l${t.toString(36)}`, name: 'A', items: [] }] }
+    const taken = {
+      ...w,
+      lists: [
+        { id: `l${t.toString(36)}`, name: 'A', items: [], groups: [], sort: 'added' as const },
+      ],
+    }
     expect(newListId(taken, t)).toBe(`l${(t + 1).toString(36)}`)
   })
 })

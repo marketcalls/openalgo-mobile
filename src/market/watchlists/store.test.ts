@@ -1,6 +1,6 @@
 import { profileStorage } from '~/core/config/storage'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { addItem, createList, DEFAULT_WATCHLISTS, WatchlistsSchema } from './model'
+import { addItem, createList, DEFAULT_WATCHLISTS, setSort, WatchlistsSchema } from './model'
 import { createWatchlistsStore, loadWatchlists, saveWatchlists } from './store'
 
 const KEY = 'oa.p1.watchlists'
@@ -12,10 +12,10 @@ const setup = (seed: Record<string, string> = {}) => {
 describe('loadWatchlists', () => {
   test('an A-T21 document without activeId loads with the first list active', async () => {
     const doc = {
-      version: 1,
+      version: 2,
       lists: [
-        { id: 'x', name: 'X', items: [] },
-        { id: 'y', name: 'Y', items: [] },
+        { id: 'x', name: 'X', items: [], groups: [], sort: 'added' },
+        { id: 'y', name: 'Y', items: [], groups: [], sort: 'added' },
       ],
     }
     const { s } = setup({ [KEY]: JSON.stringify(doc) })
@@ -23,9 +23,9 @@ describe('loadWatchlists', () => {
   })
   test('an activeId that names no list falls back to the first', async () => {
     const doc = {
-      version: 1,
+      version: 2,
       activeId: 'gone',
-      lists: [{ id: 'x', name: 'X', items: [] }],
+      lists: [{ id: 'x', name: 'X', items: [], groups: [], sort: 'added' }],
     }
     const { s } = setup({ [KEY]: JSON.stringify(doc) })
     expect((await loadWatchlists(s)).activeId).toBe('x')
@@ -35,6 +35,76 @@ describe('loadWatchlists', () => {
     const w = createList(DEFAULT_WATCHLISTS, 'Swing', 'sw').next
     await saveWatchlists(s, { ...w, activeId: 'sw' })
     expect(await loadWatchlists(s)).toEqual({ ...w, activeId: 'sw' })
+  })
+})
+
+describe('version 1 documents', () => {
+  const v1 = {
+    version: 1,
+    activeId: 'b',
+    lists: [
+      { id: 'a', name: 'A', items: [{ exchange: 'NSE', symbol: 'TCS' }] },
+      {
+        id: 'b',
+        name: 'B',
+        items: [
+          { exchange: 'NFO', symbol: 'X' },
+          { exchange: 'NSE', symbol: 'ITC' },
+        ],
+      },
+    ],
+  }
+  test('loads intact with no groups and the added sort, and is never overwritten by defaults', async () => {
+    const { s, kv } = setup({ [KEY]: JSON.stringify(v1) })
+    const w = await loadWatchlists(s)
+    expect(w).toEqual({
+      version: 2,
+      activeId: 'b',
+      lists: v1.lists.map((l) => ({ ...l, groups: [], sort: 'added' })),
+    })
+    expect(kv.data.get(KEY)).toBe(JSON.stringify(v1))
+  })
+  test('the first change saves a version 2 document', async () => {
+    const { s, kv } = setup({ [KEY]: JSON.stringify(v1) })
+    const store = createWatchlistsStore(s)
+    expect(await store.getState().apply(setSort, 'a', 'az')).toBe('ok')
+    const saved = JSON.parse(kv.data.get(KEY) ?? 'null')
+    expect(saved.version).toBe(2)
+    expect(saved.lists.map((l: { id: string }) => l.id)).toEqual(['a', 'b'])
+    expect(saved.lists[0].sort).toBe('az')
+  })
+  test('an item naming a group the list lacks loads ungrouped', async () => {
+    const doc = {
+      version: 2,
+      activeId: 'a',
+      lists: [
+        {
+          id: 'a',
+          name: 'A',
+          groups: [{ id: 'g1', name: 'G' }],
+          sort: 'added',
+          items: [
+            { exchange: 'NSE', symbol: 'TCS', group: 'gone' },
+            { exchange: 'NSE', symbol: 'ITC', group: 'g1' },
+          ],
+        },
+      ],
+    }
+    const { s } = setup({ [KEY]: JSON.stringify(doc) })
+    expect((await loadWatchlists(s)).lists[0]?.items).toEqual([
+      { exchange: 'NSE', symbol: 'TCS' },
+      { exchange: 'NSE', symbol: 'ITC', group: 'g1' },
+    ])
+  })
+  test('a bad sort and bad groups fall back', async () => {
+    const doc = {
+      version: 2,
+      lists: [{ id: 'a', name: 'A', items: [], sort: 'random', groups: 5 }],
+    }
+    const { s } = setup({ [KEY]: JSON.stringify(doc) })
+    const l = (await loadWatchlists(s)).lists[0]
+    expect(l?.sort).toBe('added')
+    expect(l?.groups).toEqual([])
   })
 })
 

@@ -11,10 +11,16 @@ import {
 } from './format'
 
 const W: Watchlists = {
-  version: 1,
+  version: 2,
   activeId: 'b',
   lists: [
-    { id: 'a', name: 'Watchlist', items: [{ exchange: 'NSE', symbol: 'TCS' }] },
+    {
+      id: 'a',
+      name: 'Watchlist',
+      items: [{ exchange: 'NSE', symbol: 'TCS', group: 'g1' }],
+      groups: [{ id: 'g1', name: 'Core' }],
+      sort: 'az',
+    },
     {
       id: 'b',
       name: 'Options',
@@ -22,6 +28,8 @@ const W: Watchlists = {
         { exchange: 'NFO', symbol: 'NIFTY25NOV25FUT' },
         { exchange: 'NSE_INDEX', symbol: 'NIFTY' },
       ],
+      groups: [],
+      sort: 'added',
     },
   ],
 }
@@ -37,7 +45,13 @@ const wrap = (content: unknown, over: Record<string, unknown> = {}) =>
     content,
     ...over,
   })
-const list = (i: number) => ({ id: `l${i}`, name: `List ${i}`, items: [] })
+const list = (i: number) => ({
+  id: `l${i}`,
+  name: `List ${i}`,
+  items: [],
+  groups: [],
+  sort: 'added' as const,
+})
 const parsed = (text: string) => {
   const r = parseBackup(text, newId)
   if (!r.ok) throw new Error(r.reason)
@@ -67,7 +81,10 @@ describe('buildBackup', () => {
     expect(() =>
       buildBackup({ watchlists: leaky as Watchlists, now: NOW, appVersion: '1' }),
     ).toThrow(BackupLeakError)
-    const named: Watchlists = { ...W, lists: [{ id: 'a', name: 'apikey', items: [] }] }
+    const named: Watchlists = {
+      ...W,
+      lists: [{ id: 'a', name: 'apikey', items: [], groups: [], sort: 'added' }],
+    }
     expect(() => buildBackup({ watchlists: named, now: NOW, appVersion: '1' })).not.toThrow()
   })
 })
@@ -94,7 +111,7 @@ describe('parseBackup (RF 5)', () => {
   })
 
   test('a newer schema keeps the known keys and lists the rest', () => {
-    const r = parsed(wrap({ watchlists: W, chartDrawings: { a: 1 } }, { schema: 2 }))
+    const r = parsed(wrap({ watchlists: W, chartDrawings: { a: 1 } }, { schema: 3 }))
     expect(r.skipped).toEqual(['chartDrawings'])
     expect(r.file.content.watchlists?.lists).toHaveLength(2)
     expect(Object.keys(r.file.content)).toEqual(['watchlists'])
@@ -132,7 +149,13 @@ describe('parseBackup (RF 5)', () => {
       }),
     )
     expect(r.file.content.watchlists?.lists).toEqual([
-      { id: 'a', name: 'A', items: [{ exchange: 'NSE', symbol: 'TCS' }] },
+      {
+        id: 'a',
+        name: 'A',
+        items: [{ exchange: 'NSE', symbol: 'TCS' }],
+        groups: [],
+        sort: 'added',
+      },
     ])
     expect(r.trimmed).toBe(0)
   })
@@ -200,11 +223,109 @@ describe('parseBackup (RF 5)', () => {
   })
 })
 
+describe('schema 2 (groups and sort)', () => {
+  const lists = (raw: unknown) => parsed(wrap({ watchlists: { version: 2, lists: [raw] } }))
+
+  test('the schema is 2 and groups, item groups and sort round-trip', () => {
+    expect(BACKUP_SCHEMA).toBe(2)
+    const r = parsed(buildBackup({ watchlists: W, now: NOW, appVersion: '0.2.0' }))
+    expect(r.file.schema).toBe(2)
+    expect(r.file.content.watchlists).toEqual(W)
+  })
+
+  test('a schema 1 file restores its lists with no groups and the added order', () => {
+    const r = parsed(
+      wrap(
+        {
+          watchlists: {
+            version: 1,
+            lists: [{ id: 'a', name: 'A', items: [{ exchange: 'NSE', symbol: 'TCS' }] }],
+          },
+        },
+        { schema: 1 },
+      ),
+    )
+    expect(r.file.content.watchlists?.lists[0]).toEqual({
+      id: 'a',
+      name: 'A',
+      items: [{ exchange: 'NSE', symbol: 'TCS' }],
+      groups: [],
+      sort: 'added',
+    })
+  })
+
+  test('21 groups keep 20 and count 1; blank names are dropped; names are cut to 30', () => {
+    const groups = Array.from({ length: 21 }, (_, i) => ({ id: `g${i}`, name: `G${i}` }))
+    const r = lists({ id: 'a', name: 'A', items: [], groups })
+    expect(r.file.content.watchlists?.lists[0]?.groups).toHaveLength(WATCHLIST_LIMITS.groups)
+    expect(r.trimmed).toBe(1)
+    const c = lists({
+      id: 'a',
+      name: 'A',
+      items: [],
+      groups: [{ id: 'x', name: '  ' }, { id: 'y', name: 'n'.repeat(40) }, 5],
+    })
+    expect(c.file.content.watchlists?.lists[0]?.groups).toEqual([{ id: 'y', name: 'n'.repeat(30) }])
+  })
+
+  test('an item naming an unknown group restores ungrouped', () => {
+    const r = lists({
+      id: 'a',
+      name: 'A',
+      groups: [{ id: 'g1', name: 'G' }],
+      items: [
+        { exchange: 'NSE', symbol: 'TCS', group: 'nope' },
+        { exchange: 'NSE', symbol: 'ITC', group: 'g1' },
+        { exchange: 'NSE', symbol: 'SBIN', group: 7 },
+      ],
+    })
+    expect(r.file.content.watchlists?.lists[0]?.items).toEqual([
+      { exchange: 'NSE', symbol: 'TCS' },
+      { exchange: 'NSE', symbol: 'ITC', group: 'g1' },
+      { exchange: 'NSE', symbol: 'SBIN' },
+    ])
+  })
+
+  test('a sort that is not one of the five becomes added', () => {
+    expect(
+      lists({ id: 'a', name: 'A', items: [], sort: 'random' }).file.content.watchlists?.lists[0]
+        ?.sort,
+    ).toBe('added')
+    expect(
+      lists({ id: 'a', name: 'A', items: [], sort: 'ltp' }).file.content.watchlists?.lists[0]?.sort,
+    ).toBe('ltp')
+  })
+
+  test('group ids are unique within their list; items stay under the first of a duplicate', () => {
+    const r = lists({
+      id: 'a',
+      name: 'A',
+      groups: [{ id: 'g', name: 'First' }, { id: 'g', name: 'Second' }, { name: 'No id' }],
+      items: [{ exchange: 'NSE', symbol: 'TCS', group: 'g' }],
+    })
+    const l = r.file.content.watchlists?.lists[0]
+    expect(l?.groups).toEqual([
+      { id: 'g', name: 'First' },
+      { id: 'new1', name: 'Second' },
+      { id: 'new2', name: 'No id' },
+    ])
+    expect(l?.items[0]?.group).toBe('g')
+  })
+})
+
 describe('applyRestore', () => {
   const incoming: Watchlists = {
-    version: 1,
+    version: 2,
     activeId: 'x',
-    lists: [{ id: 'x', name: 'Options', items: [{ exchange: 'NSE', symbol: 'SBIN' }] }],
+    lists: [
+      {
+        id: 'x',
+        name: 'Options',
+        items: [{ exchange: 'NSE', symbol: 'SBIN', group: 'g' }],
+        groups: [{ id: 'g', name: 'Picks' }],
+        sort: 'ltp',
+      },
+    ],
   }
 
   test('replace swaps in the incoming lists', () => {
@@ -217,14 +338,27 @@ describe('applyRestore', () => {
     expect(r.activeId).toBe('b')
   })
 
+  test('merge keeps the incoming groups, item groups and sort with their list', () => {
+    const r = applyRestore(W, incoming, 'merge', newId).value
+    expect(r.lists[2]).toMatchObject({
+      name: 'Options (restored)',
+      groups: [{ id: 'g', name: 'Picks' }],
+      sort: 'ltp',
+      items: [{ exchange: 'NSE', symbol: 'SBIN', group: 'g' }],
+    })
+  })
+
   test('merge keeps the renamed name within 30 characters', () => {
     const long = 'L'.repeat(30)
     const cur: Watchlists = {
-      version: 1,
+      version: 2,
       activeId: 'a',
-      lists: [{ id: 'a', name: long, items: [] }],
+      lists: [{ id: 'a', name: long, items: [], groups: [], sort: 'added' }],
     }
-    const inc: Watchlists = { version: 1, lists: [{ id: 'z', name: long, items: [] }] }
+    const inc: Watchlists = {
+      version: 2,
+      lists: [{ id: 'z', name: long, items: [], groups: [], sort: 'added' }],
+    }
     const name = applyRestore(cur, inc, 'merge', newId).value.lists[1]?.name ?? ''
     expect(name.length).toBeLessThanOrEqual(30)
     expect(name.endsWith(' (restored)')).toBe(true)
@@ -233,15 +367,15 @@ describe('applyRestore', () => {
 
   test('merge reissues a clashing id and keeps the 50-list limit', () => {
     const cur: Watchlists = {
-      version: 1,
+      version: 2,
       activeId: 'l0',
       lists: Array.from({ length: 49 }, (_, i) => list(i)),
     }
     const inc: Watchlists = {
-      version: 1,
+      version: 2,
       lists: [
-        { id: 'l0', name: 'Fresh 1', items: [] },
-        { id: 'q', name: 'Fresh 2', items: [] },
+        { id: 'l0', name: 'Fresh 1', items: [], groups: [], sort: 'added' },
+        { id: 'q', name: 'Fresh 2', items: [], groups: [], sort: 'added' },
       ],
     }
     const { value: r, leftOut } = applyRestore(cur, inc, 'merge', newId)
