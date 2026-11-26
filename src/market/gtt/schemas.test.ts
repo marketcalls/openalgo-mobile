@@ -159,6 +159,131 @@ describe('GttBookSchema (RF 3)', () => {
     ])
   })
 
+  /** A two-leg row in Kite's shape, with the legs' limit prices in the order given. */
+  const twoLeg = (triggers: number[], prices: number[], o: Record<string, unknown> = {}) => ({
+    ...KITE_SINGLE,
+    trigger_type: 'two-leg',
+    trigger_prices: triggers,
+    legs: prices.map((price) => ({ ...KITE_SINGLE.legs[0], price })),
+    ...o,
+  })
+  const pairs = (row: unknown) => {
+    const [r] = book([row]).rows
+    return r?.legs.map((l) => [l.trigger, l.price])
+  }
+
+  test('a Fyers OCO, legs [target 1880, stop-loss 1720] with triggers [1720, 1880]: the 1720 leg takes the 1720 trigger', () => {
+    // c8b2896 broker/fyers/mapping/gtt_data.py:215-226 appends leg1 (the target) first and sorts
+    // only trigger_prices.
+    const fyers = twoLeg([1720, 1880], [1880, 1720], {
+      trigger_id: '25112600002',
+      created_at: '26-Nov-2026 10:15:00',
+      updated_at: '',
+      expires_at: '',
+    })
+    const [row] = book([fyers]).rows
+    expect(row?.triggers).toEqual([1720, 1880])
+    expect(row?.legs.map((l) => [l.trigger, l.price])).toEqual([
+      [1720, 1720],
+      [1880, 1880],
+    ])
+  })
+
+  test('a Zerodha OCO, legs in trigger order [stop-loss 1720, target 1880]: the pairing stays as listed', () => {
+    expect(pairs(twoLeg([1720, 1880], [1720, 1880]))).toEqual([
+      [1720, 1720],
+      [1880, 1880],
+    ])
+  })
+
+  test('a two-leg row takes the pairing with the smaller |p0 - t0| + |p1 - t1|; a tie keeps the row order', () => {
+    // Every arrangement of four values on a grid, against the rule computed directly. Whole
+    // numbers sum exactly in floating point, so the oracle itself has no rounding.
+    const grid = [1700, 1710, 1720, 1730, 1740, 1750]
+    let swapped = 0
+    let ties = 0
+    for (const t0 of grid)
+      for (const t1 of grid)
+        for (const p0 of grid)
+          for (const p1 of grid) {
+            const asListed = Math.abs(p0 - t0) + Math.abs(p1 - t1)
+            const swap = Math.abs(p0 - t1) + Math.abs(p1 - t0)
+            if (swap < asListed) swapped++
+            if (swap === asListed && t0 !== t1 && p0 !== p1) ties++
+            const own = swap < asListed ? [t1, t0] : [t0, t1]
+            const expected = [
+              [own[0], p0],
+              [own[1], p1],
+            ].sort((a, b) => (a[0] ?? 0) - (b[0] ?? 0))
+            expect([t0, t1, p0, p1, pairs(twoLeg([t0, t1], [p0, p1]))]).toEqual([
+              t0,
+              t1,
+              p0,
+              p1,
+              expected,
+            ])
+          }
+    // The grid holds both kinds of case, so neither branch goes untested.
+    expect(swapped).toBeGreaterThan(0)
+    expect(ties).toBeGreaterThan(0)
+  })
+
+  test('a tie that floating-point sums would split keeps the row order', () => {
+    // Both limits are below both triggers, so either pairing totals 1209.70; as doubles the
+    // swapped sum comes to 1209.6999999999998 and the one as listed to 1209.7.
+    expect(pairs(twoLeg([1183.75, 2222.25], [1175.95, 1020.35]))).toEqual([
+      [1183.75, 1175.95],
+      [2222.25, 1020.35],
+    ])
+  })
+
+  test.each([
+    ["the sandbox's naive IST isoformat", '2026-11-26T10:15:00'],
+    ["Kite's space-separated time", '2026-11-26 10:15:00'],
+    ['an ISO time in UTC', '2026-11-26T04:45:00.000Z'],
+  ])('a row stamped with %s parses, and keeps the time as sent', (_, at) => {
+    const b = book([{ ...KITE_SINGLE, created_at: at, updated_at: at, expires_at: at }])
+    expect(b.dropped).toBe(0)
+    expect(b.rows[0]).toMatchObject({ triggerId: '112127', createdAt: at, expiresAt: at })
+  })
+
+  test.each([
+    ['absent', {}, undefined],
+    ['null', { triggered_order_id: null }, undefined],
+    ['an id', { triggered_order_id: 'SB-1700000000-42' }, 'SB-1700000000-42'],
+    ['a numeric id', { triggered_order_id: 250001 }, '250001'],
+  ])('a leg with triggered_order_id %s parses', (_, extra, orderId) => {
+    const b = book([{ ...KITE_SINGLE, legs: [{ ...KITE_SINGLE.legs[0], ...extra }] }])
+    expect(b.dropped).toBe(0)
+    expect(b.rows[0]?.legs).toEqual([
+      {
+        action: 'SELL',
+        quantity: 1,
+        price: 1499,
+        pricetype: 'LIMIT',
+        product: 'CNC',
+        trigger: 1500,
+        ...(orderId === undefined ? {} : { orderId }),
+      },
+    ])
+  })
+
+  test('an OCO with one leg that fired and one that did not parses both', () => {
+    const [row] = book([
+      twoLeg([1420, 1520], [], {
+        status: 'triggered',
+        legs: [
+          { ...KITE_SINGLE.legs[0], price: 1419, triggered_order_id: '250001' },
+          { ...KITE_SINGLE.legs[0], price: 1521 },
+        ],
+      }),
+    ]).rows
+    expect(row?.legs.map((l) => [l.trigger, l.price, l.orderId])).toEqual([
+      [1420, 1419, '250001'],
+      [1520, 1521, undefined],
+    ])
+  })
+
   test.each([
     ['two-leg', 'OCO'],
     ['TWO-LEG', 'OCO'],

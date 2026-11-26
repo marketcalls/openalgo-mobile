@@ -299,6 +299,27 @@ describe('reconcileGttChange', () => {
     })
     expect(out.checked).toBe(false)
   })
+
+  test('the row by id with an empty status and the old values is unknown, not gone: read to the deadline', async () => {
+    // Nor is another row with the new values its replacement: the row may not have left.
+    const fetchBook = fetches(
+      book(
+        raw({ status: '' }),
+        raw({ trigger_id: '2002', trigger_prices: [1510], legs: [leg(1509)] }),
+      ),
+    )
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'unchanged', checked: false })
+    expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
+  })
+
+  test('the row by id with an empty status and the new values: applied', async () => {
+    const fetchBook = fetches(book(raw({ status: '', trigger_prices: [1510], legs: [leg(1509)] })))
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'applied', checked: true })
+  })
 })
 
 describe('reconcileGttCancel', () => {
@@ -340,8 +361,57 @@ describe('reconcileGttCancel', () => {
     expect(fetchBook).toHaveBeenCalledTimes(2)
   })
 
+  test("an active-only book (Dhan's, Angel's, Fyers' and Upstox's ignore status:'all'): the row leaving is gone, checked, and the reads stop", async () => {
+    // c8b2896 broker/{dhan,angel,fyers,upstox}/api/gtt_api.py get_gtt_book: include_history is
+    // accepted and ignored, so a cancelled GTT leaves the book rather than reading `cancelled`.
+    const fetchBook = fetches(
+      book(raw(), raw({ trigger_id: '1002' })),
+      book(raw({ trigger_id: '1002' })),
+    )
+    expect(await cancel(fetchBook)).toEqual({ found: 'gone', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(2)
+  })
+
+  test('absent from an empty book: gone, checked, at the first read', async () => {
+    const fetchBook = fetches(book())
+    expect(await cancel(fetchBook)).toEqual({ found: 'gone', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(1)
+  })
+
   test('absent from a book with an unreadable row: not checked', async () => {
     expect(await cancel(fetches(book(unreadable())))).toEqual({ found: 'gone', checked: false })
+  })
+
+  test.each([
+    ['blank', ''],
+    ['spaces', '   '],
+    ['null', null],
+    ['absent', undefined],
+    ['unreadable', { code: 3 }],
+  ])(
+    'a status that parses as empty (%s) is never { other: "" }: unknown, read to the deadline',
+    async (_, status) => {
+      const row = raw({ status })
+      const fetchBook = fetches(book(row))
+      expect(book(row).rows[0]?.status).toBe('')
+      expect(await cancel(fetchBook)).toEqual({ found: 'active', checked: false })
+      expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
+    },
+  )
+
+  test('an empty status, then the book says: that answer, checked', async () => {
+    const cancelled = fetches(book(raw({ status: '' })), book(raw({ status: 'cancelled' })))
+    expect(await cancel(cancelled)).toEqual({ found: 'cancelled', checked: true })
+    expect(cancelled).toHaveBeenCalledTimes(2)
+    const left = fetches(book(raw({ status: '' })), book())
+    expect(await cancel(left)).toEqual({ found: 'gone', checked: true })
+    expect(left).toHaveBeenCalledTimes(2)
+  })
+
+  test('the last read with an empty status, after an earlier active one: unknown, not active', async () => {
+    const fetchBook = fetches(book(raw()), book(raw({ status: '' })))
+    expect(await cancel(fetchBook)).toEqual({ found: 'active', checked: false })
+    expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
   })
 
   test('the row found is checked, whatever else could not be read', async () => {

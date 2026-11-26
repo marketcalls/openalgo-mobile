@@ -30,6 +30,12 @@ const hasTriggers = (r: GttRow, s: GttSpec) =>
   r.type === s.type &&
   sameValues(r.triggers, triggersOf(s))
 
+/**
+ * A row whose status the book does not give: absent, blank or unreadable all parse as `''`. It
+ * may be active or not, so it answers neither way.
+ */
+const noStatus = (r: GttRow) => r.status === ''
+
 /** Every value a modify sends: the triggers, and each leg's side, quantity and limit price. */
 const hasSpec = (r: GttRow, s: GttSpec) =>
   hasTriggers(r, s) &&
@@ -76,6 +82,8 @@ export type GttChange = 'applied' | 'unchanged' | 'gone'
  * is still active, such a row is some other GTT: the modify has not shown, whatever it matches.
  * The book lags the write, so only `applied` stops the reads early. An unreadable row could be
  * the row by id, or once that has left its replacement, so it leaves such an answer unchecked.
+ * The row by id with no status (`''`) and other values may still be active or may have left, so
+ * that read is unknown (unchecked), and the reads go on to the deadline.
  */
 export function reconcileGttChange({
   fetchBook,
@@ -94,6 +102,7 @@ export function reconcileGttChange({
       const row = rows.find((r) => r.triggerId === triggerId)
       if (row && hasSpec(row, spec)) return { found: 'applied', checked: true }
       if (row?.status === 'active') return { found: 'unchanged', checked: true }
+      if (row && noStatus(row)) return { found: 'unchanged', checked: false }
       const replaced = rows.some(
         (r) => r.triggerId !== triggerId && r.status === 'active' && hasSpec(r, spec),
       )
@@ -108,10 +117,17 @@ export function reconcileGttChange({
 export type GttCancel = 'cancelled' | 'active' | 'gone' | { other: string }
 
 /**
- * After a cancel: the row's status. Absent is `gone`, since a book read without `status` (a
- * server before 2.0.2.4), and some brokers' even with it, list active rows only. Any status
- * besides cancelled and active (deleted, triggered, expired, the sandbox's triggering) is
- * `{ other }`. Only `active` reads on: the book may not show the cancel yet.
+ * After a cancel: the row's status.
+ * - Absent is `gone`, the cancel took effect: a book read without `status` (a server before
+ *   2.0.2.4) lists active rows only, and so do Dhan's, Angel's, Fyers' and Upstox's even with
+ *   `status: 'all'` (c8b2896 `get_gtt_book` accepts `include_history` and ignores it). It is
+ *   checked unless the read dropped a row, which could be this GTT, still active.
+ * - Any status besides cancelled and active (deleted, triggered, expired, the sandbox's
+ *   triggering) is `{ other }`.
+ * - No status (`''`: absent, blank or unreadable; Dhan's and Angel's mappers lower-case a missing
+ *   one to `''`) says nothing about the cancel: that read is unknown (unchecked), never
+ *   `{ other: '' }`, and the reads go on to the deadline.
+ * Only a checked answer other than `active` stops the reads: the book may not show the cancel yet.
  */
 export function reconcileGttCancel({
   fetchBook,
@@ -124,6 +140,7 @@ export function reconcileGttCancel({
     ({ rows, dropped }): Reconciled<GttCancel> => {
       const row = rows.find((r) => r.triggerId === triggerId)
       if (!row) return { found: 'gone', checked: dropped === 0 }
+      if (noStatus(row)) return { found: 'active', checked: false }
       const { status } = row
       const found = status === 'cancelled' || status === 'active' ? status : { other: status }
       return { found, checked: true }

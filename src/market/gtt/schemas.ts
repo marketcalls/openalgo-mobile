@@ -136,24 +136,44 @@ const GttLegSchema = z.object({
 const OCO_TYPE = /^(two-leg|oco)$/i
 
 /**
- * The trigger each leg goes with, when the row lists one trigger per leg (RF 3). Leg i takes
- * trigger i, except on a two-leg row whose pairing crosses: Fyers lists its target leg first but
- * sorts the triggers (c8b2896 broker/fyers/mapping/gtt_data.py, map_gtt_book), which would put
- * the target's limit on the stop-loss trigger. A leg's limit sits near its own trigger: when the
- * row pairs the higher limit with the lower trigger, the other pairing puts the limits nearer
- * their triggers in total, and the legs take it. The one exception is two limits at or beyond the
- * same end of the triggers' span (an aggressive limit): there either pairing is as near, so the
- * row's own order stands. These are exact comparisons, not sums of distances, so a tie cannot
- * turn on a rounding error.
+ * Whether two legs priced `p0`, `p1` sit nearer the triggers `t0`, `t1` swapped than as listed:
+ * |p0 - t1| + |p1 - t0| < |p0 - t0| + |p1 - t1|.
+ *
+ * Summing doubles can split a tie by a rounding error. Limits 1175.95 and 1020.35 against
+ * triggers 1183.75 and 2222.25 total 1209.70 both ways, but the doubles give 1209.6999999999998
+ * swapped and 1209.7 as listed. So the inequality is decided by comparisons alone:
+ * - Take limits a < b and triggers c < d. The crossed pairing (a with d, b with c) totals more
+ *   than the sorted one (a with c, b with d) by f(b) - f(a), where f(x) = |x - c| - |x - d|.
+ * - f is flat at or below c, flat at or above d, and strictly rising between.
+ * - So the swap is strictly nearer exactly when the row's own pairing crosses (the higher limit on
+ *   the lower trigger) and the two limits do not both lie at or beyond the same end of the
+ *   triggers' span.
+ * - Equal limits, or equal triggers, tie.
+ */
+function swapIsNearer(p0: number, p1: number, t0: number, t1: number) {
+  const crossed = (p0 < p1 && t0 > t1) || (p0 > p1 && t0 < t1)
+  const sameEnd = Math.max(p0, p1) <= Math.min(t0, t1) || Math.min(p0, p1) >= Math.max(t0, t1)
+  return crossed && !sameEnd
+}
+
+/**
+ * The trigger each leg goes with, when the row lists one trigger per leg (RF 3).
+ * - Leg i takes trigger i, except on a two-leg row, which takes whichever pairing (as listed, or
+ *   swapped) puts the limits nearer their triggers in total (`swapIsNearer`). On a tie it keeps
+ *   the row's order.
+ * - That holds for every broker, and it is what Fyers needs: its mapper lists the target leg first
+ *   but sorts the triggers on their own (c8b2896 broker/fyers/mapping/gtt_data.py:215-226). Read
+ *   as listed, that would put the target's limit on the stop-loss trigger.
+ * - Brokers that list the legs in trigger order (Zerodha, and every other mapper) keep their rows
+ *   as listed whenever the limits can fill, a SELL at or below its trigger and a BUY at or above.
+ *   Such a pairing either does not cross, or has both limits beyond the same end, which ties.
  */
 function legTriggers(prices: readonly number[], triggers: readonly number[]) {
   if (prices.length !== triggers.length) return prices.map(() => undefined)
   if (prices.length !== 2) return [...triggers]
   const [p0 = 0, p1 = 0] = prices
   const [t0 = 0, t1 = 0] = triggers
-  const crossed = (p0 < p1 && t0 > t1) || (p0 > p1 && t0 < t1)
-  const sameEnd = Math.max(p0, p1) <= Math.min(t0, t1) || Math.min(p0, p1) >= Math.max(t0, t1)
-  return crossed && !sameEnd ? [t1, t0] : [t0, t1]
+  return swapIsNearer(p0, p1, t0, t1) ? [t1, t0] : [t0, t1]
 }
 
 /**
