@@ -36,6 +36,13 @@ const hasTriggers = (r: GttRow, s: GttSpec) =>
  */
 const noStatus = (r: GttRow) => r.status === ''
 
+/**
+ * A row that can still fire. Fyers lists a GTT in transit as `transit` beside `active` (c8b2896
+ * broker/fyers/mapping/gtt_data.py GTT_STATUS_MAP 4, one of its ACTIVE_GTT_STATUSES), so a
+ * reconcile that read it as no longer active would say the GTT had gone while it is still there.
+ */
+const isActive = (r: GttRow) => r.status === 'active' || r.status === 'transit'
+
 /** Every value a modify sends: the triggers, and each leg's side, quantity and limit price. */
 const hasSpec = (r: GttRow, s: GttSpec) =>
   hasTriggers(r, s) &&
@@ -76,7 +83,7 @@ export type GttChange = 'applied' | 'unchanged' | 'gone'
 
 /**
  * After a modify: `applied` when the row shows the spec's values; `unchanged` when the row is
- * still active with other values; `gone` when it is absent or no longer active. A broker that
+ * still active (`isActive`) with other values; `gone` when it is absent or no longer active. A broker that
  * replaces the GTT gives it a new id and cancels or drops the old row, so once the row by id has
  * left, another active row with the spec's values is the change, `applied`. While the row by id
  * is still active, such a row is some other GTT: the modify has not shown, whatever it matches.
@@ -101,10 +108,10 @@ export function reconcileGttChange({
     ({ rows, dropped }): Reconciled<GttChange> => {
       const row = rows.find((r) => r.triggerId === triggerId)
       if (row && hasSpec(row, spec)) return { found: 'applied', checked: true }
-      if (row?.status === 'active') return { found: 'unchanged', checked: true }
+      if (row && isActive(row)) return { found: 'unchanged', checked: true }
       if (row && noStatus(row)) return { found: 'unchanged', checked: false }
       const replaced = rows.some(
-        (r) => r.triggerId !== triggerId && r.status === 'active' && hasSpec(r, spec),
+        (r) => r.triggerId !== triggerId && isActive(r) && hasSpec(r, spec),
       )
       if (replaced) return { found: 'applied', checked: true }
       return { found: 'gone', checked: dropped === 0 }
@@ -122,8 +129,9 @@ export type GttCancel = 'cancelled' | 'active' | 'gone' | { other: string }
  *   2.0.2.4) lists active rows only, and so do Dhan's, Angel's, Fyers' and Upstox's even with
  *   `status: 'all'` (c8b2896 `get_gtt_book` accepts `include_history` and ignores it). It is
  *   checked unless the read dropped a row, which could be this GTT, still active.
- * - Any status besides cancelled and active (deleted, triggered, expired, the sandbox's
- *   triggering) is `{ other }`.
+ * - Fyers' `transit` can still fire, so it is `active` (`isActive`).
+ * - Any other status besides cancelled (deleted, triggered, expired, the sandbox's triggering) is
+ *   `{ other }`.
  * - No status (`''`: absent, blank or unreadable; Dhan's and Angel's mappers lower-case a missing
  *   one to `''`) says nothing about the cancel: that read is unknown (unchecked), never
  *   `{ other: '' }`, and the reads go on to the deadline.
@@ -141,9 +149,8 @@ export function reconcileGttCancel({
       const row = rows.find((r) => r.triggerId === triggerId)
       if (!row) return { found: 'gone', checked: dropped === 0 }
       if (noStatus(row)) return { found: 'active', checked: false }
-      const { status } = row
-      const found = status === 'cancelled' || status === 'active' ? status : { other: status }
-      return { found, checked: true }
+      if (row.status === 'cancelled') return { found: 'cancelled', checked: true }
+      return { found: isActive(row) ? 'active' : { other: row.status }, checked: true }
     },
     (found) => found !== 'active',
     'active',

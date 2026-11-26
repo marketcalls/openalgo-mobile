@@ -290,6 +290,36 @@ describe('reconcileGttChange', () => {
     expect(fired).toEqual({ found: 'gone', checked: true })
   })
 
+  test('(Fyers) a row in transit with the old values is still active: unchanged, never gone', async () => {
+    // c8b2896 broker/fyers/mapping/gtt_data.py: ord_status 4 is "transit", in ACTIVE_GTT_STATUSES
+    const fetchBook = fetches(book(raw({ status: 'transit' })))
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'unchanged', checked: true })
+    // nor is another GTT with the new values the change while it can still fire
+    const beside = fetches(
+      book(
+        raw({ status: 'transit' }),
+        raw({ trigger_id: '2002', trigger_prices: [1510], legs: [leg(1509)] }),
+      ),
+    )
+    expect(
+      (await reconcileGttChange({ fetchBook: beside, triggerId: '1001', spec: MODIFIED, sleep }))
+        .found,
+    ).toBe('unchanged')
+  })
+
+  test("(Fyers) a broker's replacement in transit with the new values is the change", async () => {
+    const fetchBook = fetches(
+      book(
+        raw({ trigger_id: '2002', status: 'transit', trigger_prices: [1510], legs: [leg(1509)] }),
+      ),
+    )
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'applied', checked: true })
+  })
+
   test('absent from a book with an unreadable row: not checked', async () => {
     const out = await reconcileGttChange({
       fetchBook: fetches(book(unreadable())),
@@ -348,6 +378,12 @@ describe('reconcileGttCancel', () => {
       })
     },
   )
+
+  test('(Fyers) a row in transit can still fire: active, read on, never another status', async () => {
+    const fetchBook = fetches(book(raw({ status: 'Transit' })))
+    expect(await cancel(fetchBook)).toEqual({ found: 'active', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
+  })
 
   test('still active after every read: active, checked', async () => {
     const fetchBook = fetches(book(raw()))
