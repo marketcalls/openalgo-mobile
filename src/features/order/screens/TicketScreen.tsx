@@ -23,8 +23,7 @@ import { ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { MODE_LABEL } from '~/market/orders/confirmWrite'
-import { settle, sleep } from '~/market/orders/outcome'
-import { noReplyDelays, reconcilePlacement, reconcileSplit } from '~/market/orders/reconcile'
+import { placementOutcome, resultLine, type Sent, type TicketResult } from '~/market/orders/result'
 import type { PlaceReply, SplitReply } from '~/market/orders/schemas'
 import { type Outcome, submitOrderAction } from '~/market/orders/submit'
 import {
@@ -39,7 +38,6 @@ import {
 } from '~/market/orders/ticket'
 import { useConfirmedReview } from '~/market/orders/useConfirmedReview'
 import { useFreshBook } from '~/market/orders/useFreshBook'
-import type { BookSnapshot } from '~/market/orders/useReviewBook'
 import { openServerPage, useBrokerBlocked } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import type { Strategy, TicketParams } from '~/market/types'
@@ -47,7 +45,7 @@ import { ErrorState } from '~/ui/ErrorState'
 import { fmtQty } from '~/ui/format'
 import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
-import { ResultView, resultLine, type TicketResult } from '../components/ResultView'
+import { ResultView } from '../components/ResultView'
 import { ReviewStep } from '../components/ReviewStep'
 import { TicketForm } from '../components/TicketForm'
 import { useMarginPreview } from '../hooks/useMarginPreview'
@@ -265,9 +263,6 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     readMode()
   }
 
-  /** When the send went, and what it knew of the book (`useReviewBook`'s snapshot). */
-  type Sent = BookSnapshot & { at: number }
-
   /** Shows `result` on the sheet, or as a toast once the sheet has gone (it may, mid-send). */
   const show = (result: TicketResult) =>
     shell.onSheet(() => setStep({ kind: 'result', result }), resultLine(result))
@@ -276,50 +271,8 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
   const refused = (error: string) => shell.onSheet(() => setStep({ kind: 'edit', error }), error)
 
   /**
-   * It may have gone: the order book says what happened. Nothing is sent again. The check runs
-   * to its end even when the sheet has closed, and then shows as a toast.
-   */
-  const reconcile = async (p: OrderPlan, sent: Sent, noReply: boolean) => {
-    shell.checking()
-    notifyWarning()
-    // No reply: the server may still be sending it, so the check reads on past its broker timeout.
-    const delaysMs = noReply
-      ? noReplyDelays(p.kind === 'split' ? p.children.length : undefined)
-      : undefined
-    const waitSec = delaysMs ? Math.round(delaysMs.reduce((a, b) => a + b, 0) / 1000) : undefined
-    show({ kind: 'maybe', check: null, waitSec })
-    const common = {
-      // Each check read goes out after the order, never joined to one sent before it.
-      fetchOrders: () => trading.orders.orderbook({ fresh: true }),
-      spec: p.spec,
-      sentAt: sent.at,
-      knownIds: sent.knownIds,
-      sleep,
-      delaysMs,
-    }
-    // Without the review's book, a match may be an earlier identical order (ruling 26).
-    const earlier = !sent.complete
-    if (p.kind === 'split') {
-      const of = p.children.length
-      const r = await reconcileSplit({ ...common, children: p.children }).catch(() => null)
-      const found = r?.found.length ?? 0
-      show({
-        kind: 'maybe',
-        check: { kind: 'split', checked: r?.checked ?? false, found, of, earlier },
-      })
-    } else {
-      const r = await reconcilePlacement(common).catch(() => null)
-      const status = r?.found?.status ?? null
-      show({
-        kind: 'maybe',
-        check: { kind: 'single', checked: r?.checked ?? false, status, earlier },
-      })
-    }
-  }
-
-  /**
-   * What came of the send (`settle`, rulings 5): `maybe`, a Server error from the send itself and
-   * a success without an id may hide a placed order, so the book is checked.
+   * What came of the send (`placementOutcome`, rulings 5): `maybe`, a Server error from the send
+   * itself and a success without an id may hide a placed order, so the book is checked.
    */
   const showOutcome = async (
     out: Outcome<PlaceReply | SplitReply>,
@@ -327,31 +280,34 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     sent: Sent,
     shownMode: AnalyzerMode,
   ) => {
-    const r = settle(out, p.kind === 'split' ? 'splitorder' : 'placeorder')
+    const r = placementOutcome(out, {
+      plan: p,
+      sent,
+      // Each check read goes out after the order, never joined to one sent before it.
+      fetchOrders: () => trading.orders.orderbook({ fresh: true }),
+    })
     switch (r.kind) {
-      case 'ok': {
-        const reply = r.reply
-        if (reply.kind === 'no_id') return reconcile(p, sent, false)
-        if (reply.kind === 'queued') {
-          show({ kind: 'queued' })
-          return
-        }
-        // The review showed ANALYZE, but the server placed it LIVE: never told as a success.
-        const live = r.liveSurprise ? { liveSurprise: true as const } : {}
-        if (r.liveSurprise) notifyError()
-        else if (reply.kind === 'split' && !reply.children.every((c) => c.ok)) notifyWarning()
-        else notifySuccess()
-        if (reply.kind === 'placed') {
+      case 'result': {
+        const res = r.result
+        if (res.kind !== 'queued') {
+          // The review showed ANALYZE, but the server placed it LIVE: never told as a success.
+          if (res.liveSurprise) notifyError()
+          else if (res.kind === 'split' && !res.reply.children.every((c) => c.ok)) notifyWarning()
+          else notifySuccess()
           // Ruling 12 and T11: the app's own order, so its event should follow.
-          if (isEvented()) trading.eventWatch.expect(reply.orderid)
-          show({ ...reply, ...live })
-        } else {
-          show({ kind: 'split', reply, ...live })
+          if (res.kind === 'placed' && isEvented()) trading.eventWatch.expect(res.orderid)
         }
+        show(res)
         return
       }
-      case 'maybe':
-        return reconcile(p, sent, r.noReply)
+      case 'unknown':
+        // It may have gone: the order book says what happened. Nothing is sent again. The check
+        // runs to its end even when the sheet has closed, and then shows as a toast.
+        shell.checking()
+        notifyWarning()
+        show({ kind: 'maybe', check: null, waitSec: r.waitSec })
+        show({ kind: 'maybe', check: await r.check() })
+        return
       case 'refused':
         notifyWarning()
         refused(r.message)

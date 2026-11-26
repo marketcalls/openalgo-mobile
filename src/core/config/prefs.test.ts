@@ -15,7 +15,26 @@ test('defaults', () => {
     hideContentAndroid: false,
     confirmLiveWrites: false,
     updateCheck: true,
+    chartOneTap: false,
   })
+})
+
+test('chartOneTap survives a prefs rehydration', async () => {
+  usePrefs.getState().setPrefs({ chartOneTap: true })
+  const raw = (await kv.get('oa.prefs.v1')) ?? ''
+  expect(JSON.parse(raw).state.chartOneTap).toBe(true)
+  usePrefs.setState(PREFS_DEFAULTS)
+  await kv.set('oa.prefs.v1', raw) // setState above also persisted the defaults
+  await usePrefs.persist.rehydrate()
+  expect(usePrefs.getState().chartOneTap).toBe(true)
+
+  // a stored pref from before it, or one that cannot be read, loads as off
+  await kv.set('oa.prefs.v1', JSON.stringify({ state: { theme: 'dark' }, version: 0 }))
+  await usePrefs.persist.rehydrate()
+  expect(usePrefs.getState().chartOneTap).toBe(false)
+  await kv.set('oa.prefs.v1', JSON.stringify({ state: { chartOneTap: 'yes' }, version: 0 }))
+  await usePrefs.persist.rehydrate()
+  expect(usePrefs.getState().chartOneTap).toBe(false)
 })
 
 test('a stored pref without updateCheck loads as on', async () => {

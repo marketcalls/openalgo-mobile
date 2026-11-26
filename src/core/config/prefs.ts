@@ -14,6 +14,8 @@ const PrefsSchema = z.object({
   hideContentAndroid: z.boolean().catch(false),
   confirmLiveWrites: z.boolean().catch(false),
   updateCheck: z.boolean().catch(true),
+  /** BUY and SELL on the chart place a market order without the review (Account, off by default). */
+  chartOneTap: z.boolean().catch(false),
 })
 export type Prefs = z.infer<typeof PrefsSchema>
 
@@ -37,6 +39,7 @@ export const usePrefs = create<PrefsStore>()(
         hideContentAndroid,
         confirmLiveWrites,
         updateCheck,
+        chartOneTap,
       }) => ({
         theme,
         appLock,
@@ -44,6 +47,7 @@ export const usePrefs = create<PrefsStore>()(
         hideContentAndroid,
         confirmLiveWrites,
         updateCheck,
+        chartOneTap,
       }),
       merge: (persisted, current) => ({
         ...current,

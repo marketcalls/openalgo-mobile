@@ -1,12 +1,10 @@
 // A split order's result (design 7.10): each child order the server made, in its own row, and
 // how many went through. A failed child is reported, never sent again from here.
 import { StyleSheet, View } from 'react-native'
-import type { SplitReply } from '~/market/orders/schemas'
+import type { SplitPlaced } from '~/market/orders/result'
 import { Badge } from '~/ui/Badge'
 import { fmtQty } from '~/ui/format'
 import { Text } from '~/ui/Text'
-
-export type SplitPlaced = Extract<SplitReply, { kind: 'split' }>
 
 export function SplitResult({ reply }: { reply: SplitPlaced }) {
   const placed = reply.children.filter((c) => c.ok).length

@@ -52,14 +52,17 @@ const hasTrigger = (pt: PriceType) => pt === 'SL' || pt === 'SL-M'
 const positive = (n: number | undefined): n is number =>
   n !== undefined && Number.isFinite(n) && n > 0
 
+/** What sizing and pricing an order reads of its contract; the chart's metadata carries it too. */
+type PlanMeta = Pick<InstrumentMeta, 'tick' | 'lotsize' | 'freezeQty'>
+
 /** On the tick, with the price itself as the reference for the tick's 1% guard. */
-const snap = (n: number, meta: InstrumentMeta) => snapTick(n, meta.tick, n)
+const snap = (n: number, meta: PlanMeta) => snapTick(n, meta.tick, n)
 
 /**
  * A price or trigger as the order sends it: on the tick, or 0 when there is none. A value
  * below half a tick (0.02 on tick 0.05) is sent as 0, so validation reads this, not the input.
  */
-const sent = (n: number | undefined, meta: InstrumentMeta) => (positive(n) ? snap(n, meta) : 0)
+const sent = (n: number | undefined, meta: PlanMeta) => (positive(n) ? snap(n, meta) : 0)
 
 /** Whole lots (or shares), at least one, as the web sizes them (:955-958). */
 const wholeQty = (qty: number) => Math.max(1, Math.floor(qty || 1))
@@ -92,7 +95,7 @@ export function initialTicket(p: TicketParams, meta: InstrumentMeta): TicketStat
 }
 
 /** The quantity the order carries, in units: lots × lot size on a derivative. */
-export function ticketUnits(t: TicketState, meta: InstrumentMeta): number {
+export function ticketUnits(t: TicketState, meta: PlanMeta): number {
   const n = wholeQty(t.qty)
   return usesLots(t.exchange) ? n * meta.lotsize : n
 }
@@ -102,7 +105,7 @@ export function ticketUnits(t: TicketState, meta: InstrumentMeta): number {
  * Above a freeze limit over 1 (:7080, :2223) it is split into children of the largest whole
  * number of lots within the limit, the last child taking the rest.
  */
-export function planOrder(t: TicketState, meta: InstrumentMeta): OrderPlan {
+export function planOrder(t: TicketState, meta: PlanMeta): OrderPlan {
   const spec: OrderSpec = {
     exchange: t.exchange,
     symbol: t.symbol,

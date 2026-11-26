@@ -12,6 +12,7 @@ import { useServices } from '~/core/services/services'
 import { backupHref } from '~/market/links'
 import { BrandMark } from '~/ui/BrandMark'
 import { Button } from '~/ui/Button'
+import { confirm } from '~/ui/confirm'
 import { ListRow } from '~/ui/ListRow'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
@@ -30,7 +31,13 @@ export const ACCOUNT_COPY = {
   updateCheck: 'Check for app updates',
   updateCaption:
     'Once a day the app asks GitHub for the latest release. Nothing about you or your server is sent.',
+  oneTap: 'One-tap chart trading',
 } as const
+
+/** What turning one-tap on means, which the switch asks the user to accept first (design 7.10). */
+export const ONE_TAP_COPY =
+  'BUY and SELL on the chart will place a market order at once, without the review step. ' +
+  'A live order still asks for biometrics when that is on.'
 
 const LOCK_AFTER = [
   { ms: 60_000, label: '1 min' },
@@ -70,6 +77,11 @@ export function AccountScreen() {
 
   const profile = s.profile.get()
   const broker = conn.broker ?? profile.broker
+  /** On only once the user has read what it does and said yes; off at once. */
+  const setOneTap = async (on: boolean) => {
+    if (on && !(await confirm(ACCOUNT_COPY.oneTap, ONE_TAP_COPY, 'Turn on'))) return
+    prefs.setPrefs({ chartOneTap: on })
+  }
   const openLogin = () => {
     Linking.openURL(`${profile.restOrigin.replace(/\/+$/, '')}/login`).catch((e) =>
       log.warn('account', 'could not open the browser', e),
@@ -201,6 +213,15 @@ export function AccountScreen() {
             {ACCOUNT_COPY.noPasscodeConfirm}
           </Text>
         )}
+        <View style={styles.rowBetween}>
+          <Text style={styles.fill}>{ACCOUNT_COPY.oneTap}</Text>
+          <Switch
+            testID="pref-chart-onetap"
+            accessibilityLabel={ACCOUNT_COPY.oneTap}
+            value={prefs.chartOneTap}
+            onValueChange={(v) => void setOneTap(v)}
+          />
+        </View>
         <View style={styles.rowBetween}>
           <Text style={styles.fill}>{ACCOUNT_COPY.updateCheck}</Text>
           <Switch

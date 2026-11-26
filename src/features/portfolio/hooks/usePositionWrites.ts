@@ -9,12 +9,11 @@
 // server sizes a second close from the position the first has not yet closed, so both would fill
 // and reverse it. The check then reads the orderbook for a working closing order, and the line
 // points to the order book. The position's Close waits (`onPosition`) until the check ends.
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import type { EndpointId } from '~/core/http/endpoints'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
-import { qk } from '~/core/query/keys'
 import { useServices } from '~/core/services/services'
-import { isWorking, type Positionbook, type PositionRow } from '~/market/books/schemas'
+import { isWorking, type PositionRow } from '~/market/books/schemas'
 import type { WriteOutcome } from '~/market/components/OutcomeLine'
 import { QUEUED_COPY } from '~/market/components/SessionBanners'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
@@ -29,7 +28,7 @@ import {
   reconcileClose,
 } from '~/market/orders/reconcile'
 import { type ActionKind, liveSurpriseText, submitOrderAction } from '~/market/orders/submit'
-import { useFreshBook } from '~/market/orders/useFreshBook'
+import { useFreshBook, useFreshPositions } from '~/market/orders/useFreshBook'
 import { useTrading } from '~/market/trading'
 import type { Strategy } from '~/market/types'
 import { toast } from '~/ui/Toast'
@@ -78,25 +77,6 @@ type Write<R> = {
    * sending it, so the check reads on longer.
    */
   check: (o: { noReply: boolean }) => Promise<Line>
-}
-
-/**
- * One read of the positionbook sent now, never joined to one already out: a read sent before
- * the write may not show it. What it read is shown on the books unless a newer reply is there.
- */
-function useFreshPositions(): () => Promise<Positionbook> {
-  const s = useServices()
-  const trading = useTrading()
-  const pid = s.profile.get().id
-  return useCallback(async () => {
-    const key = qk.positionbook(pid)
-    const sentAt = Date.now()
-    const b = await trading.orders.positionbook({ fresh: true })
-    if ((s.queryClient.getQueryState(key)?.dataUpdatedAt ?? 0) < sentAt) {
-      s.queryClient.setQueryData(key, b)
-    }
-    return b
-  }, [s, trading, pid])
 }
 
 const ok = (text: string): Line => ({ text, tone: 'neutral' })

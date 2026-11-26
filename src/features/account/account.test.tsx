@@ -38,6 +38,7 @@ import { type Route, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets, PONG } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { ANALYZER_COPY, CONFIRM_FAILED, LIVE_PROMPT, useAnalyzer, useToggleAnalyzer } from './api'
+import { ONE_TAP_COPY } from './screens/AccountScreen'
 import { LOST_PHONE_STEPS } from './screens/LostPhoneScreen'
 import { SIGN_OUT_COPY } from './screens/SignOutScreen'
 import { signOut } from './signOut'
@@ -198,7 +199,7 @@ const confirmAlert = async (spy: jest.SpyInstance) => {
 beforeEach(() => {
   useSession.setState({ status: 'ready', profileId: PID })
   useConnection.getState().reset()
-  usePrefs.setState({ confirmLiveWrites: false, updateCheck: true })
+  usePrefs.setState({ confirmLiveWrites: false, updateCheck: true, chartOneTap: false })
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined)
   for (const m of ['debug', 'info', 'warn', 'error'] as const) {
     jest.spyOn(console, m).mockImplementation(() => {})
@@ -488,6 +489,42 @@ describe('account screen', () => {
     await act(async () => fireEvent(sw, 'valueChange', false))
     expect(usePrefs.getState().updateCheck).toBe(false)
     expect(screen.queryByTestId('account-update')).toBeNull()
+  })
+
+  test('one-tap is off by default and turning it on asks with the warning', async () => {
+    expect(ONE_TAP_COPY).toBe(
+      'BUY and SELL on the chart will place a market order at once, without the review step. ' +
+        'A live order still asks for biometrics when that is on.',
+    )
+    await setup()
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
+    await renderRouter(ROUTES, { initialUrl: '/' })
+    const sw = () => screen.getByTestId('pref-chart-onetap')
+    await screen.findByTestId('pref-chart-onetap')
+    expect(sw().props.value).toBe(false)
+    expect(usePrefs.getState().chartOneTap).toBe(false)
+
+    // turning it on asks first; Cancel leaves it off
+    await act(async () => fireEvent(sw(), 'valueChange', true))
+    const [title, body, buttons] = alert.mock.calls.at(-1) ?? []
+    expect(title).toBe('One-tap chart trading')
+    expect(body).toBe(ONE_TAP_COPY)
+    const choices = buttons as { text: string; onPress: () => void }[]
+    expect(choices.map((b) => b.text)).toEqual(['Cancel', 'Turn on'])
+    await act(async () => choices[0]?.onPress())
+    expect(usePrefs.getState().chartOneTap).toBe(false)
+    expect(sw().props.value).toBe(false)
+
+    await act(async () => fireEvent(sw(), 'valueChange', true))
+    await confirmAlert(alert)
+    expect(usePrefs.getState().chartOneTap).toBe(true)
+    expect(sw().props.value).toBe(true)
+
+    // turning it off asks nothing
+    const asked = alert.mock.calls.length
+    await act(async () => fireEvent(sw(), 'valueChange', false))
+    expect(alert).toHaveBeenCalledTimes(asked)
+    expect(usePrefs.getState().chartOneTap).toBe(false)
   })
 
   test('About shows the OpenAlgo mark with the app name and version', async () => {
