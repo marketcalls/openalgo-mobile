@@ -350,6 +350,30 @@ describe('fetch', () => {
     expect(res.statusText).toBe('Forbidden')
   })
 
+  test("a Request's url, method and signal are used; a Request's own body is refused", async () => {
+    const { call, client } = bridged(() => HISTORY)
+    const f = createBridgedFetch(client)
+    // jsdom has no Request global: a Request-shaped object stands in for one.
+    const req = (r: object) => r as unknown as Request
+    await f(req({ url: '/api/v1/search?q=INF', method: 'post', signal: null, body: null }), {
+      body: '{"query":"INF"}',
+    })
+    expect(sent(call)[0]).toMatchObject({
+      method: 'POST',
+      path: '/api/v1/search',
+      query: { q: 'INF' },
+      body: { query: 'INF' },
+    })
+
+    const ctl = new AbortController()
+    ctl.abort()
+    await expect(f(req({ url: '/a', method: 'GET', signal: ctl.signal }))).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    await expect(f(req({ url: '/a', method: 'POST', body: {} }))).rejects.toThrow(TypeError)
+    expect(call).toHaveBeenCalledTimes(1)
+  })
+
   test('each request has its own rid', async () => {
     const { call, client } = bridged(() => HISTORY)
     const f = createBridgedFetch(client)

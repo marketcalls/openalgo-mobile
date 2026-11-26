@@ -19,9 +19,7 @@ const PROBE_MS = 1000
  *  loosened once a page holds it, so there is nothing to update. */
 export function installCsp(doc: Document, dev: boolean): HTMLMetaElement {
   const policy = dev ? DOM_CSP_DEV : DOM_CSP
-  const head =
-    doc.head ??
-    doc.documentElement.insertBefore(doc.createElement('head'), doc.documentElement.firstChild)
+  const head = doc.head
   for (const m of Array.from(head.querySelectorAll<HTMLMetaElement>('meta[http-equiv]'))) {
     if (m.httpEquiv === HTTP_EQUIV && m.content === policy) return m
   }
