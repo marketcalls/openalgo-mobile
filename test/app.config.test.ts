@@ -169,8 +169,11 @@ describe('tooling config', () => {
     '%s ignores the checked-out openalgo/ folder',
     (file) => {
       const cfg = require(path.join(root, file))
-      expect(cfg.testPathIgnorePatterns).toContain('<rootDir>/openalgo/')
-      expect(cfg.modulePathIgnorePatterns).toContain('<rootDir>/openalgo/')
+      // jest.config.js holds a "native" and a "dom" project, and each one needs the patterns.
+      for (const project of cfg.projects ?? [cfg]) {
+        expect(project.testPathIgnorePatterns).toContain('<rootDir>/openalgo/')
+        expect(project.modulePathIgnorePatterns).toContain('<rootDir>/openalgo/')
+      }
     },
   )
 })
