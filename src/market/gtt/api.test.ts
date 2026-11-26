@@ -271,6 +271,9 @@ describe("what a book read shows about the server's mode", () => {
     const refused = overHttp({ 'POST /api/v1/gttorderbook': SANDBOX_501 })
     await failure(refused.gtt.book())
     expect(refused.modes).toEqual([])
+    const unanswered = overHttp({ 'POST /api/v1/gttorderbook': 'throw' })
+    await failure(unanswered.gtt.book())
+    expect(unanswered.modes).toEqual([])
   })
 })
 
