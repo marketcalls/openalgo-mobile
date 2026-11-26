@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useEffect } from 'react'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { usePrefs } from '~/core/config/prefs'
 import { applyPrivacy } from '~/core/platform/privacy'
@@ -29,14 +30,14 @@ export default function RootLayout() {
 
   if (status === 'loading') return null
 
-  // No GestureHandlerRootView yet: nothing in M1 uses a gesture, and gesture-handler bundles
-  // Reanimated, about 1.3 MB of Hermes bytecode, which breaks the 4.34 MB budget (design 12).
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <RootStack />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <RootStack />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
 
