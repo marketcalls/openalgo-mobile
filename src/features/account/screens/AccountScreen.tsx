@@ -1,5 +1,5 @@
-// The Account tab (design 7.2): the connection, the analyzer mode, the broker, settings and the
-// way to the other account screens.
+// The Account tab (design 7.2): the connection, the analyzer mode, the broker, settings, the
+// way to the other account screens, and the app's name and version.
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -10,6 +10,7 @@ import { useConnection } from '~/core/services/connection'
 import { defaultDeps } from '~/core/services/deps'
 import { useServices } from '~/core/services/services'
 import { backupHref } from '~/market/links'
+import { BrandMark } from '~/ui/BrandMark'
 import { Button } from '~/ui/Button'
 import { ListRow } from '~/ui/ListRow'
 import { Text } from '~/ui/Text'
@@ -230,9 +231,19 @@ export function AccountScreen() {
           onPress={() => router.push('/account/sign-out')}
         />
       </View>
-      <Text variant="caption" tone="muted" testID="app-version">
-        {`OpenAlgo app ${Constants.expoConfig?.version ?? 'unknown'}`}
-      </Text>
+      <View style={styles.group} testID="account-about">
+        <Text variant="heading">About</Text>
+        <View style={styles.about}>
+          {/* Decorative: the app name beside it says OpenAlgo. */}
+          <BrandMark testID="about-mark" size={40} decorative />
+          <View style={styles.fill}>
+            <Text testID="app-name">{Constants.expoConfig?.name ?? 'OpenAlgo'}</Text>
+            <Text variant="caption" tone="muted" testID="app-version">
+              {`Version ${Constants.expoConfig?.version ?? 'unknown'}`}
+            </Text>
+          </View>
+        </View>
+      </View>
     </ScrollView>
   )
 }
@@ -248,4 +259,5 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   fill: { flex: 1 },
+  about: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 })

@@ -6,6 +6,7 @@ import { Platform, ScrollView, StyleSheet } from 'react-native'
 import { normalizeServerUrl } from '~/core/config/urlRules'
 import { log } from '~/core/log/logger'
 import { Banner } from '~/ui/Banner'
+import { BrandMark } from '~/ui/BrandMark'
 import { Button } from '~/ui/Button'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
@@ -64,6 +65,8 @@ export function ServerScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      {/* Decorative: the header above it says "Connect to OpenAlgo". */}
+      <BrandMark testID="onboarding-mark" size={56} decorative style={styles.mark} />
       <Text tone="muted">The address of your OpenAlgo server, as you open it in a browser.</Text>
       <UrlField
         testID="server-url"
@@ -106,4 +109,5 @@ export function ServerScreen() {
 
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 16 },
+  mark: { alignSelf: 'center', marginVertical: 8 },
 })

@@ -1,4 +1,4 @@
-import { fireEvent, userEvent } from '@testing-library/react-native'
+import { fireEvent, isHiddenFromAccessibility, userEvent } from '@testing-library/react-native'
 import * as Clipboard from 'expo-clipboard'
 import { Stack } from 'expo-router'
 import { act, renderRouter, screen, waitFor } from 'expo-router/testing-library'
@@ -119,6 +119,15 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks())
 
 describe('server', () => {
+  test('the first screen shows the OpenAlgo mark under the "Connect to OpenAlgo" header', async () => {
+    setup()
+    await open()
+    const mark = screen.getByTestId('onboarding-mark', { includeHiddenElements: true })
+    expect(JSON.stringify(mark.props.source)).toContain('assets/brand/openalgo-mark.png')
+    // decorative: the header already says OpenAlgo
+    expect(isHiddenFromAccessibility(mark)).toBe(true)
+  })
+
   test('LAN http needs the ack before anything is sent', async () => {
     const { fetch } = setup()
     await open()

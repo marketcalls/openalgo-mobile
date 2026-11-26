@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native'
 import { FullWindowOverlay } from 'react-native-screens'
 import type { LockController } from '~/core/credentials/lock'
+import { BrandMark } from './BrandMark'
 import { tokens } from './tokens'
 
 /**
@@ -24,8 +25,9 @@ export function LockLayer({ children }: { children: ReactNode }) {
  * cannot be read even after a retry, it offers `onForgetKey`.
  *
  * While an attempt runs (the prompt is up, or the key is being read) the cover is blank: the
- * title and the button appear only once an attempt has failed, so "locked" never flashes behind
- * the first prompt, a re-lock's prompt, or an unlock that needs no prompt (ruling 5).
+ * mark, the title and the button appear only once an attempt has failed, so "locked" never
+ * flashes behind the first prompt, a re-lock's prompt, or an unlock that needs no prompt
+ * (ruling 5).
  */
 export function LockOverlay({
   controller,
@@ -61,7 +63,11 @@ export function LockOverlay({
     >
       {pending ? null : (
         <>
-          <Text style={[styles.title, { color: t.foreground }]}>OpenAlgo is locked</Text>
+          <View style={styles.brand}>
+            {/* Decorative: the title beside it says OpenAlgo. */}
+            <BrandMark testID="lock-mark" size={64} color={t.foreground} decorative />
+            <Text style={[styles.title, { color: t.foreground }]}>OpenAlgo is locked</Text>
+          </View>
           <Pressable
             testID="lock-unlock"
             accessibilityRole="button"
@@ -90,6 +96,7 @@ export function LockOverlay({
 
 const styles = StyleSheet.create({
   cover: { alignItems: 'center', justifyContent: 'center', gap: 24, padding: 24, zIndex: 1000 },
+  brand: { alignItems: 'center', gap: 16 },
   title: { fontSize: 20, fontWeight: '600' },
   button: {
     minWidth: 160,

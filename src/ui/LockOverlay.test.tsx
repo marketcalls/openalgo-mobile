@@ -66,6 +66,22 @@ test('an opaque full-screen cover with the unlock button', async () => {
   expect(screen.getByRole('button', { name: 'Unlock' })).toHaveProp('testID', 'lock-unlock')
 })
 
+test('the OpenAlgo mark sits above the title in its colour, hidden from screen readers', async () => {
+  const { controller } = setup()
+  await render(<LockOverlay controller={controller} />)
+  const title = await screen.findByText('OpenAlgo is locked')
+  const mark = screen.getByTestId('lock-mark', { includeHiddenElements: true })
+  expect(StyleSheet.flatten(mark.props.style)).toMatchObject({
+    width: 64,
+    height: 64,
+    tintColor: tokens.light.foreground,
+  })
+  // decorative: the title says OpenAlgo
+  expect(isHiddenFromAccessibility(mark)).toBe(true)
+  expect(mark.parent).toBe(title.parent)
+  expect(title.parent?.children).toEqual([mark, title])
+})
+
 test('while the first attempt runs only the cover shows, and a success never shows the title', async () => {
   const { controller, authenticate, vault } = setup()
   const held = heldPrompt()
@@ -74,6 +90,7 @@ test('while the first attempt runs only the cover shows, and a success never sho
   await waitFor(() => expect(held.waiting()).toBe(1))
   expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen()
   expect(screen.queryByText('OpenAlgo is locked')).toBeNull()
+  expect(screen.queryByTestId('lock-mark', { includeHiddenElements: true })).toBeNull()
   expect(screen.queryByTestId('lock-unlock')).toBeNull()
 
   await act(async () => held.answer(true))

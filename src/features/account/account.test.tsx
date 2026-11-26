@@ -1,5 +1,13 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, renderHook, userEvent, waitFor } from '@testing-library/react-native'
+import {
+  cleanup,
+  fireEvent,
+  isHiddenFromAccessibility,
+  renderHook,
+  userEvent,
+  waitFor,
+} from '@testing-library/react-native'
+import Constants from 'expo-constants'
 import { Stack } from 'expo-router'
 import { act, renderRouter, screen } from 'expo-router/testing-library'
 import { usePreventScreenCapture } from 'expo-screen-capture'
@@ -396,6 +404,27 @@ describe('account screen', () => {
     const sw = screen.getByTestId('pref-confirm-live')
     expect(sw.props.value).toBe(false)
     expect(sw.props.disabled).toBe(true)
+  })
+
+  test('About shows the OpenAlgo mark with the app name and version', async () => {
+    // The test runtime has no app config (a build embeds app.config.ts), so give it one.
+    const config = Constants.expoConfig as unknown as Record<string, unknown>
+    const saved = { ...config }
+    Object.assign(config, { name: 'OpenAlgo', version: '9.8.7' })
+    try {
+      await setup()
+      await renderRouter(ROUTES, { initialUrl: '/' })
+      expect(await screen.findByTestId('account-about')).toHaveTextContent(
+        'AboutOpenAlgoVersion 9.8.7',
+      )
+      const mark = screen.getByTestId('about-mark', { includeHiddenElements: true })
+      expect(JSON.stringify(mark.props.source)).toContain('assets/brand/openalgo-mark.png')
+      // decorative: the name beside it says OpenAlgo
+      expect(isHiddenFromAccessibility(mark)).toBe(true)
+    } finally {
+      for (const k of Object.keys(config)) delete config[k]
+      Object.assign(config, saved)
+    }
   })
 
   test('links to back up and restore', async () => {
