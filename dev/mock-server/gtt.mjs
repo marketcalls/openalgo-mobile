@@ -11,7 +11,8 @@ const PRODUCT_ERROR =
 const notEmpty = (v) => (v.length >= 1 ? null : 'Shorter than minimum length 1.')
 const nullableFloat = { type: 'float', missing: null, allowNone: true }
 
-// PlaceGTTOrderSchema and ModifyGTTOrderSchema in declaration order; modify adds trigger_id.
+// PlaceGTTOrderSchema and ModifyGTTOrderSchema in declaration order; modify adds trigger_id and
+// lacks expires_at, which it drops as unknown. The mock keeps its own expiry either way.
 const orderFields = (v, modify) => ({
   apikey: req('str'),
   strategy: req('str'),
@@ -28,7 +29,16 @@ const orderFields = (v, modify) => ({
   triggerprice_tg: opt('float', 0, atLeast(0, 'triggerprice_tg must be non-negative.')),
   stoploss: nullableFloat,
   target: nullableFloat,
+  ...(modify ? {} : { expires_at: { type: 'str', missing: null, allowNone: true } }),
 })
+// pre_load coerce_empty_to_none (restx_api/schemas.py:493-499, 551-557): an empty string reads
+// as 0.0 for a trigger and as None for a leg limit. Any other blank stays a bad number.
+const EMPTY_AS = { stoploss: null, target: null, triggerprice_sl: 0, triggerprice_tg: 0 }
+function coerceEmpty(body) {
+  const out = { ...body }
+  for (const [key, value] of Object.entries(EMPTY_AS)) if (out[key] === '') out[key] = value
+  return out
+}
 const CANCEL_FIELDS = {
   apikey: req('str'),
   strategy: req('str'),
@@ -75,7 +85,7 @@ function checkTriggers(d) {
 
 const loadOrder = (modify) => (body, v) => {
   // Meta.unknown = EXCLUDE (restx_api/schemas.py:456-457, 514-515).
-  const r = loadFields(orderFields(v, modify), body, { exclude: true })
+  const r = loadFields(orderFields(v, modify), coerceEmpty(body), { exclude: true })
   return r.errors ? r : checkTriggers(r.data)
 }
 
@@ -101,6 +111,10 @@ const SANDBOX_501 = {
   status: 'error',
   message: 'Sandbox GTT support not yet implemented',
 }
+// Live mode: the brokers whose get_gtt_book honours include_history (status 'all') at c8b2896.
+// Dhan's, Angel's, Fyers' and Upstox's accept it "for interface parity" and still list active
+// rows only (broker/<b>/api/gtt_api.py). The sandbox lists the history for any broker.
+const HISTORY_BROKERS = ['zerodha', 'pocketful', 'rupeezy']
 // Live mode only (services/modify_gtt_order_service.py:166-186, cancel_gtt_order_service.py:166-182).
 const SEMI_AUTO_REFUSALS = {
   modifygttorder: 'Modify GTT order is not allowed in Semi-Auto mode. Switch to Auto mode.',
@@ -269,14 +283,15 @@ export function createGttEngine({ state, prices, now = Date.now }) {
       return success({ trigger_id: d.trigger_id })
     },
     // Active rows by default; `all` adds the rest after them, each group newest first
-    // (services/gtt_orderbook_service.py:21-33).
+    // (services/gtt_orderbook_service.py:21-75), where the sandbox or the broker keeps history.
     gttorderbook(d, { version }) {
       const bad = unserved(version)
       if (bad) return bad
+      const history =
+        d.status === 'all' && (analyzer() || HISTORY_BROKERS.includes(state.current.broker))
       const newest = [...gtts.values()].reverse()
       const active = newest.filter((g) => g.status === 'active')
-      const listed =
-        d.status === 'all' ? [...active, ...newest.filter((g) => g.status !== 'active')] : active
+      const listed = history ? [...active, ...newest.filter((g) => g.status !== 'active')] : active
       return success({ data: listed.map(row) })
     },
   }

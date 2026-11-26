@@ -384,6 +384,103 @@ test('2.0.3.5: the default book lists active rows; all lists every row, active f
   )
 })
 
+test('2.0.3.5 LIVE: all adds the history for zerodha, pocketful and rupeezy only; the sandbox for any broker', async (t) => {
+  // c8b2896 get_gtt_book: the Dhan, Angel, Fyers and Upstox mappers accept include_history and
+  // still list active rows only, so a cancelled or triggered row is simply gone there.
+  for (const [broker, history] of [
+    ['zerodha', true],
+    ['pocketful', true],
+    ['rupeezy', true],
+    ['dhan', false],
+    ['angel', false],
+    ['fyers', false],
+    ['upstox', false],
+  ]) {
+    const m = await mock(t, { broker })
+    const kept = await place(m)
+    const cancelled = await place(m, oco())
+    const fired = await place(m, single({ triggerprice_sl: 1900, price: 1900 }))
+    assert.equal((await post(m, 'cancelgttorder', cancel(cancelled))).status, 200, broker)
+    const listed = async () =>
+      (await rows(m, { status: 'all' })).map((r) => [r.trigger_id, r.status])
+    const everything = [
+      [kept, 'active'],
+      [fired, 'triggered'],
+      [cancelled, 'cancelled'],
+    ]
+    assert.deepEqual(await listed(), history ? everything : [[kept, 'active']], broker)
+    await control(m, { analyzer: true })
+    assert.deepEqual(await listed(), everything, `${broker} ANALYZE`)
+  }
+})
+
+test('2.0.3.5: place declares expires_at, a string or null; modify drops it as an unknown field', async (t) => {
+  const m = await mock(t)
+  for (const expires_at of [20270101, true, ['2027-01-01']]) {
+    const r = await post(m, 'placegttorder', single({ expires_at }))
+    assert.equal(r.status, 400, JSON.stringify(expires_at))
+    assert.deepEqual(
+      r.json,
+      { status: 'error', message: "{'expires_at': ['Not a valid string.']}" },
+      JSON.stringify(expires_at),
+    )
+  }
+  const id = await place(m, single({ expires_at: null }))
+  await place(m, single({ expires_at: '2027-01-01 15:30:00' }))
+  const modified = await post(m, 'modifygttorder', modify(id, { expires_at: 20270101 }))
+  assert.equal(modified.status, 200, modified.text)
+})
+
+test('2.0.3.5: place and modify read an empty trigger as 0 and an empty leg limit as None (pre_load)', async (t) => {
+  const m = await mock(t)
+  const repr = (field, text) => ({ status: 'error', message: `{'${field}': ['${text}']}` })
+  const refused = async (endpoint, body, expected) => {
+    const r = await post(m, endpoint, body)
+    assert.equal(r.status, 400, `${endpoint} ${JSON.stringify(body)}`)
+    assert.deepEqual(r.json, expected, `${endpoint} ${JSON.stringify(body)}`)
+  }
+  const noTrigger = repr(
+    'triggerprice_sl',
+    'SINGLE GTT requires a positive triggerprice_sl or triggerprice_tg.',
+  )
+
+  const id = await place(m, single({ triggerprice_tg: '', stoploss: '', target: '' }))
+  assert.deepEqual((await rowById(m, id)).trigger_prices, [1500])
+  await refused('placegttorder', single({ triggerprice_sl: '', triggerprice_tg: '' }), noTrigger)
+  await refused(
+    'placegttorder',
+    oco({ stoploss: '' }),
+    repr('stoploss', 'Required for OCO (stoploss leg limit).'),
+  )
+  // Only '' is coerced: a blank is no number.
+  await refused('placegttorder', single({ triggerprice_tg: ' ' }), {
+    status: 'error',
+    message: "{'triggerprice_tg': ['Not a valid number.']}",
+  })
+
+  const empties = {
+    triggerprice_sl: '',
+    triggerprice_tg: 1900,
+    price: 1900,
+    stoploss: '',
+    target: '',
+  }
+  const modified = await post(m, 'modifygttorder', modify(id, empties))
+  assert.equal(modified.status, 200, modified.text)
+  const row = await rowById(m, id)
+  assert.deepEqual([row.status, row.trigger_prices], ['active', [1900]])
+  await refused(
+    'modifygttorder',
+    modify(id, { triggerprice_sl: '', triggerprice_tg: '' }),
+    noTrigger,
+  )
+  await refused(
+    'modifygttorder',
+    { trigger_id: id, ...oco({ target: '' }) },
+    repr('target', 'Required for OCO (target leg limit).'),
+  )
+})
+
 test('control fireGtts triggers every active GTT and is not stored', async (t) => {
   const m = await mock(t)
   const a = await place(m)
