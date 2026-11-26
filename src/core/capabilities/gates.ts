@@ -35,6 +35,11 @@ export type Capabilities = {
   probed: Record<string, boolean>
   /** Request fields the server accepts or refuses, keyed `<endpoint>.<field>`. */
   fields: Record<string, boolean>
+  /**
+   * What the server was seen to serve that its version and endpoints cannot tell, such as GTT
+   * for one broker in one mode (`gtt:<broker>:<mode>`). A new probe starts it empty.
+   */
+  features: Record<string, boolean>
   ws: WsCaps
   probedAt: number
 }

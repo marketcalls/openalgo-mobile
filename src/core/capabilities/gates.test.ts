@@ -11,6 +11,7 @@ function caps(over: Partial<Capabilities> = {}): Capabilities {
     endpoints: [...BASE, ...TOOLS, 'sectorrotation'],
     probed: {},
     fields: {},
+    features: {},
     ws: { orderStream: null, ping: null, close1012: true, authDeadline: true },
     probedAt: 0,
     ...over,

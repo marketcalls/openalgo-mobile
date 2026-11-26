@@ -5,6 +5,7 @@ import { type Capabilities, type FeatureId, gate, VERSION_GATES } from '~/core/c
 import type { SchedulerStats } from '~/core/http/scheduler'
 import { redact } from '~/core/log/logger'
 import type { FeedStatus } from '~/core/realtime/wsClient'
+import type { GttSupport } from '~/market/gtt/support'
 
 export type CapabilityRow = { feature: string; on: boolean; reason: string }
 
@@ -31,6 +32,8 @@ export type DiagnosticsInput = {
     wsUrl: string | null
   }
   caps: Capabilities | null
+  /** GTT support for the server's broker in the badge's mode. */
+  gtt?: GttSupport
   feed: FeedStatus
   scheduler: SchedulerStats
   store: { ticksIn: number; flushes: number; keysPublished: number; keys: number }
@@ -44,6 +47,7 @@ export function buildDiagnostics(i: DiagnosticsInput) {
     appVersion: i.appVersion,
     server: i.server,
     capabilities: i.caps ? capabilityReport(i.caps) : [],
+    gtt: i.gtt ? { state: i.gtt.state, reason: i.gtt.reason } : null,
     feed: i.feed,
     scheduler: i.scheduler,
     store: i.store,

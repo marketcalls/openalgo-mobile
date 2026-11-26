@@ -131,6 +131,7 @@ describe('a stock server with app-info', () => {
       endpoints: ALL_2_0_3_5,
       probed: {},
       fields: {},
+      features: {},
       ws: { orderStream: null, ping: null, close1012: true, authDeadline: true },
       probedAt: NOW,
     })
@@ -165,18 +166,33 @@ describe('a stock server with app-info', () => {
     })
   })
 
-  test('without swagger, the tool endpoints are probed, and the evidence gates them', async () => {
+  test('without swagger, the tool and GTT endpoints are probed, and the evidence gates them', async () => {
     const { http, posted } = setup(
-      stock({ version: '2.0.2.0', endpoints: [...BASE, ...TOOLS], swagger: false }),
+      stock({
+        version: '2.0.2.0',
+        endpoints: [...BASE, ...TOOLS, 'gttorderbook'],
+        swagger: false,
+      }),
     )
     const caps = okCaps(await probeServer({ http, host: ORIGIN, now: NOW }))
     expect(caps).toMatchObject({
       version: '2.0.2.0',
       versionSource: 'app-info',
       endpoints: null,
-      probed: { 'portfolio/backtest': true, 'sip/backtest': true, sectorrotation: false },
+      probed: {
+        'portfolio/backtest': true,
+        'sip/backtest': true,
+        sectorrotation: false,
+        gttorderbook: true,
+      },
+      features: {},
     })
-    expect(posted()).toEqual(['portfolio/backtest', 'sip/backtest', 'sectorrotation'])
+    expect(posted()).toEqual([
+      'portfolio/backtest',
+      'sip/backtest',
+      'sectorrotation',
+      'gttorderbook',
+    ])
     expect(gate(caps, 'portfolioTools').on).toBe(true)
     expect(gate(caps, 'sectorRotation').on).toBe(false)
   })
@@ -187,7 +203,12 @@ describe('a stock server with app-info', () => {
     const { http, posted } = setup(routes)
     const caps = okCaps(await probeServer({ http, host: ORIGIN, now: NOW }))
     expect(caps.endpoints).toBeNull()
-    expect(posted()).toEqual(['portfolio/backtest', 'sip/backtest', 'sectorrotation'])
+    expect(posted()).toEqual([
+      'portfolio/backtest',
+      'sip/backtest',
+      'sectorrotation',
+      'gttorderbook',
+    ])
   })
 })
 
@@ -233,6 +254,7 @@ describe('no app-info: the 2.0.0.0 marker', () => {
         'portfolio/backtest': false,
         'sip/backtest': false,
         sectorrotation: false,
+        gttorderbook: false,
       },
     })
     expect(posted()).toEqual([
@@ -240,6 +262,7 @@ describe('no app-info: the 2.0.0.0 marker', () => {
       'portfolio/backtest',
       'sip/backtest',
       'sectorrotation',
+      'gttorderbook',
     ])
     expect(posts().length).toBeLessThanOrEqual(10)
     // Probes are keyless POST {} with a JSON content type (GC).
@@ -279,6 +302,7 @@ describe('no app-info: the 2.0.0.0 marker', () => {
       multioptiongreeks: true,
       'portfolio/backtest': false,
       sectorrotation: false,
+      gttorderbook: false,
     })
   })
 })

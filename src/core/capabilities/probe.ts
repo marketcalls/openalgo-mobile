@@ -31,8 +31,13 @@ const APP_INFO = '/auth/app-info'
 const SWAGGER = '/api/v1/swagger.json'
 /** Present from 2.0.0.0 (S10). */
 const MARKER = 'multioptiongreeks'
-/** Probed when swagger.json is missing: the endpoints the tool gates read. */
-const TOOL_PROBES: readonly EndpointId[] = ['portfolio/backtest', 'sip/backtest', 'sectorrotation']
+/** Probed when swagger.json is missing: the endpoints the tool gates and GTT support read. */
+const TOOL_PROBES: readonly EndpointId[] = [
+  'portfolio/backtest',
+  'sip/backtest',
+  'sectorrotation',
+  'gttorderbook',
+]
 
 const isKind = (e: unknown, kind: ApiErrorKind): e is ApiError =>
   e instanceof ApiError && e.kind === kind
@@ -109,6 +114,7 @@ export async function probeServer({
       endpoints,
       probed,
       fields: {},
+      features: {},
       ws: {
         orderStream: null,
         ping: null,

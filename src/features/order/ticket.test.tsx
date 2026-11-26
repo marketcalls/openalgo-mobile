@@ -85,6 +85,7 @@ const CAPS: Capabilities = {
   endpoints: null,
   probed: {},
   fields: {},
+  features: {},
   ws: { orderStream: true, ping: true, close1012: true, authDeadline: true },
   probedAt: T0,
 }

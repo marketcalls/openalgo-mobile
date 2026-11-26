@@ -15,6 +15,7 @@ const CAPS: Capabilities = {
   endpoints: ['ping', 'optionchain', 'history'],
   probed: { multioptiongreeks: true },
   fields: {},
+  features: {},
   ws: { orderStream: null, ping: null, close1012: true, authDeadline: true },
   probedAt: T0,
 }
@@ -45,6 +46,12 @@ describe('load and save', () => {
     const again = createCapabilityStore(profileStorage(kv, 'p1'))
     expect(await again.load()).toEqual(CAPS)
     expect(again.get()).toEqual(CAPS)
+  })
+
+  test('caps stored before features existed load with no features', async () => {
+    const { features: _, ...before } = CAPS
+    const { store } = setup({ 'oa.p1.caps': JSON.stringify(before) })
+    expect(await store.load()).toEqual({ ...CAPS, features: {} })
   })
 
   test('nothing stored, or unreadable data, loads as null', async () => {
@@ -156,6 +163,44 @@ describe('fields', () => {
     const { store, stored } = setup()
     store.markUnsupported('history', 'source')
     expect(store.adapt('history', { source: 'db' })).toEqual({ source: 'db' })
+    await settle()
+    expect(stored()).toBeUndefined()
+  })
+})
+
+describe('features', () => {
+  test('setFeature persists the value, and a reload has it', async () => {
+    const { kv, store, stored } = setup()
+    await store.save(CAPS)
+    store.setFeature('gtt:zerodha:analyze', false)
+    store.setFeature('gtt:zerodha:live', true)
+    const features = { 'gtt:zerodha:analyze': false, 'gtt:zerodha:live': true }
+    expect(store.get()?.features).toEqual(features)
+    await settle()
+    expect(stored().features).toEqual(features)
+
+    const again = createCapabilityStore(profileStorage(kv, 'p1'))
+    expect((await again.load())?.features).toEqual(features)
+  })
+
+  test('setFeature notifies once per change, and a value it already has notifies no one', async () => {
+    const { store } = setup()
+    await store.save(CAPS)
+    const fn = jest.fn()
+    store.subscribe(fn)
+    store.setFeature('gtt:dhan:live', true)
+    store.setFeature('gtt:dhan:live', true)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenLastCalledWith({ ...CAPS, features: { 'gtt:dhan:live': true } })
+    store.setFeature('gtt:dhan:live', false)
+    expect(fn).toHaveBeenCalledTimes(2)
+    expect(store.get()?.features).toEqual({ 'gtt:dhan:live': false })
+  })
+
+  test('setFeature before a probe does nothing', async () => {
+    const { store, stored } = setup()
+    store.setFeature('gtt:zerodha:live', true)
+    expect(store.get()).toBeNull()
     await settle()
     expect(stored()).toBeUndefined()
   })

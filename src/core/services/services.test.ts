@@ -62,6 +62,7 @@ const CAPS: Capabilities = {
   endpoints: ['multioptiongreeks', 'funds', 'search'],
   probed: {},
   fields: {},
+  features: {},
   ws: { orderStream: null, ping: null, close1012: true, authDeadline: true },
   probedAt: T0,
 }

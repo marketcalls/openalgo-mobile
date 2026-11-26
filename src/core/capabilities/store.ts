@@ -16,6 +16,8 @@ export type CapabilityStore = {
   save(c: Capabilities): Promise<void>
   /** Records a request field, keyed `<endpoint>.<field>` ('history.source'). */
   setField(key: string, v: boolean): void
+  /** Records what the server was seen to serve, keyed by the feature ('gtt:zerodha:live'). */
+  setFeature(key: string, v: boolean): void
   /** Records what the live feed showed. */
   setWs(p: Partial<WsCaps>): void
   /** The live-feed caps; before a probe, nothing is known (ruling 14). */
@@ -42,6 +44,8 @@ const CapabilitiesSchema = z.object({
   endpoints: z.array(z.string()).nullable(),
   probed: z.record(z.string(), z.boolean()),
   fields: z.record(z.string(), z.boolean()),
+  // caps stored before features existed still load
+  features: z.record(z.string(), z.boolean()).default({}),
   ws: z.object({
     orderStream: z.boolean().nullable(),
     ping: z.boolean().nullable(),
@@ -94,6 +98,12 @@ export function createCapabilityStore(s: ProfileStorage): CapabilityStore & Fiel
     },
 
     setField,
+
+    setFeature(key, v) {
+      if (current && current.features[key] !== v) {
+        patch({ features: { ...current.features, [key]: v } })
+      }
+    },
 
     setWs(p) {
       if (!current) return

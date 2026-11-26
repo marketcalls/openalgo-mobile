@@ -10,6 +10,7 @@ const caps = (version: string): Capabilities => ({
   endpoints: null,
   probed: {},
   fields: {},
+  features: {},
   ws: { orderStream: null, ping: null, close1012: false, authDeadline: false },
   probedAt: 0,
 })
@@ -21,6 +22,26 @@ describe('capabilityReport', () => {
     expect(row('orderStream')?.on).toBe(true)
     expect(row('optionchainGreeks')).toMatchObject({ on: false })
     expect(row('optionchainGreeks')?.reason).toContain('needs 2.0.2.0')
+  })
+})
+
+describe('GTT support', () => {
+  test('the report carries its state and reason', () => {
+    const r = buildDiagnostics({
+      ...base(),
+      gtt: {
+        state: 'no',
+        reason: 'GTT in the analyzer needs OpenAlgo 2.0.1.9',
+        needs: '2.0.1.9',
+        detect: false,
+      },
+    })
+    expect(r.gtt).toEqual({ state: 'no', reason: 'GTT in the analyzer needs OpenAlgo 2.0.1.9' })
+    expect(JSON.parse(serializeDiagnostics(r)).gtt).toEqual(r.gtt)
+  })
+
+  test('without it, the report says so', () => {
+    expect(buildDiagnostics(base()).gtt).toBeNull()
   })
 })
 

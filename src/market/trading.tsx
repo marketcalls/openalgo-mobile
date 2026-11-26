@@ -4,12 +4,12 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo } from 'r
 import { AppState } from 'react-native'
 import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
-import { log } from '~/core/log/logger'
 import { istDate } from '~/core/realtime/marketHours'
 import { useConnection } from '~/core/services/connection'
 import { type Services, useServices } from '~/core/services/services'
 import { createEventWatch, type EventWatch } from './books/eventWatch'
 import { createGttApi, type GttApi, type GttSeen } from './gtt/api'
+import { gttFeatureKey } from './gtt/support'
 import { createInstrumentCache, type InstrumentCache, UNKNOWN_TTL_MS } from './instruments/cache'
 import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
 import { createOrderApi, type OrderApi } from './orders/api'
@@ -167,16 +167,15 @@ export type Trading = {
 }
 
 /**
- * Where a GTT reply's evidence of support goes: to the server's broker at the moment of the
- * reply (`currentBroker`), in the reply's own mode; nothing while no broker is named. It is
- * logged; a later task also keeps it in the capabilities, under the broker and the mode.
+ * Where a GTT reply's evidence of support goes: into the caps, under the server's broker at the
+ * moment of the reply (`currentBroker`) and the reply's own mode; nowhere while no broker is
+ * named.
  */
-function gttSeen(s: Pick<Services, 'realtime' | 'profile'>): GttSeen {
+function gttSeen(s: Pick<Services, 'caps' | 'realtime' | 'profile'>): GttSeen {
   return {
     record(ok, mode) {
       const broker = currentBroker(s)
-      if (!broker) return
-      log.debug('gtt', `${broker} ${mode}: GTT ${ok ? 'served' : 'not served'}`)
+      if (broker) s.caps.setFeature(gttFeatureKey(broker, mode), ok)
     },
   }
 }

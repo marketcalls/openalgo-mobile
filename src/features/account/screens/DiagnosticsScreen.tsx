@@ -2,22 +2,34 @@
 
 import * as Clipboard from 'expo-clipboard'
 import Constants from 'expo-constants'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import { getLogLines } from '~/core/log/logger'
 import { useServices } from '~/core/services/services'
+import { useGttSupport } from '~/market/gtt/queries'
+import type { GttSupport } from '~/market/gtt/support'
 import { Button } from '~/ui/Button'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
 import { ScreenHeader } from '../components/ScreenHeader'
-import { buildDiagnostics, DIAGNOSTIC_LOG_LINES, serializeDiagnostics } from '../diagnostics'
+import {
+  buildDiagnostics,
+  DIAGNOSTIC_LOG_LINES,
+  type DiagnosticsInput,
+  serializeDiagnostics,
+} from '../diagnostics'
+
+const GTT_MARK: Record<GttSupport['state'], string> = { yes: 'on ', no: 'off', unknown: '?  ' }
 
 export function DiagnosticsScreen() {
   const s = useServices()
   const { c } = useTheme()
   const [copied, setCopied] = useState(false)
-  // a snapshot, taken when the screen opens or "Refresh" is pressed
-  const [report, setReport] = useState(() => snapshot(s))
+  // a snapshot, taken when the screen opens or "Refresh" is pressed; GTT support stays live, as
+  // opening the screen may be what settles it (one read of the GTT book)
+  const [taken, setTaken] = useState(() => snapshot(s))
+  const gtt = useGttSupport()
+  const report = useMemo(() => buildDiagnostics({ ...taken, gtt }), [taken, gtt])
 
   const copy = async () => {
     await Clipboard.setStringAsync(serializeDiagnostics(report))
@@ -39,6 +51,11 @@ export function DiagnosticsScreen() {
             {`${row.on ? 'on ' : 'off'}  ${row.feature}: ${row.reason}`}
           </Text>
         ))}
+        {report.gtt ? (
+          <Text variant="caption" testID="cap-gtt">
+            {`${GTT_MARK[report.gtt.state]}  gtt: ${report.gtt.reason}`}
+          </Text>
+        ) : null}
       </Section>
       <Section title="Live feed">
         <Text variant="mono">{`${report.feed.state}, mode ${report.server.feedMode}`}</Text>
@@ -71,16 +88,16 @@ export function DiagnosticsScreen() {
         variant="secondary"
         onPress={() => {
           setCopied(false)
-          setReport(snapshot(s))
+          setTaken(snapshot(s))
         }}
       />
     </ScrollView>
   )
 }
 
-function snapshot(s: ReturnType<typeof useServices>) {
+function snapshot(s: ReturnType<typeof useServices>): DiagnosticsInput {
   const p = s.profile.get()
-  return buildDiagnostics({
+  return {
     appVersion: Constants.expoConfig?.version ?? 'unknown',
     server: {
       origin: p.restOrigin,
@@ -94,7 +111,7 @@ function snapshot(s: ReturnType<typeof useServices>) {
     scheduler: s.scheduler.stats(),
     store: s.store.stats(),
     logs: getLogLines(DIAGNOSTIC_LOG_LINES),
-  })
+  }
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

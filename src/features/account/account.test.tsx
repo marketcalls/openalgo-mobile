@@ -69,6 +69,8 @@ jest.mock('expo-file-system', () => {
   return { File, Paths: { cache: 'cache' }, __written: written }
 })
 jest.mock('expo-screen-capture', () => ({ usePreventScreenCapture: jest.fn() }))
+// AppState is never 'active' in jest; the diagnostics screen's GTT read waits for focus
+jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 jest.mock('expo-clipboard', () => ({
   getStringAsync: jest.fn(async () => ''),
   setStringAsync: jest.fn(async () => true),
@@ -519,12 +521,41 @@ describe('diagnostics screen', () => {
       endpoints: null,
       probed: {},
       fields: {},
+      features: {},
       ws: { orderStream: null, ping: null, close1012: false, authDeadline: false },
       probedAt: 0,
     })
     await renderRouter(ROUTES, { initialUrl: '/account/diagnostics' })
     expect(await screen.findByTestId('cap-optionchainGreeks')).toHaveTextContent(/needs 2\.0\.2\.0/)
     expect(screen.getByTestId('diagnostics-copy')).toBeOnTheScreen()
+  })
+
+  test('shows GTT support, which one read of the GTT book settles while it is open', async () => {
+    await setup(
+      { 'POST /api/v1/gttorderbook': { status: 200, body: { status: 'success', data: [] } } },
+      PROFILE,
+      true,
+    )
+    useConnection.getState().set({ analyzer: 'live' })
+    await services?.caps.save({
+      host: ORIGIN,
+      version: '2.0.1.6',
+      versionSource: 'app-info',
+      endpoints: null,
+      probed: {},
+      fields: {},
+      features: {},
+      ws: { orderStream: null, ping: null, close1012: false, authDeadline: false },
+      probedAt: 0,
+    })
+    await renderRouter(ROUTES, { initialUrl: '/account/diagnostics' })
+    await waitFor(() =>
+      expect(screen.getByTestId('cap-gtt')).toHaveTextContent(
+        'on   gtt: The server serves GTT for zerodha in LIVE',
+      ),
+    )
+    expect(calls('/gttorderbook')).toHaveLength(1)
+    expect(services?.caps.get()?.features).toEqual({ 'gtt:zerodha:live': true })
   })
 })
 

@@ -162,6 +162,7 @@ test('sign-out and a server change each give the app a new trading container: no
     endpoints: null,
     probed: {},
     fields: {},
+    features: {},
     ws: { orderStream: null, ping: null, close1012: false, authDeadline: false },
     probedAt: 0,
   }
