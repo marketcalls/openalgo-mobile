@@ -119,7 +119,7 @@ test('readChartRecords and writeChartRecords round-trip; same key replaced, the 
     drawings: [{ k: DRAW, v: 'new' }],
     prefs: [
       { k: 'oac-widget:chart:state', v: 's' },
-      { k: DRAW + 'x', v: 'wrong section' },
+      { k: `${DRAW}x`, v: 'wrong section' },
     ],
   })
   expect(n).toBe(2)

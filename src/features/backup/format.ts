@@ -2,7 +2,12 @@
 // whole format is tested without a file system. Never the key, the server address or the
 // profile id: only the content goes in, and the text is checked once more before it is shared.
 import { istClock, istDate } from '~/core/realtime/marketHours'
-import { type DomStoreRecord, MAX_DOM_VALUE, utf8Length } from '~/dom/gateway/domStorage'
+import {
+  type DomStoreRecord,
+  MAX_DOM_KEY,
+  MAX_DOM_VALUE,
+  utf8Length,
+} from '~/dom/gateway/domStorage'
 import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 import {
   WATCH_SORTS,
@@ -17,8 +22,7 @@ export const BACKUP_KIND = 'openalgo-mobile-backup'
 export const BACKUP_SCHEMA = 2
 export const MAX_BACKUP_BYTES = 2_000_000
 
-/** A parsed chart record: its key at most 256 characters, its value a string of at most 1,000,000. */
-const RECORD_KEY_MAX = 256
+/** A parsed chart record: its key at most MAX_DOM_KEY characters, its value a string of at most MAX_DOM_VALUE. */
 /** Records per chart section; the rest are counted as trimmed. */
 const CHART_RECORDS_MAX = 2000
 
@@ -135,7 +139,7 @@ function cleanRecords(v: unknown): { records: DomStoreRecord[]; trimmed: number 
       !isRecord(r) ||
       typeof r.k !== 'string' ||
       r.k === '' ||
-      r.k.length > RECORD_KEY_MAX ||
+      r.k.length > MAX_DOM_KEY ||
       typeof r.v !== 'string' ||
       r.v.length > MAX_DOM_VALUE
     ) {
