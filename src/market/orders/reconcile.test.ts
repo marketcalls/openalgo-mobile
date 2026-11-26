@@ -10,6 +10,7 @@ import {
   findWorkingExit,
   NO_REPLY_DELAYS_MS,
   noReplyDelays,
+  poll,
   RECONCILE_DELAYS_MS,
   reconcileCancelAll,
   reconcileClose,
@@ -91,6 +92,35 @@ describe('the delays', () => {
     expect(sum(noReplyDelays(100))).toBe(sum(NO_REPLY_DELAYS_MS) + 4 * 30_000)
     // 100 children at 1 s each, after the 120 s a broker request may take
     expect(sum(noReplyDelays(100))).toBeGreaterThan(120_000 + 100 * 1_000)
+  })
+})
+
+describe('poll', () => {
+  const read = (n: number) => ({ found: n, checked: n >= 0 })
+  const done = (n: number) => n > 1
+
+  test('reads after each delay, skips a failed fetch, and stops at the first sure read that is done', async () => {
+    const fetch = answers<number>([1, new Error('offline'), -5, 2, 3])
+    expect(await poll({ sleep, delaysMs: [1, 2, 3, 4, 5] }, fetch, read, done, 0)).toEqual({
+      found: 2,
+      checked: true,
+    })
+    expect(fetch).toHaveBeenCalledTimes(4)
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1, 2, 3, 4])
+  })
+
+  test('a done read that is not sure goes on; the answer is the last read that worked', async () => {
+    const fetch = answers<number>([-2, new Error('offline')])
+    expect(await poll({ sleep }, fetch, (n) => ({ found: n, checked: false }), done, 0)).toEqual({
+      found: -2,
+      checked: false,
+    })
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([...RECONCILE_DELAYS_MS])
+  })
+
+  test('no fetch worked: `none`, not checked', async () => {
+    const fetch = answers<number>([new Error('offline')])
+    expect(await poll({ sleep }, fetch, read, done, 7)).toEqual({ found: 7, checked: false })
   })
 })
 

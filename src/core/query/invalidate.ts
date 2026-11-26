@@ -2,13 +2,17 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { Analyzer } from '~/core/http/schemas'
 import { qk } from './keys'
 
-/** The books and funds of one profile: the server's, in its analyzer mode of the moment. */
+/**
+ * The books, funds and GTT book of one profile: the server's, in its analyzer mode of the
+ * moment. A write pokes them all, and a mode flip resets them all.
+ */
 const bookKeys = (pid: string) => [
   qk.orderbook(pid),
   qk.tradebook(pid),
   qk.positionbook(pid),
   qk.holdings(pid),
   qk.funds(pid),
+  qk.gttbook(pid),
 ]
 
 /** Drops every cached query of one profile and leaves the others alone. */
@@ -18,7 +22,7 @@ export const clearProfileCache = (qc: QueryClient, pid: string): void => {
 
 export type BookInvalidator = { poke(): void; dispose(): void }
 
-/** Debounced invalidation of the books and funds; each poke restarts the wait. */
+/** Debounced invalidation of the books (`bookKeys`); each poke restarts the wait. */
 export const createBookInvalidator = (
   qc: QueryClient,
   pid: string,

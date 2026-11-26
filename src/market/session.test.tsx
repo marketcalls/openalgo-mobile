@@ -5,7 +5,7 @@ import { clearLogs, getLogLines } from '~/core/log/logger'
 import type { FeedStatus } from '~/core/realtime/wsClient'
 import { useConnection } from '~/core/services/connection'
 import { type Services, ServicesProvider } from '~/core/services/services'
-import { openServerPage, useBroker, useBrokerBlocked } from './session'
+import { currentBroker, openServerPage, useBroker, useBrokerBlocked } from './session'
 
 beforeEach(() => {
   useConnection.getState().reset()
@@ -35,7 +35,7 @@ function fakeServices(profileBroker: string | null) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <ServicesProvider value={services}>{children}</ServicesProvider>
   )
-  return { setFeed, wrapper }
+  return { services, setFeed, wrapper }
 }
 
 describe('useBrokerBlocked', () => {
@@ -77,6 +77,21 @@ describe('useBroker', () => {
     const h = fakeServices(null)
     const { result } = await renderHook(() => useBroker(), { wrapper: h.wrapper })
     expect(result.current).toBeNull()
+  })
+})
+
+describe('currentBroker', () => {
+  test("useBroker's order, read at the moment of the call", () => {
+    const h = fakeServices('zerodha')
+    expect(currentBroker(h.services)).toBe('zerodha')
+    useConnection.getState().set({ broker: 'angel' })
+    expect(currentBroker(h.services)).toBe('angel')
+    h.setFeed({ broker: 'dhan' })
+    expect(currentBroker(h.services)).toBe('dhan')
+  })
+
+  test('null when nothing has named the broker', () => {
+    expect(currentBroker(fakeServices(null).services)).toBeNull()
   })
 })
 

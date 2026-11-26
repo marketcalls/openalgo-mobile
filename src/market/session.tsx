@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { Linking } from 'react-native'
 import { log } from '~/core/log/logger'
 import { useConnection } from '~/core/services/connection'
-import { useServices } from '~/core/services/services'
+import { type Services, useServices } from '~/core/services/services'
 
 /**
  * True while broker-backed calls cannot succeed: the broker is logged out, the key is refused
@@ -25,6 +25,11 @@ export function useBroker(): string | null {
   const feed = useSyncExternalStore(realtime.onStatus, () => realtime.status().broker)
   const conn = useConnection((c) => c.broker)
   return feed ?? conn ?? profile.get().broker
+}
+
+/** `useBroker`'s answer at this moment, for code outside React (a reply's handler). */
+export function currentBroker(s: Pick<Services, 'realtime' | 'profile'>): string | null {
+  return s.realtime.status().broker ?? useConnection.getState().broker ?? s.profile.get().broker
 }
 
 export type ServerPage = '/login' | '/action-center' | '/apikey'

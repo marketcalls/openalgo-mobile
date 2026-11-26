@@ -16,10 +16,11 @@ export const orderId = z
   .union([z.string(), z.number().refine(Number.isSafeInteger, 'not a safe integer')])
   .pipe(text)
 /** A text field the row can do without: absent or unreadable is `''`. */
-const optText = str.catch('')
+export const optText = str.catch('')
 /** A number the row can do without: absent, `''`, null or unreadable is unset. */
-const optValue = optNum.catch(undefined).optional()
-const side = z
+export const optValue = optNum.catch(undefined).optional()
+/** BUY or SELL, whatever the case or the spaces around it. */
+export const side = z
   .string()
   .transform((s) => s.trim().toUpperCase())
   .pipe(z.enum(['BUY', 'SELL']))

@@ -38,6 +38,7 @@ const DATA = [
   'analyzer',
   'analyzer/toggle',
 ]
+const GTT = ['placegttorder', 'modifygttorder', 'cancelgttorder', 'gttorderbook']
 const TOOLS = [
   'portfolio/backtest',
   'portfolio/holdings',
@@ -55,7 +56,9 @@ const GET_ONLY = [
 const ids = Object.keys(ENDPOINTS) as EndpointId[]
 
 test('lists exactly the plan ids, each at /api/v1/<id>', () => {
-  expect([...ids].sort()).toEqual([...BOOKS, ...ORDERS, ...DATA, ...TOOLS, ...GET_ONLY].sort())
+  expect([...ids].sort()).toEqual(
+    [...BOOKS, ...ORDERS, ...DATA, ...GTT, ...TOOLS, ...GET_ONLY].sort(),
+  )
   for (const id of ids) expect(ENDPOINTS[id].path).toBe(`/api/v1/${id}`)
 })
 
@@ -89,6 +92,9 @@ test('timeouts: 15 s default, history and basketorder 30 s, splitorder 45 s, too
 
 test('lanes: order, smart, control and history as listed; everything else reads', () => {
   const lanes: Record<string, string> = {
+    placegttorder: 'order',
+    modifygttorder: 'order',
+    cancelgttorder: 'order',
     placeorder: 'order',
     modifyorder: 'order',
     cancelorder: 'order',
@@ -105,11 +111,12 @@ test('lanes: order, smart, control and history as listed; everything else reads'
   for (const id of ids) expect([id, ENDPOINTS[id].lane]).toEqual([id, lanes[id] ?? 'read'])
 })
 
-test('flags: search is keyOnly; history and optionchain list their optional fields', () => {
+test('flags: search is keyOnly; history, optionchain and gttorderbook list their optional fields', () => {
   expect(ids.filter((id) => ENDPOINTS[id].keyOnly)).toEqual(['search'])
   const optional = ids.filter((id) => ENDPOINTS[id].optional)
   expect(Object.fromEntries(optional.map((id) => [id, ENDPOINTS[id].optional]))).toEqual({
     history: ['source'],
     optionchain: ['with_greeks', 'interest_rate'],
+    gttorderbook: ['status'],
   })
 })

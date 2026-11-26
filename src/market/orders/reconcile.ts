@@ -39,7 +39,7 @@ const WINDOW_MS = 120_000
 type FetchOrders = () => Promise<{ orders: readonly OrderRow[]; dropped?: number }>
 
 /** The books lag the write, so each check waits, then reads once, per delay. */
-type Polling = {
+export type Polling = {
   sleep: (ms: number) => Promise<void>
   delaysMs?: readonly number[]
 }
@@ -88,7 +88,7 @@ const newestFirst = (rows: readonly OrderRow[]) =>
  * rows leave it open), and stop once a sure read is `done`. A fetch that fails is skipped. The
  * answer is the last fetch that worked.
  */
-async function poll<B, T>(
+export async function poll<B, T>(
   { sleep, delaysMs = RECONCILE_DELAYS_MS }: Polling,
   fetch: () => Promise<B>,
   read: (book: B) => Reconciled<T>,

@@ -21,4 +21,5 @@ export const qk = {
   positionbook: (pid: string) => [...root(pid), 'positionbook'] as const,
   holdings: (pid: string) => [...root(pid), 'holdings'] as const,
   orderstatus: (pid: string, id: string) => [...root(pid), 'orderstatus', id] as const,
+  gttbook: (pid: string) => [...root(pid), 'gttbook'] as const,
 }

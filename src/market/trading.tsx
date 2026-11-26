@@ -4,13 +4,16 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo } from 'r
 import { AppState } from 'react-native'
 import { useStore } from 'zustand'
 import { createStore, type StoreApi } from 'zustand/vanilla'
+import { log } from '~/core/log/logger'
 import { istDate } from '~/core/realtime/marketHours'
 import { useConnection } from '~/core/services/connection'
 import { type Services, useServices } from '~/core/services/services'
 import { createEventWatch, type EventWatch } from './books/eventWatch'
+import { createGttApi, type GttApi, type GttSeen } from './gtt/api'
 import { createInstrumentCache, type InstrumentCache, UNKNOWN_TTL_MS } from './instruments/cache'
 import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
 import { createOrderApi, type OrderApi } from './orders/api'
+import { currentBroker } from './session'
 import type { Watchlists } from './watchlists/model'
 import { createWatchlistsStore, type WatchlistsStore } from './watchlists/store'
 
@@ -150,6 +153,8 @@ export type Trading = {
   depthDowngrades: DepthDowngrades
   /** Every order write and book read. */
   orders: OrderApi
+  /** Every GTT write and GTT book read; each reply records what it shows about GTT support. */
+  gtt: GttApi
   /** The analyzer mode each order write is checked against, on useAnalyzer's query. */
   analyzer: AnalyzerGate
   /** Whether the app's own orders produce order events; the bus feeds it (RF 3). */
@@ -161,8 +166,23 @@ export type Trading = {
   flags: { marginOff: boolean }
 }
 
+/**
+ * Where a GTT reply's evidence of support goes: to the server's broker at the moment of the
+ * reply (`currentBroker`), in the reply's own mode; nothing while no broker is named. It is
+ * logged; a later task also keeps it in the capabilities, under the broker and the mode.
+ */
+function gttSeen(s: Pick<Services, 'realtime' | 'profile'>): GttSeen {
+  return {
+    record(ok, mode) {
+      const broker = currentBroker(s)
+      if (!broker) return
+      log.debug('gtt', `${broker} ${mode}: GTT ${ok ? 'served' : 'not served'}`)
+    },
+  }
+}
+
 export function createTrading(
-  s: Pick<Services, 'api' | 'storage' | 'queryClient' | 'profile'>,
+  s: Pick<Services, 'api' | 'storage' | 'queryClient' | 'profile' | 'caps' | 'realtime'>,
   o: { now: () => number },
 ): Trading {
   return {
@@ -171,6 +191,7 @@ export function createTrading(
     unknown: createUnknownKeys(o.now),
     depthDowngrades: createDepthDowngrades(),
     orders: createOrderApi(s.api),
+    gtt: createGttApi(s.api, gttSeen(s)),
     analyzer: createAnalyzerGate({
       queryClient: s.queryClient,
       pid: s.profile.get().id,

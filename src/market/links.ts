@@ -36,8 +36,14 @@ export function parseKey(param: string): { exchange: string; symbol: string } | 
 export const searchHref = (o: { addTo?: string } = {}) =>
   o.addTo === undefined ? '/search' : `/search?addTo=${enc(o.addTo)}`
 
+/** `path?k=v&…` with the params that are set, each value encoded. */
+function withQuery(path: string, q: [string, string | number | undefined][]): string {
+  const parts = q.filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${enc(String(v))}`)
+  return `${path}?${parts.join('&')}`
+}
+
 export function ticketHref(p: TicketParams): string {
-  const q: [string, string | number | undefined][] = [
+  return withQuery('/order/new', [
     ['exchange', p.exchange],
     ['symbol', p.symbol],
     ['action', p.action],
@@ -45,18 +51,33 @@ export function ticketHref(p: TicketParams): string {
     ['price', p.price],
     ['product', p.product],
     ['quantity', p.quantity],
-  ]
-  const parts = q.filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${enc(String(v))}`)
-  return `/order/new?${parts.join('&')}`
+  ])
 }
 
 export const modifyHref = (orderid: string) => `/order/${enc(orderid)}/modify`
 
+/** What a link into the GTT ticket can preset. `quantity` is in units, whatever the exchange. */
+export type GttParams = { exchange: string; symbol: string; action?: Side; quantity?: number }
+
+export function gttHref(p: GttParams): string {
+  return withQuery('/gtt/new', [
+    ['exchange', p.exchange],
+    ['symbol', p.symbol],
+    ['action', p.action],
+    ['quantity', p.quantity],
+  ])
+}
+
+export const gttModifyHref = (triggerId: string) => `/gtt/${enc(triggerId)}/modify`
+
 export const toolHref = (toolId: string, o: { u?: string } = {}) =>
   o.u === undefined ? `/tools/${enc(toolId)}` : `/tools/${enc(toolId)}?u=${enc(o.u)}`
 
-/** The Orders tab; `segment` 'all' opens All orders, where a filled or rejected order shows. */
-export const ordersHref = (o: { segment?: 'open' | 'all' | 'trades' } = {}) =>
+/**
+ * The Orders tab; `segment` 'all' opens All orders, where a filled or rejected order shows, and
+ * 'gtt' the GTT list.
+ */
+export const ordersHref = (o: { segment?: 'open' | 'all' | 'trades' | 'gtt' } = {}) =>
   o.segment === undefined ? '/orders' : `/orders?segment=${o.segment}`
 export const backupHref = () => '/account/backup'
 
@@ -71,6 +92,12 @@ const one = (raw: Raw, k: string): string | undefined => {
 
 const oneOf = <T extends string>(set: readonly T[], v: string): T | undefined =>
   set.find((x) => x === v)
+
+/** A quantity param: a whole number of at least 1, else null. */
+function quantityOf(v: string): number | null {
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 1 ? n : null
+}
 
 /**
  * Ticket presets from route params. Null when any given field is invalid, so a broken link
@@ -104,8 +131,33 @@ export function parseTicketParams(raw: Raw): TicketParams | null {
   }
   const qty = one(raw, 'quantity')
   if (qty !== undefined) {
-    const n = Number(qty)
-    if (!Number.isInteger(n) || n < 1) return null
+    const n = quantityOf(qty)
+    if (n === null) return null
+    out.quantity = n
+  }
+  return out
+}
+
+/**
+ * GTT ticket presets from route params, by `parseTicketParams`' rules, except that the action
+ * may be absent (the instrument sheet's link names none; the ticket defaults it to BUY).
+ */
+export function parseGttParams(raw: Raw): GttParams | null {
+  const exchange = one(raw, 'exchange')
+  const symbol = one(raw, 'symbol')
+  if (!exchange || !ALL_EXCHANGES.includes(exchange) || !symbol) return null
+  const out: GttParams = { exchange, symbol }
+
+  const act = one(raw, 'action')
+  if (act !== undefined) {
+    const v = oneOf<Side>(SIDES, act)
+    if (!v) return null
+    out.action = v
+  }
+  const qty = one(raw, 'quantity')
+  if (qty !== undefined) {
+    const n = quantityOf(qty)
+    if (n === null) return null
     out.quantity = n
   }
   return out

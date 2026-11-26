@@ -529,5 +529,14 @@ describe('submitOrderAction: ANALYZE shown, the server answered LIVE', () => {
     expect(liveSurpriseText('modify')).toBe(
       'This change was sent in LIVE mode. The server switched to LIVE after your review.',
     )
+    expect(liveSurpriseText('gttPlace')).toBe(
+      'This GTT was placed in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(liveSurpriseText('gttModify')).toBe(
+      'This GTT change was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
+    expect(liveSurpriseText('gttCancel')).toBe(
+      'This GTT cancellation was sent in LIVE mode. The server switched to LIVE after your review.',
+    )
   })
 })

@@ -1,0 +1,312 @@
+import { NO_REPLY_DELAYS_MS, noReplyDelays, RECONCILE_DELAYS_MS } from '../orders/reconcile'
+import { reconcileGttCancel, reconcileGttChange, reconcileGttPlacement } from './reconcile'
+import { type GttBook, GttBookSchema, type GttSpec } from './schemas'
+
+const SINGLE: GttSpec = {
+  type: 'SINGLE',
+  exchange: 'NSE',
+  symbol: 'RELIANCE',
+  action: 'SELL',
+  product: 'CNC',
+  quantity: 1,
+  trigger: 1500,
+  price: 1499,
+  above: false,
+}
+const OCO: GttSpec = {
+  type: 'OCO',
+  exchange: 'NSE',
+  symbol: 'RELIANCE',
+  action: 'SELL',
+  product: 'CNC',
+  quantity: 1,
+  sl: { trigger: 1700, price: 1699 },
+  tg: { trigger: 1900, price: 1901 },
+}
+
+const leg = (price: number, o: Record<string, unknown> = {}) => ({
+  action: 'SELL',
+  quantity: 1,
+  price,
+  pricetype: 'LIMIT',
+  product: 'CNC',
+  ...o,
+})
+
+/** One G4 row as the server sends it: the SINGLE above, active, unless overridden. */
+const raw = (o: Record<string, unknown> = {}) => ({
+  trigger_id: '1001',
+  trigger_type: 'single',
+  status: 'active',
+  symbol: 'RELIANCE',
+  exchange: 'NSE',
+  trigger_prices: [1500],
+  last_price: 1800,
+  legs: [leg(1499)],
+  created_at: '2026-11-26T04:00:00.000Z',
+  updated_at: '2026-11-26T04:00:00.000Z',
+  expires_at: '2027-11-26T04:00:00.000Z',
+  ...o,
+})
+const rawOco = (o: Record<string, unknown> = {}) =>
+  raw({ trigger_type: 'two-leg', trigger_prices: [1700, 1900], legs: [leg(1699), leg(1901)], ...o })
+
+/** Parsed the way the app reads it. */
+const book = (...rows: object[]): GttBook => GttBookSchema.parse({ status: 'success', data: rows })
+/** A row the app cannot read (no trigger id): dropped and counted. */
+const unreadable = () => raw({ trigger_id: undefined })
+
+/** A fetch answering each call with the next book (the last one repeats); an Error rejects. */
+function fetches(...books: (GttBook | Error)[]) {
+  let i = 0
+  return jest.fn(async () => {
+    const b = books[Math.min(i++, books.length - 1)]
+    if (b === undefined || b instanceof Error) throw b ?? new Error('no book')
+    return b
+  })
+}
+
+const sleep = jest.fn(async (_ms: number) => {})
+const NONE: ReadonlySet<string> = new Set()
+
+beforeEach(() => sleep.mockClear())
+
+describe('reconcileGttPlacement', () => {
+  test('finds the new row, past known ids and other contracts', async () => {
+    const fetchBook = fetches(
+      book(
+        raw({ trigger_id: '900' }),
+        raw({ trigger_id: '901', symbol: 'SBIN' }),
+        raw({ trigger_id: '902', exchange: 'BSE' }),
+        raw({ trigger_id: '903', trigger_prices: [1510] }),
+        raw({ trigger_id: '1001' }),
+      ),
+    )
+    const out = await reconcileGttPlacement({
+      fetchBook,
+      spec: SINGLE,
+      knownIds: new Set(['900']),
+      sleep,
+    })
+    expect(out.checked).toBe(true)
+    expect(out.found?.triggerId).toBe('1001')
+    expect(fetchBook).toHaveBeenCalledTimes(1)
+    expect(sleep).toHaveBeenCalledWith(RECONCILE_DELAYS_MS[0])
+  })
+
+  test('matches the triggers at 2 dp and the type: an OCO is not a SINGLE', async () => {
+    const fetchBook = fetches(
+      book(raw({ trigger_id: '7', trigger_prices: [1700, 1900] }), rawOco({ trigger_id: '8' })),
+    )
+    const found = await reconcileGttPlacement({
+      fetchBook,
+      spec: { ...OCO, sl: { trigger: 1700.001, price: 1699 } },
+      knownIds: NONE,
+      sleep,
+    })
+    expect(found.found?.triggerId).toBe('8')
+  })
+
+  test('the first candidate wins, whatever its status: a GTT that fired at once is still ours', async () => {
+    const fetchBook = fetches(
+      book(raw({ trigger_id: '1002', status: 'triggered' }), raw({ trigger_id: '1003' })),
+    )
+    const out = await reconcileGttPlacement({ fetchBook, spec: SINGLE, knownIds: NONE, sleep })
+    expect(out.found?.triggerId).toBe('1002')
+  })
+
+  test('reads on while the book lags, then finds it', async () => {
+    const fetchBook = fetches(book(), new Error('offline'), book(raw()))
+    const out = await reconcileGttPlacement({ fetchBook, spec: SINGLE, knownIds: NONE, sleep })
+    expect(out).toMatchObject({ found: { triggerId: '1001' }, checked: true })
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([...RECONCILE_DELAYS_MS])
+  })
+
+  test('not in the book after every delay: found null, checked', async () => {
+    const fetchBook = fetches(book(raw({ symbol: 'SBIN' })))
+    const out = await reconcileGttPlacement({
+      fetchBook,
+      spec: SINGLE,
+      knownIds: NONE,
+      sleep,
+      delaysMs: noReplyDelays(),
+    })
+    expect(out).toEqual({ found: null, checked: true })
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([...NO_REPLY_DELAYS_MS])
+  })
+
+  test('a book with an unreadable row and no match could not check: the row may be ours', async () => {
+    const fetchBook = fetches(book(raw({ symbol: 'SBIN' }), unreadable()))
+    expect(await reconcileGttPlacement({ fetchBook, spec: SINGLE, knownIds: NONE, sleep })).toEqual(
+      { found: null, checked: false },
+    )
+  })
+
+  test('no read worked: not checked', async () => {
+    const fetchBook = fetches(new Error('offline'))
+    expect(await reconcileGttPlacement({ fetchBook, spec: SINGLE, knownIds: NONE, sleep })).toEqual(
+      { found: null, checked: false },
+    )
+  })
+})
+
+describe('reconcileGttChange', () => {
+  const MODIFIED: GttSpec = { ...SINGLE, trigger: 1510, price: 1509 }
+
+  test('the row by id shows the new values: applied', async () => {
+    const fetchBook = fetches(book(raw({ trigger_prices: [1510], legs: [leg(1509)] })))
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'applied', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(1)
+  })
+
+  test('the old values after every read: unchanged', async () => {
+    const fetchBook = fetches(book(raw()))
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'unchanged', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
+  })
+
+  test('the book lags: unchanged at first, then applied', async () => {
+    const fetchBook = fetches(book(raw()), book(raw({ trigger_prices: [1510], legs: [leg(1509)] })))
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'applied', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(2)
+  })
+
+  test('a change of the quantity or a limit price alone is not applied until the book shows it', async () => {
+    const fetchBook = fetches(book(raw()))
+    const qty = await reconcileGttChange({
+      fetchBook,
+      triggerId: '1001',
+      spec: { ...SINGLE, quantity: 2 },
+      sleep,
+    })
+    expect(qty.found).toBe('unchanged')
+    const price = await reconcileGttChange({
+      fetchBook,
+      triggerId: '1001',
+      spec: { ...SINGLE, price: 1498 },
+      sleep,
+    })
+    expect(price.found).toBe('unchanged')
+  })
+
+  test('an OCO compares each leg with its own trigger', async () => {
+    const swapped = rawOco({ legs: [leg(1901), leg(1699)], trigger_prices: [1700, 1900] })
+    const fetchBook = fetches(book(swapped))
+    expect(
+      (await reconcileGttChange({ fetchBook, triggerId: '1001', spec: OCO, sleep })).found,
+    ).toBe('unchanged')
+    const right = fetches(
+      book(rawOco({ trigger_prices: [1900, 1700], legs: [leg(1901), leg(1699)] })),
+    )
+    expect(
+      (await reconcileGttChange({ fetchBook: right, triggerId: '1001', spec: OCO, sleep })).found,
+    ).toBe('applied')
+  })
+
+  test('a broker that replaces the GTT: a new active row with the new values is applied', async () => {
+    const fetchBook = fetches(
+      book(
+        raw({ trigger_id: '2002', trigger_prices: [1510], legs: [leg(1509)] }),
+        raw({ status: 'cancelled' }),
+      ),
+    )
+    expect(
+      await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep }),
+    ).toEqual({ found: 'applied', checked: true })
+  })
+
+  test('a new row that is not active is not the change', async () => {
+    const fetchBook = fetches(
+      book(
+        raw({ trigger_id: '2002', status: 'triggered', trigger_prices: [1510], legs: [leg(1509)] }),
+      ),
+    )
+    expect(
+      (await reconcileGttChange({ fetchBook, triggerId: '1001', spec: MODIFIED, sleep })).found,
+    ).toBe('gone')
+  })
+
+  test('absent, or no longer active with the old values: gone', async () => {
+    const absent = await reconcileGttChange({
+      fetchBook: fetches(book()),
+      triggerId: '1001',
+      spec: MODIFIED,
+      sleep,
+    })
+    expect(absent).toEqual({ found: 'gone', checked: true })
+    const fired = await reconcileGttChange({
+      fetchBook: fetches(book(raw({ status: 'triggered' }))),
+      triggerId: '1001',
+      spec: MODIFIED,
+      sleep,
+    })
+    expect(fired).toEqual({ found: 'gone', checked: true })
+  })
+
+  test('absent from a book with an unreadable row: not checked', async () => {
+    const out = await reconcileGttChange({
+      fetchBook: fetches(book(unreadable())),
+      triggerId: '1001',
+      spec: MODIFIED,
+      sleep,
+    })
+    expect(out.checked).toBe(false)
+  })
+})
+
+describe('reconcileGttCancel', () => {
+  const cancel = (fetchBook: ReturnType<typeof fetches>) =>
+    reconcileGttCancel({ fetchBook, triggerId: '1001', sleep })
+
+  test('status cancelled: cancelled, at the first read', async () => {
+    const fetchBook = fetches(book(raw({ status: 'Cancelled' })))
+    expect(await cancel(fetchBook)).toEqual({ found: 'cancelled', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(1)
+  })
+
+  test('absent: gone (a book read without status lists active rows only)', async () => {
+    expect(await cancel(fetches(book(raw({ trigger_id: '1002' }))))).toEqual({
+      found: 'gone',
+      checked: true,
+    })
+  })
+
+  test.each(['deleted', 'triggered', 'expired', 'triggering'])(
+    'status %s is that other status',
+    async (status) => {
+      expect(await cancel(fetches(book(raw({ status }))))).toEqual({
+        found: { other: status },
+        checked: true,
+      })
+    },
+  )
+
+  test('still active after every read: active, checked', async () => {
+    const fetchBook = fetches(book(raw()))
+    expect(await cancel(fetchBook)).toEqual({ found: 'active', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(RECONCILE_DELAYS_MS.length)
+  })
+
+  test('the book lags: active at first, then cancelled', async () => {
+    const fetchBook = fetches(book(raw()), book(raw({ status: 'cancelled' })))
+    expect(await cancel(fetchBook)).toEqual({ found: 'cancelled', checked: true })
+    expect(fetchBook).toHaveBeenCalledTimes(2)
+  })
+
+  test('absent from a book with an unreadable row: not checked', async () => {
+    expect(await cancel(fetches(book(unreadable())))).toEqual({ found: 'gone', checked: false })
+  })
+
+  test('the row found is checked, whatever else could not be read', async () => {
+    expect(await cancel(fetches(book(raw({ status: 'cancelled' }), unreadable())))).toEqual({
+      found: 'cancelled',
+      checked: true,
+    })
+  })
+})

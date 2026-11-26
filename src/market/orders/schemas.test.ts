@@ -15,9 +15,11 @@ import {
   MarginSchema,
   marginBody,
   modifyBody,
+  NoIdReply,
   type OrderSpec,
   PlaceReplySchema,
   placeBody,
+  QueuedReply,
   SmartReplySchema,
   SplitReplySchema,
   smartCloseBody,
@@ -121,6 +123,15 @@ describe('PlaceReplySchema', () => {
 
   test('an error body does not parse', () => {
     expect(PlaceReplySchema.safeParse({ status: 'error', orderid: '1' }).success).toBe(false)
+  })
+})
+
+describe('the shared replies', () => {
+  test('QueuedReply is the Semi-Auto reply, and NoIdReply any other success', () => {
+    expect(QueuedReply.parse(QUEUED)).toEqual({ kind: 'queued', pendingId: '12' })
+    expect(QueuedReply.safeParse({ status: 'success', orderid: '1' }).success).toBe(false)
+    expect(NoIdReply.parse({ status: 'success', trigger_id: null })).toEqual({ kind: 'no_id' })
+    expect(NoIdReply.safeParse({ status: 'error' }).success).toBe(false)
   })
 })
 

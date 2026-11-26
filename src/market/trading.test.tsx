@@ -4,6 +4,7 @@ import { AppState, Text } from 'react-native'
 import { profileStorage } from '~/core/config/storage'
 import type { Api } from '~/core/http/api'
 import { ApiError } from '~/core/http/errors'
+import { clearLogs, getLogLines } from '~/core/log/logger'
 import { qk } from '~/core/query/keys'
 import { createOrderEventBus } from '~/core/realtime/orderEvents'
 import { useConnection } from '~/core/services/connection'
@@ -28,11 +29,15 @@ const NOW = Date.UTC(2026, 10, 24, 5, 0)
 
 function fakeServices() {
   const calls: unknown[] = []
+  /** The broker the feed's auth reply named. */
+  let feedBroker: string | null = null
   const api: Api = {
     async call(id, body, schema) {
       if (id === 'analyzer') return schema.parse(analyzeFixture)
       if (id === 'orderbook') return schema.parse(orderbookFixture)
       calls.push(body)
+      if (id === 'gttorderbook')
+        return schema.parse({ status: 'success', data: [], mode: 'analyze' })
       if (body.symbol === 'GONE') {
         throw new ApiError({
           kind: 'Unsupported',
@@ -51,12 +56,16 @@ function fakeServices() {
     api,
     storage: profileStorage(memoryKV(), 'p1'),
     profile: { get: () => ({ id: 'p1' }) },
+    realtime: { status: () => ({ broker: feedBroker }) },
     queryClient: new QueryClient({
       defaultOptions: { queries: { gcTime: Number.POSITIVE_INFINITY } },
     }),
     orderEvents: createOrderEventBus(),
   } as unknown as Services
-  return { s, calls }
+  const setFeedBroker = (b: string | null) => {
+    feedBroker = b
+  }
+  return { s, calls, setFeedBroker }
 }
 
 const Probe = ({ ex, sym }: { ex: string; sym: string }) => {
@@ -108,6 +117,26 @@ describe('Trading', () => {
     // the query the header badge reads (useAnalyzer), so the two never disagree
     expect(s.queryClient.getQueryData(qk.analyzer('p1'))).toMatchObject({ mode: 'analyze' })
     s.queryClient.clear()
+  })
+
+  test('createTrading holds the GTT api: the book asks for every status', async () => {
+    const { s, calls } = fakeServices()
+    const t = createTrading(s, { now: () => NOW })
+    await expect(t.gtt.book()).resolves.toEqual({ rows: [], dropped: 0, analyze: true })
+    expect(calls).toEqual([{ status: 'all' }])
+  })
+
+  test("a GTT reply's evidence goes to the broker named at that moment, in the reply's mode", async () => {
+    const spy = jest.spyOn(console, 'debug').mockImplementation(() => {})
+    const { s, setFeedBroker } = fakeServices()
+    const t = createTrading(s, { now: () => NOW })
+    clearLogs()
+    await t.gtt.book()
+    expect(getLogLines()).toEqual([])
+    setFeedBroker('dhan')
+    await t.gtt.book()
+    expect(getLogLines().join('\n')).toMatch(/\[gtt\] dhan analyze: GTT served$/)
+    spy.mockRestore()
   })
 
   test('useTrading outside the provider throws', async () => {

@@ -2,7 +2,9 @@ import { act, renderHook } from '@testing-library/react-native'
 import type { Trading } from '../trading'
 import {
   holdOrder,
+  NEW_GTT,
   NEW_ORDER,
+  onGtt,
   onOrder,
   otherOrderOut,
   takeUnseenOutcome,
@@ -39,6 +41,19 @@ describe('writes still out, by scope', () => {
     holdOrder(a, {}, onOrder('A1'))
     expect(otherOrderOut(a, {}, onOrder('A1'))).toBe(true)
     expect(otherOrderOut(b, {}, onOrder('A1'))).toBe(false)
+  })
+
+  test('GTT writes have scopes of their own: a new GTT, and one GTT by trigger id', () => {
+    expect(NEW_GTT).toBe('gtt:new')
+    expect(onGtt('1001')).toBe('gtt:1001')
+    const t = session()
+    holdOrder(t, {}, NEW_GTT)
+    holdOrder(t, {}, onGtt('1001'))
+    expect(otherOrderOut(t, {}, NEW_GTT)).toBe(true)
+    expect(otherOrderOut(t, {}, onGtt('1001'))).toBe(true)
+    // an order ticket does not wait for a GTT, nor an order's modify for a GTT's
+    expect(otherOrderOut(t, {}, NEW_ORDER)).toBe(false)
+    expect(otherOrderOut(t, {}, onOrder('1001'))).toBe(false)
   })
 
   test("a second release does nothing, and does not end another hold's", () => {

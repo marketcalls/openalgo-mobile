@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
-import { createBookInvalidator } from './invalidate'
+import type { Analyzer } from '~/core/http/schemas'
+import { createBookInvalidator, resetBooksOnModeChange } from './invalidate'
 import { qk } from './keys'
 
 const P = 'prof-a'
@@ -32,9 +33,10 @@ describe('createBookInvalidator', () => {
       qk.positionbook(P),
       qk.holdings(P),
       qk.funds(P),
+      qk.gttbook(P),
     ])
     jest.advanceTimersByTime(5000)
-    expect(spy).toHaveBeenCalledTimes(5)
+    expect(spy).toHaveBeenCalledTimes(6)
   })
 
   it('honours a custom debounce', () => {
@@ -51,5 +53,32 @@ describe('createBookInvalidator', () => {
     inv.dispose()
     jest.advanceTimersByTime(2000)
     expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('resetBooksOnModeChange', () => {
+  const mode = (m: 'live' | 'analyze'): Analyzer => ({
+    mode: m,
+    analyze_mode: m === 'analyze',
+    total_logs: 0,
+  })
+
+  it('drops the books, the GTT book among them, when the mode flips; other data stays', () => {
+    const qc = new QueryClient()
+    qc.setQueryData(qk.analyzer(P), mode('live'))
+    const off = resetBooksOnModeChange(qc, P)
+    qc.setQueryData(qk.orderbook(P), { orders: [] })
+    qc.setQueryData(qk.gttbook(P), { rows: [], dropped: 0, analyze: false })
+    qc.setQueryData(qk.ping(P), 'pong')
+
+    qc.setQueryData(qk.analyzer(P), mode('live'))
+    expect(qc.getQueryData(qk.gttbook(P))).toBeDefined()
+
+    qc.setQueryData(qk.analyzer(P), mode('analyze'))
+    expect(qc.getQueryData(qk.orderbook(P))).toBeUndefined()
+    expect(qc.getQueryData(qk.gttbook(P))).toBeUndefined()
+    expect(qc.getQueryData(qk.ping(P))).toBe('pong')
+    off()
+    qc.clear()
   })
 })

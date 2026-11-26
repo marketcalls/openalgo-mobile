@@ -39,6 +39,11 @@ const SPECS = {
   splitorder: { lane: 'order', timeoutMs: 45_000 },
   optionsorder: { lane: 'order' },
   optionsmultiorder: { lane: 'order' },
+  // GTT (2.0.0.8+); the book's `status` from 2.0.2.4
+  placegttorder: { lane: 'order' },
+  modifygttorder: { lane: 'order' },
+  cancelgttorder: { lane: 'order' },
+  gttorderbook: { optional: ['status'] },
   // data
   ping: {},
   search: { keyOnly: true },

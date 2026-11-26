@@ -2,9 +2,12 @@ import {
   backupHref,
   chartHref,
   depthHref,
+  gttHref,
+  gttModifyHref,
   instrumentHref,
   modifyHref,
   ordersHref,
+  parseGttParams,
   parseKey,
   parseTicketParams,
   searchHref,
@@ -101,6 +104,50 @@ describe('ticket links', () => {
   })
 })
 
+describe('GTT links', () => {
+  test('a full set of params round-trips, and the symbol is encoded', () => {
+    const p = { exchange: 'NSE', symbol: 'M&M', action: 'SELL' as const, quantity: 25 }
+    const href = gttHref(p)
+    expect(href.startsWith('/gtt/new?')).toBe(true)
+    expect(href).toContain('symbol=M%26M')
+    expect(parseGttParams(query(href))).toEqual(p)
+  })
+
+  test('only the given params are written; no action parses (the ticket defaults it)', () => {
+    const href = gttHref({ exchange: 'NFO', symbol: 'NIFTY30DEC2624000CE' })
+    expect(query(href)).toEqual({ exchange: 'NFO', symbol: 'NIFTY30DEC2624000CE' })
+    expect(parseGttParams(query(href))).toEqual({
+      exchange: 'NFO',
+      symbol: 'NIFTY30DEC2624000CE',
+    })
+  })
+
+  test('arrays take the first value, and blank optional params count as absent', () => {
+    expect(
+      parseGttParams({ exchange: ['NSE', 'NFO'], symbol: 'SBIN', action: '', quantity: '' }),
+    ).toEqual({ exchange: 'NSE', symbol: 'SBIN' })
+  })
+
+  test.each([
+    ['HOLD action', { exchange: 'NSE', symbol: 'SBIN', action: 'HOLD' }],
+    ['unknown exchange', { exchange: 'XYZ', symbol: 'SBIN' }],
+    ['missing exchange', { symbol: 'SBIN' }],
+    ['missing symbol', { exchange: 'NSE', action: 'BUY' }],
+    ['fractional quantity', { exchange: 'NSE', symbol: 'SBIN', quantity: '1.5' }],
+    ['zero quantity', { exchange: 'NSE', symbol: 'SBIN', quantity: '0' }],
+    ['text quantity', { exchange: 'NSE', symbol: 'SBIN', quantity: 'ten' }],
+  ])('%s gives null', (_n, raw) => {
+    expect(parseGttParams(raw)).toBeNull()
+  })
+
+  test('modify round-trips the trigger id', () => {
+    const id = 'GTT-261126-0a1b/2c 3d'
+    const href = gttModifyHref(id)
+    expect(href).toBe('/gtt/GTT-261126-0a1b%2F2c%203d/modify')
+    expect(decodeURIComponent(href.split('/')[2] ?? '')).toBe(id)
+  })
+})
+
 describe('other links', () => {
   test('search', () => {
     expect(searchHref()).toBe('/search')
@@ -123,6 +170,7 @@ describe('other links', () => {
     expect(query(href)).toEqual({ u: 'NFO:NIFTY' })
     expect(ordersHref()).toBe('/orders')
     expect(ordersHref({ segment: 'all' })).toBe('/orders?segment=all')
+    expect(ordersHref({ segment: 'gtt' })).toBe('/orders?segment=gtt')
     expect(backupHref()).toBe('/account/backup')
   })
 })

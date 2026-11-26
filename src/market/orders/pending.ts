@@ -21,6 +21,12 @@ export const NEW_ORDER: PendingScope = 'new'
 /** One order of the book: its modify and its cancel. */
 export const onOrder = (orderid: string): PendingScope => `order:${orderid}`
 
+/** A new GTT: every GTT ticket shares it, as every order ticket shares `NEW_ORDER`. */
+export const NEW_GTT: PendingScope = 'gtt:new'
+
+/** One GTT of the GTT book, by trigger id: its modify and its cancel. */
+export const onGtt = (triggerId: string): PendingScope => `gtt:${triggerId}`
+
 /**
  * One position: its close, until the positionbook shows it closed or the check of the close ends.
  * A second close sent meanwhile would be sized from the position the first has not yet closed.

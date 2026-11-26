@@ -23,11 +23,16 @@ describe('qk', () => {
     qk.positionbook(pid),
     qk.holdings(pid),
     qk.orderstatus(pid, '123'),
+    qk.gttbook(pid),
   ]
 
   it('starts every key with [p, pid]', () => {
     expect(qk.root(A)).toEqual(['p', A])
     for (const k of all(A)) expect(k.slice(0, 2)).toEqual(['p', A])
+  })
+
+  it('the GTT book is its own key, beside the order books', () => {
+    expect(qk.gttbook(A)).toEqual(['p', A, 'gttbook'])
   })
 
   it('contains no 64-hex string', () => {

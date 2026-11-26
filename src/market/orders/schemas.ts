@@ -9,8 +9,8 @@ import type { PriceType, Product, Side } from '../types'
 
 // --- Requests --------------------------------------------------------------------------
 
-/** The strategy label on every order write (design 7.10). */
-const STRATEGY = 'mobile'
+/** The strategy label on every order and GTT write (design 7.10). */
+export const STRATEGY = 'mobile'
 
 export type OrderSpec = {
   exchange: string
@@ -129,8 +129,11 @@ const success = z.literal('success')
  */
 const mode = z.unknown().optional()
 
-/** Semi-Auto routes place, smart and split orders to the web Action Center, in either mode. */
-const Queued = z
+/**
+ * Semi-Auto routes place, smart and split orders, and GTT places, to the web Action Center, in
+ * either mode.
+ */
+export const QueuedReply = z
   .object({ status: success, mode: z.literal('semi_auto'), pending_order_id: orderId })
   .transform((r) => ({ kind: 'queued' as const, pendingId: r.pending_order_id }))
 
@@ -141,9 +144,9 @@ const Placed = z.object({ status: success, orderid: orderId, mode }).transform((
 }))
 
 /** A success without an order id: the order may exist, so the caller checks the book. */
-const NoId = z.object({ status: success }).transform(() => ({ kind: 'no_id' as const }))
+export const NoIdReply = z.object({ status: success }).transform(() => ({ kind: 'no_id' as const }))
 
-export const PlaceReplySchema = z.union([Queued, Placed, NoId])
+export const PlaceReplySchema = z.union([QueuedReply, Placed, NoIdReply])
 
 const SplitChild = z
   .object({
@@ -177,7 +180,7 @@ const Split = z
     analyze: r.mode === 'analyze',
   }))
 
-export const SplitReplySchema = z.union([Queued, Split])
+export const SplitReplySchema = z.union([QueuedReply, Split])
 
 /** A close of a position that is already flat (place_smart_order_service.py:227, sandbox:508). */
 const Flat = z
@@ -189,7 +192,7 @@ const Flat = z
  * id (place_smart_order_service.py:240-241), so a success that is neither placed nor flat is
  * no_id: the close may have gone, and the caller checks the positions.
  */
-export const SmartReplySchema = z.union([Queued, Placed, Flat, NoId])
+export const SmartReplySchema = z.union([QueuedReply, Placed, Flat, NoIdReply])
 
 /** Modify and cancel echo the order id. */
 const Echoed = z.object({ status: success, orderid: orderId, mode }).transform((r) => ({
@@ -199,7 +202,7 @@ const Echoed = z.object({ status: success, orderid: orderId, mode }).transform((
 }))
 
 /** A success whose id is null, missing or unreadable is no_id: the caller checks the book. */
-export const IdReplySchema = z.union([Echoed, NoId])
+export const IdReplySchema = z.union([Echoed, NoIdReply])
 
 /**
  * A list the reply always sends (cancel_all_order_service.py:166-172), read item by item: an
