@@ -78,7 +78,8 @@ function untilActive(whenActive: () => Promise<void>, signal: AbortSignal): Prom
 /**
  * The request handler for DomHost. `whenActive` (resolved while the screen is shown, else at its
  * next focus) gates every request, so a hidden chart's 30 s history tail stops (design 7.5).
- * A refusal answers at once. A request the page aborts rejects, which DomHost takes as given up.
+ * A path no route has is refused at once, without the wait. A request the page aborts rejects,
+ * which DomHost takes as given up.
  */
 export function createRequestRouter(
   routes: readonly Route[],
