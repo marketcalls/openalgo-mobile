@@ -21,7 +21,7 @@ import { useIsUnknown } from '~/market/instruments/useInstrument'
 import { instrumentHref } from '~/market/links'
 import { Badge } from '~/ui/Badge'
 import { Change } from '~/ui/Change'
-import { fmtQty, signOf } from '~/ui/format'
+import { signOf } from '~/ui/format'
 import { Icon, type IconName } from '~/ui/Icon'
 import { Price } from '~/ui/Price'
 import { Text } from '~/ui/Text'
@@ -165,14 +165,37 @@ function Main(p: BodyProps & { dim?: boolean; children: ReactNode }) {
   )
 }
 
+/** A fraction keeps 4 significant digits, to a satoshi's 8 decimals at most. */
+const HELD_SIGNIFICANT = 4
+const HELD_MAX_DECIMALS = 8
+
+/**
+ * A held quantity: a whole one as it is, a fractional one (CRYPTO) with up to 4 significant
+ * decimals and no trailing zeros, so 0.004 stays 0.004 and 1.234567 reads 1.2346. A negative one
+ * is signed, unless it reads as zero: never "-0".
+ */
+function fmtHeld(n: number): string {
+  if (!Number.isFinite(n)) return '--'
+  const abs = Math.abs(n)
+  const frac = abs - Math.trunc(abs)
+  // the fraction's leading zeros, then its significant digits
+  const zeros = frac > 0 ? Math.max(0, Math.ceil(-Math.log10(frac)) - 1) : 0
+  const decimals = frac > 0 ? Math.min(HELD_MAX_DECIMALS, zeros + HELD_SIGNIFICANT) : 0
+  const body = abs.toLocaleString('en-IN', { maximumFractionDigits: decimals })
+  return n < 0 && /[1-9]/.test(body) ? `-${body}` : body
+}
+
 /** The briefcase and the quantity held; a short position's is negative. */
 function Held({ id, quantity }: { id: string; quantity: number }) {
   const { c } = useTheme()
+  const text = fmtHeld(quantity)
+  // the briefcase is decorative, so the label says what the number is
+  const label = text.startsWith('-') ? `Short ${text.slice(1)}` : `Held ${text}`
   return (
     <View style={styles.held}>
       <Icon name={BRIEFCASE} size={11} color={c.mutedForeground} />
-      <Text testID={`watch-held-${id}`} variant="caption" tone="muted">
-        {fmtQty(quantity)}
+      <Text testID={`watch-held-${id}`} accessibilityLabel={label} variant="caption" tone="muted">
+        {text}
       </Text>
     </View>
   )

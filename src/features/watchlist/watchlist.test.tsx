@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
-import { AccessibilityInfo, Alert, type AlertButton } from 'react-native'
+import { AccessibilityInfo, Alert, type AlertButton, View } from 'react-native'
 import { profileStorage } from '~/core/config/storage'
 import { ApiError } from '~/core/http/errors'
 import { istDate } from '~/core/realtime/marketHours'
@@ -353,6 +353,44 @@ describe('WatchRow', () => {
     expect(screen.queryByTestId('watch-held-NSE_INDEX-NIFTY')).toBeNull()
   })
 
+  test('the held marker shows whole and fractional quantities, never -0, and is labelled held or short', async () => {
+    const h = setup()
+    const held: [string, string, number][] = [
+      ['CRYPTO', 'BTCUSDT', 0.004],
+      ['CRYPTO', 'ETHUSDT', -0.3],
+      ['NSE', 'RELIANCE', 10],
+      ['NSE', 'TCS', -25],
+      ['NSE', 'SBIN', 1234567],
+      ['CRYPTO', 'SOLUSDT', 1.234567],
+      // float noise from summed fractional rows
+      ['CRYPTO', 'XRPUSDT', -1e-12],
+    ]
+    await render(
+      h.wrap(
+        <View>
+          {held.map(([ex, sym, q]) => (
+            <WatchRow key={sym} exchange={ex} symbol={sym} held={q} reduceMotion />
+          ))}
+        </View>,
+      ),
+    )
+    const marker = (ex: string, sym: string) => screen.getByTestId(`watch-held-${ex}-${sym}`)
+    const shown: [string, string, string, string][] = [
+      ['CRYPTO', 'BTCUSDT', '0.004', 'Held 0.004'],
+      ['CRYPTO', 'ETHUSDT', '-0.3', 'Short 0.3'],
+      ['NSE', 'RELIANCE', '10', 'Held 10'],
+      ['NSE', 'TCS', '-25', 'Short 25'],
+      ['NSE', 'SBIN', '12,34,567', 'Held 12,34,567'],
+      ['CRYPTO', 'SOLUSDT', '1.2346', 'Held 1.2346'],
+      ['CRYPTO', 'XRPUSDT', '0', 'Held 0'],
+    ]
+    for (const [ex, sym, text, label] of shown) {
+      expect(marker(ex, sym)).toHaveTextContent(text, { exact: true })
+      expect(marker(ex, sym)).toHaveAccessibleName(label)
+    }
+    expect(screen.getByLabelText('Short 25')).toBe(marker('NSE', 'TCS'))
+  })
+
   test('the price is in the colour of the day change', async () => {
     const h = setup()
     const { trade, c } = buildTheme('dark')
@@ -615,6 +653,152 @@ describe('WatchlistScreen', () => {
     await settle()
     expect(symbols()).toEqual(DEFAULT_ORDER)
     await refocus(rerender, ui)
+    expect(symbols()).toEqual(['SBIN', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'NIFTY', 'TCS'])
+  })
+
+  test('with the seed skipped (blocked), the refocus alone retakes the snapshot', async () => {
+    const h = setup()
+    useConnection.getState().set({ brokerSession: 'logged_out' })
+    const ui = () => h.wrap(<WatchlistScreen />)
+    const { rerender } = await render(ui())
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-sort'))
+    await fireEvent.press(screen.getByTestId('wl-sort-CHANGE'))
+    await settle()
+    // no seed, so no prices: the added order
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    await act(async () => {
+      h.store.put('NSE:SBIN', { ltp: 1600, close: 1490 }, 'ws')
+      h.store.put('NSE:TCS', { ltp: 1400, close: 1490 }, 'ws')
+    })
+    await h.flush()
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    await refocus(rerender, ui)
+    expect(h.count('multiquotes')).toBe(0)
+    // the priced rows first, by % change; the rest keep the added order
+    expect(symbols()).toEqual(['SBIN', 'TCS', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'NIFTY'])
+  })
+
+  test('a later seed outside a focus does not retake the snapshot: the session turning active, a broker login', async () => {
+    const ltp: Record<string, number> = {}
+    const h = setup({
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) => ({
+          ...s,
+          data: { ltp: ltp[s.symbol] ?? 1500, prev_close: 1490 },
+        })),
+    })
+    const ui = () => h.wrap(<WatchlistScreen />)
+    const { rerender } = await render(ui())
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-sort'))
+    await fireEvent.press(screen.getByTestId('wl-sort-CHANGE'))
+    await settle()
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    // a later seed's prices are newer than the first's
+    await later(1_000)
+    ltp.SBIN = 1600
+    ltp.TCS = 1400
+    // from "unknown", the session turns active: the unknown set clears and the list is seeded again
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    await h.flush()
+    expect(h.count('multiquotes')).toBe(2)
+    expect(screen.getByTestId('watch-ltp-NSE-SBIN')).toHaveTextContent('1,600.00')
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    // the broker logs out and in again: blocked flips, and the list is seeded once more
+    await act(async () => useConnection.getState().set({ brokerSession: 'logged_out' }))
+    await settle()
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    await h.flush()
+    expect(h.count('multiquotes')).toBe(3)
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    // the next focus takes the snapshot
+    await refocus(rerender, ui)
+    expect(symbols()).toEqual(['SBIN', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'NIFTY', 'TCS'])
+  })
+
+  test('the first seed after a list switch retakes the snapshot', async () => {
+    const h = setup({
+      seed: {
+        'oa.p1.watchlists': JSON.stringify({
+          version: 2,
+          activeId: 'a',
+          lists: [
+            {
+              id: 'a',
+              name: 'One',
+              sort: 'added',
+              groups: [],
+              items: [{ exchange: 'NSE', symbol: 'RELIANCE' }],
+            },
+            {
+              id: 'b',
+              name: 'Two',
+              sort: 'ltp',
+              groups: [],
+              items: [
+                { exchange: 'NSE', symbol: 'ITC' },
+                { exchange: 'NSE', symbol: 'SBIN' },
+              ],
+            },
+          ],
+        }),
+      },
+      call: async (_id, body) =>
+        (body.symbols ?? []).map((s) => ({
+          ...s,
+          data: { ltp: s.symbol === 'SBIN' ? 800 : 400, prev_close: 390 },
+        })),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    await fireEvent.press(screen.getByTestId('wl-tab-b'))
+    await settle()
+    expect(h.seeds().at(-1)).toEqual({
+      symbols: [
+        { symbol: 'ITC', exchange: 'NSE' },
+        { symbol: 'SBIN', exchange: 'NSE' },
+      ],
+    })
+    expect(symbols()).toEqual(['SBIN', 'ITC'])
+  })
+
+  test('a sort chosen while a seed is out is retaken once that seed lands', async () => {
+    const ltp: Record<string, number> = {}
+    let holding = false
+    let release: (() => void) | undefined
+    const answer = (body: { symbols?: Sym[] }) =>
+      (body.symbols ?? []).map((s) => ({
+        ...s,
+        data: { ltp: ltp[s.symbol] ?? 1500, prev_close: 1490 },
+      }))
+    const h = setup({
+      call: (_id, body) =>
+        holding
+          ? new Promise((resolve) => {
+              release = () => resolve(answer(body))
+            })
+          : Promise.resolve(answer(body)),
+    })
+    await render(h.wrap(<WatchlistScreen />))
+    await settle()
+    await later(1_000)
+    ltp.SBIN = 1600
+    ltp.TCS = 1400
+    holding = true
+    // the session turns active: a seed outside a focus goes out
+    await act(async () => useConnection.getState().set({ brokerSession: 'active' }))
+    await settle()
+    expect(h.count('multiquotes')).toBe(2)
+    await fireEvent.press(screen.getByTestId('wl-sort'))
+    await fireEvent.press(screen.getByTestId('wl-sort-CHANGE'))
+    await settle()
+    // the store's prices are all up 0.67% yet
+    expect(symbols()).toEqual(DEFAULT_ORDER)
+    await act(async () => release?.())
+    await settle()
     expect(symbols()).toEqual(['SBIN', 'RELIANCE', 'INFY', 'HDFCBANK', 'ICICIBANK', 'NIFTY', 'TCS'])
   })
 

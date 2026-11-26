@@ -141,12 +141,15 @@ export function WatchlistScreen() {
   }, [watchlists, load])
 
   const items = loaded ? (list?.items ?? EMPTY) : EMPTY
-  const { seeded } = useSeedQuotes(items)
+  // a list switch or a sort change asks for the seed out then, or sent with it
+  const { seeded } = useSeedQuotes(items, loaded && list ? `${list.id}:${list.sort}` : '')
   const held = useHeldQuantities()
   const focus = useFocusCount(active)
 
-  // The sort is a snapshot of the quotes: taken on each focus and again once that focus's seed is
-  // in, and when the sort or the items change; never on a tick, so rows do not jump under a finger.
+  // The sort is a snapshot of the quotes: taken on each focus and when the sort or the items
+  // change, and again once the first seed after a focus, a list switch or a sort change is in.
+  // Never on a tick, nor on a seed outside those (the broker session turning active, the unknown
+  // set clearing): rows do not jump under a finger.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `focus` and `seeded` retake the snapshot
   const rows = useMemo(
     () => (loaded && list ? buildRows(list, { editing, quoteOf: (k) => store.get(k) }) : []),

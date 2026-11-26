@@ -1,7 +1,7 @@
 // The watchlist's one REST call: a snapshot on each focus, so a row shows a price before the
 // first tick. After that the socket (or the polling engine) keeps it current. The snapshot also
 // finds the contracts the server does not list (RF 1).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import { ApiError } from '~/core/http/errors'
 import { MultiQuotesSchema } from '~/core/http/schemas'
@@ -28,10 +28,18 @@ import {
  * old or the set is cleared (the broker session turns active, or a new IST day). A seed of
  * several symbols that the server refuses every one of looks like its symbol table being
  * reloaded rather than a list of expired contracts, so those refusals are tentative: they stand
- * for minutes, not for the session. A broker failure entry marks nothing. `seeded` moves on each
- * time a seed's prices are in the store, so a sorted list can take its snapshot then.
+ * for minutes, not for the session. A broker failure entry marks nothing.
+ *
+ * `seeded` moves once a focus's seed, or the seed that a change of `arm` (the list shown and its
+ * sort) found out or sent, has put its prices in the store: once per focus or change, so a sorted
+ * list retakes its snapshot then. A seed sent later for another reason (the broker session turning
+ * active, the unknown set clearing, refusals expiring) does not move it, nor does a focus whose
+ * seed is skipped (blocked, nothing to ask) or fails; such a seed's prices wait for the next focus.
  */
-export function useSeedQuotes(items: readonly WatchItem[]): {
+export function useSeedQuotes(
+  items: readonly WatchItem[],
+  arm = '',
+): {
   unknown: ReadonlySet<string>
   seeded: number
 } {
@@ -43,12 +51,23 @@ export function useSeedQuotes(items: readonly WatchItem[]): {
   // a clear moves it on, so the keys it forgot are asked for again
   const epoch = useStore(unknown, (st) => st.epoch)
   const [seeded, setSeeded] = useState(0)
+  // Whether the seed out now, or the next one this effect sends, is one a focus or `arm` asked for.
+  const wanted = useRef(false)
+  // A seed is out whose reply this hook still takes.
+  const out = useRef(false)
+  const wasActive = useRef(false)
   // a new array with the same symbols must not seed again
   const sig = items.map((i) => quoteKey(i.exchange, i.symbol)).join(',')
   // biome-ignore lint/correctness/useExhaustiveDependencies: `sig` stands for `items`
   useEffect(() => {
-    if (!active || blocked) return
-    // A new IST day forgets the refusals; the new epoch runs this again.
+    // a focus asks for the seed it sends
+    if (active && !wasActive.current) wanted.current = true
+    wasActive.current = active
+    if (!active || blocked) {
+      wanted.current = false
+      return
+    }
+    // A new IST day forgets the refusals; the new epoch runs this again, and still wants its seed.
     if (unknown.getState().rollover()) return
     // Read here, not as a dependency: a key found unknown must not re-seed the rest.
     const todo = items.filter(
@@ -56,8 +75,12 @@ export function useSeedQuotes(items: readonly WatchItem[]): {
         !unknown.getState().keys.has(quoteKey(i.exchange, i.symbol)) &&
         instruments.peek(i.exchange, i.symbol) !== 'unknown',
     )
-    if (todo.length === 0) return
+    if (todo.length === 0) {
+      wanted.current = false
+      return
+    }
     let live = true
+    out.current = true
     // taken before the request: a tick that lands meanwhile is newer and wins
     const at = Date.now()
     // a reply from before a clear must not bring its refusals back
@@ -77,9 +100,18 @@ export function useSeedQuotes(items: readonly WatchItem[]): {
           else if (r.data && live) store.seed(k, multiquoteToPatch(r.data), at)
         }
         refuse(refused)
-        if (live) setSeeded((n) => n + 1)
+        if (!live) return
+        out.current = false
+        if (wanted.current) {
+          wanted.current = false
+          setSeeded((n) => n + 1)
+        }
       })
       .catch((e: unknown) => {
+        if (live) {
+          out.current = false
+          wanted.current = false
+        }
         const v = e instanceof ApiError && e.kind === 'Validation' ? e : undefined
         // the whole batch refused for some entries' exchange: those entries, by index, so one
         // item from a hand-edited or another server's backup does not blank every price
@@ -92,9 +124,17 @@ export function useSeedQuotes(items: readonly WatchItem[]): {
         else log.warn('watchlist', 'could not seed quotes', e)
       })
     return () => {
+      // a seed sent in its place keeps what this one was wanted for
       live = false
+      out.current = false
     }
   }, [active, blocked, api, store, instruments, unknown, sig, epoch])
+  // After the effect above, so a list switch sees the seed it has just sent. A change with no
+  // seed out asks for nothing: a later one is not this change's.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a change of `arm` is the trigger
+  useEffect(() => {
+    if (out.current) wanted.current = true
+  }, [arm])
   return { unknown: keys, seeded }
 }
 
