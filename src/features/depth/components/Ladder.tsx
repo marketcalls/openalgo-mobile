@@ -1,5 +1,5 @@
 // The depth ladder: bids on the left and asks on the right, best first. Each level shows its
-// price, quantity and orders over a bar of its share of the side; a tap opens a LIMIT ticket.
+// price, orders and quantity (Kite's order) over a bar of its share of the side; a tap opens a LIMIT ticket.
 import { Pressable, StyleSheet, View } from 'react-native'
 import { fmtPrice, fmtQty } from '~/ui/format'
 import { Text } from '~/ui/Text'
@@ -21,7 +21,7 @@ export function Ladder(p: Props) {
     <View testID="depth-ladder">
       <View style={[styles.row, styles.head, { borderBottomColor: c.border }]}>
         <Columns first="Bid" />
-        <Columns first="Ask" />
+        <Columns first="Offer" />
       </View>
       {positions.map((i) => (
         <View key={i} style={styles.row}>
@@ -39,11 +39,11 @@ function Columns({ first }: { first: string }) {
       <Text variant="caption" tone="muted" style={styles.price}>
         {first}
       </Text>
-      <Text variant="caption" tone="muted" style={styles.qty}>
-        Qty
-      </Text>
       <Text variant="caption" tone="muted" style={styles.orders}>
         Orders
+      </Text>
+      <Text variant="caption" tone="muted" style={styles.qty}>
+        Qty
       </Text>
     </View>
   )
@@ -81,11 +81,11 @@ function Level(p: {
       <Text variant="mono" style={[styles.price, { color: colour }]}>
         {fmtPrice(row.price)}
       </Text>
-      <Text variant="mono" style={styles.qty}>
-        {fmtQty(row.quantity)}
-      </Text>
       <Text variant="mono" tone="muted" style={styles.orders}>
         {row.orders === undefined ? '' : fmtQty(row.orders)}
+      </Text>
+      <Text variant="mono" style={styles.qty}>
+        {fmtQty(row.quantity)}
       </Text>
     </Pressable>
   )

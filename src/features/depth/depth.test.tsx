@@ -20,6 +20,7 @@ import { chartHref, ticketHref } from '~/market/links'
 import { TradingProvider } from '~/market/trading'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import DepthRoute from '../../app/(app)/depth/[key]'
+import { DepthPanel } from './components/DepthPanel'
 import { CONFIRM_SETTLE_MS, NO_BOOK_MS } from './model'
 import { DepthScreen } from './screens/DepthScreen'
 
@@ -101,7 +102,16 @@ const setup = (broker: string | null = 'dhan', o: SetupOptions = {}) => {
   // confirmedDepth is min(ack, the most levels any ws depth tick on the wire entry carried).
   const subs = createSubscriptionManager({ send: () => {} })
   subs.resendAll()
-  const acquire = jest.fn((r: SubRequest) => subs.acquire(r))
+  /** The holds not yet released: what the wire entry's consumers are asking for. */
+  const held = new Set<SubRequest>()
+  const acquire = jest.fn((r: SubRequest) => {
+    const release = subs.acquire(r)
+    held.add(r)
+    return () => {
+      held.delete(r)
+      release()
+    }
+  })
   const realtime = {
     acquire,
     isLive: jest.fn((ex: string, sym: string) => subs.isWired(ex, sym)),
@@ -161,7 +171,7 @@ const setup = (broker: string | null = 'dhan', o: SetupOptions = {}) => {
       </ServicesProvider>
     </SafeAreaInsetsContext.Provider>
   )
-  return { store, call, acquire, register, subs, tree }
+  return { store, call, acquire, held, register, subs, tree }
 }
 
 type Harness = ReturnType<typeof setup>
@@ -517,8 +527,15 @@ describe('ladder', () => {
         levels: 1,
       },
     })
-    expect(screen.getByTestId('depth-bid-0')).toHaveTextContent(/1,423\.90.*1,250.*7/)
+    expect(screen.getByTestId('depth-bid-0')).toHaveTextContent(/1,423\.90.*7.*1,250/)
     expect(screen.getByTestId('depth-ask-0')).toHaveTextContent(/1,424\.00.*40/)
+  })
+
+  test('the ladder heads read Bid, Orders, Qty and Offer, Orders, Qty', async () => {
+    const h = await open('NSE', 'RELIANCE')
+    await h.tick({ depth: book(5) })
+    const head = screen.getByTestId('depth-ladder').children[0]
+    expect(JSON.stringify(head)).toMatch(/Bid.*Orders.*Qty.*Offer.*Orders.*Qty/)
   })
 
   test('BUY and SELL open a MARKET ticket', async () => {
@@ -750,5 +767,36 @@ describe('depth route', () => {
     mockKey = 'RELIANCE'
     await render(<DepthRoute />)
     expect(screen.getByText('This link is incomplete.')).toBeTruthy()
+  })
+})
+
+describe('DepthPanel on its own', () => {
+  test('dhan, NSE, live: the level switch, and a bid tap reports a SELL LIMIT at its price', async () => {
+    const h = setup()
+    const onLevel = jest.fn()
+    await render(h.tree(<DepthPanel exchange="NSE" symbol="RELIANCE" onLevel={onLevel} />))
+    await pass(10)
+    expect(screen.getByTestId('depth-levels-20')).toBeTruthy()
+    await act(async () => {
+      jest.advanceTimersByTime(5)
+      h.store.put('NSE:RELIANCE', { depth: book(5), totalBuyQty: 5000, totalSellQty: 6000 }, 'ws')
+    })
+    expect(screen.getByTestId('depth-total-buy')).toHaveTextContent('5,000')
+    await fireEvent.press(screen.getByTestId('depth-bid-0'))
+    expect(onLevel).toHaveBeenLastCalledWith({
+      ...RELIANCE,
+      action: 'SELL',
+      pricetype: 'LIMIT',
+      price: 1423.9,
+    })
+  })
+
+  test('choosing 20 leaves no depth-5 hold behind (one book consumer)', async () => {
+    const h = setup()
+    await render(h.tree(<DepthPanel exchange="NSE" symbol="RELIANCE" onLevel={jest.fn()} />))
+    await pass(10)
+    await fireEvent.press(screen.getByTestId('depth-levels-20'))
+    const depth = [...h.held].filter((r) => r.mode === 3).map((r) => r.depth)
+    expect(depth).toEqual([20])
   })
 })
