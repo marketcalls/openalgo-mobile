@@ -27,6 +27,7 @@ const initial = (profile, broker) => ({
   flatCloseError: false,
   splitFailFrom: null,
   marginUnsupported: false,
+  timingsSkewMs: 0,
 })
 
 const oneOf = (values) => (v) => values.includes(v) || `must be one of ${JSON.stringify(values)}`
@@ -69,6 +70,8 @@ const STORED = {
   splitFailFrom: (v) =>
     v === null || (Number.isInteger(v) && v >= 1) || 'must be null or a child number from 1',
   marginUnsupported: isBool,
+  // The server's time zone behind market/timings: 19_800_000 emulates a server on UTC.
+  timingsSkewMs: (v) => Number.isInteger(v) || 'must be an integer',
 }
 // One-shot actions: the feed, the order engine or the GTT engine carries them out, and they are
 // not stored.

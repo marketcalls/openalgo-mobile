@@ -5,7 +5,7 @@
 // The spike keeps its own frozen copy (Task 5: "spike/mock-feed stays as it is"); this is
 // the maintained one.
 
-function hash32(str) {
+export function hash32(str) {
   let h = 0x811c9dc5 // FNV-1a
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i)

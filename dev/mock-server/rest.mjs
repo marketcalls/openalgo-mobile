@@ -3,10 +3,18 @@
 // endpoints' validation and handlers live in orders.mjs, and the GTT endpoints' in gtt.mjs; this
 // file routes them.
 import { STATUS_CODES } from 'node:http'
+import {
+  HISTORY_INTERVALS,
+  historySeries,
+  holidaysOf,
+  istDateOf,
+  MOCK_INTERVALS,
+  timingsFor,
+} from './chart.mjs'
 import { GTT_SCHEMAS } from './gtt.mjs'
 import { findInstrument, searchInstruments } from './instruments.mjs'
 import { TRADING_SCHEMAS } from './orders.mjs'
-import { depthLevels, quote, r05 } from './prices.mjs'
+import { depthLevels, quote } from './prices.mjs'
 import { endpointsOf, swaggerKey } from './profiles.mjs'
 import { pathKey } from './state.mjs'
 
@@ -167,6 +175,24 @@ const SIP_OPTIONAL = (
 ).split(' ')
 const SYMBOL = ['apikey', 'symbol', 'exchange']
 
+// marshmallow's fields.Date(format='%Y-%m-%d').
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const isDate = (v) => typeof v === 'string' && DATE_RE.test(v) && !Number.isNaN(Date.parse(v))
+const dateFields =
+  (...fs) =>
+  (b) =>
+    Object.fromEntries(
+      fs.filter((f) => f in b && !isDate(b[f])).map((f) => [f, ['Not a valid date.']]),
+    )
+// restx_api/data_schemas.py: history's interval is a OneOf, then the broker's map refuses what it lacks.
+const historyChecks = (b, v) => ({
+  ...exchangeField(b, v),
+  ...(typeof b.interval === 'string' && !HISTORY_INTERVALS.includes(b.interval)
+    ? { interval: [`Must be one of: ${HISTORY_INTERVALS.join(', ')}.`] }
+    : null),
+  ...dateFields('start_date', 'end_date')(b),
+})
+
 // Fields per endpoint (restx_api/*_schema.py and the per-endpoint schemas at c8b2896).
 // `optional` may depend on the profile; anything undeclared is an Unknown field.
 const SCHEMAS = {
@@ -188,6 +214,16 @@ const SCHEMAS = {
     style: 'dict',
     required: [...SYMBOL, 'interval', 'start_date', 'end_date'],
     optional: (v) => (v.historySource ? ['source'] : []),
+    check: historyChecks,
+  },
+  intervals: { style: 'dict', required: ['apikey'] },
+  'market/timings': { style: 'dict', required: ['apikey', 'date'], check: dateFields('date') },
+  'market/holidays': {
+    style: 'dict',
+    required: ['apikey'],
+    optional: ['year'],
+    check: (b) =>
+      'year' in b && !Number.isInteger(b.year) ? { year: ['Not a valid integer.'] } : null,
   },
   optionchain: {
     style: 'restx',
@@ -356,23 +392,25 @@ const HANDLERS = {
   history(b, { prices, version }) {
     const error = symbolError(b.symbol, b.exchange, version)
     if (error) return [400, { status: 'error', message: error }]
-    const st = prices.get(b.symbol, b.exchange)
-    const now = Math.floor(Date.now() / 60_000) * 60
+    // In the OneOf but not in the mock's broker map: services/history_service.py via the adapter.
+    if (!Object.values(MOCK_INTERVALS).flat().includes(b.interval)) {
+      return [500, { status: 'error', message: `Unsupported timeframe: ${b.interval}` }]
+    }
     return ok(
-      [2, 1, 0].map((i) => {
-        const close = r05(st.ltp * (1 - i * 0.001))
-        return {
-          timestamp: now - i * 60,
-          open: close,
-          high: r05(close * 1.001),
-          low: r05(close * 0.999),
-          close,
-          volume: 1000 * (i + 1),
-          oi: st.oi ?? 0,
-        }
+      historySeries({
+        symbol: b.symbol,
+        exchange: b.exchange,
+        interval: b.interval,
+        startDate: b.start_date,
+        endDate: b.end_date,
+        lastClose: prices.read(b.symbol, b.exchange).ltp,
+        nowMs: Date.now(),
       }),
     )
   },
+  intervals: () => ok(structuredClone(MOCK_INTERVALS)),
+  'market/timings': (b, { state }) => ok(timingsFor(b.date, state.current.timingsSkewMs)),
+  'market/holidays': (b) => ok(holidaysOf(b.year ?? Number(istDateOf(Date.now()).slice(0, 4)))),
   optionchain(b, { prices, version }) {
     const und = prices.get(b.underlying, b.exchange)
     const fo = String(b.exchange).startsWith('BSE') ? 'BFO' : 'NFO'

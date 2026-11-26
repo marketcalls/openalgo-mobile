@@ -138,6 +138,9 @@ const BASE_ENDPOINTS = [
   'depth',
   'history',
   'optionchain',
+  'intervals',
+  'market/timings',
+  'market/holidays',
 ]
 const TRADING_ENDPOINTS = [
   'symbol',
