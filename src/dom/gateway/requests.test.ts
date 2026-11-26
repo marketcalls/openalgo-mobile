@@ -2,16 +2,19 @@ import { z } from 'zod'
 import type { Api } from '~/core/http/api'
 import { ApiError, type ApiErrorKind, userMessage } from '~/core/http/errors'
 import { SearchSchema } from '~/core/http/schemas'
+import { clearLogs, getLogLines } from '~/core/log/logger'
 import { type DomRequest, type JSONValue, NATIVE_KEY } from '~/dom/bridge/protocol'
 import { HistorySchema } from '~/market/chart/schemas'
 import { createChartRoutes } from './chartRoutes'
 import {
   createRequestRouter,
   fromApiError,
+  MAX_DOM_INFLIGHT,
   ok,
   pickFields,
   REFUSED_COPY,
   refused,
+  TOO_MANY_COPY,
 } from './requests'
 
 type Call = (
@@ -31,6 +34,10 @@ const HISTORY = {
 const ROWS = [{ timestamp: 1764215100, open: 1500, high: 1505, low: 1498, close: 1503, volume: 9 }]
 const FOUND = [{ symbol: 'INFY', exchange: 'NSE', name: 'INFOSYS LTD' }]
 const REFUSED = { status: 403, body: { status: 'error', message: REFUSED_COPY } }
+const TOO_MANY = {
+  status: 429,
+  body: { status: 'error', code: 'TOO_MANY', message: TOO_MANY_COPY },
+}
 
 let lastRid = 0
 function req(path: string, body?: JSONValue, method: 'GET' | 'POST' = 'POST'): DomRequest {
@@ -40,8 +47,9 @@ function req(path: string, body?: JSONValue, method: 'GET' | 'POST' = 'POST'): D
 }
 
 function setup(o?: { whenActive?: () => Promise<void> }) {
+  // What Api.call resolves with: the parsed reply (HistorySchema keeps its dropped count).
   const call = jest.fn<ReturnType<Call>, Parameters<Call>>(async (id) =>
-    id === 'history' ? ROWS : FOUND,
+    id === 'history' ? { rows: ROWS, dropped: 0 } : FOUND,
   )
   const router = createRequestRouter(createChartRoutes({ call } as unknown as Pick<Api, 'call'>), o)
   const ctl = new AbortController()
@@ -52,6 +60,13 @@ function setup(o?: { whenActive?: () => Promise<void> }) {
 const settle = async () => {
   for (let i = 0; i < 10; i++) await Promise.resolve()
 }
+
+beforeEach(() => {
+  clearLogs()
+  jest.spyOn(console, 'warn').mockImplementation(() => {})
+})
+afterEach(() => jest.restoreAllMocks())
+const logged = (text: string) => getLogLines().filter((l) => l.includes(text))
 
 describe('the chart routes', () => {
   test('history goes through Api.call with only its five fields', async () => {
@@ -67,6 +82,21 @@ describe('the chart routes', () => {
     expect(call).toHaveBeenCalledTimes(1)
     expect(call).toHaveBeenCalledWith('history', HISTORY, HistorySchema, { signal })
     expect(reply).toEqual({ status: 200, body: { status: 'success', data: ROWS } })
+    expect(logged('history dropped')).toEqual([])
+  })
+
+  test('history answers the candles it could read and logs how many it dropped', async () => {
+    const { call, route } = setup()
+    // The real schema, on a reply with three unreadable candles among the good one.
+    call.mockImplementationOnce(async (_id, _b, schema) =>
+      (schema as typeof HistorySchema).parse({
+        status: 'success',
+        data: [...ROWS, { timestamp: 'x', open: 1, high: 1, low: 1, close: 1 }, 'junk', null],
+      }),
+    )
+    await expect(route(req('/api/v1/history', HISTORY))).resolves.toEqual(ok(ROWS))
+    expect(logged('history dropped')).toHaveLength(1)
+    expect(logged('WARN [chart] history dropped 3 rows')).toHaveLength(1)
   })
 
   test('search sends only the query', async () => {
@@ -223,6 +253,127 @@ describe('the chart routes', () => {
       status: 'error',
       message: userMessage(new ApiError({ kind: 'Server', status: 0, endpoint: 'x' })),
     })
+  })
+
+  test('a route that throws something other than an ApiError is logged by name only', async () => {
+    const { call, route } = setup()
+    call.mockRejectedValueOnce(new TypeError('secret detail'))
+    await route(req('/api/v1/search', { query: 'INF' }))
+    expect(logged('a route failed')).toEqual([
+      expect.stringContaining('WARN [dom] a route failed: TypeError'),
+    ])
+    expect(getLogLines().join('\n')).not.toContain('secret')
+
+    // A thrown value that is not an Error names only its type.
+    clearLogs()
+    call.mockRejectedValueOnce('secret text')
+    await expect(route(req('/api/v1/search', { query: 'INF' }))).resolves.toMatchObject({
+      status: 502,
+    })
+    expect(logged('a route failed')).toEqual([expect.stringContaining('a route failed: string')])
+    expect(getLogLines().join('\n')).not.toContain('secret')
+
+    // An ApiError is the client's outcome, not a route bug: the router adds no line.
+    clearLogs()
+    call.mockRejectedValueOnce(new ApiError({ kind: 'Server', status: 500, endpoint: 'search' }))
+    await route(req('/api/v1/search', { query: 'INF' }))
+    expect(logged('a route failed')).toEqual([])
+  })
+})
+
+describe('the in-flight cap', () => {
+  /** A router whose Api.call settles only when told to, or when its request aborts. */
+  function held(o?: { whenActive?: () => Promise<void> }) {
+    const pending: Array<{ answer(): void; fail(): void }> = []
+    const call = jest.fn<ReturnType<Call>, Parameters<Call>>(
+      (id, _b, _s, c) =>
+        new Promise((resolve, reject) => {
+          const failed = () => reject(new ApiError({ kind: 'Network', status: 0, endpoint: id }))
+          pending.push({
+            answer: () => resolve(id === 'history' ? { rows: ROWS, dropped: 0 } : FOUND),
+            fail: failed,
+          })
+          c?.signal?.addEventListener('abort', failed)
+        }),
+    )
+    const router = createRequestRouter(
+      createChartRoutes({ call } as unknown as Pick<Api, 'call'>),
+      o,
+    )
+    const send = (r: DomRequest) => {
+      const ctl = new AbortController()
+      return { ctl, reply: router(r, ctl.signal) }
+    }
+    return { call, pending, send }
+  }
+
+  test(`request ${MAX_DOM_INFLIGHT + 1} is a 429 at once and nothing is sent`, async () => {
+    expect(MAX_DOM_INFLIGHT).toBe(8)
+    const { call, pending, send } = held()
+    const first = Array.from({ length: MAX_DOM_INFLIGHT }, (_, i) =>
+      send(req(i % 2 ? '/api/v1/search' : '/api/v1/history', i % 2 ? { query: 'INF' } : HISTORY)),
+    )
+    await settle()
+    expect(call).toHaveBeenCalledTimes(MAX_DOM_INFLIGHT)
+
+    await expect(send(req('/api/v1/search', { query: 'INF' })).reply).resolves.toEqual(TOO_MANY)
+    await expect(send(req('/api/v1/history', HISTORY)).reply).resolves.toEqual(TOO_MANY)
+    // A path with no route is still the plain refusal.
+    await expect(send(req('/api/v1/placeorder', {})).reply).resolves.toEqual(REFUSED)
+    await settle()
+    expect(call).toHaveBeenCalledTimes(MAX_DOM_INFLIGHT)
+
+    // A request that is answered frees its slot, and so does one that fails or that the page
+    // aborts; each freed slot takes exactly one more.
+    pending[0]?.answer()
+    await expect(first[0]?.reply).resolves.toEqual(ok(ROWS))
+    pending[1]?.fail()
+    await expect(first[1]?.reply).resolves.toMatchObject({ status: 502 })
+    first[2]?.ctl.abort()
+    await expect(first[2]?.reply).rejects.toBeInstanceOf(Error)
+    for (let i = 0; i < 3; i++) send(req('/api/v1/search', { query: 'INF' }))
+    await settle()
+    expect(call).toHaveBeenCalledTimes(MAX_DOM_INFLIGHT + 3)
+    await expect(send(req('/api/v1/search', { query: 'INF' })).reply).resolves.toEqual(TOO_MANY)
+    expect(call).toHaveBeenCalledTimes(MAX_DOM_INFLIGHT + 3)
+  })
+
+  test('requests waiting for whenActive hold their slots; a refused body frees its own', async () => {
+    let show = () => {}
+    const shown = new Promise<void>((r) => (show = r))
+    const { call, pending, send } = held({ whenActive: () => shown })
+    const waiting = Array.from({ length: MAX_DOM_INFLIGHT - 1 }, () =>
+      send(req('/api/v1/search', { query: 'INF' })),
+    )
+    const bad = send(req('/api/v1/search', { query: '' }))
+    await settle()
+    expect(call).not.toHaveBeenCalled()
+    // Hidden, the page is full: one more is refused at once, not queued for the focus.
+    await expect(send(req('/api/v1/history', HISTORY)).reply).resolves.toEqual(TOO_MANY)
+
+    show()
+    await expect(bad.reply).resolves.toEqual(REFUSED)
+    await settle()
+    expect(call).toHaveBeenCalledTimes(MAX_DOM_INFLIGHT - 1)
+    // The bad body's slot is free again.
+    send(req('/api/v1/history', HISTORY))
+    await settle()
+    expect(call).toHaveBeenCalledTimes(MAX_DOM_INFLIGHT)
+    for (const p of pending) p.answer()
+    await expect(Promise.all(waiting.map((w) => w.reply))).resolves.toHaveLength(
+      MAX_DOM_INFLIGHT - 1,
+    )
+  })
+
+  test('each router counts its own page', async () => {
+    const a = held()
+    const b = held()
+    for (let i = 0; i < MAX_DOM_INFLIGHT; i++) a.send(req('/api/v1/search', { query: 'INF' }))
+    await settle()
+    await expect(a.send(req('/api/v1/search', { query: 'INF' })).reply).resolves.toEqual(TOO_MANY)
+    b.send(req('/api/v1/search', { query: 'INF' }))
+    await settle()
+    expect(b.call).toHaveBeenCalledTimes(1)
   })
 })
 

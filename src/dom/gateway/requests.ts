@@ -2,9 +2,12 @@
 // only the routes a page is given are answered; anything else is a JSON 403 and nothing is sent.
 // A route reads the fields it needs from the page's body, so the page's `apikey` placeholder
 // never travels: the HTTP client adds the real key. Errors reach the page as the server's error
-// envelope with the app's own copy, never as a 401: web code would redirect to /login.
+// envelope with the app's own copy, never as a 401: web code would redirect to /login. A page
+// has at most MAX_DOM_INFLIGHT requests in flight, so a buggy or hostile page cannot crowd the
+// app's own read lane.
 import type { z } from 'zod'
 import { ApiError, type ApiErrorKind, userMessage } from '~/core/http/errors'
+import { log } from '~/core/log/logger'
 import type { DomReply, DomRequest, JSONValue } from '~/dom/bridge/protocol'
 
 export type Route = {
@@ -15,6 +18,12 @@ export type Route = {
 }
 
 export const REFUSED_COPY = 'This request is not allowed in the app.'
+export const TOO_MANY_COPY = 'Too many requests at once. Try again.'
+/**
+ * The requests one page may have in flight at once, those waiting for `whenActive` among them;
+ * one more is answered 429 at once and sends nothing. Raise it only by constant.
+ */
+export const MAX_DOM_INFLIGHT = 8
 
 export const ok = (data: JSONValue): DomReply => ({
   status: 200,
@@ -23,6 +32,10 @@ export const ok = (data: JSONValue): DomReply => ({
 export const refused = (): DomReply => ({
   status: 403,
   body: { status: 'error', message: REFUSED_COPY },
+})
+const tooMany = (): DomReply => ({
+  status: 429,
+  body: { status: 'error', code: 'TOO_MANY', message: TOO_MANY_COPY },
 })
 
 const STATUS: Record<ApiErrorKind, number> = {
@@ -75,25 +88,36 @@ function untilActive(whenActive: () => Promise<void>, signal: AbortSignal): Prom
   })
 }
 
+/** What a log line may say of an error: its name, never its message (it could carry anything). */
+const errorName = (e: unknown) => (e instanceof Error ? e.name : typeof e)
+
 /**
- * The request handler for DomHost. `whenActive` (resolved while the screen is shown, else at its
- * next focus) gates every request, so a hidden chart's 30 s history tail stops (design 7.5).
- * A path no route has is refused at once, without the wait. A request the page aborts rejects,
- * which DomHost takes as given up.
+ * The request handler for DomHost; make one per page, since the in-flight cap counts this
+ * router's requests. `whenActive` (resolved while the screen is shown, else at its next focus)
+ * gates every request, so a hidden chart's 30 s history tail stops (design 7.5). A path no route
+ * has is refused at once, without the wait, and so is a request past MAX_DOM_INFLIGHT (429). A
+ * request the page aborts rejects, which DomHost takes as given up.
  */
 export function createRequestRouter(
   routes: readonly Route[],
   o: { whenActive?: () => Promise<void> } = {},
 ): (r: DomRequest, signal: AbortSignal) => Promise<DomReply> {
+  let inflight = 0
   return async (r, signal) => {
     const route = routes.find((x) => x.method === r.method && x.path === r.path)
     if (!route) return refused()
+    if (inflight >= MAX_DOM_INFLIGHT) return tooMany()
+    inflight++
     try {
       await untilActive(o.whenActive ?? (async () => {}), signal)
       return await route.handle(r, signal)
     } catch (e) {
       if (signal.aborted) throw e
+      // An ApiError is an outcome the HTTP client classified (and logs); anything else is a bug.
+      if (!(e instanceof ApiError)) log.warn('dom', `a route failed: ${errorName(e)}`)
       return fromApiError(e)
+    } finally {
+      inflight--
     }
   }
 }

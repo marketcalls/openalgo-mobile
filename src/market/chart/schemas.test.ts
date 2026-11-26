@@ -4,7 +4,7 @@ const ok = (data: unknown) => ({ status: 'success', data })
 
 describe('HistorySchema', () => {
   test('HistorySchema coerces string numbers and drops unreadable rows', () => {
-    const rows = HistorySchema.parse(
+    const { rows, dropped } = HistorySchema.parse(
       ok([
         { timestamp: 1764215100, open: 1500, high: 1505, low: 1498, close: 1503, volume: 1200 },
         {
@@ -27,6 +27,8 @@ describe('HistorySchema', () => {
         { timestamp: 1764216600, open: 1508, high: 1510, low: 1506, close: 1507, oi: 'x' },
       ]),
     )
+    // The five rows that cannot be drawn are counted, so the route can say so.
+    expect(dropped).toBe(5)
     expect(rows).toEqual([
       { timestamp: 1764215100, open: 1500, high: 1505, low: 1498, close: 1503, volume: 1200 },
       {
@@ -48,8 +50,8 @@ describe('HistorySchema', () => {
   })
 
   test('no data is no rows, and an error envelope is not a history', () => {
-    expect(HistorySchema.parse(ok([]))).toEqual([])
-    expect(HistorySchema.parse(ok(null))).toEqual([])
+    expect(HistorySchema.parse(ok([]))).toEqual({ rows: [], dropped: 0 })
+    expect(HistorySchema.parse(ok(null))).toEqual({ rows: [], dropped: 0 })
     expect(HistorySchema.safeParse({ status: 'error', message: 'No data' }).success).toBe(false)
   })
 })
@@ -86,7 +88,24 @@ describe('the calendar and interval schemas', () => {
       { exchange: 'MCX', start_time: 1766115000000, end_time: 1766168700000 },
     ])
     expect(TimingsSchema.parse(ok([]))).toEqual([])
-    expect(TimingsSchema.safeParse(ok([{ exchange: 'NSE', start_time: null }])).success).toBe(false)
+    expect(TimingsSchema.parse(ok(null))).toEqual([])
+    expect(TimingsSchema.safeParse({ status: 'error', message: 'x' }).success).toBe(false)
+  })
+
+  test('TimingsSchema drops a row with null times and keeps the rest', () => {
+    // A special session's open exchange stored without times (market_calendar_db.py:104-105,
+    // returned as-is at :686-699): only that row goes, and its exchange takes its default.
+    expect(
+      TimingsSchema.parse(
+        ok([
+          { exchange: 'NSE', start_time: null, end_time: null },
+          { exchange: 'BSE', start_time: 1762607700000, end_time: 1762611300000 },
+          { exchange: 'MCX', start_time: '1762607700000', end_time: 'x' },
+          { exchange: 'NFO' },
+          null,
+        ]),
+      ),
+    ).toEqual([{ exchange: 'BSE', start_time: 1762607700000, end_time: 1762611300000 }])
   })
 
   test('HolidaysSchema reads each holiday; unreadable exchange lists are empty', () => {

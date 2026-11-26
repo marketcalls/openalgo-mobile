@@ -279,6 +279,24 @@ describe('loadCalendars', () => {
     expect(r.calendars.NCO?.sessions).toEqual(['0900-2355:23456'])
   })
 
+  test('a row with null times takes its default; the other rows stay as the server sent them', async () => {
+    // Before the timings rows were lenient, this one row failed the whole read: every exchange
+    // fell to the defaults, CDS's edited 10:00-15:00 among them.
+    const rows = serverRows('2026-11-27').map((r) =>
+      r.exchange === 'MCX'
+        ? { exchange: 'MCX', start_time: null, end_time: null }
+        : r.exchange === 'CDS'
+          ? { ...nseRow('2026-11-27', 36_000_000, 54_000_000), exchange: 'CDS' }
+          : r,
+    )
+    const { api } = fakeApi({ '2026-11-27': rows })
+    const r = await loadCalendars(api, NOW)
+    expect(r.source).toBe('server')
+    expect(r.calendars.MCX?.sessions).toEqual(['0900-2355:23456'])
+    expect(r.calendars.CDS?.sessions).toEqual(['1000-1500:23456'])
+    expect(r.calendars.NSE?.sessions).toEqual(['0915-1530:23456'])
+  })
+
   test('January asks the previous year too', async () => {
     const jan = Date.UTC(2027, 0, 5, 5, 0)
     const { api, calls } = fakeApi({ '2027-01-05': serverRows('2027-01-05') })

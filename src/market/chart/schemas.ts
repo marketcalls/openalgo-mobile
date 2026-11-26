@@ -20,7 +20,8 @@ const HistoryRow = z.object({
   volume: optValue,
   oi: optValue,
 })
-export const HistorySchema = envelope(lenientRows(HistoryRow).transform((r) => r.rows))
+/** The candles that parse, and how many did not (`dropped`), as the books count theirs. */
+export const HistorySchema = envelope(lenientRows(HistoryRow))
 
 /** services/intervals_service.py: the codes the broker offers, grouped by unit. */
 const codes = z.array(z.string()).optional()
@@ -37,7 +38,12 @@ export const IntervalsSchema = envelope(
 
 /** An exchange's session on one date, in epoch ms (database/market_calendar_db.py:665-760). */
 const Timing = z.object({ exchange: str, start_time: int, end_time: int })
-export const TimingsSchema = envelope(z.array(Timing))
+/**
+ * A day's sessions, read row by row. A special session's or holiday's open exchange may carry
+ * null times (nullable columns, market_calendar_db.py:104-105): that row is dropped, so only its
+ * exchange takes its default (calendar.ts `build`), not every exchange.
+ */
+export const TimingsSchema = envelope(lenientRows(Timing).transform((r) => r.rows))
 
 /** One holiday of a year. An exchange list that cannot be read counts as none. */
 const HolidayRow = z.object({

@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import type { Api } from '~/core/http/api'
 import { SearchSchema } from '~/core/http/schemas'
+import { log } from '~/core/log/logger'
 import type { JSONValue } from '~/dom/bridge/protocol'
 import { HistorySchema } from '~/market/chart/schemas'
 import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
@@ -46,9 +47,12 @@ function post<S extends z.ZodType>(
 
 export function createChartRoutes(api: Pick<Api, 'call'>): Route[] {
   return [
-    post('/api/v1/history', HistoryBody, (body, signal) =>
-      api.call('history', body, HistorySchema, { signal }),
-    ),
+    post('/api/v1/history', HistoryBody, async (body, signal) => {
+      const { rows, dropped } = await api.call('history', body, HistorySchema, { signal })
+      // The chart draws a gap where a candle could not be read: say so, without the rows.
+      if (dropped > 0) log.warn('chart', `history dropped ${dropped} rows`)
+      return rows
+    }),
     post('/api/v1/search', SearchBody, (body, signal) =>
       api.call('search', body, SearchSchema, { signal }),
     ),
