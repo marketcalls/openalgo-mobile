@@ -14,6 +14,9 @@ const bad = [
   [{ kind: 'socket', sid: 1, event: 'open', extra: 1 }],
   [{ kind: 'push', topic: 1, payload: null }],
   [{ kind: 'push', topic: 't' }],
+  [{ kind: 'push', topic: 't', payload: 1, extra: 1 }],
+  [null],
+  [{ kind: 'socket', sid: 1.5, event: 'open' }],
 ]
 
 test('the guard accepts a native batch, empty included', () => {

@@ -20,6 +20,10 @@ test('a DOM request parses', () => expect(ok(req)).toBe(true))
 
 test('another version, an unknown kind or an extra key is refused', () => {
   expect(ok({ ...req, v: 2 })).toBe(false)
+  const { v: _v, ...noVersion } = req
+  expect(ok(noVersion)).toBe(false)
+  expect(ok({ ...req, query: { a: 1 } })).toBe(false)
+  expect(ok({ ...req, query: { a: 'b' } })).toBe(true)
   expect(ok({ ...req, kind: 'eval' })).toBe(false)
   expect(ok({ ...req, x: 1 })).toBe(false)
 })

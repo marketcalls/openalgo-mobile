@@ -5,16 +5,17 @@
 import { z } from 'zod'
 import type { ProfileStorage } from '~/core/config/storage'
 import type { DomReply, DomStorageMsg } from '~/dom/bridge/protocol'
+import { MAX_KEY, MAX_VALUE } from '~/dom/bridge/schemas'
 
 export type DomStoreRecord = { k: string; v: string }
 
-export const MAX_DOM_VALUE = 1_000_000
+export const MAX_DOM_VALUE = MAX_VALUE
 /** All the records of one handler together, in UTF-8 bytes of key and value: what a backup can carry. */
 export const MAX_DOM_TOTAL = 1_500_000
 /** Records per area; the backup reads no more per section. */
 export const MAX_DOM_RECORDS = 2000
 /** The longest widget key the phone stores. */
-export const MAX_DOM_KEY = 256
+export const MAX_DOM_KEY = MAX_KEY
 
 /** The UTF-8 size of `s`, without a TextEncoder (the JS engine may not have one). */
 export function utf8Length(s: string): number {

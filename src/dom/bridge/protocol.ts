@@ -12,8 +12,11 @@ export type JSONValue =
   | JSONValue[]
   | { [k: string]: JSONValue | undefined }
 
-export const BRIDGE_VERSION = 1
-/** The prop name expo/dom reserves for the native bridge function. */
+export const BRIDGE_VERSION = 1 as const
+/**
+ * The API-key placeholder the DOM sends in place of a real key. Only the native gateway swaps it
+ * for the real key, and only on allowlisted routes; the DOM never holds the key.
+ */
 export const NATIVE_KEY = '__native__'
 /** The socket URL the DOM opens; the gateway emulates it. It never resolves on a network. */
 export const DOM_WS_URL = 'wss://native.invalid/ws'
@@ -34,7 +37,7 @@ export type ChartIntent = { inst: Inst } & (
 export type ChartReady = { bars: number; indicators: number; mobile: boolean; csp: boolean }
 
 export type DomRequest = {
-  v: 1
+  v: typeof BRIDGE_VERSION
   kind: 'request'
   rid: number
   method: 'GET' | 'POST'
@@ -42,20 +45,20 @@ export type DomRequest = {
   query?: Record<string, string>
   body?: JSONValue
 }
-export type DomAbort = { v: 1; kind: 'abort'; rid: number }
-export type DomSocketMsg = { v: 1; kind: 'socket'; sid: number } & (
+export type DomAbort = { v: typeof BRIDGE_VERSION; kind: 'abort'; rid: number }
+export type DomSocketMsg = { v: typeof BRIDGE_VERSION; kind: 'socket'; sid: number } & (
   | { op: 'open'; url: string }
   | { op: 'send'; data: string }
   | { op: 'close' }
 )
-export type DomStorageMsg = { v: 1; kind: 'storage' } & (
+export type DomStorageMsg = { v: typeof BRIDGE_VERSION; kind: 'storage' } & (
   | { op: 'entries'; prefix: string }
   | { op: 'get'; key: string }
   | { op: 'set'; key: string; value: string }
   | { op: 'remove'; key: string }
 )
-export type DomIntentMsg = { v: 1; kind: 'intent'; intent: ChartIntent }
-export type DomEvent = { v: 1; kind: 'event' } & (
+export type DomIntentMsg = { v: typeof BRIDGE_VERSION; kind: 'intent'; intent: ChartIntent }
+export type DomEvent = { v: typeof BRIDGE_VERSION; kind: 'event' } & (
   | { name: 'loaded' }
   | { name: 'ready'; info: ChartReady }
   | { name: 'error'; message: string }

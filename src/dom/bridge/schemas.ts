@@ -1,15 +1,15 @@
 // Native-only zod schemas for the bridge (DomHost and the gateway). The types they produce live
 // in protocol.ts, the one bridge file the DOM bundle may load.
 import { z } from 'zod'
-import type { ChartIntent, DomToNative, NativeToDom } from './protocol'
+import { BRIDGE_VERSION, type ChartIntent, type DomToNative, type NativeToDom } from './protocol'
 
-const MAX_PATH = 256
-const MAX_SOCKET_DATA = 65_536
-const MAX_KEY = 256
-const MAX_VALUE = 1_000_000
-const MAX_ORDERID = 64
-const MAX_MESSAGE = 500
-const MAX_URL = 2_048
+export const MAX_PATH = 256
+export const MAX_SOCKET_DATA = 65_536
+export const MAX_KEY = 256
+export const MAX_VALUE = 1_000_000
+export const MAX_ORDERID = 64
+export const MAX_MESSAGE = 500
+export const MAX_URL = 2_048
 
 const price = z.number().finite().positive()
 const inst = z.strictObject({
@@ -86,7 +86,7 @@ export const ChartIntentSchema: z.ZodType<ChartIntent> = z.discriminatedUnion('t
   z.strictObject({ type: z.literal('symbol'), inst }),
 ])
 
-const v = z.literal(1)
+const v = z.literal(BRIDGE_VERSION)
 const sid = z.number().int().min(0).max(999)
 const rid = z.number().int().safe().min(0)
 
