@@ -1,0 +1,43 @@
+# Onboarding against the mock server with a live feed (CI job e2e-android).
+# The emulator reaches the host's mock at 10.0.2.2, which is in 10.0.0.0/8, so a release
+# build accepts http there after the warning.
+appId: in.openalgo.mobile
+env:
+  SERVER_URL: http://10.0.2.2:5000
+  # The mock's default key: 64 characters.
+  API_KEY: abababababababababababababababababababababababababababababababab
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: server-url
+- inputText: ${SERVER_URL}
+- hideKeyboard
+- tapOn:
+    id: server-continue
+# the http warning
+- tapOn:
+    id: http-ack
+- tapOn:
+    id: key-input
+- inputText: ${API_KEY}
+- hideKeyboard
+- tapOn:
+    id: key-continue
+# the feed address is filled in from the server address (ws://10.0.2.2:8765)
+- tapOn:
+    id: feed-test
+- extendedWaitUntil:
+    visible:
+      id: feed-live
+    timeout: 20000
+- tapOn:
+    id: onboarding-save
+# the watchlist shows a price within 10 s
+- extendedWaitUntil:
+    visible:
+      id: watch-ltp-NSE-RELIANCE
+      text: '[0-9][0-9,]*\.[0-9]{2}'
+    timeout: 10000
+- assertNotVisible:
+    id: badge-polling

@@ -1,0 +1,116 @@
+import {
+  addItem,
+  createList,
+  DEFAULT_WATCHLISTS,
+  deleteList,
+  moveItem,
+  removeItem,
+  renameList,
+  setActive,
+  WATCHLIST_LIMITS,
+  type Watchlists,
+} from './model'
+
+const base: Watchlists = {
+  version: 1,
+  activeId: 'a',
+  lists: [
+    { id: 'a', name: 'A', items: [] },
+    { id: 'b', name: 'B', items: [] },
+  ],
+}
+const item = (n: number) => ({ exchange: 'NSE', symbol: `S${n}` })
+
+describe('createList', () => {
+  test('trims the name and appends the list', () => {
+    const { next, result } = createList(base, '  Swing  ', 'c')
+    expect(result).toBe('ok')
+    expect(next.lists.at(-1)).toEqual({ id: 'c', name: 'Swing', items: [] })
+  })
+  test('rejects an empty name and a 31-character name', () => {
+    expect(createList(base, '   ', 'c').result).toBe('bad_name')
+    expect(createList(base, 'x'.repeat(31), 'c').result).toBe('bad_name')
+    expect(createList(base, 'x'.repeat(30), 'c').result).toBe('ok')
+  })
+  test('the 51st list is refused and nothing changes', () => {
+    let w = base
+    for (let i = 0; i < WATCHLIST_LIMITS.lists - 2; i++) w = createList(w, `L${i}`, `id${i}`).next
+    expect(w.lists).toHaveLength(50)
+    const r = createList(w, 'one more', 'z')
+    expect(r.result).toBe('limit')
+    expect(r.next).toBe(w)
+  })
+})
+
+describe('renameList', () => {
+  test('trims, validates and reports a missing list', () => {
+    expect(renameList(base, 'a', ' Core ').next.lists[0]?.name).toBe('Core')
+    expect(renameList(base, 'a', '').result).toBe('bad_name')
+    expect(renameList(base, 'zz', 'X').result).toBe('missing')
+  })
+})
+
+describe('deleteList', () => {
+  test('the last list cannot be deleted', () => {
+    const one: Watchlists = {
+      version: 1,
+      activeId: 'a',
+      lists: [{ id: 'a', name: 'A', items: [] }],
+    }
+    const r = deleteList(one, 'a')
+    expect(r.result).toBe('last_list')
+    expect(r.next).toBe(one)
+  })
+  test('deleting the active list activates the first remaining', () => {
+    const w = setActive(base, 'b').next
+    const r = deleteList(w, 'b')
+    expect(r.result).toBe('ok')
+    expect(r.next.activeId).toBe('a')
+    expect(r.next.lists.map((l) => l.id)).toEqual(['a'])
+  })
+  test('deleting another list keeps the active one', () => {
+    expect(deleteList(base, 'b').next.activeId).toBe('a')
+  })
+})
+
+describe('items', () => {
+  test('addItem adds, then reports a duplicate', () => {
+    const one = addItem(base, 'a', item(1))
+    expect(one.result).toBe('added')
+    expect(addItem(one.next, 'a', item(1)).result).toBe('duplicate')
+    // the same symbol in another list is fine
+    expect(addItem(one.next, 'b', item(1)).result).toBe('added')
+  })
+  test('the 251st item is refused', () => {
+    let w = base
+    for (let i = 0; i < WATCHLIST_LIMITS.items; i++) w = addItem(w, 'a', item(i)).next
+    expect(w.lists[0]?.items).toHaveLength(250)
+    expect(addItem(w, 'a', item(999)).result).toBe('full')
+  })
+  test('removeItem drops the matching row', () => {
+    const w = addItem(addItem(base, 'a', item(1)).next, 'a', item(2)).next
+    expect(removeItem(w, 'a', item(1)).next.lists[0]?.items).toEqual([item(2)])
+    expect(removeItem(w, 'a', item(9)).result).toBe('missing')
+  })
+  test('moveItem 0 to 2 reorders', () => {
+    let w = base
+    for (const n of [1, 2, 3]) w = addItem(w, 'a', item(n)).next
+    const r = moveItem(w, 'a', 0, 2)
+    expect(r.result).toBe('ok')
+    expect(r.next.lists[0]?.items.map((i) => i.symbol)).toEqual(['S2', 'S3', 'S1'])
+    expect(moveItem(w, 'a', 0, 3).result).toBe('bad_index')
+  })
+})
+
+describe('setActive', () => {
+  test('sets a known list and refuses an unknown one', () => {
+    expect(setActive(base, 'b').next.activeId).toBe('b')
+    const r = setActive(base, 'zz')
+    expect(r.result).toBe('missing')
+    expect(r.next).toBe(base)
+  })
+})
+
+test('the defaults name their first list active', () => {
+  expect(DEFAULT_WATCHLISTS.activeId).toBe(DEFAULT_WATCHLISTS.lists[0]?.id)
+})

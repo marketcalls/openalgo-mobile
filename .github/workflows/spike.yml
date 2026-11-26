@@ -9,13 +9,15 @@
 #
 # Native folders (android/, ios/) are not committed; each job generates them with
 # `expo prebuild` from app.json.
-name: Build apps
+name: Spike builds
 
 on:
   push:
     branches: [main]
+    paths: ["spike/**", ".github/workflows/spike.yml"]
   pull_request:
     branches: [main]
+    paths: ["spike/**", ".github/workflows/spike.yml"]
   workflow_dispatch:
     inputs:
       openalgo_ref:
@@ -170,7 +172,8 @@ jobs:
           SDK: ${{ matrix.sdk }}
           DESTINATION: ${{ matrix.destination }}
         run: |
-          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          set -- ./*.xcworkspace
+          WORKSPACE="${1#./}"
           SCHEME="${WORKSPACE%.xcworkspace}"
           echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
           # arm64 only: every iPhone, and the simulator on Apple Silicon Macs.

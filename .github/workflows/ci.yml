@@ -1,0 +1,365 @@
+# Quality gates and builds for the app at the repo root.
+# Golden regeneration is added in M4 and TestFlight in M6.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "26"
+  CI: "1"
+  EXPO_NO_TELEMETRY: "1"
+  BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Read the pinned openalgo commit
+        id: ref
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (frontend source only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo
+          sparse-checkout: frontend/src
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npx jest --ci
+
+      - name: Script tests
+        run: npm run test:scripts
+
+      - name: Compat tests
+        run: npm run test:compat
+
+      - name: Import boundaries
+        run: npm run boundaries
+
+      - name: Theme tokens match the web
+        run: OPENALGO_DIR=$GITHUB_WORKSPACE/openalgo npm run tokens:check
+
+      - name: Expo dependency versions
+        run: npx expo install --check
+
+      - name: Expo doctor
+        run: npx expo-doctor
+
+      - name: Export bundles
+        run: npm run export
+
+      - name: Bundle budgets
+        run: npm run bundles
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          rm gitleaks.tgz
+
+      - name: Secret scan (git history)
+        run: gitleaks git --redact .
+
+      - name: Secret scan (exported bundles)
+        run: gitleaks dir --redact --config .gitleaks.toml dist-export
+
+      - name: Key scan (exported bundles)
+        # gitleaks' key rule needs "apikey" and a separator; Hermes stores strings back to back.
+        run: node scripts/check-bundle-keys.mjs dist-export
+
+  android:
+    name: Android APK
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Free disk space
+        # NDK, Gradle caches and two ABIs of native builds need roughly 10 GB.
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build APK
+        uses: ./.github/actions/android-build
+        env:
+          # A composite action cannot read secrets; pull requests from forks get none.
+          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        with:
+          artifact: android-apk
+          has-keystore: ${{ env.HAS_KEYSTORE }}
+          keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+  ios-simulator:
+    name: iOS Simulator app
+    needs: checks
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build simulator app
+        uses: ./.github/actions/ios-build
+        with:
+          sdk: iphonesimulator
+          destination: generic/platform=iOS Simulator
+          artifact: ios-simulator-app
+
+  ios-device:
+    name: iOS IPA (unsigned)
+    needs: checks
+    if: github.event_name != 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build unsigned IPA
+        uses: ./.github/actions/ios-build
+        with:
+          sdk: iphoneos
+          destination: generic/platform=iOS
+          artifact: ios-ipa-unsigned
+
+  e2e-android:
+    name: Android e2e (${{ matrix.PROFILE }})
+    needs: checks
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        PROFILE: ["2.0.0.0", "2.0.3.5"]
+    env:
+      PROFILE: ${{ matrix.PROFILE }}
+      MAESTRO_VERSION: 2.12.1
+      MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
+    steps:
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build APK (x86_64)
+        # A test APK for a fresh emulator: the debug key installs fine, so the release keystore
+        # never reaches this job (its later steps run third-party actions and the mock server).
+        uses: ./.github/actions/android-build
+        with:
+          abis: x86_64
+          artifact: android-apk-e2e-${{ matrix.PROFILE }}
+
+      - name: Install Maestro
+        run: |
+          curl -sSfL -o maestro.zip "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          echo "${MAESTRO_SHA256}  maestro.zip" | sha256sum -c -
+          unzip -q maestro.zip -d "$RUNNER_TEMP"
+          rm maestro.zip
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Write the e2e script
+        # android-emulator-runner runs a multi-line script one line at a time, so the steps
+        # that share shell state (the mock's restart) live in one file. A failed flow does not
+        # stop the ones after it: each starts from a cleared app, and the script fails at the end.
+        run: |
+          cat > "$RUNNER_TEMP/e2e.sh" <<'SCRIPT'
+          set -euo pipefail
+          DEBUG="$RUNNER_TEMP/e2e-debug"
+          mkdir -p "$DEBUG"
+          MOCKS=0
+          FAILED=()
+          # start_mock WS_PORT [BROKER]: BROKER defaults to zerodha, the mock's own default.
+          # Each start logs to its own file, kept for the debug artifact.
+          start_mock() {
+            MOCKS=$((MOCKS + 1))
+            MOCK_LOG="$DEBUG/mock-$MOCKS-ws-$1-${2:-zerodha}.log"
+            PORT=5000 WS_PORT="$1" PROFILE="$PROFILE" BROKER="${2:-zerodha}" node dev/mock-server/main.mjs > "$MOCK_LOG" 2>&1 &
+            MOCK_PID=$!
+            for _ in $(seq 1 50); do
+              grep -q '^MOCK_READY' "$MOCK_LOG" && return 0
+              sleep 0.2
+            done
+            cat "$MOCK_LOG"
+            return 1
+          }
+          stop_mock() {
+            kill "$MOCK_PID"
+            wait "$MOCK_PID" || true
+          }
+          reset_mock() { curl -sSf -X POST http://localhost:5000/__mock/reset > /dev/null; }
+          # A slow first boot can leave a system "isn't responding" dialog over every screen (seen:
+          # Pixel Launcher). With error dialogs hidden the system closes a hung app itself; one
+          # already up is closed before each flow.
+          close_system_dialogs() {
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
+          }
+          adb shell settings put global hide_error_dialogs 1
+          echo "Focus at start: $(adb shell dumpsys window | grep -m 1 mCurrentFocus | tr -d '\r')"
+          # run_flow NAME: from a cleared app; a failure keeps the device log and the window stack
+          run_flow() {
+            adb shell pm clear in.openalgo.mobile
+            close_system_dialogs
+            adb logcat -c || true
+            if ! maestro test "e2e/$1.yaml"; then
+              FAILED+=("$1")
+              adb logcat -d > "$DEBUG/logcat-$1.txt" 2>&1 || true
+              adb shell dumpsys activity activities > "$DEBUG/activities-$1.txt" 2>&1 || true
+            fi
+          }
+          echo "Screen: $(adb shell wm size | tr -d '\r'), $(adb shell wm density | tr -d '\r')"
+          APK=$(ls dist/*.apk | head -n 1)
+          adb install -r "$APK"
+          start_mock 8765
+          run_flow onboarding-live
+          stop_mock
+          start_mock off
+          run_flow onboarding-polling
+          stop_mock
+          # the trading flows: the mock is reset before each one
+          start_mock 8765
+          for flow in trading-analyzer trading-semiauto; do
+            reset_mock
+            run_flow "$flow"
+          done
+          stop_mock
+          start_mock 8765 dhan
+          reset_mock
+          run_flow depth-levels
+          stop_mock
+          if [ "${#FAILED[@]}" -gt 0 ]; then
+            echo "Failed flows: ${FAILED[*]}"
+            exit 1
+          fi
+          SCRIPT
+
+      - name: Run the flows in an emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          # A phone-sized screen (1080 x 2400, 420 dpi): the default AVD is 320 x 640 at mdpi,
+          # where most lists run below the fold.
+          profile: pixel_6
+          disable-animations: true
+          pre-emulator-launch-script: grep -E '^hw\.(device\.name|lcd\.)' "$HOME/.android/avd/test.avd/config.ini" || true
+          script: bash ${{ runner.temp }}/e2e.sh
+
+      - name: Mock server log
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP"/e2e-debug/mock-*.log || true
+
+      - name: Collect the e2e debug output
+        # Maestro writes each run's screenshots, hierarchy and log under ~/.maestro/tests.
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-debug"
+          if [ -d "$HOME/.maestro/tests" ]; then cp -R "$HOME/.maestro/tests" "$RUNNER_TEMP/e2e-debug/maestro"; fi
+
+      - name: Upload the e2e debug output
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-debug-${{ matrix.PROFILE }}
+          path: ${{ runner.temp }}/e2e-debug
+          if-no-files-found: warn
+          retention-days: 14

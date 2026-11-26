@@ -1,0 +1,62 @@
+# Semi-Auto mode: a market buy waits for approval in the web Action Center (CI job
+# e2e-android). Needs the mock started with PORT=5000 WS_PORT=8765 and reset before the flow.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"semiAuto":true,"analyzer":false}'
+
+- tapOn:
+    id: wl-add
+- tapOn:
+    id: search-input
+- inputText: ITC
+- tapOn:
+    id: search-row-NSE-ITC
+- extendedWaitUntil:
+    visible:
+      id: search-added-NSE-ITC
+    timeout: 10000
+# Maestro's hideKeyboard on Android is a Back key press: Back goes only while search is open
+# (see trading-analyzer.yaml)
+- repeat:
+    while:
+      visible:
+        id: search-input
+    times: 2
+    commands:
+      - back
+# ITC is the eighth row of the default list, which can sit below the fold
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-ITC
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: watch-buy-NSE-ITC
+- tapOn:
+    id: ticket-type-MARKET
+- tapOn:
+    id: ticket-review
+- assertVisible:
+    id: review-mode-badge
+    text: LIVE
+- tapOn:
+    id: ticket-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible: Queued for approval in the web Action Center
+    timeout: 15000
+- assertVisible:
+    id: open-action-center
+- tapOn:
+    id: ticket-done
+
+- tapOn: Orders
+- assertVisible:
+    id: banner-semi-auto

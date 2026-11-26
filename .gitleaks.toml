@@ -1,0 +1,23 @@
+title = "openalgo-mobile"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "openalgo-test-env-file"
+description = "The local live-server test credentials file must never be committed"
+path = '''(^|/)\.env\.test\.local$'''
+
+[[rules]]
+id = "openalgo-api-key"
+description = "OpenAlgo API key (64 lowercase hex characters)"
+regex = '''(?i)(?:apikey|api_key|OPENALGO_TEST_APIKEY)["'\s:=]+([0-9a-f]{64})'''
+secretGroup = 1
+keywords = ["apikey", "api_key", "openalgo_test_apikey"]
+
+[allowlist]
+description = "Fixtures and the placeholder keys used by tests"
+paths = ['''^test/fixtures/''', '''^dev/mock-server/fixtures/''']
+# The second is RFC 6455's public sample nonce, which commit 462599c used as a test's
+# Sec-WebSocket-Key.
+regexes = ['''^(ab){32}$|^(cd){32}$''', '''^dGhlIHNhbXBsZSBub25jZQ==$''']

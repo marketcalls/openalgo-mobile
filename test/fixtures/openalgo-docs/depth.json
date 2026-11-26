@@ -1,0 +1,30 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/data-api/depth.md",
+  "status": "success",
+  "data": {
+    "open": 760.0,
+    "high": 774.0,
+    "low": 758.15,
+    "ltp": 769.6,
+    "ltq": 205,
+    "prev_close": 746.9,
+    "volume": 9362799,
+    "oi": 161265750,
+    "totalbuyqty": 591351,
+    "totalsellqty": 835701,
+    "asks": [
+      { "price": 769.6, "quantity": 767 },
+      { "price": 769.65, "quantity": 115 },
+      { "price": 769.7, "quantity": 162 },
+      { "price": 769.75, "quantity": 1121 },
+      { "price": 769.8, "quantity": 430 }
+    ],
+    "bids": [
+      { "price": 769.4, "quantity": 886 },
+      { "price": 769.35, "quantity": 212 },
+      { "price": 769.3, "quantity": 351 },
+      { "price": 769.25, "quantity": 343 },
+      { "price": 769.2, "quantity": 399 }
+    ]
+  }
+}

@@ -1,0 +1,176 @@
+# The trading loop in analyzer (sandbox) mode against the mock server (CI job e2e-android):
+# place, modify, cancel, depth, close and sell from holdings. Needs the mock started with
+# PORT=5000 WS_PORT=8765 and reset before the flow.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"analyzer":true}'
+
+# add ITC to the watchlist: add mode stays open after a pick and ticks the row
+- tapOn:
+    id: wl-add
+- tapOn:
+    id: search-input
+- inputText: ITC
+- tapOn:
+    id: search-row-NSE-ITC
+- extendedWaitUntil:
+    visible:
+      id: search-added-NSE-ITC
+    timeout: 10000
+# Leave search with Back. On Android, Maestro's hideKeyboard is itself a Back key press, so
+# "hideKeyboard, back" pressed Back twice; in CI the keyboard is already down after the pick, so
+# the first Back closed search and the second left the app. Back goes only while the field is
+# on screen: once to drop the keyboard if it is up, once to close.
+- repeat:
+    while:
+      visible:
+        id: search-input
+    times: 2
+    commands:
+      - back
+# ITC is the eighth row of the default list, which can sit below the fold
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-ITC
+    direction: DOWN
+    timeout: 15000
+
+# a LIMIT buy, reviewed as ANALYZE
+- tapOn:
+    id: watch-buy-NSE-ITC
+- tapOn:
+    id: ticket-type-LIMIT
+- tapOn:
+    id: ticket-price
+- inputText: "100"
+- hideKeyboard
+- tapOn:
+    id: ticket-review
+- assertVisible:
+    id: review-mode-badge
+    text: ANALYZE
+# Confirm stays disabled until the review has read the mode and the order book
+- tapOn:
+    id: ticket-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible: "Order placed"
+    timeout: 15000
+- assertVisible:
+    id: order-result
+- tapOn:
+    id: ticket-done
+
+# Orders: modify the open order, then cancel it
+- tapOn: Orders
+- scrollUntilVisible:
+    element:
+      text: ITC
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    text: ITC
+- tapOn:
+    id: order-modify
+- tapOn:
+    id: modify-price
+- eraseText
+- inputText: "101"
+- hideKeyboard
+- tapOn:
+    id: modify-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible: "101.00"
+    timeout: 15000
+# the row is still expanded after the modify (same order id): a tap on it would collapse it
+- tapOn:
+    id: order-cancel
+- tapOn: Cancel order
+- extendedWaitUntil:
+    visible: No open orders
+    timeout: 15000
+
+# depth: a tapped level fills the ticket as a LIMIT
+- tapOn: Watchlist
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-ITC
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: watch-row-NSE-ITC
+- tapOn:
+    id: inst-depth
+- tapOn:
+    id: depth-ask-0
+- assertVisible:
+    id: ticket-type-LIMIT
+    selected: true
+- tapOn:
+    id: ticket-type-MARKET
+- tapOn:
+    id: ticket-review
+- assertVisible:
+    id: review-mode-badge
+    text: ANALYZE
+- tapOn:
+    id: ticket-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible: "Order placed"
+    timeout: 15000
+- assertVisible:
+    id: order-result
+- tapOn:
+    id: ticket-done
+# Done returns to the depth screen, a full-screen card over the tabs: leave it
+- back
+
+# Portfolio: close the position, then sell a holding
+- tapOn: Portfolio
+- scrollUntilVisible:
+    element:
+      id: pos-close-NSE-ITC-CNC
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: pos-close-NSE-ITC-CNC
+- tapOn: Close position
+# the sandbox fills the close at once; the tab keeps the outcome as a line
+- extendedWaitUntil:
+    visible:
+      id: write-outcome-text
+      text: "Sandbox · Position is closed"
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: pos-qty-NSE-ITC-CNC
+    direction: DOWN
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: pos-qty-NSE-ITC-CNC
+      text: "0"
+    timeout: 15000
+- tapOn:
+    id: pf-seg-holdings
+- scrollUntilVisible:
+    element:
+      id: hold-sell-NSE-RELIANCE
+    direction: DOWN
+    timeout: 15000
+- tapOn:
+    id: hold-sell-NSE-RELIANCE
+- assertVisible:
+    id: ticket-side-sell
+    selected: true
+- assertVisible:
+    id: ticket-product-CNC
+    selected: true

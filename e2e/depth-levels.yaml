@@ -1,0 +1,29 @@
+# 20-level depth on a broker that offers it (CI job e2e-android). Needs the mock started with
+# BROKER=dhan PORT=5000 WS_PORT=8765 and reset before the flow.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"maxDepth":20}'
+
+- tapOn:
+    id: watch-row-NSE-RELIANCE
+- tapOn:
+    id: inst-depth
+- tapOn:
+    id: depth-levels-20
+# a sixth row shows only once 20 levels arrive
+- extendedWaitUntil:
+    visible:
+      id: depth-bid-5
+    timeout: 15000
+# row 19 is below the fold (20 rows of 36 dp under the quote header): ruling 30
+- scrollUntilVisible:
+    element:
+      id: depth-bid-19
+    direction: DOWN
+    timeout: 15000

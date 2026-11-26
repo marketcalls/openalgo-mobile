@@ -1,0 +1,52 @@
+# The same onboarding with the mock's WS proxy off (WS_PORT=off): the feed test fails three
+# times, the profile is saved in polling mode, and prices still arrive by REST.
+appId: in.openalgo.mobile
+env:
+  SERVER_URL: http://10.0.2.2:5000
+  API_KEY: abababababababababababababababababababababababababababababababab
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: server-url
+- inputText: ${SERVER_URL}
+- hideKeyboard
+- tapOn:
+    id: server-continue
+- tapOn:
+    id: http-ack
+- tapOn:
+    id: key-input
+- inputText: ${API_KEY}
+- hideKeyboard
+- tapOn:
+    id: key-continue
+- tapOn:
+    id: feed-test
+# three handshakes, 1 s and 2 s apart, then the Save button appears with the polling help
+- extendedWaitUntil:
+    visible:
+      id: feed-help
+    timeout: 30000
+- tapOn:
+    id: onboarding-save
+- extendedWaitUntil:
+    visible:
+      id: badge-polling
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: watch-ltp-NSE-RELIANCE
+      text: '[0-9][0-9,]*\.[0-9]{2}'
+    timeout: 10000
+# the price moves: polling reads multiquotes (every 2 s, or 10 s outside NSE hours), and the
+# mock walks a price on each REST read at most once a second, as a real server's quotes move
+# with no socket
+- copyTextFrom:
+    id: watch-ltp-NSE-RELIANCE
+- evalScript: ${output.first = maestro.copiedText}
+- extendedWaitUntil:
+    notVisible:
+      id: watch-ltp-NSE-RELIANCE
+      text: ${output.first}
+    timeout: 40000

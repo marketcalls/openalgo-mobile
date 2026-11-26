@@ -1,0 +1,9 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/accounts-api/margin.md",
+  "status": "success",
+  "data": {
+    "total_margin_required": 91555.7625,
+    "span_margin": 0.0,
+    "exposure_margin": 91555.7625
+  }
+}

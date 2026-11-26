@@ -1,0 +1,18 @@
+{
+  "_source": "openalgo-docs/api-documentation/v1/data-api/symbol.md",
+  "status": "success",
+  "data": {
+    "id": 979,
+    "name": "RELIANCE",
+    "symbol": "RELIANCE",
+    "brsymbol": "RELIANCE-EQ",
+    "exchange": "NSE",
+    "brexchange": "NSE",
+    "instrumenttype": "",
+    "expiry": "",
+    "strike": -0.01,
+    "lotsize": 1,
+    "tick_size": 0.05,
+    "token": "2885"
+  }
+}
