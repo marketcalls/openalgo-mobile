@@ -77,7 +77,7 @@ The product owner wants a complete rebuild:
 - Push notifications.
 - Over-the-air JS updates.
 - Offline trading.
-- GTT orders.
+- ~~GTT orders.~~ Moved into scope for 0.2.0 (section 17).
 - Web pages outside `/tools`: Scalping, Historify, Flow, strategies and admin.
 - Public Play Store and App Store listings. They come after phase 1; phase 1 ships through GitHub Releases and TestFlight.
 - Servers older than 2.0.0.0. The app shows "Update OpenAlgo" and how to do it.
@@ -111,6 +111,9 @@ The product owner wants a complete rebuild:
 | **Real-data testing uses a local test server** on the development Mac, in analyzer mode, logged in to the owner's broker; never the live trading server | 2026-11-24 |
 | **Market depth:** tap a level to prefill a limit order; 20/30 levels where the broker supports them | 2026-11-24 |
 | **Design approved; implement** ("implement the plan with market depth") | 2026-11-24 |
+| **No app stores.** Android ships as a signed APK on GitHub Releases. The iPhone route is still open | 2026-11-25 |
+| **v0.1.0 released** (M0–M2), signed with a new release key | 2026-11-26 |
+| **0.2.0 scope:** Zerodha (Kite)-style watchlist and instrument sheet, GTT, the chart with standard indicators, Option Chain and all remaining tools, plus the pending items (section 17). BUY stays **green**, as on the OpenAlgo web. No price alerts or notes | 2026-11-26 |
 
 ## 4. Approaches
 
@@ -940,3 +943,75 @@ All answered and folded into the sections above:
 - How the mock server records and replays per-version behaviour.
 - Maestro flow details.
 - Storage engine choices for device data (SQLite for the symbol master; key-value storage for the rest).
+
+## 17. Release 0.2.0 (added 2026-11-26)
+
+The product owner tested v0.1.0 and asked for 0.2.0 to contain:
+- a Zerodha (Kite)-style watchlist and instrument sheet, based on a Kite screenshot the owner supplied;
+- GTT;
+- the chart with all standard indicators;
+- Option Chain and every remaining tool;
+- the rest of the pending items.
+
+0.2.0 therefore delivers M3, M4 and M5, the Kite-style UI, GTT and the in-app update check from M6.
+
+### 17.1 Kite-style watchlist (replaces the watchlist layout in 7.3)
+- **List tabs.** The lists appear as a horizontally scrolling tab strip across the top (Watchlist 1, 2, 3 …, or each list's name), with the active list underlined. A trailing button manages lists: add, rename, delete, reorder.
+- **Search bar.** Below the tabs is a "Search & add" bar that shows the active list's count (for example "18/250") and has a sort/filter button. Sort options: as added, A–Z, % change, LTP, exchange.
+- **Groups.** "+ New group" adds a named section header inside the active list. Items belong to a group, or to no group (shown first). Edit mode moves items between groups and reorders them. Groups are part of the device-local watchlist model and the backup format, which gets a version bump so older backups still restore.
+- **Rows.** Rows are plain, with no buttons:
+  - left: the symbol, with the exchange below (indices show "INDICES");
+  - beside the exchange: a holdings marker (a briefcase icon and the quantity) when the symbol is in holdings or open positions;
+  - right: the LTP, coloured by the sign of the day's change;
+  - below the LTP: the change and % change, as "+11.80 (+2.85%)".
+
+  Tapping a row opens the instrument sheet. Swipe-to-remove stays.
+- **Index strip.** It stays above the tabs and is collapsible, so the list keeps the space.
+
+### 17.2 Kite-style instrument sheet (replaces the instrument sheet in 7.3)
+A draggable bottom sheet. It opens at about half height and drags up to full height.
+1. **Header:** symbol; exchange, LTP and change, coloured.
+2. **Large BUY (green) and SELL (red) buttons.** Both open the order ticket. They are hidden for indices.
+3. **Action row:**
+   - **View chart**;
+   - **Option chain**, for any underlying that has options, and for derivatives (opens their underlying's chain);
+   - **Create GTT**, shown only when the server and broker support GTT (17.3).
+4. **Inline market depth:** Bid / Orders / Qty | Offer / Orders / Qty, with totals and the 5/20 switch (7.3 depth rules). Tapping a level opens the ticket at that price.
+5. **Quote details, revealed when expanded:** open, high, low, prev close, volume, average price, last traded quantity and time, OI for F&O, and lower and upper circuit where the quote provides them.
+
+The standalone depth screen remains for deep links and for the chart's depth button. The sheet uses `@gorhom/bottom-sheet` or an equivalent built on react-native-gesture-handler and Reanimated, which are now allowed (17.6).
+
+### 17.3 GTT
+**API.** OpenAlgo GTT endpoints `placegttorder`, `modifygttorder`, `cancelgttorder` and `gttorderbook`.
+- They exist from server 2.0.0.8, and `gttorderbook.status` from 2.0.2.4.
+- Broker support: Zerodha and Dhan from 2.0.0.8; Angel One, Fyers and Upstox from 2.0.2.2. Other brokers answer 501, and the app then hides GTT for that server.
+- In the sandbox, GTT is simulated from 2.0.1.9.
+
+**UI.**
+- **Create GTT** (from the sheet or the order ticket): single trigger, or OCO (target and stop-loss) where the API supports it, with a review step showing the LIVE/ANALYZE badge.
+- **Orders tab:** a "GTT" segment lists GTTs with their status, and allows modify and cancel.
+
+**Safety.** GTT writes follow every rule in 7.10: one send per tap, never retried, MaybePlaced reconciled against the GTT book, live confirm when enabled, and the mode re-read before sending.
+
+### 17.4 Chart (M3), tools (M4, M5) and Option Chain
+These follow sections 7.7–7.9 unchanged.
+- **Chart:** the openalgo-charts widget with all its built-in standard indicators, drawings, intervals and chart types, plus on-chart trading.
+- **Native Option Chain:** a chain with Greek columns and BUY/SELL from any strike.
+- **Tools:** all 20, built through the DOM gateway and on-device routes, with golden parity tests.
+- **Golden test data:** recorded from the owner's local test server (OpenAlgo 2.0.3.5, Zerodha, analyzer mode) during market hours.
+
+### 17.5 In-app update check (from M6)
+Users install from GitHub, so the app checks the GitHub Releases API for this repository's latest release.
+- When: on cold start, at most once a day.
+- What it shows: "Version X is available", with a link to the release page.
+- Privacy: no personal data is sent. The request is a plain unauthenticated GET.
+- Users can turn it off in Account.
+
+### 17.6 Budget and gate changes (designer's calls, 2026-11-26)
+- **Hermes limit raised to 6,000,000 bytes** on Android and iOS, from 4,340,000.
+  - The old number came from the spike. M2 used 97.5% of it before any M3–M5 native code.
+  - The real gate is the section 12 cold start (≤ 3.5 s on a budget phone), measured at the 0.2.0 device test.
+  - The 5% growth rule per PR stays, with a recorded rebaseline at each milestone.
+  - The chart DOM and tool DOM budgets are unchanged.
+- **react-native-gesture-handler and react-native-reanimated are allowed** for the sheet and for gestures.
+- **The M0 device gate is replaced by the 0.2.0 device test.** The owner chose to proceed without a separate spike measurement. If a DOM page misses the section 12 bars on the owner's phone, that page gets a native rewrite after 0.2.0.
