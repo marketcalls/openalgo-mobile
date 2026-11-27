@@ -1,5 +1,5 @@
-// The option data the tools and the Option Chain share (design 7.8): expiries from /expiry, read
-// once per IST day; the futures price as services/oi_tracker_service.py:24-117 finds it; and the
+// The option data the tools and the Option Chain share (design 7.8): expiries from /expiry, kept
+// within the IST day for EXPIRY_FRESH_MS (never an empty list); the futures price as services/oi_tracker_service.py:24-117 finds it; and the
 // chain, whose `server_ts` sets the server clock that every Greek prices at.
 import type { QueryClient } from '@tanstack/react-query'
 import type { Api } from '~/core/http/api'
@@ -25,7 +25,8 @@ export type ChainQuery = {
 type ExpiryType = 'options' | 'futures'
 
 export type OptionsData = {
-  /** The listed expiries, DD-MMM-YY, nearest first; one read per IST day. */
+  /** The listed expiries, DD-MMM-YY, nearest first; read again after EXPIRY_FRESH_MS, at the
+   *  server's IST midnight, and whenever the last read listed none. */
   expiries(exchange: string, underlying: string, type: ExpiryType): Promise<string[]>
   /**
    * The same read as query options, for a screen to observe: one cache entry with `expiries`
@@ -38,7 +39,7 @@ export type OptionsData = {
   ): {
     queryKey: ReturnType<typeof qk.expiry>
     queryFn: () => Promise<string[]>
-    staleTime: (q: { state: { dataUpdatedAt: number } }) => number
+    staleTime: (q: { state: { dataUpdatedAt: number; data?: string[] } }) => number
     gcTime: number
   }
   /**
@@ -56,6 +57,13 @@ export type OptionsData = {
 }
 
 const TAG = 'options'
+/**
+ * How long a listed expiry read stays fresh, within its server IST day. The server rebuilds its
+ * symbol table at the day's first broker login (delete, then insert) and answers 200 with no or
+ * only some expiries meanwhile, so a read is never kept for the whole day: an empty one is stale
+ * at once, any other after this, one cheap read.
+ */
+export const EXPIRY_FRESH_MS = 15 * 60_000
 /** utils/constants.py CRYPTO_EXCHANGES. */
 const CRYPTO_EXCHANGES: ReadonlySet<string> = new Set(['CRYPTO'])
 
@@ -73,9 +81,13 @@ export function createOptionsData(d: {
     queryKey: qk.expiry(pid, exchange, underlying, type),
     queryFn: () =>
       api.call('expiry', { symbol: underlying, exchange, instrumenttype: type }, ExpirySchema),
-    // the server drops an expiry at its own midnight: fresh until the server's IST day moves on
-    staleTime: (q) =>
-      serverDay(q.state.dataUpdatedAt) === istDate(clock.now()) ? Number.POSITIVE_INFINITY : 0,
+    // the server drops an expiry at its own midnight: fresh until the server's IST day moves on,
+    // for EXPIRY_FRESH_MS at most; an empty list (a read during the server's reload) never
+    staleTime: (q) => {
+      if ((q.state.data?.length ?? 0) === 0) return 0
+      if (serverDay(q.state.dataUpdatedAt) !== istDate(clock.now())) return 0
+      return EXPIRY_FRESH_MS
+    },
     gcTime: Number.POSITIVE_INFINITY,
   })
   const expiries: OptionsData['expiries'] = (exchange, underlying, type) =>

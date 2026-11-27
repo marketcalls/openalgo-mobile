@@ -180,7 +180,8 @@ Option chain (`/optionchain/{key}`, and the Option Chain tool)
   between its strikes), `oc-jump-atm` (while ATM is off screen), `oc-footer` (PCR, OI totals and
   "Updated hh:mm:ss")
 - states: `oc-skeleton`, `oc-error` (with "Try again"), `oc-refresh-error`, `oc-empty-expiry`
-  ("Pick another expiry"), `oc-empty-underlying`
+  ("Pick another expiry"), `oc-empty-retry` ("Try again": no expiries listed, read the list
+  again), `oc-empty-underlying`
 - the pickers: `oc-underlying-sheet`, `oc-pick-search`, `oc-exchange-{EXCHANGE}`,
   `oc-pick-{UNDERLYING}`, `oc-expiry-sheet`, `oc-expiry-row-{N}`, `oc-count-sheet`, `oc-count-{N}`
 - a leg's sheet: `oc-leg-sheet`, `oc-leg-title`, `oc-leg-sub`, `oc-leg-ltp`, `oc-leg-lots`

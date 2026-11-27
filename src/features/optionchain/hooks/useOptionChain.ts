@@ -1,4 +1,5 @@
-// The chain's two reads (design 7.8, 12): the underlying's option expiries, once per IST day, and
+// The chain's two reads (design 7.8, 12): the underlying's option expiries (OptionsData keeps them
+// for EXPIRY_FRESH_MS within the IST day, never an empty list), and
 // its chain at the chosen expiry and strike count. Both run only while the screen is active, so a
 // hidden or backgrounded chain makes no call. The chain refreshes every 30 s while the live feed
 // carries its prices, and at the polling rate (5 s home, 10 s tunnel) when it does not. Its key
@@ -81,6 +82,7 @@ export function useOptionChain(p: {
     refreshFailedAt: shown && q.isError ? q.errorUpdatedAt : null,
     updatedAt: q.dataUpdatedAt,
     pollMs,
-    retry: () => void (list === undefined ? ex.refetch() : q.refetch()),
+    // no list, or an empty one (a read during the server's reload): the expiries again
+    retry: () => void (list === undefined || list.length === 0 ? ex.refetch() : q.refetch()),
   }
 }

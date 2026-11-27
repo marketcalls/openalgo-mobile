@@ -186,16 +186,21 @@ export function OptionChainScreen({ initial }: { initial: ChainTarget | null }) 
       </View>
     )
   } else if (read.expiries !== undefined && read.expiries.length === 0) {
+    // the server answers no expiries while it reloads its symbols (the day's first broker
+    // login): reading the list again is the way back, not only another underlying
     body = (
       <EmptyState
         title={noExpiries(target.underlying)}
         action={
-          <Button
-            testID="oc-empty-underlying"
-            title="Pick another underlying"
-            variant="secondary"
-            onPress={() => setSheet({ kind: 'underlying' })}
-          />
+          <View style={styles.emptyActions}>
+            <Button testID="oc-empty-retry" title="Try again" onPress={read.retry} />
+            <Button
+              testID="oc-empty-underlying"
+              title="Pick another underlying"
+              variant="secondary"
+              onPress={() => setSheet({ kind: 'underlying' })}
+            />
+          </View>
         }
       />
     )
@@ -398,4 +403,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   jumpText: { fontWeight: '700', fontSize: 13 },
+  emptyActions: { alignSelf: 'stretch', gap: 12 },
 })

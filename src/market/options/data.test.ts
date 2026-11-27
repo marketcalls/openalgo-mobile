@@ -4,7 +4,7 @@ import { ApiError } from '~/core/http/errors'
 import { createServerClock } from '~/core/http/serverClock'
 import { qk } from '~/core/query/keys'
 import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
-import { createOptionsData } from './data'
+import { createOptionsData, EXPIRY_FRESH_MS } from './data'
 import { ExpirySchema, OptionChainSchema } from './schemas'
 
 // 10:30 IST on 2026-11-24
@@ -185,14 +185,43 @@ describe('OptionsData', () => {
       '30-DEC-26',
     ])
 
-    // late the same IST day: still cached
-    jest.setSystemTime(Date.UTC(2026, 10, 24, 18, 29)) // 23:59 IST
+    // within EXPIRY_FRESH_MS: still cached
+    jest.setSystemTime(T0 + EXPIRY_FRESH_MS - 1)
     await options.expiries('NFO', 'NIFTY', 'options')
     expect(calls).toHaveLength(2)
+    // then one cheap read again, so a list read mid-reload heals the same day
+    jest.setSystemTime(T0 + EXPIRY_FRESH_MS + 1)
+    await options.expiries('NFO', 'NIFTY', 'options')
+    expect(calls).toHaveLength(3)
+    // late the same IST day, read at 23:50: cached
+    jest.setSystemTime(Date.UTC(2026, 10, 24, 18, 20)) // 23:50 IST
+    await options.expiries('NFO', 'NIFTY', 'options')
+    expect(calls).toHaveLength(4)
+    jest.setSystemTime(Date.UTC(2026, 10, 24, 18, 29)) // 23:59 IST
+    await options.expiries('NFO', 'NIFTY', 'options')
+    expect(calls).toHaveLength(4)
     // 00:01 IST the next day: read again
     jest.setSystemTime(Date.UTC(2026, 10, 24, 18, 31))
     await options.expiries('NFO', 'NIFTY', 'options')
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(5)
+    queryClient.clear()
+  })
+
+  test("an empty list is never fresh: one read during the server's symbol reload heals at the next ask", async () => {
+    // the server's first broker login of the day empties its symbol table, then fills it, and
+    // answers 200 with data [] meanwhile (services/expiry_service.py at c8b2896)
+    let listed: string[] = []
+    const { options, calls, queryClient } = setup(() => expiryReply(listed))
+    expect(await options.expiries('NFO', 'NIFTY', 'options')).toEqual([])
+    listed = ['02-DEC-26', '30-DEC-26']
+    expect(await options.expiries('NFO', 'NIFTY', 'options')).toEqual(['02-DEC-26', '30-DEC-26'])
+    expect(calls).toHaveLength(2)
+    // whoever reads the entry next (a picker, the chain, the futures price) reads again
+    expect(
+      options.expiriesQuery('NFO', 'NIFTY', 'options').staleTime({
+        state: { dataUpdatedAt: Date.now(), data: [] },
+      }),
+    ).toBe(0)
     queryClient.clear()
   })
 

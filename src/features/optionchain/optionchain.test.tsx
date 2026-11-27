@@ -27,7 +27,7 @@ import { chainReply } from '../../../test/helpers/chains'
 import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { CHAIN_LINK_INCOMPLETE, legTicket, OptionChainScreen, targetFromKey, targetFromU } from '.'
-import { chainSession, type LadderRow, ladderItems } from './model'
+import { chainSession, type LadderRow, ladderItems, noExpiries } from './model'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() }
@@ -674,6 +674,20 @@ describe('the screen', () => {
     expect(screen.getByText('No strikes for NIFTY 02 Dec.')).toBeTruthy()
     await press('oc-empty-expiry')
     expect(screen.getByTestId('oc-expiry-sheet')).toBeTruthy()
+  })
+
+  test('no expiries listed (the server mid-reload): Try again reads the list again, and the chain follows', async () => {
+    let listed: string[] = []
+    const h = setup({ answers: { expiry: () => ({ status: 'success', data: listed }) } })
+    await render(h.tree(<OptionChainScreen initial={null} />))
+    await settle()
+    expect(screen.getByText(noExpiries('NIFTY'))).toBeTruthy()
+    expect(screen.getByTestId('oc-empty-underlying')).toBeTruthy()
+    listed = EXPIRIES
+    await press('oc-empty-retry')
+    await settle()
+    expect(screen.queryByText(noExpiries('NIFTY'))).toBeNull()
+    expect(screen.getByTestId(`oc-ce-ltp-${ATM}`)).toBeTruthy()
   })
 
   test('a failed refresh keeps the rows and says when it failed', async () => {
