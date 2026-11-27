@@ -77,6 +77,9 @@ export type HttpClientDeps = {
 
 const TAG = 'http'
 const GET_HEADERS = { Accept: 'application/json', ...NGROK_HEADER }
+// A keyed GET carries the API key in its URL. no-store keeps OkHttp (Android) from writing
+// that URL to the HTTP disk cache; iOS honouring a request-side no-store is unverified.
+const KEYED_GET_HEADERS = { ...GET_HEADERS, 'Cache-Control': 'no-store' }
 // Flask refuses request.json without it, and the handlers turn that into a 500 (GC).
 const POST_HEADERS = { ...GET_HEADERS, 'Content-Type': 'application/json' }
 const ORDER_LANES: ReadonlySet<string> = new Set(['order', 'smart'])
@@ -288,7 +291,7 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
         raw = await exchange(
           id,
           path,
-          { method: 'GET', headers: GET_HEADERS },
+          { method: 'GET', headers: KEYED_GET_HEADERS },
           def.timeoutMs,
           o?.signal,
         )

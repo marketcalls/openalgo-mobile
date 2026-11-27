@@ -450,6 +450,17 @@ describe('get', () => {
     expect(all).not.toContain('exchange=NSE')
   })
 
+  test('every get() sends Cache-Control: no-store so the key URL is not disk-cached', async () => {
+    const { http, fetch } = setup({
+      'GET /api/v1/instruments': csv(),
+      'GET /api/v1/sip/frequencies': json(200, { status: 'success', data: [] }),
+    })
+    await http.get('instruments', {}, z.string(), { withKey: true })
+    await http.get('sip/frequencies', {}, z.unknown())
+    expect(fetch.calls[0]?.headers['cache-control']).toBe('no-store')
+    expect(fetch.calls[1]?.headers['cache-control']).toBe('no-store')
+  })
+
   test('a keyed GET with an empty query still sends the key', async () => {
     const { http, fetch } = setup({
       'GET /api/v1/portfolio/benchmarks': json(200, { status: 'success', data: [] }),
