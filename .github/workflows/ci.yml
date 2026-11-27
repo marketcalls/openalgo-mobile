@@ -39,12 +39,15 @@ jobs:
         run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
 
       - name: Check out openalgo (frontend source only)
+        # Metro, tsc and jest resolve @/ into openalgo/frontend/src; the lockfile pins the DOM packages.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: marketcalls/openalgo
           ref: ${{ steps.ref.outputs.sha }}
           path: openalgo
-          sparse-checkout: frontend/src
+          sparse-checkout: |
+            frontend/src
+            frontend/package-lock.json
           persist-credentials: false
 
       - name: Set up Node
@@ -66,7 +69,8 @@ jobs:
         run: npx jest --ci
 
       - name: Script tests
-        run: npm run test:scripts
+        # the DOM package pins read frontend/package-lock.json from the checkout
+        run: OPENALGO_DIR=$GITHUB_WORKSPACE/openalgo npm run test:scripts
 
       - name: Compat tests
         run: npm run test:compat
@@ -128,6 +132,22 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read the pinned openalgo commit
+        id: ref
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (frontend source only)
+        # Metro resolves @/ into openalgo/frontend/src, and metro.config.js stops without it.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo
+          sparse-checkout: |
+            frontend/src
+            frontend/package-lock.json
+          persist-credentials: false
+
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -161,6 +181,22 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Read the pinned openalgo commit
+        id: ref
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (frontend source only)
+        # Metro resolves @/ into openalgo/frontend/src, and metro.config.js stops without it.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo
+          sparse-checkout: |
+            frontend/src
+            frontend/package-lock.json
+          persist-credentials: false
+
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -187,6 +223,22 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+
+      - name: Read the pinned openalgo commit
+        id: ref
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (frontend source only)
+        # Metro resolves @/ into openalgo/frontend/src, and metro.config.js stops without it.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo
+          sparse-checkout: |
+            frontend/src
+            frontend/package-lock.json
           persist-credentials: false
 
       - name: Set up Node
@@ -226,6 +278,22 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+
+      - name: Read the pinned openalgo commit
+        id: ref
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (frontend source only)
+        # Metro resolves @/ into openalgo/frontend/src, and metro.config.js stops without it.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo
+          sparse-checkout: |
+            frontend/src
+            frontend/package-lock.json
           persist-credentials: false
 
       - name: Set up Node

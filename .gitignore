@@ -28,3 +28,5 @@ dist-export/
 coverage/
 *.tgz
 !.env.test.example
+# Scratch space for scripts (the frontend extract's staging, the golden pipeline's server)
+.cache/

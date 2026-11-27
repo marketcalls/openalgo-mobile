@@ -106,13 +106,16 @@ The builder never handles the key. Do this once, on your own machine:
 ## Bumping the openalgo ref
 
 The theme tokens are generated from the OpenAlgo web frontend at the commit in
-`openalgo.ref`. To move to a newer commit:
+`openalgo.ref`, and the tool pages run that frontend's source. To move to a newer commit:
 
 1. Put the new commit SHA in `openalgo.ref`.
-2. Run `npm run sync-openalgo` (finds the commit in your local `../openalgo` checkout), then
-   `npm run tokens` to regenerate the tokens.
+2. Run `npm run sync-openalgo -- --extract` (finds the commit in your local `../openalgo`
+   checkout and extracts its `frontend/src` to `./openalgo`, which Metro, tsc and jest read;
+   Metro refuses to start without it), then `npm run tokens` to regenerate the tokens. Install
+   any DOM package whose version the new `frontend/package-lock.json` changed:
+   `scripts/frontend-pins.test.mjs` names them.
 3. Commit `openalgo.ref` and the regenerated files together. CI fetches only
-   `frontend/src` at that commit and runs `tokens:check`.
+   `frontend/src` and `frontend/package-lock.json` at that commit and runs `tokens:check`.
 
 Renovate (`renovate.json`) proposes weekly dependency updates, grouping `expo`, `expo-*`
 and `react-native*`, and pins GitHub Actions to digests.

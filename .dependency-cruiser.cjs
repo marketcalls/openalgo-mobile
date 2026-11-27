@@ -9,6 +9,8 @@ const RN = '(react-native|@react-native[^/]*|expo-[^/]+)'
 const DOM_CONTENT = `${SRC}dom/(chart|tools|web)/`
 // What native may import from a DOM folder: its 'use dom' entry, e.g. dom/chart/ChartDom.tsx.
 const DOM_ENTRY = `${SRC}dom/(chart|tools)/[A-Z][A-Za-z]*Dom\\.tsx$`
+// The pinned web frontend (./openalgo, `@/`). Its own src/ matches SRC too.
+const FRONTEND = '(?:^|/)openalgo/frontend/src/'
 
 // Packages a DOM page cannot run. By name: react-native*, @react-native*/*, expo-*, @expo/*.
 // By need, whatever the name (e.g. @shopify/flash-list, expo itself): every package.json
@@ -116,8 +118,10 @@ module.exports = {
           `${SRC}dom/web/`,
           `${SRC}dom/bridge/protocol\\.ts$`,
           `${SRC}ui/tokens\\.ts$`,
-          // a package's own src/ folder is not ours
+          // a package's own src/ folder is not ours, nor is the frontend's (see
+          // frontend-runtime-in-dom-tools)
           '(?:^|/)node_modules/',
+          FRONTEND,
         ],
       },
     },
@@ -187,6 +191,38 @@ module.exports = {
       },
     },
     {
+      name: 'frontend-runtime-in-dom-tools',
+      severity: 'error',
+      comment:
+        "The web frontend's code runs in a tool DOM page only: a runtime import of it comes from " +
+        'dom/tools (market/options is the next rule). An import type is erased, so it stays ' +
+        'allowed (frontend-types-in-routes limits dom/routes to the API modules and types).',
+      from: { path: SRC, pathNot: [`${SRC}dom/tools/`, `${SRC}market/options/`] },
+      to: { path: FRONTEND, dependencyTypesNot: ['type-only'] },
+    },
+    {
+      name: 'frontend-runtime-in-dom-tools',
+      severity: 'error',
+      comment:
+        "market/options runs the web's Black-76 engine (lib/optionGreeks.ts) on every tick, and " +
+        'nothing else of the frontend.',
+      from: { path: `${SRC}market/options/` },
+      to: {
+        path: FRONTEND,
+        pathNot: `${FRONTEND}lib/optionGreeks\\.ts$`,
+        dependencyTypesNot: ['type-only'],
+      },
+    },
+    {
+      name: 'frontend-types-in-routes',
+      severity: 'error',
+      comment:
+        "The device routes are typed by the web's API modules and types, and import them as types " +
+        'only: their runtime (the axios client, the session) never runs on the phone.',
+      from: { path: `${SRC}dom/routes/` },
+      to: { path: `${FRONTEND}(api|types)/`, dependencyTypesNot: ['type-only'] },
+    },
+    {
       name: 'no-unresolvable',
       severity: 'error',
       from: {},
@@ -200,7 +236,8 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
+    // the frontend's own imports are its business: they are never cruised
+    doNotFollow: { path: ['node_modules', '^openalgo/'] },
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,
     // Resolve subpaths through package `exports`, as Metro and tsc do (expo-router/native-tabs).

@@ -50,6 +50,8 @@ const ERROR_RULES = [
   'features-dom-bridge-only',
   'core-logic-pure',
   'market-no-features',
+  'frontend-runtime-in-dom-tools',
+  'frontend-types-in-routes',
   'no-unresolvable',
 ]
 
@@ -152,6 +154,27 @@ test('a dynamic import in DOM content fails', () => {
 
 test('native code imports only the DOM entry', () => {
   assert.deepEqual(rulesFrom('market/uses-dom-glue.ts'), ['dom-entries-only'])
+})
+
+test('only dom/tools imports frontend runtime code; market/options may import lib/optionGreeks', () => {
+  assert.deepEqual(rulesFrom('market/uses-page.ts'), ['frontend-runtime-in-dom-tools'])
+  assert.deepEqual(rulesFrom('features/z/uses-page.ts'), ['frontend-runtime-in-dom-tools'])
+  assert.deepEqual(rulesFrom('market/options/uses-page.ts'), ['frontend-runtime-in-dom-tools'])
+  // @/ resolves into the fixture frontend, and a tool page may run it
+  assert.deepEqual(targets('frontend-runtime-in-dom-tools', 'market/uses-page.ts'), [
+    'test/fixtures/boundaries/openalgo/frontend/src/pages/X.tsx',
+  ])
+  assert.deepEqual(rulesFrom('dom/tools/uses-page.ts'), [])
+  assert.deepEqual(rulesFrom('market/options/uses-greeks.ts'), [])
+})
+
+test('dom/routes imports frontend types only', () => {
+  assert.deepEqual(rulesFrom('dom/routes/types-only.ts'), [])
+  // a runtime import is frontend runtime code outside dom/tools as well
+  assert.deepEqual(rulesFrom('dom/routes/runtime-api.ts'), [
+    'frontend-runtime-in-dom-tools',
+    'frontend-types-in-routes',
+  ])
 })
 
 test('the real src passes', () => {

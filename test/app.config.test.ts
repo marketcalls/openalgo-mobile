@@ -163,16 +163,19 @@ describe('tooling config', () => {
     )()
     expect(tsconfig.exclude).toEqual(expect.arrayContaining(['openalgo', 'test/fixtures']))
     expect(tsconfig.compilerOptions.types).toEqual(expect.arrayContaining(['jest', 'node']))
+    // files tsc reaches through @/ are checked; openalgo/ itself is not included
+    expect(tsconfig.compilerOptions.paths['@/*']).toEqual(['./openalgo/frontend/src/*'])
   })
 
   test.each(['jest.config.js', 'jest.compat.config.js', 'jest.real.config.js'])(
-    '%s ignores the checked-out openalgo/ folder',
+    "%s runs none of openalgo/'s tests and resolves @/ into its frontend",
     (file) => {
       const cfg = require(path.join(root, file))
       // jest.config.js holds a "native" and a "dom" project, and each one needs the patterns.
       for (const project of cfg.projects ?? [cfg]) {
         expect(project.testPathIgnorePatterns).toContain('<rootDir>/openalgo/')
-        expect(project.modulePathIgnorePatterns).toContain('<rootDir>/openalgo/')
+        expect(project.moduleNameMapper['^@/(.*)$']).toBe('<rootDir>/openalgo/frontend/src/$1')
+        expect(project.modulePathIgnorePatterns ?? []).not.toContain('<rootDir>/openalgo/')
       }
     },
   )

@@ -11,7 +11,7 @@ module.exports = {
   roots: ['<rootDir>/test/compat'],
   // openalgo-charts ships ESM (.mjs) only; the chart's compat test imports its live feed.
   transform: { '\\.[mc]?[jt]sx?$': ['babel-jest', { presets: [expoPreset] }] },
-  transformIgnorePatterns: ['/node_modules/(?!(openalgo-charts)/)'],
+  transformIgnorePatterns: main.transformIgnorePatterns,
   moduleNameMapper: {
     ...main.moduleNameMapper,
     '^@react-native-async-storage/async-storage$':
@@ -20,5 +20,4 @@ module.exports = {
   globals: { __DEV__: false },
   testTimeout: 60000,
   testPathIgnorePatterns: ['/node_modules/', '<rootDir>/openalgo/'],
-  modulePathIgnorePatterns: ['<rootDir>/openalgo/'],
 }
