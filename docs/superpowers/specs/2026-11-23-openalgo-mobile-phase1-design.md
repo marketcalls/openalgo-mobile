@@ -1013,5 +1013,13 @@ Users install from GitHub, so the app checks the GitHub Releases API for this re
   - The real gate is the section 12 cold start (≤ 3.5 s on a budget phone), measured at the 0.2.0 device test.
   - The 5% growth rule per PR stays, with a recorded rebaseline at each milestone.
   - The chart DOM and tool DOM budgets are unchanged.
+- **Hermes limit raised again to 7,000,000 bytes** on Android and iOS (2026-11-27, before M4).
+  - After M3 the Android bundle is 5,877,429 B, 122,571 B under 6,000,000. That is less than one 5% PR, while M4 and M5 still add native routes, the symbol master, Black-76, the Option Chain, baskets and Arbitrage.
+  - Hermes bytes cost APK size and a little cold start. The section 12 cold start (≤ 3.5 s) stays the real gate, measured at the 0.2.0 device test.
+  - The 5% growth rule per PR and the milestone rebaselines are unchanged.
+- **Strategy Builder gets its own tool DOM limit** (2026-11-27, M5). Its payoff chart (Plotly) and strategy chart (openalgo-charts) cannot fit 1,900,000 bytes, split or not.
+  - Its limit is the M5 measurement plus 5%, at most 4,000,000 bytes.
+  - Strategy Portfolio gets its own entry under 1,900,000. Every other tool DOM entry keeps 1,900,000.
+  - Section 12's open time (≤ 2.5 s) is the real gate. If Strategy Builder misses it on the owner's phone, it gets the post-0.2.0 native rewrite.
 - **react-native-gesture-handler and react-native-reanimated are allowed** for the sheet and for gestures.
 - **The M0 device gate is replaced by the 0.2.0 device test.** The owner chose to proceed without a separate spike measurement. If a DOM page misses the section 12 bars on the owner's phone, that page gets a native rewrite after 0.2.0.

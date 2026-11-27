@@ -1,8 +1,8 @@
 {
   "growth": 0.05,
   "limits": {
-    "android": 6000000,
-    "ios": 6000000,
+    "android": 7000000,
+    "ios": 7000000,
     "chartDom": 2330000,
     "toolDom": 1900000
   },
