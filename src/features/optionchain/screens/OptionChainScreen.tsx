@@ -273,10 +273,20 @@ export function OptionChainScreen({ initial }: { initial: ChainTarget | null }) 
 
   // --- Sheets -------------------------------------------------------------------------------
   const close = () => setSheet(null)
-  const selectedLeg: ChainLeg | null =
+  const legKey = sheet?.kind === 'leg' ? `${expiry}|${sheet.strike}|${sheet.side}` : null
+  const latestLeg: ChainLeg | null =
     sheet?.kind === 'leg'
       ? (chain?.chain.find((r) => r.strike === sheet.strike)?.[sheet.side] ?? null)
       : null
+  // A refresh whose ±N window drops the open leg's strike (the ATM moved; an edge strike) keeps
+  // the sheet, its lots and Android's back on it, at the leg as last seen; the sheet holds the
+  // leg's own ticks meanwhile (LegSheet).
+  const [lastLeg, setLastLeg] = useState<{ key: string; leg: ChainLeg } | null>(null)
+  useEffect(() => {
+    if (legKey !== null && latestLeg !== null) setLastLeg({ key: legKey, leg: latestLeg })
+  }, [legKey, latestLeg])
+  const selectedLeg: ChainLeg | null =
+    latestLeg ?? (lastLeg !== null && lastLeg.key === legKey ? lastLeg.leg : null)
   const trade = (leg: ChainLeg, side: OrderSide) =>
     router.push(ticketHref(legTicket(leg, side, lots, target.optionsExchange)) as Href)
 

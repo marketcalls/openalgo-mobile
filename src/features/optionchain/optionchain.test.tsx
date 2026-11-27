@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native'
 import type { ReactElement } from 'react'
-import { StyleSheet } from 'react-native'
+import { BackHandler, StyleSheet } from 'react-native'
 import InstrumentRoute from '~/app/(app)/instrument/[key]'
 import OptionChainRoute from '~/app/(app)/optionchain/[key]'
 import ToolRoute from '~/app/(app)/tools/[toolId]'
@@ -739,6 +739,62 @@ describe('the screen', () => {
     await advance(30_000)
     expect(n).toBe(3)
     expect(screen.queryByTestId('oc-refresh-error')).toBeNull()
+  })
+
+  test("a refresh that drops the open leg's strike keeps its sheet, lots and back; the sheet holds its leg", async () => {
+    jest.useFakeTimers({ now: NOW })
+    const advance = (ms: number) => act(async () => void (await jest.advanceTimersByTimeAsync(ms)))
+    // Android's back, to the last listener that takes it
+    type Listener = Parameters<typeof BackHandler.addEventListener>[1]
+    const listening = new Set<Listener>()
+    const add = BackHandler.addEventListener.bind(BackHandler)
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((name, fn) => {
+      listening.add(fn)
+      const sub = add(name, fn)
+      return {
+        remove: () => {
+          listening.delete(fn)
+          sub.remove()
+        },
+      }
+    })
+    const back = () =>
+      act(async () => {
+        for (const fn of [...listening].reverse()) {
+          if (fn({ timeStamp: Date.now() } as Parameters<Listener>[0])) return
+        }
+      })
+    let spot = 24567.8
+    const h = setup({
+      answers: {
+        optionchain: (b) =>
+          chainReply({ expiry: String(b.expiry_date), each: Number(b.strike_count), spot }),
+      },
+    })
+    await render(h.tree(<OptionChainScreen initial={null} />))
+    await advance(0)
+    const edge = 24050
+    const symbol = legAt(chainOf(), edge, 'pe').symbol
+    await act(async () => fireEvent.press(screen.getByTestId(`oc-pe-${edge}`)))
+    await act(async () => fireEvent.press(screen.getByTestId('oc-leg-lots-inc')))
+    expect(text('oc-leg-lots')).toBe('2 lots · 150 qty')
+    const held = (sym: string) =>
+      h.acquire.mock.calls.flatMap(([r], i) => (r.symbol === sym ? [h.releases[i]] : []))
+    // the chain's hold and the sheet's own
+    expect(held(symbol)).toHaveLength(2)
+
+    // the ATM moves up 150: the next refresh's ±10 window no longer has the strike
+    spot = 24700
+    await advance(30_050)
+    expect(screen.queryByTestId(`oc-row-${edge}`)).toBeNull()
+    expect(screen.getByTestId('oc-leg-sheet')).toBeTruthy()
+    expect(text('oc-leg-lots')).toBe('2 lots · 150 qty')
+    // the chain let go of it; the open sheet did not
+    expect(held(symbol).filter((r) => r?.mock.calls.length === 0)).toHaveLength(1)
+    // back closes the sheet nobody lost, and only the sheet
+    await back()
+    expect(screen.queryByTestId('oc-leg-sheet')).toBeNull()
+    expect(held(symbol).every((r) => (r?.mock.calls.length ?? 0) > 0)).toBe(true)
   })
 
   test('one LIVE badge, in the header (ux G16)', async () => {

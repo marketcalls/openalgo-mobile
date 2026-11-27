@@ -2,6 +2,7 @@
 // left) and SELL (red, right), each captioned with the price its ticket opens at, the chart and the
 // depth, then the leg's facts and its five Greeks. It follows the leg's own ticks. BUY and SELL
 // open the order ticket (its review is where an order is checked and sent).
+import { useEffect } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { quoteKey } from '~/core/realtime/protocol'
 import { useQuoteFrom } from '~/core/realtime/useQuote'
@@ -48,8 +49,19 @@ export function LegSheet(p: {
   onClose(): void
 }) {
   const { c } = useTheme()
-  const { store } = useServices()
+  const { store, realtime } = useServices()
   const blocked = useBrokerBlocked()
+  // The sheet holds its own leg, as the chain does (mode 3, 5 levels): a refresh that drops the
+  // strike from the chain's window releases the chain's hold, never the open sheet's prices.
+  useEffect(() => {
+    if (!p.feeding) return
+    return realtime.acquire({
+      exchange: p.optionsExchange,
+      symbol: p.leg.symbol,
+      mode: 3,
+      depth: 5,
+    })
+  }, [p.feeding, p.optionsExchange, p.leg.symbol, realtime])
   const q = useQuoteFrom(store, quoteKey(p.optionsExchange, p.leg.symbol), p.feeding)
   const merged = p.feeding ? mergeLeg(p.leg, q) : p.leg
   const row = {
