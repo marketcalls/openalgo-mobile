@@ -770,6 +770,33 @@ describe('on a real chart', () => {
 })
 
 describe('trade panel', () => {
+  // The ticket, the Option Chain leg sheet and Kite put BUY on the left: one side order across
+  // the app, so a thumb used to one screen does not tap the other side here (ledger 44/46).
+  test('BUY on the left, the lots, then SELL on the right; BUY green and SELL red', () => {
+    const t = setup({
+      seed: { meta: NIFTY_FUT },
+      inst: { exchange: 'NFO', symbol: 'NIFTY26DECFUT' },
+    })
+    const panel = t.panel()
+    const row = [...(panel?.children ?? [])] as HTMLElement[]
+    expect(row.map((e) => e.id)).toEqual(['chart-buy', 'chart-lots', 'chart-sell'])
+    // the screen reader and the focus order read the row as it is drawn: nothing reorders it
+    expect(panel?.style.flexDirection ?? '').not.toMatch(/reverse/)
+    expect(row.map((e) => e.style.order)).toEqual(['', '', ''])
+    // a token as jsdom writes it back
+    const css = (prop: 'background' | 'color', value: string) => {
+      const probe = document.createElement('i')
+      probe.style[prop] = value
+      return probe.style[prop]
+    }
+    expect(t.$('chart-buy')?.style.background).toBe(css('background', dark.buy))
+    expect(t.$('chart-buy')?.style.color).toBe(css('color', dark.onBuy))
+    expect(t.$('chart-sell')?.style.background).toBe(css('background', dark.sell))
+    expect(t.$('chart-sell')?.style.color).toBe(css('color', dark.onSell))
+    expect(t.$('chart-buy')?.textContent).toMatch(/^BUY/)
+    expect(t.$('chart-sell')?.textContent).toMatch(/^SELL/)
+  })
+
   test('BUY and SELL send trade intents with lots; taps inside 120 ms are one', () => {
     jest.useFakeTimers({ now: 1_000_000 })
     const t = setup({

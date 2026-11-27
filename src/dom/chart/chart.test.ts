@@ -750,6 +750,31 @@ describe('ChartDom', () => {
     expect(added).toHaveBeenCalledWith(expect.objectContaining({ id: 'order:7', price: 1490 }))
     const buy = page.container.querySelector<HTMLElement>('.oac-chart #chart-buy')
     expect(buy?.textContent).toBe('BUY1,500.00')
+    // BUY on the left (ledger 44/46): the row is BUY, lots, SELL, and no rule on the page (the
+    // widget's or the chart's own <style>) reorders it, so it is drawn as it is read
+    const row = buy?.parentElement as HTMLElement
+    expect([...row.children].map((e) => e.id)).toEqual(['chart-buy', 'chart-lots', 'chart-sell'])
+    const flat = (list: CSSRuleList): CSSRule[] =>
+      [...list].flatMap((r) => ('cssRules' in r ? flat((r as CSSGroupingRule).cssRules) : [r]))
+    const rules = [...document.styleSheets].flatMap((s) => flat(s.cssRules))
+    expect(rules.some((r) => r.cssText.includes('.oac-topbar__alerts'))).toBe(true)
+    const matches = (el: Element, selector: string) => {
+      try {
+        return el.matches(selector)
+      } catch {
+        return false
+      }
+    }
+    const reorders = rules.filter((r): r is CSSStyleRule => {
+      if (!(r instanceof CSSStyleRule)) return false
+      const v = (p: string) => r.style.getPropertyValue(p)
+      const moves =
+        v('order') !== '' ||
+        /reverse/.test(`${v('flex-direction')} ${v('flex-flow')}`) ||
+        v('direction') === 'rtl'
+      return moves && [row, ...row.children].some((el) => matches(el, r.selectorText))
+    })
+    expect(reorders.map((r) => r.selectorText)).toEqual([])
     buy?.click()
     expect(page.sent).toContainEqual({
       v: 1,

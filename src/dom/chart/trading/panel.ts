@@ -1,7 +1,9 @@
-// The trade panel: SELL, the lots chip and BUY, at the top left of the chart (design 7.9.4). The
-// web terminal draws it on the canvas (BuySellButtons, terminal.ts:2668-2680 at c8b2896) and
-// prices it from its depth stream (6590-6611). Here it is HTML, for 44 px touch targets, the
-// screen reader and Maestro, which find the buttons in the WebView's accessibility tree. Prices
+// The trade panel: BUY, the lots chip and SELL, at the top left of the chart (design 7.9.4). The
+// web terminal draws it on the canvas (BuySellButtons, terminal.ts:2668-2680 at c8b2896), SELL
+// first, and prices it from its depth stream (6590-6611). Here BUY comes first, as on the ticket,
+// the Option Chain leg sheet and Kite: one side order across the app. It is HTML, for 44 px touch
+// targets, the screen reader and Maestro, which find the buttons in the WebView's accessibility
+// tree; the row is built in the order it is drawn, so reading and focus order match it. Prices
 // are written to text nodes, never through React. A tap is a trade intent: native opens the
 // ticket, or places at once in one-tap mode.
 import { TOPBAR_HEIGHT } from 'openalgo-charts/widget'
@@ -146,8 +148,8 @@ export function mountTradePanel(
     return b
   }
 
-  const sell = sideButton('SELL')
   const buy = sideButton('BUY')
+  const sell = sideButton('SELL')
   const chip = el(
     'div',
     {
@@ -170,7 +172,7 @@ export function mountTradePanel(
   })
   countBox.append(count)
   chip.append(dec, countBox, inc)
-  panel.append(sell.button, chip, buy.button)
+  panel.append(buy.button, chip, sell.button)
 
   function showLots() {
     count.data = meta?.lots ? `${lots}L` : String(lots)
