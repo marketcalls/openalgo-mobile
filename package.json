@@ -16,6 +16,8 @@
     "bundles": "node scripts/check-bundles.mjs dist-export",
     "tokens": "node scripts/gen-tokens.mjs",
     "tokens:check": "node scripts/gen-tokens.mjs --check",
+    "gen:frontend": "node scripts/gen-frontend.mjs",
+    "gen:frontend:check": "node scripts/gen-frontend.mjs --check",
     "sync-openalgo": "node scripts/sync-openalgo.mjs",
     "mock": "node dev/mock-server/main.mjs",
     "real-server-check": "jest -c jest.real.config.js --runInBand"

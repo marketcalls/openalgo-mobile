@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -68,6 +69,27 @@ export function readOpenalgoFile(relPath, { repoRoot = process.cwd(), env = proc
     throw new Error(`openalgo commit ${ref} is not available in ${repo}`)
   }
   return git(repo, 'show', `${ref}:${relPath}`)
+}
+
+// The entry names (files and folders) directly under `rel` at the pinned ref.
+export function listOpenalgoDir(rel, { repoRoot = process.cwd(), env = process.env } = {}) {
+  const dir = rel.replace(/\/+$/, '')
+  const ref = readRef(repoRoot)
+  if (env.OPENALGO_DIR) {
+    const root = resolve(env.OPENALGO_DIR)
+    const head = git(root, 'rev-parse', 'HEAD').trim()
+    if (head !== ref) throw new Error(`OPENALGO_DIR is at ${head}, openalgo.ref wants ${ref}`)
+    return readdirSync(join(root, dir)).sort()
+  }
+  const repo = repoDir(repoRoot, env)
+  if (!ensureCommit(repo, ref)) {
+    throw new Error(`openalgo commit ${ref} is not available in ${repo}`)
+  }
+  return git(repo, 'ls-tree', '--name-only', ref, `${dir}/`)
+    .split('\n')
+    .filter(Boolean)
+    .map((p) => p.slice(dir.length + 1))
+    .sort()
 }
 
 // What ./openalgo holds: the frontend source and its lockfile (the DOM packages' versions).

@@ -4,7 +4,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { extractFrontend, frontendDirOk, readOpenalgoFile, readRef } from './openalgo-src.mjs'
+import {
+  extractFrontend,
+  frontendDirOk,
+  listOpenalgoDir,
+  readOpenalgoFile,
+  readRef,
+} from './openalgo-src.mjs'
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 
@@ -135,4 +141,22 @@ test('extractFrontend refuses a commit the server repo does not have', () => {
     new RegExp(`openalgo commit ${missing} is not available in`),
   )
   assert.equal(existsSync(join(root, 'openalgo')), false)
+})
+
+test('listOpenalgoDir lists a folder at the ref from git and from OPENALGO_DIR', () => {
+  const { server, root } = frontendFixture()
+  // the fixture's ref is A: only-b.ts exists at B alone
+  assert.deepEqual(
+    listOpenalgoDir('frontend/src/lib', { repoRoot: root, env: { OPENALGO_REPO: server } }),
+    ['x.ts'],
+  )
+  assert.deepEqual(
+    listOpenalgoDir('frontend/src/lib/', { repoRoot: root, env: { OPENALGO_REPO: server } }),
+    ['x.ts'],
+  )
+  git(server, 'checkout', '-q', 'HEAD~1')
+  assert.deepEqual(
+    listOpenalgoDir('frontend/src/lib', { repoRoot: root, env: { OPENALGO_DIR: server } }),
+    ['x.ts'],
+  )
 })

@@ -45,9 +45,12 @@ jobs:
           repository: marketcalls/openalgo
           ref: ${{ steps.ref.outputs.sha }}
           path: openalgo
+          # non-cone patterns: the broker plugins' plugin.json beside the frontend source
+          sparse-checkout-cone-mode: false
           sparse-checkout: |
-            frontend/src
-            frontend/package-lock.json
+            /frontend/src/
+            /frontend/package-lock.json
+            /broker/*/plugin.json
           persist-credentials: false
 
       - name: Set up Node
@@ -80,6 +83,9 @@ jobs:
 
       - name: Theme tokens match the web
         run: OPENALGO_DIR=$GITHUB_WORKSPACE/openalgo npm run tokens:check
+
+      - name: Frontend constants match the pinned web
+        run: OPENALGO_DIR=$GITHUB_WORKSPACE/openalgo npm run gen:frontend:check
 
       - name: Expo dependency versions
         run: npx expo install --check

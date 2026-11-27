@@ -5,6 +5,8 @@
     "includes": [
       "**",
       "!src/ui/tokens.ts",
+      "!src/market/tools/registry.ts",
+      "!src/market/brokers/registry.ts",
       "!assets/brand/openalgo-logo.svg",
       "!spike",
       "!test/fixtures",
