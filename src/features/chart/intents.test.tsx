@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-
 import { Alert, type AlertButton, Linking } from 'react-native'
 import type { Capabilities } from '~/core/capabilities/gates'
 import { usePrefs } from '~/core/config/prefs'
+import * as haptics from '~/core/platform/haptics'
 import { createProfileRepo, type ServerProfile } from '~/core/config/profile'
 import { ENDPOINTS } from '~/core/http/endpoints'
 import { useConnection } from '~/core/services/connection'
@@ -19,7 +20,14 @@ import { OutcomeLine } from '~/market/components/OutcomeLine'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import type { InstrumentMeta } from '~/market/instruments/meta'
 import { CLOSE_OUT } from '~/features/portfolio'
-import { ALL_POSITIONS, holdOrder, NEW_ORDER, onPosition } from '~/market/orders/pending'
+import {
+  ALL_POSITIONS,
+  holdOrder,
+  NEW_ORDER,
+  onPosition,
+  takeUnseenOutcome,
+} from '~/market/orders/pending'
+import { PLACED_REJECTED } from '~/market/orders/placedStatus'
 import { liveSurpriseText } from '~/market/orders/submit'
 import { QUOTE_ONLY_COPY } from '~/market/orders/ticket'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
@@ -30,7 +38,7 @@ import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/hel
 import { AUTH_OK, fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { NO_POSITION, NOT_OPEN, useChartIntents, WRONG_SYMBOL } from './hooks/useChartIntents'
-import { ABOVE_FREEZE, EARLIER_OUT, MODE_UNKNOWN } from './hooks/useOneTap'
+import { ABOVE_FREEZE, EARLIER_OUT, MODE_UNKNOWN, ONE_TAP_BUSY } from './hooks/useOneTap'
 
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
 jest.mock('expo-router', () => ({
@@ -266,12 +274,13 @@ function Chart({ meta }: { meta: ChartMeta | null }) {
   )
 }
 
-const tree = (s: Services, meta: ChartMeta | null) => (
+/** `meta` undefined: the chart has gone (Back), the session stays. */
+const tree = (s: Services, meta: ChartMeta | null | undefined) => (
   <ServicesProvider value={s}>
     <TradingProvider now={Date.now}>
       <QueryClientProvider client={s.queryClient}>
         <Grab />
-        <Chart meta={meta} />
+        {meta === undefined ? null : <Chart meta={meta} />}
         <ToastHost />
       </QueryClientProvider>
     </TradingProvider>
@@ -674,13 +683,16 @@ describe('one-tap', () => {
       price: 0,
       trigger_price: 0,
     })
-    // a second tap while the first is on its way is the same tap
-    await tap(RELIANCE, 'BUY', 2)
+    // a second tap while the first is on its way sends nothing, and says so with a haptic
+    const warned = jest.spyOn(haptics, 'notifyWarning')
+    await tap(RELIANCE, 'SELL', 2)
     expect(requests('placeorder')).toHaveLength(1)
+    expect(toast()).toBe(ONE_TAP_BUSY)
+    expect(warned).toHaveBeenCalledTimes(1)
 
     await act(async () => reply(PLACED))
     await pass(10)
-    expect(text('write-outcome-text')).toBe('Order placed: 250408000989443')
+    expect(text('write-outcome-text')).toBe('BUY 2 RELIANCE CNC: Order placed: 250408000989443')
     expect(mockRouter.push).not.toHaveBeenCalled()
     expect(asked).toHaveLength(0)
   })
@@ -783,7 +795,9 @@ describe('one-tap', () => {
     await show(RELIANCE, chartMeta(RELIANCE_META))
     expect(screen.queryByTestId('banner-semi-auto')).toBeNull()
     await tap(RELIANCE, 'BUY', 1)
-    expect(text('write-outcome-text')).toBe('Queued for approval in the web Action Center')
+    expect(text('write-outcome-text')).toBe(
+      'BUY 1 RELIANCE CNC: Queued for approval in the web Action Center',
+    )
     expect(screen.queryByText(/Order placed/)).toBeNull()
     // the connection marked Semi-Auto from the reply: its banner links to the Action Center
     expect(useConnection.getState().semiAutoSeen).toBe(true)
@@ -805,7 +819,7 @@ describe('one-tap', () => {
       exact: false,
     })
     expect(text('write-outcome-text')).toBe(
-      'LIVE order placed: 250408000989443. The server switched to LIVE after your review.',
+      'BUY 1 RELIANCE CNC: LIVE order placed: 250408000989443. The server switched to LIVE after your review.',
     )
     expect(warned).toHaveLength(1)
     await press('live-surprise-dismiss')
@@ -830,15 +844,18 @@ describe('one-tap', () => {
     await show(RELIANCE, chartMeta(RELIANCE_META))
     await tap(RELIANCE, 'BUY', 1)
     await pass(ENDPOINTS.placeorder.timeoutMs)
-    expect(text('write-outcome-text')).toBe('Status unknown: checking order book')
+    expect(text('write-outcome-text')).toBe(
+      'BUY 1 RELIANCE CNC: Status unknown: checking order book',
+    )
     expect(screen.getByTestId('write-outcome-orderbook')).toBeTruthy()
     const reads = requests('orderbook').length
-    // a tap meanwhile sends nothing: the first order's outcome is not known yet
+    // a tap meanwhile sends nothing, and says so: the first order's outcome is not known yet
     await tap(RELIANCE, 'BUY', 1)
+    expect(toast()).toBe(ONE_TAP_BUSY)
     // the check reads past the server's 120 s broker timeout, then says what the book showed
     await pass(127_100)
     expect(requests('orderbook').length).toBeGreaterThan(reads)
-    expect(text('write-outcome-text')).toBe(NOT_YET)
+    expect(text('write-outcome-text')).toBe(`BUY 1 RELIANCE CNC: ${NOT_YET}`)
     expect(requests('placeorder')).toHaveLength(1)
   })
 
@@ -866,12 +883,12 @@ describe('one-tap', () => {
     })
     await show(RELIANCE, chartMeta(RELIANCE_META))
     await tap(RELIANCE, 'BUY', 1)
-    expect(text('write-outcome-text')).toBe('Order placed: 250408000989443')
+    expect(text('write-outcome-text')).toBe('BUY 1 RELIANCE CNC: Order placed: 250408000989443')
     // the book is read again after it, so the next one-tap knows that order
     await pass(1_000)
     await tap(RELIANCE, 'BUY', 1)
     await pass(ENDPOINTS.placeorder.timeoutMs + 127_100)
-    expect(text('write-outcome-text')).toBe(NOT_YET)
+    expect(text('write-outcome-text')).toBe(`BUY 1 RELIANCE CNC: ${NOT_YET}`)
     expect(requests('placeorder')).toHaveLength(2)
   })
 
@@ -887,7 +904,7 @@ describe('one-tap', () => {
       disableDeviceFallback: false,
     })
     expect(requests('placeorder')).toHaveLength(0)
-    expect(text('write-outcome-text')).toBe('The order was not sent.')
+    expect(text('write-outcome-text')).toBe('BUY 1 RELIANCE CNC: The order was not sent.')
 
     auth.authenticateAsync.mockResolvedValueOnce({ success: true })
     await pass(200)
@@ -899,7 +916,9 @@ describe('one-tap', () => {
     useConnection.getState().set({ analyzer: 'analyze' })
     const prompts = auth.authenticateAsync.mock.calls.length
     await tap(RELIANCE, 'BUY', 1)
-    expect(text('write-outcome-text')).toBe('The server is now in LIVE mode. Nothing was sent.')
+    expect(text('write-outcome-text')).toBe(
+      'BUY 1 RELIANCE CNC: The server is now in LIVE mode. Nothing was sent.',
+    )
     expect(auth.authenticateAsync).toHaveBeenCalledTimes(prompts)
     expect(requests('placeorder')).toHaveLength(1)
   })
@@ -935,6 +954,79 @@ describe('one-tap', () => {
     expect(requests('placeorder')).toHaveLength(0)
   })
 
+  test('a placed one-tap order the broker then rejects is said in danger, never left as placed', async () => {
+    let placed = false
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        placed = true
+        return PLACED
+      },
+      'POST /api/v1/orderbook': () =>
+        book(
+          placed
+            ? [order({ orderid: '250408000989443', pricetype: 'MARKET', order_status: 'rejected' })]
+            : [],
+        ),
+    })
+    await show(RELIANCE, chartMeta(RELIANCE_META))
+    const error = jest.spyOn(haptics, 'notifyError')
+    await tap(RELIANCE, 'BUY', 1)
+    expect(text('write-outcome-text')).toBe('BUY 1 RELIANCE CNC: Order placed: 250408000989443')
+    // the order book, read after it, shows the broker's RMS rejected it
+    await pass(2_000)
+    expect(text('write-outcome-text')).toBe(`BUY 1 RELIANCE CNC: ${PLACED_REJECTED}`)
+    expect(toast()).toBe(`BUY 1 RELIANCE CNC: ${PLACED_REJECTED}`)
+    expect(screen.getByTestId('write-outcome-orderbook')).toBeTruthy()
+    expect(error).toHaveBeenCalledTimes(1)
+    // a final status: the book is read no more for it
+    const reads = requests('orderbook').length
+    await pass(20_000)
+    expect(requests('orderbook')).toHaveLength(reads)
+  })
+
+  test("a one-tap order's status shows on its line once the book has it", async () => {
+    let placed = false
+    await setup({
+      'POST /api/v1/placeorder': () => {
+        placed = true
+        return PLACED
+      },
+      'POST /api/v1/orderbook': () =>
+        book(
+          placed
+            ? [order({ orderid: '250408000989443', pricetype: 'MARKET', order_status: 'complete' })]
+            : [],
+        ),
+    })
+    await show(NIFTY_FUT, chartMeta(FUT_META))
+    await tap(NIFTY_FUT, 'SELL', 2)
+    await pass(2_000)
+    expect(text('write-outcome-text')).toBe(
+      `SELL 2L (130) ${FUT} NRML: Order placed: 250408000989443 · complete`,
+    )
+  })
+
+  test("Back while a one-tap is out: its outcome waits for the next ticket's review", async () => {
+    let reply: (r: ScriptedReply) => void = () => {}
+    await setup({
+      'POST /api/v1/placeorder': () =>
+        new Promise<ScriptedReply>((resolve) => {
+          reply = resolve
+        }),
+    })
+    await show(RELIANCE, chartMeta(RELIANCE_META))
+    await tap(RELIANCE, 'BUY', 1)
+    expect(requests('placeorder')).toHaveLength(1)
+    // the trader goes Back; the order is still on its way
+    await view?.rerender(tree(services as Services, undefined))
+    await act(async () => reply(PLACED))
+    await pass(10)
+    // the toast said it, and on iOS a presented sheet hides the toast: the next review shows it
+    expect(takeUnseenOutcome(trading as Trading, NEW_ORDER)).toBe(
+      'BUY 1 RELIANCE CNC: Order placed: 250408000989443',
+    )
+  })
+
   test("a sandbox one-tap order says so, and an evented broker's order is expected on the feed", async () => {
     await setup(
       {
@@ -947,7 +1039,7 @@ describe('one-tap', () => {
     await show(RELIANCE, chartMeta(RELIANCE_META))
     const expected = jest.spyOn((trading as Trading).eventWatch, 'expect')
     await tap(RELIANCE, 'BUY', 1)
-    expect(text('write-outcome-text')).toBe('Sandbox order placed: SB1')
+    expect(text('write-outcome-text')).toBe('BUY 1 RELIANCE CNC: Sandbox order placed: SB1')
     expect(expected).toHaveBeenCalledWith('SB1')
   })
 })
