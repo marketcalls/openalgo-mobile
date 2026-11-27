@@ -163,14 +163,17 @@ body {
 }
 
 @media (pointer: coarse) {
-  /* Every control a 44 px hit; its value ellipsizes rather than grows the row (G4, T11-09). */
+  /* Every control a 44 px hit; its value ellipsizes rather than grows the row (G4, T11-09). A
+     DialogTrigger with asChild carries its own slot, not the button's (Sector Rotation's
+     Methodology was 32 px). */
   /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
   #oa-tool
     :is(
       [data-slot="select-trigger"],
       [data-slot="button"],
       [data-slot="input"],
-      [data-slot="popover-trigger"]
+      [data-slot="popover-trigger"],
+      [data-slot="dialog-trigger"]
     ) {
     min-height: 44px;
     height: auto;

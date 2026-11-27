@@ -1,5 +1,6 @@
 // The layout probe (ux-bar T11-03): how far anything on the tool page reaches past the viewport's
-// right edge, for native's `tool-layout` (T12) and the phone pass's "overflow 0" (T16). An element
+// right edge, or starts before its left edge (a label placed right of a long negative bar ran off
+// the left, E-PR-2), for native's `tool-layout` (T12) and the phone pass's "overflow 0" (T16). An element
 // inside its own sideways scroller (a wide table) does not count: the trader can swipe to it. Never
 // scrollWidth: `overflow-x: clip` on <html> hides an overflow from it, not from the eye.
 
@@ -30,7 +31,7 @@ export function createLayoutProbe(
   let reports = 0
   let done = false
 
-  /** The widest overflow in whole px, 0 when everything fits. */
+  /** The widest overflow past either edge in whole px, 0 when everything fits. */
   function measure(): number {
     const width = win.innerWidth
     const scrolls = new Map<Element, boolean>()
@@ -48,7 +49,7 @@ export function createLayoutProbe(
     for (const el of Array.from(doc.querySelectorAll(SCOPE))) {
       const r = el.getBoundingClientRect()
       if (r.width === 0 && r.height === 0) continue
-      const over = r.right - width
+      const over = Math.max(r.right - width, -r.left)
       if (over > max && !inScroller(el)) max = over
     }
     return Math.min(Math.floor(max), MAX_OVERFLOW)

@@ -203,6 +203,32 @@ html:is(
     margin-left: 52px;
     margin-right: 52px;
   }
+  /* The return label goes on its own line under the bars, inside the card: placed beside a long
+     bar it began 24 px left of the screen, and "-31.0% vs -34.0%" read as "0% vs -34.0%"
+     (E-PR-2). The bars and the zero line keep their 32 px row. */
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool [class~="grid-cols-[15rem_10rem_1fr]"] > :nth-child(3).relative {
+    height: auto;
+    padding-top: 2rem;
+  }
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool [class~="grid-cols-[15rem_10rem_1fr]"] > :nth-child(3) > .absolute.inset-y-0 {
+    bottom: auto;
+    height: 2rem;
+  }
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool [class~="grid-cols-[15rem_10rem_1fr]"] > :nth-child(3) > span.absolute {
+    position: static;
+    display: block;
+    text-align: center;
+    white-space: normal;
+  }
+  /* The SIP period's two date fields share the row: a flex item's automatic minimum held each at
+     the field's own width, and End ran past the screen with its calendar button (G1, T11-02). */
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"] #oa-tool .flex.gap-2 > .flex-1:has(> input[type="date"]) {
+    min-width: 0;
+  }
   /* The stats tab leads with its table (E-PR-3). */
   /* @pages portfolio-backtester */
   #oa-tool [data-slot="tabs-content"].space-y-4:has(> [data-slot="card"] table) {

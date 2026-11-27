@@ -1,5 +1,5 @@
 // The layout probe (ux-bar T11-03): how far anything on the tool page reaches past the viewport's
-// right edge, posted to native (T12's `tool-layout`, T16's "overflow 0").
+// left or right edge, posted to native (T12's `tool-layout`, T16's "overflow 0").
 import { createLayoutProbe, PROBE_IDLE_MS } from './layoutProbe'
 
 type Rect = { left: number; right: number }
@@ -55,6 +55,23 @@ test('reports 0 when everything fits, and the widest overflow when not', async (
   el('.row').append(document.createElement('i'))
   await frames()
   expect(sent).toEqual([0, 41])
+  probe.stop()
+})
+
+test('what starts left of the screen counts too: a label placed beside a long bar ran off it', async () => {
+  // the Crisis rows' return label ("-31.0% vs -34.0%") began 24 px left of the screen, read as
+  // "0% vs -34.0%", and the probe, measuring the right edge only, said 0 (E-PR-2)
+  const sent: number[] = []
+  const probe = createLayoutProbe(window, (overflow) => sent.push(overflow))
+  rects.set(el('.badge'), { left: -24, right: 84 })
+  probe.start()
+  await frames()
+  expect(sent).toEqual([24])
+  // the worse edge wins
+  rects.set(el('.badge'), { left: -10, right: 395 })
+  el('.row').append(document.createElement('i'))
+  await frames()
+  expect(sent).toEqual([24, 35])
   probe.stop()
 })
 

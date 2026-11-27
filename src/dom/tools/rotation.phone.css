@@ -159,3 +159,17 @@ html[data-oa-tool="sector-rotation"]
   position: absolute;
   inset: -10px;
 }
+/* The row checkbox (16 px and its border) and the RS and Mom. info buttons (16 px) reach 44 px
+   with 15 px of slop; 10 px left the checkbox at 36 (G4, E-ROT-3). */
+/* @pages sector-rotation */
+html[data-oa-tool="sector-rotation"] #oa-tool button[data-slot="tooltip-trigger"] {
+  position: relative;
+}
+/* @pages sector-rotation */
+html[data-oa-tool="sector-rotation"]
+  #oa-tool
+  :is(button[role="checkbox"][aria-checked], button[data-slot="tooltip-trigger"])::after {
+  content: "";
+  position: absolute;
+  inset: -15px;
+}

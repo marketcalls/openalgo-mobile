@@ -146,6 +146,8 @@
     width: 40px;
     min-height: 44px;
   }
+  /* Its 12 px side padding left 44 px of a 70 px field for a 49 px strike ("2350(" for 23500):
+     4 px a side, centred, holds six digits (OR-1). */
   /* @pages oirange */
   html[data-oa-tool="oirange"]
     #oa-tool
@@ -154,6 +156,8 @@
     flex: 1 1 auto;
     width: auto;
     min-width: 0;
+    padding-inline: 4px;
+    text-align: center;
   }
   /* The auto-refresh switch's label is a 44 px row (OR-2). */
   /* @pages oirange */
@@ -189,13 +193,15 @@
   html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] {
     max-height: var(--oa-plot-h);
   }
+  /* 12 px and 4 px sides: the four columns fit 328 px with room to spare (12.5 px and 6 px made
+     340 and cut Net GEX, the most-read column, at 360) (GX-1). */
   /* @pages gex */
   html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] table {
-    font-size: 12.5px;
+    font-size: 12px;
   }
   /* @pages gex */
   html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] table :is(th, td) {
-    padding: 5px 6px;
+    padding: 5px 4px;
     white-space: nowrap;
   }
   /* @pages gex */
@@ -229,10 +235,12 @@
     grid-column: 1 / -1;
   }
 
-  /* Gamma Density's eight stats in two compact rows (GD-1). */
+  /* Gamma Density's eight stats in two compact rows of four (GD-1): at 360 px a card holds 68 px
+     of value, so the value scales with its card (15 px at most, 12 px at least), which fits a
+     9-character spot such as 52,123.45; 5.6em columns gave three rows of three. */
   /* @pages gammadensity */
   html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] {
-    grid-template-columns: repeat(auto-fill, minmax(5.6em, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
   /* @pages gammadensity */
@@ -242,11 +250,14 @@
   }
   /* @pages gammadensity */
   html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] [data-slot="card-content"] {
-    padding: 6px 8px;
+    padding: 6px 4px;
+    container-type: inline-size;
   }
   /* @pages gammadensity */
   html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] [class~="text-lg"] {
     font-size: 15px;
+    /* biome-ignore lint/suspicious/noDuplicateProperties: 15 px where a WebView has no container units */
+    font-size: clamp(12px, 18cqi, 15px);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
