@@ -28,7 +28,7 @@ Writing a flow:
 | `gtt-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` (set before onboarding); `PROFILE` 2.0.3.5 only | the header badge reads ANALYZE; a SELL GTT from the instrument sheet reviewed as ANALYZE, listed active as 1001 in the Orders GTT segment, then cancelled |
 | `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
 | `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | in the instrument sheet at full height, the 20-level switch shows `depth-bid-19` |
-| `chart-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | the chart opens from the instrument sheet (`chart-ready`, the ANALYZE badge), its DOM `Chart buy` button opens the order ticket, reviewed as ANALYZE and placed, Done returns to the chart |
+| `chart-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` (set before onboarding) | the chart opens from the instrument sheet (`chart-ready`, the ANALYZE badge), its DOM `Chart buy` button opens the order ticket, reviewed as ANALYZE and placed, Done returns to the chart |
 
 The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5 (`gtt-analyzer.yaml` only for 2.0.3.5). The trading flows start with the mock
 restarted on `PORT=5000 WS_PORT=8765` and reset (`POST /__mock/reset`) before each flow;
@@ -141,8 +141,9 @@ Portfolio
 
 Chart
 - `chart-screen` *, `chart-ready` *, `chart-mode` *, `chart-back` *, `chart-dom`, `chart-depth`,
-  `chart-onetap`, `chart-polling-note`, `chart-reload`, `chart-price-buy-limit`,
-  `chart-price-sell-limit`, `chart-price-buy-stop`, `chart-price-sell-stop` (the widget's own
+  `chart-onetap`, `chart-polling-note`, `chart-reload`, `chart-price-title`,
+  `chart-price-buy-limit`, `chart-price-sell-limit`, `chart-price-buy-stop`,
+  `chart-price-sell-stop`, `chart-price-cancel` (the long press's price menu; the widget's own
   buttons are DOM, with no ids: the flow taps `Chart buy` by its accessibility label)
 
 Status

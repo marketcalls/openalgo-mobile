@@ -6,11 +6,13 @@ appId: in.openalgo.mobile
 ---
 - launchApp:
     clearState: true
-- runFlow: onboarding-live.yaml
+# Analyzer mode before onboarding, so the first mode the app reads is ANALYZE: the chart's badge
+# shows the tabs layout's reading, which is taken on mount and on a foreground only.
 - runScript:
     file: scripts/mock.js
     env:
       CONTROL: '{"analyzer":true}'
+- runFlow: onboarding-live.yaml
 
 # RELIANCE is the first default row
 - scrollUntilVisible:
