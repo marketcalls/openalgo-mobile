@@ -86,6 +86,7 @@ localStorage.setItem(
 type Entry = (p: ToolDomProps & { bridge: (m: JSONValue) => Promise<JSONValue> }) => ReactElement
 const OptionToolsDom = require('./OptionToolsDom').default as Entry
 const PortfolioToolsDom = require('./PortfolioToolsDom').default as Entry
+const SectorRotationDom = require('./SectorRotationDom').default as Entry
 const { adaptPlotly } = require('./plotlyTouch') as typeof import('./plotlyTouch')
 const { TOOL_MARKER } = require('./marker') as typeof import('./marker')
 const { useAuthStore } = require('@/stores/authStore') as {
@@ -181,6 +182,43 @@ const BACKTEST = {
     turnover: 1,
     drag: 0.001,
   },
+}
+
+/** frontend api/sector-rotation.ts RotationOptions and RotationResult, one sector on the map. */
+const ROTATION_OPTIONS = {
+  benchmarks: [{ symbol: 'NIFTY', exchange: 'NSE_INDEX', label: 'Nifty 50' }],
+  timeframes: ['daily', 'weekly'],
+  exchanges: ['NSE', 'NSE_INDEX'],
+  max_instruments: 40,
+  sectors: [{ symbol: 'NIFTYIT', exchange: 'NSE_INDEX', label: 'IT' }],
+  optional_sectors: [],
+  max_tail: 20,
+}
+const ROTATION = {
+  benchmark: 'NIFTY',
+  benchmark_exchange: 'NSE_INDEX',
+  benchmark_label: 'Nifty 50',
+  timeframe: 'daily',
+  source: 'api',
+  as_of: '2026-11-26',
+  max_tail: 20,
+  instruments: [
+    {
+      symbol: 'NIFTYIT',
+      exchange: 'NSE_INDEX',
+      label: 'IT',
+      quadrant: 'leading',
+      rs_ratio: 101.2,
+      rs_momentum: 100.6,
+      bars_in_quadrant: 3,
+      tail: [
+        { date: '2026-11-24', rs_ratio: 100.4, rs_momentum: 99.8 },
+        { date: '2026-11-25', rs_ratio: 100.8, rs_momentum: 100.2 },
+        { date: '2026-11-26', rs_ratio: 101.2, rs_momentum: 100.6 },
+      ],
+    },
+  ],
+  unavailable: [],
 }
 
 type Answer = (m: DomToNative) => DomReply | Promise<DomReply> | undefined
@@ -465,6 +503,63 @@ test('adaptPlotly turns off drag, zoom and the mode bar and keeps hover', () => 
   expect(react.mock.calls[1][1].config).toBe(fig.config)
 })
 
+test('adaptPlotly keeps the mode bar only for a 3D scene whose page chose its buttons (T11-04, plan F V4)', () => {
+  const react = jest.fn()
+  const newPlot = jest.fn()
+  const P = { react, newPlot }
+  adaptPlotly(P)
+  const gd = { clientWidth: 800 }
+  // deep-frozen: a write to any of them would throw (the module is strict)
+  const buttons = Object.freeze([Object.freeze(['resetCameraDefault3d', 'hoverClosest3d'])])
+  const scene = Object.freeze({
+    hovermode: 'closest',
+    scene: Object.freeze({ dragmode: 'turntable' }),
+  })
+  const flat = Object.freeze({ hovermode: 'x unified' })
+  const chosen = Object.freeze({ modeBarButtons: buttons, displaylogo: false, scrollZoom: true })
+  const plain = Object.freeze({ displaylogo: false })
+  const data = Object.freeze([Object.freeze({ type: 'surface', z: Object.freeze([1, 2]) })])
+  const configOf = (call: number) => react.mock.calls[call][1].config as Record<string, unknown>
+
+  P.react(gd, { data, layout: scene, config: chosen })
+  P.newPlot(gd, data, scene, chosen)
+  for (const c of [configOf(0), newPlot.mock.calls[0][3] as Record<string, unknown>]) {
+    expect(c).toEqual({
+      modeBarButtons: buttons,
+      displaylogo: false,
+      displayModeBar: true,
+      scrollZoom: false,
+      doubleClick: false,
+      showTips: false,
+      responsive: true,
+      locale: 'en-IN',
+    })
+    expect(c.modeBarButtons).toBe(buttons)
+  }
+  // hover is kept, drag is off, and the scene is the page's own
+  expect(react.mock.calls[0][1].layout).toEqual({ ...scene, dragmode: false })
+  expect(react.mock.calls[0][1].layout.scene).toBe(scene.scene)
+
+  // a scene with Plotly's default buttons, and chosen buttons on a 2D figure: no mode bar
+  P.react(gd, { data, layout: scene, config: plain })
+  expect(configOf(1).displayModeBar).toBe(false)
+  P.react(gd, { data, layout: flat, config: Object.freeze({ modeBarButtons: buttons }) })
+  expect(configOf(2).displayModeBar).toBe(false)
+  P.newPlot(gd, data, flat, chosen)
+  expect((newPlot.mock.calls[1][3] as Record<string, unknown>).displayModeBar).toBe(false)
+
+  // one config object follows the layout it is drawn with, both ways
+  const reused = Object.freeze({ modeBarButtons: buttons })
+  P.react(gd, { data, layout: flat, config: reused })
+  P.react(gd, { data, layout: scene, config: reused })
+  P.react(gd, { data, layout: flat, config: reused })
+  expect([3, 4, 5].map((n) => configOf(n).displayModeBar)).toEqual([false, true, false])
+
+  // the page's objects are as they were
+  expect(scene).toEqual({ hovermode: 'closest', scene: { dragmode: 'turntable' } })
+  expect(chosen).toEqual({ modeBarButtons: buttons, displaylogo: false, scrollZoom: true })
+})
+
 test('a CSP violation is reported once as an event; the probe is not', async () => {
   const page = await mountTool(OptionToolsDom, { page: 'ivsmile' })
   await page.init()
@@ -690,17 +785,33 @@ describe('the shell (ux-bar T11)', () => {
 })
 
 describe('the phone stylesheets in the page (ux-bar T11)', () => {
-  /** The stylesheets as a 360 px touch phone applies them: jsdom applies `screen` media only. */
-  function phoneCss(...files: string[]) {
+  /** The stylesheets as a touch phone `width` px wide applies them. jsdom applies `screen` media
+   *  only, so each query is decided here: widths against `width`, a touch screen (no hover, a
+   *  coarse pointer) and no reduced motion; a query that holds becomes `screen`, one that does
+   *  not `print`. */
+  function phoneCssAt(width: number, ...files: string[]) {
+    const holds = (query: string) =>
+      query.split(/\s+and\s+/).every((feature) => {
+        const range = /^\((min|max)-width: ([\d.]+)px\)$/.exec(feature)
+        if (range) return range[1] === 'min' ? width >= Number(range[2]) : width <= Number(range[2])
+        if (feature === '(hover: none)' || feature === '(pointer: coarse)') return true
+        if (feature === '(prefers-reduced-motion: reduce)') return false
+        throw new Error(`phoneCssAt has no answer for ${feature}`)
+      })
     const css = files
       .map((f) => readFileSync(join(__dirname, f), 'utf8'))
       .join('\n')
-      .replace(/@media \((max-width: 767\.98px|pointer: coarse|hover: none)\)/g, '@media screen')
+      .replace(
+        /@media ([^{]+?)\s*\{/g,
+        (_, query: string) => `@media ${holds(query.trim()) ? 'screen' : 'print'} {`,
+      )
     const style = document.createElement('style')
     style.textContent = css
     document.head.append(style)
     return () => style.remove()
   }
+  /** The narrowest phone the bar names. */
+  const phoneCss = (...files: string[]) => phoneCssAt(360, ...files)
   let removeCss: () => void = () => {}
   afterEach(() => removeCss())
 
@@ -774,13 +885,15 @@ describe('the phone stylesheets in the page (ux-bar T11)', () => {
   })
 
   /** The last phone rule that sets `property` on `el`, as the cascade of unlayered rules picks
-   *  it (jsdom's getComputedStyle lets an inline style win over !important). */
+   *  it (jsdom's getComputedStyle lets an inline style win over !important, and drops SVG's
+   *  `r`). A query phoneCssAt decided does not hold is not in the cascade. */
   function phoneRule(el: Element, property: string) {
     const rules: CSSStyleRule[] = []
     const walk = (list: CSSRuleList) => {
       for (const r of Array.from(list)) {
         if ('selectorText' in r) rules.push(r as CSSStyleRule)
-        else if ('cssRules' in r) walk((r as CSSMediaRule).cssRules)
+        else if ('cssRules' in r && (r as CSSMediaRule).media?.mediaText !== 'print')
+          walk((r as CSSMediaRule).cssRules)
       }
     }
     for (const sheet of Array.from(document.styleSheets)) walk(sheet.cssRules)
@@ -848,5 +961,106 @@ describe('the phone stylesheets in the page (ux-bar T11)', () => {
         priority: 'important',
       })
     }
+  })
+
+  test('the rotation map: head labels 64 at 360, 56 from 401 to 767, the rest the same across (E-ROT-1)', async () => {
+    const page = await mountTool(SectorRotationDom, {
+      page: 'sector-rotation',
+      answer: (m) =>
+        isReq(m, '/api/v1/sectorrotation/options')
+          ? ok({ status: 'success', data: ROTATION_OPTIONS })
+          : isReq(m, '/api/v1/sectorrotation')
+            ? ok({ status: 'success', data: ROTATION })
+            : undefined,
+    })
+    await page.init()
+    await waitFor(() => q('svg[aria-label="Sector rotation map"] text.fill-foreground'))
+    const map = q('svg[aria-label="Sector rotation map"]') as Element
+    const label = map.querySelector('text.fill-foreground') as Element
+    expect(label.textContent).toBe('IT')
+    const quadrant = map.querySelector('g[letter-spacing] > text') as Element
+    const axis = map.querySelector('text.fill-muted-foreground') as Element
+    const head = map.querySelector('circle.stroke-background') as Element
+    const tailDot = map.querySelector('g > circle:not(.stroke-background)') as Element
+    const trail = map.querySelector('polyline') as Element
+    const at = (width: number) => {
+      removeCss()
+      removeCss = phoneCssAt(width, 'phone.css', 'rotation.phone.css')
+      return {
+        label: phoneRule(label, 'font-size')?.value,
+        quadrant: phoneRule(quadrant, 'font-size')?.value,
+        axis: phoneRule(axis, 'font-size')?.value,
+        head: phoneRule(head, 'r')?.value,
+        tail: phoneRule(tailDot, 'r')?.value,
+        trail: phoneRule(trail, 'stroke-width')?.value,
+        rendered: getComputedStyle(label).fontSize,
+      }
+    }
+    const marks = { quadrant: '60px', axis: '52px', head: '30px', tail: '11px', trail: '6' }
+    for (const width of [320, 360, 400]) {
+      expect({ width, ...at(width) }).toEqual({ width, label: '64px', rendered: '64px', ...marks })
+    }
+    for (const width of [401, 412, 767]) {
+      expect({ width, ...at(width) }).toEqual({ width, label: '56px', rendered: '56px', ...marks })
+    }
+    // a tablet draws the web's own sizes
+    expect(at(800)).toEqual({
+      label: undefined,
+      quadrant: undefined,
+      axis: undefined,
+      head: undefined,
+      tail: undefined,
+      trail: undefined,
+      rendered: expect.not.stringMatching(/^(56|64)px$/),
+    })
+  })
+
+  test("the EOY chart's year labels thin out at 9 or more years, the latest always shown (E-PR-3)", async () => {
+    removeCss = phoneCss('phone.css', 'portfolio.phone.css')
+    const { EoyChart } = require('@/components/portfolio/EoyChart') as {
+      EoyChart: (p: {
+        rows: { year: string; portfolio: number; benchmark: number }[]
+      }) => ReactElement
+    }
+    /** The year labels a report of `years` years shows. Each count is a fresh chart: nwsapi
+     *  keeps a parent's child positions after children are added, which a browser does not. */
+    const shown = async (years: number) => {
+      const rows = Array.from({ length: years }, (_, i) => ({
+        year: String(2001 + i),
+        portfolio: i % 3 === 0 ? -0.05 : 0.12,
+        benchmark: 0.1,
+      }))
+      const main = document.createElement('main')
+      main.id = 'oa-tool'
+      document.body.append(main)
+      const root = createRoot(main)
+      try {
+        await act(async () => root.render(createElement(EoyChart, { rows })))
+        const labels = Array.from(main.querySelectorAll('.flex.pl-12 > span'))
+        expect(labels.map((l) => l.textContent)).toEqual(rows.map((r) => r.year))
+        const hidden = labels.filter((l) => getComputedStyle(l).visibility === 'hidden')
+        // a hidden label keeps its slot under its bars
+        for (const l of hidden) expect(getComputedStyle(l).display).not.toBe('none')
+        return labels.filter((l) => !hidden.includes(l)).map((l) => l.textContent)
+      } finally {
+        await act(async () => root.unmount())
+        main.remove()
+      }
+    }
+    expect(await shown(8)).toEqual(['2001', '2002', '2003', '2004', '2005', '2006', '2007', '2008'])
+    expect(await shown(9)).toEqual(['2001', '2003', '2005', '2007', '2009'])
+    expect(await shown(10)).toEqual(['2002', '2004', '2006', '2008', '2010'])
+    expect(await shown(16)).toEqual([
+      '2002',
+      '2004',
+      '2006',
+      '2008',
+      '2010',
+      '2012',
+      '2014',
+      '2016',
+    ])
+    expect(await shown(17)).toEqual(['2001', '2005', '2009', '2013', '2017'])
+    expect(await shown(26)).toEqual(['2002', '2006', '2010', '2014', '2018', '2022', '2026'])
   })
 })

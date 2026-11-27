@@ -216,6 +216,24 @@ html:is(
     order: -1;
   }
 
+  /* The EOY chart's year labels thin out at 9 or more years, to every second one, and at 17 or
+     more to every fourth, so 4-digit years at 12 px never touch; the latest year always shows,
+     and a hidden label keeps its slot under its bars (E-PR-3). */
+  /* @pages portfolio-backtester */
+  #oa-tool
+    .space-y-2:has(> .relative > svg[aria-label="End-of-year returns against the benchmark"])
+    > .flex.pl-12:has(> span:nth-child(9))
+    > span:nth-last-child(even) {
+    visibility: hidden;
+  }
+  /* @pages portfolio-backtester */
+  #oa-tool
+    .space-y-2:has(> .relative > svg[aria-label="End-of-year returns against the benchmark"])
+    > .flex.pl-12:has(> span:nth-child(17))
+    > span:not(:nth-last-child(4n + 1)) {
+    visibility: hidden;
+  }
+
   /* The monthly heatmap's year column stays as it scrolls sideways (E-PR-3). */
   /* @pages portfolio-backtester sip-backtester */
   /* biome-ignore lint/style/noDescendingSpecificity: a heatmap's year cell, not a holding's symbol */

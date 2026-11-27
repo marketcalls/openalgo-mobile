@@ -95,6 +95,18 @@
   }
 }
 
+/* From 401 px the map is drawn wider, so the head labels need fewer user units for the same
+   rendered size: 56, not 64, on a crowded map (E-ROT-1). */
+@media (min-width: 401px) and (max-width: 767.98px) {
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    svg[aria-label="Sector rotation map"]
+    text.fill-foreground {
+    font-size: 56px;
+  }
+}
+
 /* At 360 px the table scrolls sideways under a pinned checkbox and name (E-ROT-4). */
 @media (max-width: 400px) {
   /* @pages sector-rotation */
