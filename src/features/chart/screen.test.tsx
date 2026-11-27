@@ -741,6 +741,47 @@ describe('books', () => {
     expect(requests('orderbook').length - orderbook).toBe(4 + 4 + 1)
     expect(requests('positionbook').length - positionbook).toBe(1)
   })
+
+  // One-tap's review book (useReviewBook) reads the orderbook afresh at each chart focus, so a
+  // one-tap order is told apart from the orders before it (preflight conflict 8, ruling 26).
+  test('with one-tap on: the same steady state, and one fresh orderbook read per chart focus', async () => {
+    // the same chart, one-tap off and then on: what one-tap adds is the review book's reads
+    const run = async (oneTap: boolean) => {
+      usePrefs.setState({ chartOneTap: oneTap })
+      await setup(
+        {
+          'POST /api/v1/orderbook': () => book([order({ orderid: 'B1', symbol: 'INFY' })]),
+          'POST /api/v1/positionbook': () => success([position()]),
+        },
+        { live: true },
+      )
+      const reads = () => requests('orderbook').length
+      const before = reads()
+      await open()
+      await load()
+      await ready()
+      await passLive(1_000)
+      const opened = reads() - before
+      const start = reads()
+      await passLive(120_000)
+      const steady = reads() - start
+      // a ticket over the chart, closed again
+      await setFocus(false)
+      await setFocus(true)
+      await passLive(1_000)
+      const refocused = reads() - start - steady
+      await cleanup()
+      if (services) disposeServices(services)
+      services = null
+      view = null
+      answered = 0
+      useConnection.getState().reset()
+      return { opened, steady, refocused }
+    }
+    const off = await run(false)
+    expect(off).toEqual({ opened: 1, steady: 4, refocused: 0 })
+    expect(await run(true)).toEqual({ opened: 2, steady: 4, refocused: 1 })
+  })
 })
 
 describe('loading', () => {
