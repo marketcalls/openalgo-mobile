@@ -825,7 +825,7 @@ describe('the tool screen', () => {
     )
     await pass(200)
     expect(text('tool-subtitle-text')).toMatch(
-      /^Couldn't update · 09:30:\d\d · .+ Tap Refresh to retry\.$/,
+      /^Couldn't update · 09:30:\d\d · .+\. Tap Refresh to retry\.$/,
     )
     // and a DomHost that never changed for any of it
     expect(mockDom.mounts).toBe(1)
@@ -851,9 +851,16 @@ describe('the tool screen', () => {
       T0,
     )
     expect(failed).toEqual({
-      text: "Couldn't update · 09:30:05 · No data Tap Refresh to retry.",
+      text: "Couldn't update · 09:30:05 · No data. Tap Refresh to retry.",
       tone: 'warning',
     })
+    // a sentence that ends itself is not closed twice; no message, the time then the way on
+    const told = (message: string) =>
+      toolSubtitle(st({ last: { ok: false, at, message } }), T0).text
+    expect(told('Too many requests at once. Try again.')).toBe(
+      "Couldn't update · 09:30:05 · Too many requests at once. Try again. Tap Refresh to retry.",
+    )
+    expect(told('')).toBe("Couldn't update · 09:30:05. Tap Refresh to retry.")
     expect(
       toolSubtitle(
         st({ last: failed as never, progress: { label: 'History', done: 3, total: 12 } }),
@@ -1556,14 +1563,11 @@ describe('held order review', () => {
   })
 
   test('held placeorder timeout: 502 CHECKING, a reconcile with the review snapshot knownIds, never a resend', async () => {
-    let sent = false
     await setup({
-      'POST /api/v1/placeorder': () => {
-        sent = true
-        return new Promise<ScriptedReply>(() => {})
-      },
-      // an identical order from 30 s before is in the book at the review, and stays the only one
-      'POST /api/v1/orderbook': () => book([row('OLD1', sent ? 0 : 0)]),
+      'POST /api/v1/placeorder': () => new Promise<ScriptedReply>(() => {}),
+      // an identical order placed at 09:30:00, before the review, is in the book and stays the
+      // only one
+      'POST /api/v1/orderbook': () => book([row('OLD1')]),
     })
     const warning = jest.spyOn(haptics, 'notifyWarning')
     await openReady()

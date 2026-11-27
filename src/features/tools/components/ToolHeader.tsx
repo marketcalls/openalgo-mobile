@@ -49,9 +49,11 @@ export function toolSubtitle(st: ToolStatus, deviceNow: number): Subtitle {
     }
   }
   if (st.last && !st.last.ok) {
-    const why = st.last.message === '' ? '' : ` · ${st.last.message}`
+    // the server's sentence, then the way on, each closed by its own full stop
+    const said = st.last.message.replace(/[.!?]+$/, '')
+    const why = said === '' ? '' : ` · ${said}`
     return {
-      text: `Couldn't update · ${istTime(st.last.at)}${why} Tap Refresh to retry.`,
+      text: `Couldn't update · ${istTime(st.last.at)}${why}. Tap Refresh to retry.`,
       tone: 'warning',
     }
   }

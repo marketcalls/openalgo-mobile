@@ -180,7 +180,7 @@ Option chain (`/optionchain/{key}`, and the Option Chain tool)
   `oc-pe-oi-{STRIKE}`, `oc-oibar-ce-{STRIKE}`, `oc-oibar-pe-{STRIKE}`, `oc-spot` (the live spot
   between its strikes), `oc-jump-atm` (while ATM is off screen), `oc-footer` (PCR, OI totals and
   "Updated hh:mm:ss")
-- states: `oc-skeleton`, `oc-error` (with "Try again"), `oc-refresh-error`, `oc-empty-expiry`
+- states: `oc-skeleton` (its rows `oc-skeleton-row-{N}`, jest only), `oc-error` (with "Try again"), `oc-refresh-error`, `oc-empty-expiry`
   ("Pick another expiry"), `oc-empty-retry` ("Try again": no expiries listed, read the list
   again), `oc-empty-underlying`
 - the pickers: `oc-underlying-sheet`, `oc-pick-search`, `oc-exchange-{EXCHANGE}`,
