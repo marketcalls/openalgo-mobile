@@ -8,7 +8,9 @@
 // - The widget's own symbol box changes the instrument here at once, without a new page; the
 //   intents then act only on the new one (RF 1).
 // - A page that does not get ready in 20 s, fails its first load, or whose WebView the OS killed
-//   (RF 3) gives a message and Reload, which lets go of what it held and starts a new page.
+//   (RF 3) gives a message and Reload, which lets go of what it held and starts a new page. A
+//   first load that failed while the chart was hidden (its requests wait for the chart) loads
+//   again once the chart is back in front. Any other page error is only logged.
 import { type Href, useFocusEffect, useRouter } from 'expo-router'
 import { type JSX, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
@@ -174,6 +176,10 @@ function Chart({ opening }: { opening: Inst }) {
   const [waited, setWaited] = useState(0)
   const sent = useRef<Sent>({})
   const lastErrorLog = useRef(Number.NEGATIVE_INFINITY)
+  const activeRef = useRef(active)
+  activeRef.current = active
+  /** The first load failed while the chart was hidden: a new page once it is back in front. */
+  const reloadInFront = useRef(false)
 
   const post = useCallback((topic: string, payload: JSONValue) => {
     pageRef.current.outbox.post({ kind: 'push', topic, payload })
@@ -250,10 +256,13 @@ function Chart({ opening }: { opening: Inst }) {
       }
       case 'error': {
         // The library's own words for a failed first load, whatever the server said (preflight
-        // conflict 24); after ready the page goes on, so the error is only logged.
-        if (phaseRef.current.kind === 'loading') {
+        // conflict 24). A page's own error (a window error, Chromium's harmless ResizeObserver
+        // warning among them) ends nothing, before ready or after: it is only logged.
+        if (phaseRef.current.kind === 'loading' && e.load) {
           log.warn('chart', `the chart did not load: ${e.message}`)
-          fail.current(TIMEOUT_COPY)
+          // its requests waited for the chart to be in front, and timed out meanwhile
+          if (!activeRef.current) reloadInFront.current = true
+          else fail.current(TIMEOUT_COPY)
           return
         }
         const now = Date.now()
@@ -280,6 +289,12 @@ function Chart({ opening }: { opening: Inst }) {
     setPage((p) => newPage(p.n + 1))
     setPhase(LOADING)
   }
+
+  useEffect(() => {
+    if (!active || !reloadInFront.current) return
+    reloadInFront.current = false
+    reload()
+  })
 
   // The timeout counts while the chart is in front: a hidden page's requests wait for it.
   useEffect(() => {

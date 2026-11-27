@@ -502,6 +502,9 @@ describe('ChartDom', () => {
       events,
       ready: () => events().find((e) => e.name === 'ready') as { info: ChartReady } | undefined,
       errors: () => events().flatMap((e) => (e.name === 'error' ? [e.message] : [])),
+      /** The errors that say the first load failed, the one kind native ends the page on. */
+      loadErrors: () =>
+        events().flatMap((e) => (e.name === 'error' && e.load === true ? [e.message] : [])),
       push: (topic: string, payload: JSONValue) =>
         inject(
           `window._domRefProxy.deliver(${JSON.stringify([{ kind: 'push', topic, payload }])})`,
@@ -591,6 +594,7 @@ describe('ChartDom', () => {
     await waitFor(() => refused.errors().length > 0)
     // The library keeps only the status (openalgo-rest.ts:170, preflight conflict 24).
     expect(refused.errors()).toEqual(['openalgo-charts: history request failed (400)'])
+    expect(refused.loadErrors()).toEqual(refused.errors())
     expect(refused.ready()).toBeUndefined()
   })
 
@@ -754,6 +758,30 @@ describe('ChartDom', () => {
     const rejection = Object.assign(new Event('unhandledrejection'), { reason: new Error('lost') })
     window.dispatchEvent(rejection)
     expect(page.errors()).toEqual(['lost'])
+    // a page's own error is not a failed load
+    expect(page.loadErrors()).toEqual([])
+  })
+
+  test("Chromium's ResizeObserver warning is dropped, and at most one page error a second goes", async () => {
+    let now = 1_000_000
+    jest.spyOn(Date, 'now').mockImplementation(() => now)
+    const page = await mountChart()
+    const raise = (message: string, error: unknown = null) =>
+      window.dispatchEvent(new ErrorEvent('error', { message, error }))
+    raise('ResizeObserver loop completed with undelivered notifications.')
+    raise('ResizeObserver loop limit exceeded')
+    expect(page.errors()).toEqual([])
+
+    // a throw on every frame: one report a second
+    for (let i = 0; i < 60; i++) {
+      raise('Script error.', new Error(`frame ${i}`))
+      now += 16
+    }
+    expect(page.errors()).toEqual(['frame 0'])
+    now += 1_000
+    raise('Script error.', new Error('later'))
+    expect(page.errors()).toEqual(['frame 0', 'later'])
+    expect(page.loadErrors()).toEqual([])
   })
 
   test("a push that throws out of deliver, inside expo's injected script, is reported", async () => {

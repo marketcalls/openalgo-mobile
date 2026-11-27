@@ -754,7 +754,7 @@ describe('loading', () => {
     // the library's own words, whatever the server said (preflight conflict 24)
     const message = 'openalgo-charts: history request failed (400)'
     const warned = expectLog('warn', /\[chart\] the chart did not load: /)
-    await event({ name: 'error', message })
+    await event({ name: 'error', message, load: true })
     expect(screen.getByText(TIMEOUT_COPY)).toBeTruthy()
     expect(warned).toEqual([expect.stringContaining(message)])
 
@@ -771,6 +771,52 @@ describe('loading', () => {
     expect(screen.getByTestId('chart-ready')).toBeTruthy()
     expect(screen.queryByText(TIMEOUT_COPY)).toBeNull()
     expect(later).toHaveLength(1)
+  })
+
+  test("a page's own error before ready is only logged: the chart still opens", async () => {
+    await setup()
+    await open()
+    await load()
+    // Chromium's harmless warning, and a stray rejection: neither is the first load failing
+    const logged = expectLog('warn', /\[chart\] page error: (ResizeObserver loop|lost)/)
+    await event({
+      name: 'error',
+      message: 'ResizeObserver loop completed with undelivered notifications.',
+    })
+    await pass(10_000)
+    await event({ name: 'error', message: 'lost' })
+    expect(screen.queryByText(TIMEOUT_COPY)).toBeNull()
+    expect(screen.getByTestId('skeleton')).toBeTruthy()
+    expect(logged).toHaveLength(2)
+    await ready()
+    expect(screen.getByTestId('chart-ready')).toBeTruthy()
+    expect(mockDom.mounts).toBe(1)
+  })
+
+  test('a first load that failed while the chart was hidden loads again once it is in front', async () => {
+    await setup()
+    await open()
+    await load()
+    await setFocus(false)
+    // the history request waited for the chart, and the library's 30 s deadline came first
+    const warned = expectLog('warn', /\[chart\] the chart did not load: /)
+    await event({
+      name: 'error',
+      message: 'openalgo-charts: history request timed out',
+      load: true,
+    })
+    expect(warned).toHaveLength(1)
+    expect(screen.queryByText(TIMEOUT_COPY)).toBeNull()
+    expect(mockDom.mounts).toBe(1)
+
+    await setFocus(true)
+    // a new page, not the message
+    expect(mockDom.mounts).toBe(2)
+    expect(screen.queryByText(TIMEOUT_COPY)).toBeNull()
+    await load()
+    expect(pushes(CHART_TOPICS.init)).toHaveLength(1)
+    await ready()
+    expect(screen.getByTestId('chart-ready')).toBeTruthy()
   })
 
   test('a killed WebView shows Reload, and Reload mounts a new DOM (RF 3)', async () => {

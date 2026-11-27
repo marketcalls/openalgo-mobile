@@ -140,6 +140,7 @@ const eventMsg = z.discriminatedUnion('name', [
     kind: z.literal('event'),
     name: z.literal('error'),
     message: z.string().max(MAX_MESSAGE),
+    load: z.literal(true).optional(),
   }),
   z.strictObject({
     v,

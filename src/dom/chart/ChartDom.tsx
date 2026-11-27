@@ -47,6 +47,10 @@ const ROOT_STYLE: CSSProperties = {
 
 /** The bridge's cap on an event message (MAX_MESSAGE in dom/bridge/schemas.ts, native only). */
 const MAX_MESSAGE = 500
+/** At most one page error a second reaches native: a throw on every frame would flood it. */
+const ERROR_EVERY_MS = 1_000
+/** Chromium's harmless "ResizeObserver loop completed with undelivered notifications". */
+const RESIZE_LOOP = /ResizeObserver loop/
 const ignore = () => {}
 
 const messageOf = (x: unknown): string =>
@@ -106,7 +110,9 @@ function openPage(
   let calendars: SessionCalendars | null = null
   // A calendars push that comes before the widget exists, for the widget to open with.
   let pendingCalendars: Record<string, CalendarSpecJson> | null = null
-  const fail = (e: unknown) => send({ v: 1, kind: 'event', name: 'error', message: messageOf(e) })
+  // The first load failed: the one error that ends the page (a window error does not).
+  const fail = (e: unknown) =>
+    send({ v: 1, kind: 'event', name: 'error', message: messageOf(e), load: true })
 
   // Ready once the first load settles, an empty history included, and its candles are painted;
   // a failed first load is an error with the feed's message instead.
@@ -230,9 +236,19 @@ export default function ChartDom({
     const stopLinks = guardLinks(document, (url) =>
       send({ v: 1, kind: 'event', name: 'link', url }),
     )
-    const report = (x: unknown) =>
+    let reported = Number.NEGATIVE_INFINITY
+    const report = (x: unknown) => {
+      const now = Date.now()
+      if (now - reported < ERROR_EVERY_MS) return
+      reported = now
       send({ v: 1, kind: 'event', name: 'error', message: messageOf(x) })
-    const onError = (e: ErrorEvent) => report(e.error ?? e.message)
+    }
+    // The ResizeObserver warning is an error event with no error; the widget's own observer,
+    // which resizes the chart inside its callback, can raise it.
+    const onError = (e: ErrorEvent) => {
+      if (e.error == null && RESIZE_LOOP.test(e.message)) return
+      report(e.error ?? e.message)
+    }
     const onRejection = (e: PromiseRejectionEvent) => report(e.reason)
     window.addEventListener('error', onError)
     window.addEventListener('unhandledrejection', onRejection)

@@ -61,7 +61,11 @@ export type DomIntentMsg = { v: typeof BRIDGE_VERSION; kind: 'intent'; intent: C
 export type DomEvent = { v: typeof BRIDGE_VERSION; kind: 'event' } & (
   | { name: 'loaded' }
   | { name: 'ready'; info: ChartReady }
-  | { name: 'error'; message: string }
+  /**
+   * `load`: the chart's first load failed, and the page cannot show it. Without it, the error is
+   * the page's own (a window error or an unhandled rejection), which the page goes on after.
+   */
+  | { name: 'error'; message: string; load?: true }
   | { name: 'link'; url: string }
 )
 export type DomToNative =

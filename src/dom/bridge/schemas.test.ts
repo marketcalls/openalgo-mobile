@@ -52,6 +52,7 @@ test('every message kind parses', () => {
       info: { bars: 1, indicators: 0, mobile: true, csp: true },
     },
     { v: 1, kind: 'event', name: 'error', message: 'x' },
+    { v: 1, kind: 'event', name: 'error', message: 'x', load: true },
     { v: 1, kind: 'event', name: 'link', url: 'https://openalgo.in' },
   ])
     expect(ok(m)).toBe(true)
@@ -70,6 +71,7 @@ test('size limits hold', () => {
   expect(ok({ v: 1, kind: 'abort', rid: 2 ** 53 })).toBe(false)
   expect(ok({ ...req, path: `/${'a'.repeat(256)}` })).toBe(false)
   expect(ok({ v: 1, kind: 'event', name: 'error', message: 'x'.repeat(501) })).toBe(false)
+  expect(ok({ v: 1, kind: 'event', name: 'error', message: 'x', load: false })).toBe(false)
   expect(ok({ v: 1, kind: 'event', name: 'link', url: 'x'.repeat(2_049) })).toBe(false)
   expect(ok({ v: 1, kind: 'storage', op: 'get', key: 'k'.repeat(257) })).toBe(false)
 })
