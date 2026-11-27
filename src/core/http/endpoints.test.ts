@@ -1,4 +1,4 @@
-import { ENDPOINTS, type EndpointId } from './endpoints'
+import { ENDPOINTS, type EndpointId, KEYED_GETS } from './endpoints'
 
 const BOOKS = [
   'funds',
@@ -73,9 +73,10 @@ test('POST and JSON unless marked', () => {
   })
 })
 
-test('timeouts: 15 s default, history and basketorder 30 s, splitorder 45 s, tools 120 s', () => {
+test('timeouts: 15 s default, instruments 120 s, history and basketorder 30 s, splitorder 45 s, tools 120 s', () => {
   const special: Record<string, number> = {
     history: 30_000,
+    instruments: 120_000,
     basketorder: 30_000,
     splitorder: 45_000,
     'portfolio/backtest': 120_000,
@@ -119,4 +120,9 @@ test('flags: search is keyOnly; history, optionchain and gttorderbook list their
     optionchain: ['with_greeks', 'interest_rate'],
     gttorderbook: ['status'],
   })
+})
+
+test('KEYED_GETS is the two GET-only routes that take the key in the query', () => {
+  expect([...KEYED_GETS].sort()).toEqual(['instruments', 'portfolio/benchmarks'])
+  for (const id of KEYED_GETS) expect(ENDPOINTS[id].method).toBe('GET')
 })

@@ -393,3 +393,30 @@ describe('B9 Self-heal', () => {
     expect(notOptional.fields.markUnsupported).not.toHaveBeenCalled()
   })
 })
+
+describe('KeyedApi.get', () => {
+  const CSV = { status: 200, contentType: 'text/csv', body: 'a,b\n' }
+
+  test('KeyedApi.get shares one request for the same query', async () => {
+    const { api, fetch } = setup({ 'GET /api/v1/instruments': CSV })
+    const [a, b] = await Promise.all([
+      api.get('instruments', { exchange: 'NSE', x: '1' }, z.string(), { withKey: true }),
+      api.get('instruments', { x: '1', exchange: 'NSE' }, z.string(), { withKey: true }),
+    ])
+    expect([a, b]).toEqual(['a,b\n', 'a,b\n'])
+    expect(fetch.calls).toHaveLength(1)
+    await api.get('instruments', { exchange: 'NFO' }, z.string(), { withKey: true })
+    expect(fetch.calls).toHaveLength(2)
+  })
+
+  test('a refusal is not healed or retried', async () => {
+    const { api, fetch, fields } = setup({
+      'GET /api/v1/instruments': { status: 403, body: 'Forbidden' },
+    })
+    await expect(api.get('instruments', {}, z.string(), { withKey: true })).rejects.toMatchObject({
+      kind: 'Server',
+    })
+    expect(fetch.calls).toHaveLength(1)
+    expect(fields.markUnsupported).not.toHaveBeenCalled()
+  })
+})

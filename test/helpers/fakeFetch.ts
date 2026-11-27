@@ -11,6 +11,8 @@ export type ScriptedRequest = {
 export type ScriptedReply = {
   status: number
   contentType?: string
+  /** Extra response headers, such as `date`; names are matched case-insensitively. */
+  headers?: Record<string, string>
   /** A string is sent as-is (default `text/plain`); anything else as JSON. */
   body: unknown
 }
@@ -95,7 +97,12 @@ function toResponse(r: ScriptedReply): Response {
     status: r.status,
     ok: r.status >= 200 && r.status < 300,
     headers: {
-      get: (name: string) => (name.toLowerCase() === 'content-type' ? contentType : null),
+      get: (name: string) => {
+        const n = name.toLowerCase()
+        if (n === 'content-type') return contentType
+        const hit = Object.entries(r.headers ?? {}).find(([k]) => k.toLowerCase() === n)
+        return hit ? hit[1] : null
+      },
     },
     text: async () => text,
   }

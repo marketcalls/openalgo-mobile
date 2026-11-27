@@ -375,7 +375,7 @@ describe('request', () => {
     )
     await http.request('funds', {}, FundsSchema)
     await failure(http.request('quotes', {}, z.unknown()))
-    expect(onResponse.mock.calls).toEqual([
+    expect(onResponse.mock.calls).toMatchObject([
       [
         'cancelorder',
         {
@@ -429,6 +429,86 @@ describe('request', () => {
     expect(all).not.toContain(KEY)
     expect(all).not.toContain('[redacted')
     expect(all).not.toContain('SECRET-VALUE')
+  })
+})
+
+describe('get', () => {
+  const CSV = 'exchange,symbol\nNSE,RELIANCE\n'
+  const csv = (status = 200): ScriptedReply => ({ status, contentType: 'text/csv', body: CSV })
+
+  test('a keyed GET puts the key in the query once and logs no URL', async () => {
+    const { http, fetch } = setup({ 'GET /api/v1/instruments': csv() })
+    await http.get('instruments', { exchange: 'NSE' }, z.string(), { withKey: true })
+    expect(fetch.calls).toHaveLength(1)
+    expect(fetch.calls[0]?.method).toBe('GET')
+    expect(fetch.calls[0]?.url).toBe(`${ORIGIN}/api/v1/instruments?exchange=NSE&apikey=${KEY}`)
+    expect(fetch.calls[0]?.body).toBeUndefined()
+    const all = getLogLines().join('\n')
+    expect(all).toMatch(/\[http\] instruments 200 \d+ms/)
+    expect(all).not.toContain('apikey')
+    expect(all).not.toContain(KEY)
+    expect(all).not.toContain('exchange=NSE')
+  })
+
+  test('a keyed GET with an empty query still sends the key', async () => {
+    const { http, fetch } = setup({
+      'GET /api/v1/portfolio/benchmarks': json(200, { status: 'success', data: [] }),
+    })
+    await http.get('portfolio/benchmarks', {}, z.unknown(), { withKey: true })
+    expect(fetch.calls[0]?.url).toBe(`${ORIGIN}/api/v1/portfolio/benchmarks?apikey=${KEY}`)
+  })
+
+  test('a keyless GET sends no key; withKey on it throws; get on a POST endpoint throws', async () => {
+    const { http, fetch } = setup({
+      'GET /api/v1/sip/frequencies': json(200, { status: 'success', data: [] }),
+    })
+    await http.get('sip/frequencies', {}, z.unknown())
+    expect(fetch.calls[0]?.url).toBe(`${ORIGIN}/api/v1/sip/frequencies`)
+    await expect(http.get('sip/frequencies', {}, z.unknown(), { withKey: true })).rejects.toThrow(
+      /no key/,
+    )
+    await expect(http.get('instruments', {}, z.string())).rejects.toThrow(/withKey/)
+    await expect(http.get('funds', {}, z.unknown())).rejects.toThrow(/POST/)
+    expect(fetch.calls).toHaveLength(1)
+  })
+
+  test('instruments returns the CSV text and waits 120 s', async () => {
+    jest.useFakeTimers()
+    try {
+      const { http } = setup({
+        'GET /api/v1/instruments': () =>
+          new Promise<ScriptedReply>((resolve) => setTimeout(() => resolve(csv()), 100_000)),
+      })
+      const p = http.get('instruments', { exchange: 'NSE' }, z.string(), { withKey: true })
+      await jest.advanceTimersByTimeAsync(100_000)
+      await expect(p).resolves.toBe(CSV)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('a text/plain 403 on instruments is Server and never retried', async () => {
+    const { http, fetch, resolveAuth403 } = setup({
+      'GET /api/v1/instruments': { status: 403, contentType: 'text/plain', body: 'Forbidden' },
+    })
+    const e = await failure(http.get('instruments', {}, z.string(), { withKey: true }))
+    expect([e.kind, e.status]).toEqual(['Server', 403])
+    expect(fetch.calls).toHaveLength(1)
+    expect(resolveAuth403).not.toHaveBeenCalled()
+  })
+
+  test('a dropped GET is Network, and onResponse sees the date and elapsed time', async () => {
+    const { http, onResponse } = setup({
+      'GET /api/v1/instruments': { ...csv(), headers: { Date: 'Tue, 24 Nov 2026 04:00:00 GMT' } },
+      'GET /api/v1/portfolio/benchmarks': 'throw',
+    })
+    expect(
+      (await failure(http.get('portfolio/benchmarks', {}, z.unknown(), { withKey: true }))).kind,
+    ).toBe('Network')
+    await http.get('instruments', {}, z.string(), { withKey: true })
+    const res = onResponse.mock.calls[0]?.[1]
+    expect(res?.date).toBe('Tue, 24 Nov 2026 04:00:00 GMT')
+    expect(typeof res?.elapsedMs).toBe('number')
   })
 })
 
@@ -533,7 +613,7 @@ describe('getPublic', () => {
   test('GETs origin + path with no key and no content type, and returns the raw response', async () => {
     const body = { status: 'success', version: '2.0.3.5', name: 'OpenAlgo' }
     const { http, fetch } = setup({ 'GET /auth/app-info': json(200, body) })
-    expect(await http.getPublic('/auth/app-info')).toEqual({
+    expect(await http.getPublic('/auth/app-info')).toMatchObject({
       status: 200,
       contentType: 'application/json',
       text: JSON.stringify(body),

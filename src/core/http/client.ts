@@ -8,6 +8,7 @@ import {
   ENDPOINTS,
   type EndpointDef,
   type EndpointId,
+  KEYED_GETS,
   type Lane,
 } from './endpoints'
 import {
@@ -20,7 +21,16 @@ import {
   unknownFields,
 } from './errors'
 
-export type RawResponse = { status: number; contentType: string; text: string; json?: unknown }
+export type RawResponse = {
+  status: number
+  contentType: string
+  text: string
+  json?: unknown
+  /** The `date` response header (1 s resolution), for the server clock. */
+  date?: string
+  /** Request start to the body read; `onResponse` runs after it. */
+  elapsedMs?: number
+}
 
 export type RequestOptions = {
   signal?: AbortSignal
@@ -38,6 +48,16 @@ export type HttpClient = {
     body: Record<string, unknown>,
     schema: z.ZodType<T>,
     o?: RequestOptions,
+  ): Promise<T>
+  /**
+   * A GET-only route. `withKey` must be true exactly for the ids in `KEYED_GETS`, whose key is
+   * appended last in the query; the log line is `id status ms`, never the URL.
+   */
+  get<T>(
+    id: EndpointId,
+    query: Record<string, string>,
+    schema: z.ZodType<T>,
+    o?: RequestOptions & { withKey?: boolean },
   ): Promise<T>
   /** A keyless GET. Throws only Network or IpBanned; any other reply comes back raw. */
   getPublic(path: string): Promise<RawResponse>
@@ -134,8 +154,16 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
       const res = await d.fetch(base + path, { ...init, credentials: 'omit', signal: ctrl.signal })
       const text = await res.text()
       const contentType = res.headers.get('content-type') ?? ''
-      log.info(TAG, `${label} ${res.status} ${Date.now() - started}ms`)
-      return { status: res.status, contentType, text, json: parseJson(text) }
+      const elapsedMs = Date.now() - started
+      log.info(TAG, `${label} ${res.status} ${elapsedMs}ms`)
+      return {
+        status: res.status,
+        contentType,
+        text,
+        json: parseJson(text),
+        date: res.headers.get('date') ?? undefined,
+        elapsedMs,
+      }
     } catch (e) {
       log.info(TAG, `${label} ${timedOut ? 'timeout' : 'failed'} ${Date.now() - started}ms`)
       throw e
@@ -199,6 +227,26 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
     return null
   }
 
+  /** Reports the reply, classifies it, and parses a success with `schema`. */
+  async function settle<T>(
+    id: EndpointId,
+    def: EndpointDef,
+    raw: RawResponse,
+    schema: z.ZodType<T>,
+  ): Promise<T> {
+    d.onResponse?.(id, raw)
+    const failure = await failureOf(id, def, raw)
+    if (failure) throw failure
+    const parsed = schema.safeParse(def.expect === 'json' ? raw.json : raw.text)
+    if (parsed.success) return parsed.data
+    const paths = new Set(parsed.error.issues.map((i) => i.path.map(String).join('.') || '(root)'))
+    log.warn(TAG, `${id} schema mismatch at ${[...paths].join(', ')}`)
+    // Only a 2xx gets here. On an order lane the server took the request, so the order may
+    // exist: never Server, which would invite a second send (design 7.10).
+    const kind = ORDER_LANES.has(def.lane) ? 'MaybePlaced' : 'Server'
+    throw new ApiError({ kind, status: raw.status, endpoint: id })
+  }
+
   return {
     async request(id, body, schema, o) {
       const def = ENDPOINTS[id]
@@ -218,19 +266,36 @@ export function createHttpClient(d: HttpClientDeps): HttpClient {
       } catch {
         throw noReplyError(id, def.lane)
       }
-      d.onResponse?.(id, raw)
-      const failure = await failureOf(id, def, raw)
-      if (failure) throw failure
-      const parsed = schema.safeParse(def.expect === 'json' ? raw.json : raw.text)
-      if (parsed.success) return parsed.data
-      const paths = new Set(
-        parsed.error.issues.map((i) => i.path.map(String).join('.') || '(root)'),
+      return settle(id, def, raw, schema)
+    },
+
+    async get(id, query, schema, o) {
+      const def = ENDPOINTS[id]
+      if (def.method !== 'GET') {
+        throw new Error(`${id} is a POST route; get() takes GET routes only`)
+      }
+      const keyed = KEYED_GETS.has(id)
+      if (!!o?.withKey !== keyed) {
+        throw new Error(`${id} ${keyed ? 'needs withKey: true' : 'takes no key'}`)
+      }
+      const pairs = Object.entries(query).map(
+        ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`,
       )
-      log.warn(TAG, `${id} schema mismatch at ${[...paths].join(', ')}`)
-      // Only a 2xx gets here. On an order lane the server took the request, so the order may
-      // exist: never Server, which would invite a second send (design 7.10).
-      const kind = ORDER_LANES.has(def.lane) ? 'MaybePlaced' : 'Server'
-      throw new ApiError({ kind, status: raw.status, endpoint: id })
+      if (keyed) pairs.push(`apikey=${encodeURIComponent(d.getKey())}`)
+      const path = def.path + (pairs.length ? `?${pairs.join('&')}` : '')
+      let raw: RawResponse
+      try {
+        raw = await exchange(
+          id,
+          path,
+          { method: 'GET', headers: GET_HEADERS },
+          def.timeoutMs,
+          o?.signal,
+        )
+      } catch {
+        throw noReplyError(id, def.lane)
+      }
+      return settle(id, def, raw, schema)
     },
 
     async getPublic(path) {

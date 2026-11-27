@@ -20,10 +20,11 @@ import {
 } from '~/core/credentials/lock'
 import { type BrokerStatus, createBrokerStatus } from '~/core/credentials/status'
 import { createKeyVault, type KeyVault } from '~/core/credentials/vault'
-import { type Api, createApi, type FieldGate } from '~/core/http/api'
+import { createApi, type FieldGate, type KeyedApi } from '~/core/http/api'
 import { createHttpClient, type HttpClient } from '~/core/http/client'
 import { ApiError, userMessage } from '~/core/http/errors'
 import { createScheduler, type Scheduler } from '~/core/http/scheduler'
+import { createServerClock, type ServerClock } from '~/core/http/serverClock'
 import { log } from '~/core/log/logger'
 import {
   type BookInvalidator,
@@ -90,7 +91,9 @@ export type Services = {
   lock: LockController
   http: HttpClient
   scheduler: Scheduler
-  api: Api
+  api: KeyedApi
+  /** The server's clock; every response's `Date` header feeds it. */
+  clock: ServerClock
   caps: CapabilityStore & FieldGate
   broker: BrokerStatus
   realtime: Realtime
@@ -233,6 +236,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     throw e
   }
 
+  const clock = createServerClock(deps.now)
   const raw = createHttpClient({
     origin: initial.restOrigin,
     getKey: () => keys.get(),
@@ -241,12 +245,18 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     onResponse: (_id, res) => {
       noteRest(true)
       markSemiAuto(res.json)
+      clock.noteDate(res.date, deps.now(), res.elapsedMs)
     },
   })
   const http: HttpClient = {
     request: (id, body, schema, o) =>
       raw.request(id, body, schema, o).catch((e: unknown) => {
         // A caller's abort says nothing about the server.
+        if (noReply(e) && !o?.signal?.aborted) noteRest(false)
+        return guard(e)
+      }),
+    get: (id, query, schema, o) =>
+      raw.get(id, query, schema, o).catch((e: unknown) => {
         if (noReply(e) && !o?.signal?.aborted) noteRest(false)
         return guard(e)
       }),
@@ -492,6 +502,7 @@ export function createServices(initial: ServerProfile, deps: AppDeps): Services 
     http,
     scheduler,
     api,
+    clock,
     caps,
     broker,
     realtime,

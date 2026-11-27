@@ -1,4 +1,5 @@
 import { onlineManager } from '@tanstack/react-query'
+import { z } from 'zod'
 import type { Capabilities } from '~/core/capabilities/gates'
 import type { ServerProfile } from '~/core/config/profile'
 import type { SecureKV } from '~/core/credentials/keyStore'
@@ -920,5 +921,18 @@ describe('services', () => {
     useConnection.getState().set({ brokerSession: 'logged_out' })
     useConnection.getState().set({ brokerSession: 'active' })
     expect(h.ws.sockets).toHaveLength(1)
+  })
+
+  test('services feed every response Date into the clock', async () => {
+    const date = new Date(T0 + 180_000).toUTCString()
+    const h = setup({
+      routes: { 'POST /api/v1/funds': { ...FUNDS_OK, headers: { Date: date } } },
+    })
+    await h.s.lifecycle.coldStart()
+    await h.s.lock.unlock()
+    expect(h.s.clock.offsetMs()).toBe(0)
+    await h.s.http.request('funds', {}, z.unknown())
+    expect(h.s.clock.offsetMs()).toBe(180_000)
+    expect(h.s.clock.now()).toBe(Date.now() + 180_000)
   })
 })

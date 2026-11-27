@@ -23,14 +23,25 @@ export type Api = {
   ): Promise<T>
 }
 
+/** `Api` plus the GET-only routes: a read-lane call that is shared per query and never self-heals. */
+export type KeyedApi = Api & {
+  get<T>(
+    id: EndpointId,
+    query: Record<string, string>,
+    schema: z.ZodType<T>,
+    o?: RequestOptions & { withKey?: boolean },
+  ): Promise<T>
+}
+
 export type ApiDeps = {
-  http: Pick<HttpClient, 'request'>
+  /** A fake that only sends POSTs may leave `get` out; `KeyedApi.get` then throws. */
+  http: Pick<HttpClient, 'request'> & Partial<Pick<HttpClient, 'get'>>
   scheduler: Pick<Scheduler, 'run'>
   fields: FieldGate
 }
 
 /** JSON with object keys sorted at every depth, so equal bodies give equal strings. */
-function stableJson(v: unknown): string {
+export function stableJson(v: unknown): string {
   return JSON.stringify(v, (_k, x: unknown) =>
     isRecord(x)
       ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
@@ -47,7 +58,7 @@ function healable(def: EndpointDef, sent: Record<string, unknown>, e: unknown) {
   return all ? e.unknownFields : undefined
 }
 
-export function createApi({ http, scheduler, fields }: ApiDeps): Api {
+export function createApi({ http, scheduler, fields }: ApiDeps): KeyedApi {
   function send<T>(
     id: EndpointId,
     body: Record<string, unknown>,
@@ -68,6 +79,18 @@ export function createApi({ http, scheduler, fields }: ApiDeps): Api {
   }
 
   return {
+    get(id, query, schema, o) {
+      const get = http.get
+      if (!get) throw new Error('this client sends no GET routes')
+      return scheduler.run({
+        endpoint: id,
+        lane: ENDPOINTS[id].lane,
+        dedupeKey: o?.fresh ? undefined : `${id} ${stableJson(query)}`,
+        signal: o?.signal,
+        exec: (signal) => get(id, query, schema, { ...o, signal }),
+      })
+    },
+
     async call(id, body, schema, o) {
       const sent = fields.adapt(id, body)
       try {

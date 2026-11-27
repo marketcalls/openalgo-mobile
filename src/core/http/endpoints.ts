@@ -66,8 +66,9 @@ const SPECS = {
   'portfolio/tearsheet': { expect: 'html' },
   'sip/backtest': {},
   sectorrotation: {},
-  // GET-only: their key goes in the query string, so M1 calls none of them
-  instruments: { method: 'GET', expect: 'csv' },
+  // GET-only: `instruments` and `portfolio/benchmarks` take the key in the query string
+  // (KEYED_GETS); the other two take none
+  instruments: { method: 'GET', expect: 'csv', timeoutMs: 120_000 },
   'portfolio/benchmarks': { method: 'GET' },
   'sip/frequencies': { method: 'GET' },
   'sectorrotation/options': { method: 'GET' },
@@ -90,3 +91,9 @@ export const ENDPOINTS = Object.fromEntries(
     },
   ]),
 ) as Record<EndpointId, EndpointDef>
+
+/** The GET-only routes whose key goes in the query string (design 7.2); `HttpClient.get` sends it. */
+export const KEYED_GETS: ReadonlySet<EndpointId> = new Set<EndpointId>([
+  'instruments',
+  'portfolio/benchmarks',
+])
