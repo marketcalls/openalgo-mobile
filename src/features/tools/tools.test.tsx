@@ -57,6 +57,7 @@ import { TOOL_ENTRY } from './entries'
 import { TOOL_ENTRY as WEB_TOOL_ENTRY } from './entries.web'
 import type { ToolStatus } from './hooks/useToolGateway'
 import {
+  heldQueueLine,
   readHeldOrder,
   SHARE_FAILED,
   STOP_BACKTEST,
@@ -1097,6 +1098,8 @@ describe('the gateway', () => {
     })
     const order = await placeorder()
     expect(screen.getByTestId('tool-held-sheet')).toBeTruthy()
+    // and one more waiting behind it
+    const next = await placeorder({ ...ORDER, quantity: 75 })
     await leave()
     const sent = signals.find((x) => x.path === '/api/v1/portfolio/backtest')
     expect(sent?.signal?.aborted).toBe(true)
@@ -1104,6 +1107,7 @@ describe('the gateway', () => {
       status: 400,
       body: { status: 'error', message: CANCELLED_COPY },
     })
+    expect(next.reply).toEqual(order.reply)
     expect(run.reply).not.toBeNull()
     await pass(60_000)
     expect(requests('placeorder')).toHaveLength(0)
@@ -1218,6 +1222,39 @@ describe('held order review', () => {
     expect(r.reply).toEqual({ status: 400, body: { status: 'error', message: UNREADABLE_ORDER } })
     expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
     expect(requests('placeorder')).toHaveLength(0)
+  })
+
+  test('an unreadable order never blocks the next: a readable one after it is reviewed, and so is one after two unreadable', async () => {
+    await setup()
+    await openReady()
+    const unreadable = { status: 400, body: { status: 'error', message: UNREADABLE_ORDER } }
+    const a = await placeorder({ ...ORDER, quantity: 1.5 })
+    expect(a.reply).toEqual(unreadable)
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    // the readable one right after it gets its review, and its confirm sends it
+    const b = await placeorder()
+    await pass(200)
+    expect(text('tool-held-summary')).toBe('LIMIT 2L (150) @ 120.50')
+    await press('tool-held-confirm')
+    await pass(50)
+    expect(b.reply).toEqual({
+      status: 200,
+      body: { status: 'success', orderid: '250408000989443' },
+    })
+    expect(requests('placeorder')).toHaveLength(1)
+    // two unreadable in a row are each answered; the next readable one is reviewed
+    const c = await placeorder({ ...ORDER, quantity: 0 })
+    expect(c.reply).toEqual(unreadable)
+    const d = await placeorder({ ...ORDER, action: 'buy' })
+    expect(d.reply).toEqual(unreadable)
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    const e = await placeorder()
+    await pass(200)
+    expect(screen.getByTestId('tool-held-sheet')).toBeTruthy()
+    await press('tool-held-cancel')
+    expect(e.reply).toEqual({ status: 400, body: { status: 'error', message: CANCELLED_COPY } })
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    expect(requests('placeorder')).toHaveLength(1)
   })
 
   test('the review shows the order as it goes: side, symbol, where from, and its terms in lots', async () => {
@@ -1546,6 +1583,74 @@ describe('held order review', () => {
     })
     expect(text('toast')).toBe('Order placed: 250408000989443')
     expect(otherOrderOut(t, {})).toBe(false)
+  })
+
+  test('held orders queue first in, first out; tool-held-queue counts the ones behind the shown one', async () => {
+    const place = gate()
+    await setup({ 'POST /api/v1/placeorder': place.route })
+    await openReady()
+    const a = await placeorder()
+    await pass(200)
+    expect(screen.queryByTestId('tool-held-queue')).toBeNull()
+    const b = await placeorder({ ...ORDER, quantity: 75 })
+    const c = await placeorder({ ...ORDER, quantity: 225, action: 'BUY' })
+    // the first stays on the sheet; the others wait, unanswered and unsent
+    expect(text('tool-held-summary')).toBe('LIMIT 2L (150) @ 120.50')
+    expect(text('tool-held-queue')).toBe(heldQueueLine(2))
+    expect(heldQueueLine(2)).toBe('2 more orders from this tool are waiting')
+    expect(b.reply).toBeNull()
+    expect(c.reply).toBeNull()
+
+    // the first is cancelled: the second is shown, and one is still behind it
+    await press('tool-held-cancel')
+    await pass(200)
+    expect(a.reply).toEqual({ status: 400, body: { status: 'error', message: CANCELLED_COPY } })
+    expect(text('tool-held-summary')).toBe('LIMIT 1L (75) @ 120.50')
+    expect(text('tool-held-queue')).toBe('1 more order from this tool is waiting')
+    expect(heldQueueLine(1)).toBe('1 more order from this tool is waiting')
+
+    // the second goes; while its outcome is out the third still waits behind it
+    await press('tool-held-confirm')
+    expect(requests('placeorder')).toHaveLength(1)
+    expect(requests('placeorder')[0]?.body).toMatchObject({ quantity: 75, action: 'SELL' })
+    expect(text('tool-held-queue')).toBe('1 more order from this tool is waiting')
+    expect(c.reply).toBeNull()
+    await act(async () => place.open(PLACED))
+    await pass(200)
+    expect(b.reply?.status).toBe(200)
+
+    // the third has its own review, its own confirm: nothing sent for it yet
+    expect(text('tool-held-summary')).toBe('LIMIT 3L (225) @ 120.50')
+    expect(text('tool-held-confirm')).toBe('Place BUY order')
+    expect(screen.queryByTestId('tool-held-queue')).toBeNull()
+    expect(requests('placeorder')).toHaveLength(1)
+    await press('tool-held-cancel')
+    expect(c.reply?.status).toBe(400)
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    expect(requests('placeorder')).toHaveLength(1)
+  })
+
+  test('the outcome on show counts the next order, already first in the gateway, as waiting', async () => {
+    await setup({ 'POST /api/v1/placeorder': () => new Promise<ScriptedReply>(() => {}) })
+    await openReady()
+    const a = await placeorder()
+    await pass(200)
+    await press('tool-held-confirm')
+    const b = await placeorder({ ...ORDER, quantity: 75 })
+    expect(text('tool-held-queue')).toBe('1 more order from this tool is waiting')
+    // the client gives up after its 15 s: the check stays on the sheet, the next order waits
+    await pass(15_100)
+    expect(a.reply).toEqual({ status: 502, body: { status: 'error', message: CHECKING } })
+    expect(screen.getByTestId('tool-held-result')).toBeTruthy()
+    expect(text('tool-held-queue')).toBe('1 more order from this tool is waiting')
+    expect(b.reply).toBeNull()
+    await press('tool-held-done')
+    await pass(200)
+    expect(text('tool-held-summary')).toBe('LIMIT 1L (75) @ 120.50')
+    expect(screen.queryByTestId('tool-held-queue')).toBeNull()
+    await press('tool-held-cancel')
+    expect(b.reply?.status).toBe(400)
+    expect(requests('placeorder')).toHaveLength(1)
   })
 
   test('the page gives up before the send begins: it hears cancelled and nothing goes', async () => {

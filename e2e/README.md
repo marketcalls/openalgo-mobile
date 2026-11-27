@@ -159,7 +159,9 @@ Tools
 - a held order's review: `tool-held-sheet`, `tool-held-scroll`, `tool-held-head`,
   `tool-held-review`, `tool-held-mode`, `tool-held-summary`, `tool-held-notice`,
   `tool-held-earlier`, `tool-held-wait`, `tool-held-footer`, `tool-held-confirm`,
-  `tool-held-cancel`, `tool-held-result`, `tool-held-orderbook`, `tool-held-done`
+  `tool-held-cancel`, `tool-held-result`, `tool-held-orderbook`, `tool-held-done`,
+  `tool-held-queue` (in the footer while more orders from the tool wait: "1 more order from this
+  tool is waiting")
 
 Status
 - `badge-http`, `badge-polling` *, `badge-broker`, `mode-badge`

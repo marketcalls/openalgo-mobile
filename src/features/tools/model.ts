@@ -131,6 +131,9 @@ export const UNREADABLE_ORDER = "This order couldn't be read, so it wasn't sent.
 export const SHARE_FAILED = "Couldn't open the share sheet. Try again."
 export const STOP_BACKTEST = 'Stop the backtest?'
 export const STOP_BACKTEST_BODY = 'It is still running. Leaving stops it.'
+/** The held orders behind the one on the sheet (ux-bar T12-12), `n` ≥ 1. */
+export const heldQueueLine = (n: number): string =>
+  n === 1 ? '1 more order from this tool is waiting' : `${n} more orders from this tool are waiting`
 
 const MAX_TEXT = 64
 const nonNegative = z.number().finite().min(0)

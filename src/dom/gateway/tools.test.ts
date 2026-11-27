@@ -27,13 +27,14 @@ import {
   createHeldWriteRoutes,
   createHeldWrites,
   type HeldWrites,
+  MAX_HELD_WRITES,
   ONE_AT_A_TIME,
   ORDER_WRITE_ENDPOINTS,
   type OrderWriteEndpoint,
   TOOL_ORDERS_LATER,
 } from './heldWrites'
 import { createOptionChainRoute } from './optionChainRoute'
-import { createRequestRouter, REFUSED_COPY, type Route } from './requests'
+import { createRequestRouter, MAX_DOM_INFLIGHT, REFUSED_COPY, type Route } from './requests'
 import { CSRF_REPLY, createStartupRoutes, TOGGLE_DENIED } from './startupRoutes'
 import { MAX_PAGE_BODY, PassThroughSchema, TOOL_ALLOWLIST } from './toolAllowlist'
 import { createToolRoutes, type SavedFile } from './toolRoutes'
@@ -746,7 +747,7 @@ describe('optionchain', () => {
 describe('held order writes', () => {
   const holding = (page: ToolPageId = 'oitracker') => gateway(page)
 
-  test('a held placeorder sends nothing until settle; a second gets 409; cancelAll answers 400 CANCELLED_COPY', async () => {
+  test('a held placeorder sends nothing until settle; the next waits its turn, first in, first out; cancelAll answers 400 CANCELLED_COPY', async () => {
     const g = holding()
     const first = g.send(post('/api/v1/placeorder', ORDER))
     expect(await outcome(first)).toBe('pending')
@@ -758,19 +759,29 @@ describe('held order writes', () => {
       page: 'oitracker',
     })
     if (!current) throw new Error('nothing held')
+    expect(g.held.getState().waiting).toBe(0)
 
-    // one at a time, whichever write the second is
-    expect(await g.send(post('/api/v1/placeorder', ORDER))).toEqual(error(409, ONE_AT_A_TIME))
-    expect(g.held.getState().current).toBe(current)
+    // the second waits behind the first (T12-12): unanswered, not shown, counted
+    const second = g.send(post('/api/v1/placeorder', { ...ORDER, quantity: 130 }))
+    expect(await outcome(second)).toBe('pending')
+    expect(g.held.getState()).toEqual({ current, waiting: 1 })
+    // while it waits it can be neither begun nor settled: only the one on show can be sent
+    expect(g.held.begin(current.id + 1)).toBe(false)
+    g.held.settle(current.id + 1, PLACED)
+    expect(await outcome(second)).toBe('pending')
+    expect(g.held.getState()).toEqual({ current, waiting: 1 })
 
     g.held.settle(current.id, PLACED)
     expect(await first).toEqual(PLACED)
-    expect(g.held.getState().current).toBeNull()
-
-    const second = g.send(post('/api/v1/placeorder', { ...ORDER, quantity: 130 }))
-    expect(await outcome(second)).toBe('pending')
+    // the first answered, the second is shown
     const next = g.held.getState().current
-    expect(next?.id).not.toBe(current.id)
+    expect(next).toEqual({
+      id: current.id + 1,
+      endpoint: 'placeorder',
+      body: { ...ORDER, quantity: 130 },
+      page: 'oitracker',
+    })
+    expect(g.held.getState().waiting).toBe(0)
     // the first write's id neither settles nor begins the second
     g.held.settle(current.id, PLACED)
     expect(g.held.begin(current.id)).toBe(false)
@@ -828,16 +839,74 @@ describe('held order writes', () => {
     const held = g.held.getState().current
     if (!held) throw new Error('nothing held')
     expect(g.held.begin(held.id)).toBe(true)
+    // a second order waits its turn behind the one sending
+    const q = g.send(post('/api/v1/placeorder', ORDER))
+    expect(await outcome(q)).toBe('pending')
+    expect(g.held.getState()).toEqual({ current: held, waiting: 1 })
     g.held.cancelAll()
     ctl.abort()
     expect(await outcome(p)).toBe('pending')
-    // still held while it sends: a second order waits its turn
-    expect(g.held.getState().current).toBe(held)
-    expect(await g.send(post('/api/v1/placeorder', ORDER))).toEqual(error(409, ONE_AT_A_TIME))
+    // the waiting one never began: it hears cancelled; the one sending is still held
+    expect(await q).toEqual(error(400, CANCELLED_COPY))
+    expect(g.held.getState()).toEqual({ current: held, waiting: 0 })
     g.held.settle(held.id, PLACED)
     expect(await p).toEqual(PLACED)
     expect(g.held.getState().current).toBeNull()
     expect(g.sent()).toEqual([])
+  })
+
+  test('a waiting write the page gives up on leaves the queue; the rest keep their order', async () => {
+    const g = holding()
+    const a = g.send(post('/api/v1/placeorder', ORDER))
+    const gaveUp = new AbortController()
+    const b = g.send(post('/api/v1/placeorder', { ...ORDER, quantity: 130 }), gaveUp.signal)
+    const c = g.send(post('/api/v1/placeorder', { ...ORDER, quantity: 140 }))
+    expect(await outcome(c)).toBe('pending')
+    const shown = g.held.getState().current
+    if (!shown) throw new Error('nothing held')
+    expect(shown.body).toEqual(ORDER)
+    expect(g.held.getState().waiting).toBe(2)
+    gaveUp.abort()
+    expect(await b).toEqual(error(400, CANCELLED_COPY))
+    // the one on show is untouched
+    expect(g.held.getState()).toEqual({ current: shown, waiting: 1 })
+    expect(await outcome(a)).toBe('pending')
+    // the one on show answered, the next still waiting is shown: the third, not the withdrawn second
+    g.held.settle(shown.id, PLACED)
+    expect(await a).toEqual(PLACED)
+    expect(g.held.getState()).toEqual({
+      current: {
+        id: shown.id + 2,
+        endpoint: 'placeorder',
+        body: { ...ORDER, quantity: 140 },
+        page: 'oitracker',
+      },
+      waiting: 0,
+    })
+    g.held.cancelAll()
+    expect(await c).toEqual(error(400, CANCELLED_COPY))
+    expect(g.held.getState()).toEqual({ current: null, waiting: 0 })
+    expect(g.sent()).toEqual([])
+  })
+
+  test('at most MAX_HELD_WRITES are held, the one on show included: one more gets 409 ONE_AT_A_TIME', async () => {
+    const g = holding()
+    const held = Array.from({ length: MAX_HELD_WRITES }, (_, i) =>
+      g.send(post('/api/v1/placeorder', { ...ORDER, quantity: 75 * (i + 1) })),
+    )
+    expect(await outcome(held[MAX_HELD_WRITES - 1] as Promise<DomReply>)).toBe('pending')
+    expect(g.held.getState().waiting).toBe(MAX_HELD_WRITES - 1)
+    expect(await g.send(post('/api/v1/placeorder', ORDER))).toEqual(error(409, ONE_AT_A_TIME))
+    expect(g.held.getState().waiting).toBe(MAX_HELD_WRITES - 1)
+    // half the page's request cap: its reads still go while its orders wait
+    expect(MAX_HELD_WRITES).toBe(MAX_DOM_INFLIGHT / 2)
+    expect(await g.send(get('/auth/csrf-token'))).toEqual({ status: 200, body: CSRF_REPLY })
+    // leaving answers every one cancelled, the one on show and those waiting
+    g.held.cancelAll()
+    for (const p of held) expect(await p).toEqual(error(400, CANCELLED_COPY))
+    expect(g.held.getState()).toEqual({ current: null, waiting: 0 })
+    expect(g.sent()).toEqual([])
+    expect(g.call).not.toHaveBeenCalled()
   })
 
   test.each(ORDER_WRITE_ENDPOINTS.filter((e) => e !== 'placeorder'))(

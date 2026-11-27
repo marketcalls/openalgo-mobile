@@ -9,6 +9,8 @@
 //   then a page that gives up, or a tool that is left, answers "cancelled" and nothing goes.
 // - While the order is on its way the sheet cannot be dismissed; if the tool goes meanwhile, the
 //   outcome shows as a toast.
+// - The page's next orders wait in the gateway, first in, first out; the sheet says how many
+//   (`tool-held-queue`) and shows the next once this one is done with, each with its own review.
 import { type Href, useRouter } from 'expo-router'
 import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BackHandler, ScrollView, StyleSheet, View } from 'react-native'
@@ -52,7 +54,7 @@ import { Skeleton } from '~/ui/Skeleton'
 import { Text } from '~/ui/Text'
 import { toast } from '~/ui/Toast'
 import { useTheme } from '~/ui/theme'
-import { type HeldOrder, readHeldOrder, toolOf, UNREADABLE_ORDER } from '../model'
+import { type HeldOrder, heldQueueLine, readHeldOrder, toolOf, UNREADABLE_ORDER } from '../model'
 
 /** The toast when the tool goes while its order is on its way. */
 export const STILL_SENDING = 'Your order is still being sent. Its outcome will show here.'
@@ -101,20 +103,29 @@ const planOf = (o: HeldOrder): OrderPlan => ({
  */
 export function HeldOrderSheet({ held }: { held: HeldWrites }): JSX.Element | null {
   const current = useStore(held, (st) => st.current)
+  const waiting = useStore(held, (st) => st.waiting)
   /** The write on the sheet: it stays there after it is settled, while its outcome shows. */
   const [pinned, setPinned] = useState<HeldWrite | null>(null)
   useEffect(() => {
-    if (pinned === null && current !== null) setPinned(current)
-  }, [pinned, current])
+    if (pinned !== null || current === null) return
+    // Only a write the store still holds is pinned. An unreadable one is settled by its view's
+    // mount effect, which runs before this one in the same commit: this render's `current` is
+    // then already answered, and pinning it would hide every later write behind it.
+    if (held.getState().current?.id === current.id) setPinned(current)
+  }, [pinned, current, held])
   const done = useCallback(() => setPinned(null), [])
   const write = pinned ?? current
   if (write === null) return null
+  // Behind the write on show: those waiting, and the next, once this one is answered while its
+  // outcome still shows.
+  const more = waiting + (current !== null && current.id !== write.id ? 1 : 0)
   return (
     <HeldWriteView
       key={write.id}
       held={held}
       write={write}
       live={current?.id === write.id}
+      more={more}
       onDone={done}
     />
   )
@@ -124,6 +135,7 @@ function HeldWriteView(p: {
   held: HeldWrites
   write: HeldWrite
   live: boolean
+  more: number
   onDone: () => void
 }) {
   const order = useMemo(() => readHeldOrder(p.write.body), [p.write])
@@ -146,12 +158,15 @@ function HeldReview({
   write,
   order,
   live,
+  more,
   onDone,
 }: {
   held: HeldWrites
   write: HeldWrite
   order: HeldOrder
   live: boolean
+  /** The held orders behind this one. */
+  more: number
   onDone: () => void
 }) {
   const s = useServices()
@@ -450,6 +465,11 @@ function HeldReview({
           )}
         </ScrollView>
         <View testID="tool-held-footer" style={[styles.footer, { paddingBottom: insets.bottom }]}>
+          {more > 0 ? (
+            <Text testID="tool-held-queue" variant="caption" tone="muted" numberOfLines={1}>
+              {heldQueueLine(more)}
+            </Text>
+          ) : null}
           {reviewing ? (
             <>
               <Button
