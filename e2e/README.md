@@ -167,10 +167,11 @@ Tools
 
 Option chain (`/optionchain/{key}`, and the Option Chain tool)
 - `oc-screen` *, `oc-screen-incomplete` (a link that names no chain), `oc-back`
-- the header: `oc-underlying` (a tap opens the underlying picker), `oc-spot-ltp`, `oc-mode`,
+- the header: `oc-underlying` (a tap opens the underlying picker), `oc-spot-ltp`,
+  `oc-spot-change` (its change and percent), `oc-mode`,
   `oc-polling-note` (polling only: "Polling: prices refresh every 5 s." or 10 s),
   `oc-expiry-{N}` (the two nearest expiries' chips, `0` the nearest: "02 Dec · 2d" or "Today"),
-  `oc-expiry` ("More": every expiry), `oc-greeks` (the Price/Greeks switch), `oc-count` ("±10"),
+  `oc-expiry` ("More": every expiry; outside the chips' scroll, always in view), `oc-greeks` (the Price/Greeks switch), `oc-count` ("±10"),
   `oc-greek-{GREEK}` (Greeks view; not for flows: the Greek is lower case, one of iv, delta,
   gamma, theta and vega), `oc-colhead`
 - the ladder: `oc-ladder`, `oc-row-{STRIKE}` (a strike's `.` is `_`), `oc-ce-{STRIKE}`,

@@ -1,9 +1,11 @@
 // The chain's fixed header (ux OC-1, Kite's quiet chrome): only the ladder below it scrolls.
 // Row 1 (48 dp): back, the underlying (a tap opens the picker), its live price and change, and the
-// server's mode. Then the connection badges when any is true (the mode is not among them: one badge
-// per screen, G16) and, under polling, how often prices refresh. Row 2 (44 dp): the two nearest
-// expiries, More, the Price/Greeks switch and the strike count. The Greeks view adds its five chips,
-// and the column heads close the header.
+// server's mode. The price keeps its width on one line (shrinking to fit only as a last resort) and
+// a long underlying ellipsizes first (G9). Then the connection badges when any is true (the mode is
+// not among them: one badge per screen, G16) and, under polling, how often prices refresh. Row 2
+// (44 dp): the two nearest expiries (they scroll when they do not fit), then More, the Price/Greeks
+// switch and the strike count, always in view (OC-1). The Greeks view adds its five chips, and the
+// column heads close the header.
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useQuoteFrom } from '~/core/realtime/useQuote'
 import { useConnection } from '~/core/services/connection'
@@ -117,14 +119,15 @@ export function ChainHeader(p: {
               onPress={() => p.onExpiry(e)}
             />
           ))}
-          <Chip
-            testID="oc-expiry"
-            label={picked >= CHIPS && p.expiry !== null ? `${expiryLabel(p.expiry)} ▾` : 'More ▾'}
-            selected={picked >= CHIPS}
-            hint="Lists every expiry"
-            onPress={p.onMoreExpiries}
-          />
         </ScrollView>
+        {/* outside the scroll: the way to every expiry is always in view (OC-1) */}
+        <Chip
+          testID="oc-expiry"
+          label={picked >= CHIPS && p.expiry !== null ? `${expiryLabel(p.expiry)} ▾` : 'More ▾'}
+          selected={picked >= CHIPS}
+          hint="Lists every expiry"
+          onPress={p.onMoreExpiries}
+        />
         <Chip
           testID="oc-greeks"
           label="Greeks"
@@ -176,10 +179,23 @@ function Spot(p: {
   const tone = sign > 0 ? 'profit' : sign < 0 ? 'loss' : 'muted'
   return (
     <View style={styles.spot}>
-      <Text testID="oc-spot-ltp" maxFontSizeMultiplier={MAX_SCALE} style={styles.big}>
+      <Text
+        testID="oc-spot-ltp"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        maxFontSizeMultiplier={MAX_SCALE}
+        style={styles.big}
+      >
         {fmtPrice(ltp)}
       </Text>
-      <Text tone={tone} maxFontSizeMultiplier={MAX_SCALE} style={styles.change}>
+      <Text
+        testID="oc-spot-change"
+        tone={tone}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        maxFontSizeMultiplier={MAX_SCALE}
+        style={styles.change}
+      >
         {`${fmtSigned(change)} (${fmtPct(pct)})`}
       </Text>
     </View>
@@ -252,13 +268,14 @@ const styles = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   underlying: { flexShrink: 1, minHeight: 44, justifyContent: 'center', paddingRight: 8 },
   big: { fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  spot: { flex: 1, minWidth: 0, alignItems: 'flex-end', paddingRight: 8 },
+  // its own width, at the row's end: the underlying, not the price, gives way (G9)
+  spot: { marginLeft: 'auto', flexShrink: 0, alignItems: 'flex-end', paddingRight: 8 },
   change: { fontSize: 12, fontVariant: ['tabular-nums'] },
   badges: { paddingHorizontal: 12, paddingBottom: 4 },
   note: { fontSize: 12, paddingHorizontal: 12, paddingBottom: 4 },
   row2: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 12 },
   fill: { flex: 1 },
-  chipRow: { alignItems: 'center', gap: 6, paddingLeft: 12 },
+  chipRow: { alignItems: 'center', gap: 6, paddingLeft: 12, paddingRight: 6 },
   greekRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingBottom: 6 },
   chip: {
     minHeight: 32,

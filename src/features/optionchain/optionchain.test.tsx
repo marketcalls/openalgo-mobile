@@ -379,6 +379,32 @@ describe('the screen', () => {
     expect(text('oc-footer')).toMatch(/^PCR \d\.\d\d · CE OI .+ · PE OI .+ · Updated 10:30:00$/)
   })
 
+  test('the header keeps the spot on one line at its width and More always in view (G9, OC-1)', async () => {
+    const h = setup()
+    await h.show()
+    // the live price and its change never wrap: one line each, shrinking only as a last resort
+    for (const id of ['oc-spot-ltp', 'oc-spot-change']) {
+      const t = screen.getByTestId(id)
+      expect([id, t.props.numberOfLines, t.props.adjustsFontSizeToFit]).toEqual([id, 1, true])
+    }
+    // the spot takes its own width; the underlying (flexShrink 1) gives way first
+    let box = screen.getByTestId('oc-spot-ltp').parent
+    while (box && StyleSheet.flatten(box.props.style)?.alignItems !== 'flex-end') box = box.parent
+    const spot = StyleSheet.flatten(box?.props.style)
+    expect(spot).toMatchObject({ flexShrink: 0, marginLeft: 'auto' })
+    expect(spot.flex).toBeUndefined()
+    expect(StyleSheet.flatten(screen.getByTestId('oc-underlying').props.style).flexShrink).toBe(1)
+    // More sits outside the expiry chips' scroll, beside Greeks and the count
+    const chip0 = screen.getByTestId('oc-expiry-0')
+    let scroll = chip0.parent
+    while (scroll && !scroll.props.horizontal) scroll = scroll.parent
+    expect(scroll).toBeTruthy()
+    if (!scroll) return
+    expect(within(scroll).queryByTestId('oc-expiry')).toBeNull()
+    expect(within(scroll).getByTestId('oc-expiry-1')).toBeTruthy()
+    expect(screen.getByTestId('oc-expiry')).toBeTruthy()
+  })
+
   test('a cell reads as a sentence; OI bars are neutral and the largest OI is bold', async () => {
     const h = setup()
     await h.show()
