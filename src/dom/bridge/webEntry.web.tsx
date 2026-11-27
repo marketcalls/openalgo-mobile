@@ -7,8 +7,8 @@
 // document, where its prelude's CSP (connect-src 'none'), its shims for fetch, XHR and WebSocket,
 // and its Tailwind stylesheet would take over the app. Merely importing it installs the CSP. So the
 // preview never imports the entry: it loads the entry's exported page (www.bundle/<md5>.html, the
-// very file the APK ships, from an `expo export --platform android`) into a same-origin iframe
-// and speaks expo's DOM protocol (expo/src/dom, SDK 58.1) to it, as the native WebView does:
+// very file the APK ships, from an `expo export --platform android`, served as its .frame.html
+// copy with the bridge boot first) into a same-origin iframe and speaks expo's DOM protocol (expo/src/dom, SDK 58.1) to it, as the native WebView does:
 //   page → host: window.ReactNativeWebView.postMessage, injectedObjectJson;
 //   host → page: '$$dom_event' CustomEvents, and window._domRefProxy for the imperative handle.
 // The page keeps its own document, CSP, shims and viewport, sized like the WebView.
@@ -26,6 +26,11 @@ type Msg = {
   type: string
   data: { uid?: string; actionId?: string; args?: JSONValue[] } | string[] | null
 }
+
+/** What dom-manifest.mjs names each page's served copy, and the query its boot reads the frame's
+ *  id from (both dev/preview/dom-manifest.mjs). */
+const FRAME_SUFFIX = '.frame.html'
+const FRAME_PARAM = 'oaframe'
 
 /** Written by the preview recipe (dom-manifest.mjs): entry path → its html in www.bundle. */
 const MANIFEST = '/www.bundle/entries.json'
@@ -121,11 +126,11 @@ export function WebEntry({ entry, bridge, dom: _dom, ref, ...page }: WebEntryPro
       .then((m) => {
         const file = m[entry]
         if (!file) throw new Error(`${entry} is not in ${MANIFEST}`)
-        return fetch(`/www.bundle/${file}`, { cache: 'no-store' }).then((r) => r.text())
-      })
-      .then((html) => {
-        const boot = `<base href="/www.bundle/"><script>window.ReactNativeWebView=parent.__oaDomFrames[${JSON.stringify(id)}];</script>`
-        if (live) setDoc(html.replace(/<head>/i, `<head>${boot}`))
+        // A served copy of the page with the bridge boot first (dom-manifest.mjs writes it): a
+        // srcdoc page's location is about:srcdoc, against which the frontend's axios cannot
+        // resolve a relative URL, so every option tool's request failed in the preview.
+        const frame = file.replace(/\.html$/, FRAME_SUFFIX)
+        if (live) setDoc(`/www.bundle/${frame}?${FRAME_PARAM}=${encodeURIComponent(id)}`)
       })
       .catch((e: unknown) => live && setError(e instanceof Error ? e.message : String(e)))
     return () => {
@@ -142,7 +147,7 @@ export function WebEntry({ entry, bridge, dom: _dom, ref, ...page }: WebEntryPro
     <iframe
       ref={frame}
       title={entry}
-      srcDoc={doc}
+      src={doc}
       style={{
         flex: 1,
         width: '100%',

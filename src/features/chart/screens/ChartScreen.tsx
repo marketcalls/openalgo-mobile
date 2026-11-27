@@ -33,7 +33,6 @@ import {
   type Inst,
   type JSONValue,
 } from '~/dom/bridge/protocol'
-import ChartDom from '~/dom/chart/ChartDom'
 import { DEFAULT_CALENDARS } from '~/market/chart/calendar'
 import { FALLBACK_INTERVALS } from '~/market/chart/intervals'
 import { useChartIntervals, useSessionCalendars } from '~/market/chart/queries'
@@ -56,6 +55,7 @@ import { StatusBadges } from '~/ui/StatusBadges'
 import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
 import { ChartHeader } from '../components/ChartHeader'
+import { ChartDom } from '../entry'
 import { useChartBooks } from '../hooks/useChartBooks'
 import { useChartGateway } from '../hooks/useChartGateway'
 import { useChartIntents } from '../hooks/useChartIntents'
