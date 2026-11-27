@@ -1,7 +1,10 @@
 # A tool that runs on the device (CI job e2e-android): open Max Pain from the Tools tab, wait for
-# the page's own ready probe, see its figure computed from the on-device route and check the CSP
-# probe counted no violations. Needs the mock started with PORT=5000 WS_PORT=8765 and reset
-# before the flow. If the WebView text is not found, read e2e-debug-<PROFILE> first.
+# the page's own ready probe, see its figure computed from the on-device route, check the CSP
+# probe counted no violations and the layout probe found nothing past the screen's edges, then
+# the same for GEX, whose table is reached by a vertical swipe that starts on a chart (ux-bar
+# T16-01, GX-4). Needs the mock started with PORT=5000 WS_PORT=8765 and reset before the flow.
+# The CI phone pass runs it again at 360 dp, dark, font 1.3 (T16-02); the screenshots go to the
+# e2e-debug artifact. If the WebView text is not found, read e2e-debug-<PROFILE> first.
 appId: in.openalgo.mobile
 ---
 - launchApp:
@@ -23,6 +26,40 @@ appId: in.openalgo.mobile
 - extendedWaitUntil:
     visible: "Max Pain: \\d+"
     timeout: 20000
+- assertVisible:
+    id: tool-layout
+    text: "overflow 0"
+- takeScreenshot: tools-maxpain
+- assertVisible:
+    id: tool-csp
+    text: "violations 0"
+- tapOn:
+    id: tool-back
+
+# GEX: its figure, then the table below the charts by a swipe from the screen's centre (a chart)
+- scrollUntilVisible:
+    element:
+      id: tool-tile-GEX
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: tool-tile-GEX
+- extendedWaitUntil:
+    visible:
+      id: tool-ready
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Net GEX: .*"
+    timeout: 20000
+- assertVisible:
+    id: tool-layout
+    text: "overflow 0"
+- takeScreenshot: tools-gex
+- scrollUntilVisible:
+    element: "GEX Table"
+    direction: DOWN
+    timeout: 20000
+- takeScreenshot: tools-gex-table
 - assertVisible:
     id: tool-csp
     text: "violations 0"

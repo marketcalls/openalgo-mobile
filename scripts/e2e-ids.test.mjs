@@ -85,3 +85,74 @@ for (const f of ['gtt-analyzer', 'chart-analyzer', 'optionchain-analyzer']) {
     assert.ok(control < onboarding, 'the analyzer control comes before onboarding')
   })
 }
+
+// ux-bar T16-01 and T16-03: the tool flows check what the trader sees, not only that it loaded.
+test('tools-maxpain checks the layout probe and screenshots Max Pain, then GEX and its table', () => {
+  const text = readFileSync(join(e2e, 'tools-maxpain.yaml'), 'utf8')
+  const at = (s) => {
+    const i = text.indexOf(s)
+    assert.ok(i >= 0, `tools-maxpain has ${s}`)
+    return i
+  }
+  const layout = '- assertVisible:\n    id: tool-layout\n    text: "overflow 0"'
+  const maxPain = at('visible: "Max Pain: \\\\d+"')
+  const firstLayout = at(layout)
+  assert.ok(maxPain < firstLayout && firstLayout < at('- takeScreenshot: tools-maxpain'))
+  const gex = at('id: tool-tile-GEX')
+  assert.ok(at('visible: "Net GEX: .*"') > gex)
+  assert.ok(text.indexOf(layout, gex) > gex, 'the layout probe again on GEX')
+  assert.match(text, /- scrollUntilVisible:\n\s+element: "GEX Table"\n\s+direction: DOWN/)
+  assert.ok(at('- takeScreenshot: tools-gex-table') > at('element: "GEX Table"'))
+})
+
+test('optionchain-analyzer checks BUY and SELL with no scroll and the chips after a ladder swipe', () => {
+  const text = readFileSync(join(e2e, 'optionchain-analyzer.yaml'), 'utf8')
+  const at = (s) => {
+    const i = text.indexOf(s)
+    assert.ok(i >= 0, `optionchain-analyzer has ${s}`)
+    return i
+  }
+  // once the chain opens, nothing scrolls before the ATM call and the leg sheet's two sides
+  const sell = at('- assertVisible:\n    id: oc-leg-sell')
+  const opened = at('- tapOn:\n    id: tool-tile-OPTIONCHAIN')
+  assert.ok(!/scrollUntilVisible|swipe/.test(text.slice(opened, sell)))
+  assert.ok(
+    at('- assertVisible:\n    id: oc-leg-buy') < sell && sell < at('- takeScreenshot: oc-leg'),
+  )
+  const swipe = at('- swipe:\n    from:\n      id: oc-ladder\n    direction: UP')
+  assert.ok(at('- assertVisible:\n    id: oc-expiry-0') > swipe)
+})
+
+test('CI runs the phone pass: both tool flows again at 360 dp, dark, font 1.3, reset in a trap', () => {
+  const ci = readFileSync(join(root, '.github', 'workflows', 'ci.yml'), 'utf8')
+  const script = ci.slice(
+    ci.indexOf('cat > "$RUNNER_TEMP/e2e.sh" <<\'SCRIPT\''),
+    ci.indexOf('          SCRIPT\n'),
+  )
+  const at = (s, from = 0) => {
+    const i = script.indexOf(s, from)
+    assert.ok(i >= 0, `the e2e script has ${s}`)
+    return i
+  }
+  const trap = at('trap phone_reset EXIT')
+  for (const reset of [
+    'adb shell wm density reset',
+    'adb shell cmd uimode night no',
+    'adb shell settings put system font_scale 1.0',
+  ]) {
+    assert.ok(at(reset) < trap, `phone_reset runs ${reset}`)
+  }
+  const set = [
+    'adb shell wm density 480',
+    'adb shell cmd uimode night yes',
+    'adb shell settings put system font_scale 1.3',
+  ].map((s) => at(s, trap))
+  const pass = at('PASS=360-dark-1.3x', trap)
+  assert.ok(set.every((i) => i < pass))
+  assert.ok(at('run_flow tools-maxpain', pass) < at('run_flow optionchain-analyzer', pass))
+  // after the default run of the same flows
+  assert.ok(at('run_flow optionchain-analyzer') < trap)
+  // the screenshots reach the artifact on a green run too
+  assert.match(script, /mv "\$shot" "\$DEBUG\/shots\//)
+  assert.match(ci, /- name: Upload the e2e debug output\n\s+if: always\(\)/)
+})

@@ -447,16 +447,24 @@ jobs:
           }
           adb shell settings put global hide_error_dialogs 1
           echo "Focus at start: $(adb shell dumpsys window | grep -m 1 mCurrentFocus | tr -d '\r')"
-          # run_flow NAME: from a cleared app; a failure keeps the device log and the window stack
+          # run_flow NAME: from a cleared app; a failure keeps the device log and the window stack.
+          # A flow's screenshots (takeScreenshot, written to the working directory) go to
+          # $DEBUG/shots, named for the pass ($PASS).
+          PASS=default
+          mkdir -p "$DEBUG/shots"
           run_flow() {
             adb shell pm clear in.openalgo.mobile
             close_system_dialogs
             adb logcat -c || true
             if ! maestro test "e2e/$1.yaml"; then
-              FAILED+=("$1")
-              adb logcat -d > "$DEBUG/logcat-$1.txt" 2>&1 || true
-              adb shell dumpsys activity activities > "$DEBUG/activities-$1.txt" 2>&1 || true
+              FAILED+=("$1@$PASS")
+              adb logcat -d > "$DEBUG/logcat-$1-$PASS.txt" 2>&1 || true
+              adb shell dumpsys activity activities > "$DEBUG/activities-$1-$PASS.txt" 2>&1 || true
             fi
+            for shot in ./*.png; do
+              [ -e "$shot" ] || continue
+              mv "$shot" "$DEBUG/shots/$(basename "$shot" .png)-$PASS.png"
+            done
           }
           echo "Screen: $(adb shell wm size | tr -d '\r'), $(adb shell wm density | tr -d '\r')"
           APK=$(ls dist/*.apk | head -n 1)
@@ -493,6 +501,27 @@ jobs:
           reset_mock
           run_flow optionchain-analyzer
           stop_mock
+          # The phone pass (ux-bar T16-02): the tool flows again at 360 dp (pixel_6's 1080 px at
+          # 480 dpi), dark, font scale 1.3; the screen is put back however the script ends.
+          phone_reset() {
+            adb shell wm density reset || true
+            adb shell cmd uimode night no || true
+            adb shell settings put system font_scale 1.0 || true
+          }
+          trap phone_reset EXIT
+          adb shell wm density 480
+          adb shell cmd uimode night yes
+          adb shell settings put system font_scale 1.3
+          PASS=360-dark-1.3x
+          echo "Phone pass: $(adb shell wm size | tr -d '\r'), $(adb shell wm density | tr -d '\r')"
+          start_mock 8765
+          reset_mock
+          run_flow tools-maxpain
+          reset_mock
+          run_flow optionchain-analyzer
+          stop_mock
+          phone_reset
+          trap - EXIT
           if [ "${#FAILED[@]}" -gt 0 ]; then
             echo "Failed flows: ${FAILED[*]}"
             exit 1
@@ -517,14 +546,15 @@ jobs:
         run: tail -n 200 "$RUNNER_TEMP"/e2e-debug/mock-*.log || true
 
       - name: Collect the e2e debug output
-        # Maestro writes each run's screenshots, hierarchy and log under ~/.maestro/tests.
-        if: failure()
+        # Maestro writes each run's screenshots, hierarchy and log under ~/.maestro/tests. The
+        # flows' own screenshots (shots/) are the UX review's device evidence: kept on success too.
+        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/e2e-debug"
           if [ -d "$HOME/.maestro/tests" ]; then cp -R "$HOME/.maestro/tests" "$RUNNER_TEMP/e2e-debug/maestro"; fi
 
       - name: Upload the e2e debug output
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-debug-${{ matrix.PROFILE }}

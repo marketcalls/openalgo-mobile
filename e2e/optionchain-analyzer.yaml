@@ -1,7 +1,9 @@
 # The option chain tool in analyzer (sandbox) mode against the mock server (CI job e2e-android):
-# tap the at-the-money call, BUY from its leg sheet, review the ticket as ANALYZE, place the
-# order and return to the chain. Needs the mock started with PORT=5000 WS_PORT=8765 and reset
-# before the flow.
+# the at-the-money call shows with no scroll, its leg sheet shows BUY and SELL with no scroll,
+# BUY reviews the ticket as ANALYZE and places the order, and back on the chain a swipe up on
+# the ladder leaves the expiry chips in view (only the ladder scrolls) (ux-bar T16-03, OC-1).
+# Needs the mock started with PORT=5000 WS_PORT=8765 and reset before the flow. The CI phone
+# pass runs it again at 360 dp, dark, font 1.3 (T16-02); screenshots go to e2e-debug.
 appId: in.openalgo.mobile
 ---
 - launchApp:
@@ -25,8 +27,15 @@ appId: in.openalgo.mobile
     visible:
       id: oc-ce-ATM
     timeout: 20000
+- takeScreenshot: optionchain
 - tapOn:
     id: oc-ce-ATM
+# both sides of the leg sheet, with no scroll
+- assertVisible:
+    id: oc-leg-buy
+- assertVisible:
+    id: oc-leg-sell
+- takeScreenshot: oc-leg
 - tapOn:
     id: oc-leg-buy
 - assertVisible:
@@ -47,3 +56,11 @@ appId: in.openalgo.mobile
     id: ticket-done
 - assertVisible:
     id: oc-screen
+# only the ladder scrolls: the expiry chips stay in view
+- swipe:
+    from:
+      id: oc-ladder
+    direction: UP
+- assertVisible:
+    id: oc-expiry-0
+- takeScreenshot: optionchain-scrolled
