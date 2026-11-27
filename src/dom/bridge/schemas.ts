@@ -1,7 +1,16 @@
 // Native-only zod schemas for the bridge (DomHost and the gateway). The types they produce live
 // in protocol.ts, the one bridge file the DOM bundle may load.
 import { z } from 'zod'
-import { BRIDGE_VERSION, type ChartIntent, type DomToNative, type NativeToDom } from './protocol'
+import {
+  BRIDGE_VERSION,
+  type ChartIntent,
+  type DomToNative,
+  MAX_SAVE_BASE64,
+  type NativeToDom,
+  SAVE_MIMES,
+  TOOL_PAGE_IDS,
+  type ToolIntent,
+} from './protocol'
 
 export const MAX_PATH = 256
 export const MAX_SOCKET_DATA = 65_536
@@ -10,6 +19,7 @@ export const MAX_VALUE = 1_000_000
 export const MAX_ORDERID = 64
 export const MAX_MESSAGE = 500
 export const MAX_URL = 2_048
+export const MAX_DIRECTIVE = 64
 
 const price = z.number().finite().positive()
 const inst = z.strictObject({
@@ -86,6 +96,25 @@ export const ChartIntentSchema: z.ZodType<ChartIntent> = z.discriminatedUnion('t
   z.strictObject({ type: z.literal('symbol'), inst }),
 ])
 
+// A file name the app writes as it is: no path separator and no other character a file system or
+// the share sheet could read as more than a name; '.' and '..' name directories.
+const SAVE_NAME = /^[A-Za-z0-9._ -]{1,128}$/
+// Padded base64. A single character class, so the check stays linear on a 4,000,000-character body.
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
+
+export const ToolIntentSchema: z.ZodType<ToolIntent> = z.strictObject({
+  type: z.literal('save'),
+  name: z
+    .string()
+    .regex(SAVE_NAME)
+    .refine((n) => n !== '.' && n !== '..', 'name'),
+  mime: z.enum(SAVE_MIMES),
+  base64: z
+    .string()
+    .max(MAX_SAVE_BASE64)
+    .refine((b) => b.length % 4 === 0 && BASE64.test(b), 'base64'),
+})
+
 const v = z.literal(BRIDGE_VERSION)
 const sid = z.number().int().min(0).max(999)
 const rid = z.number().int().safe().min(0)
@@ -148,6 +177,18 @@ const eventMsg = z.discriminatedUnion('name', [
     name: z.literal('link'),
     url: z.string().max(MAX_URL),
   }),
+  z.strictObject({
+    v,
+    kind: z.literal('event'),
+    name: z.literal('toolReady'),
+    info: z.strictObject({ page: z.enum(TOOL_PAGE_IDS), csp: z.boolean(), webgl: z.boolean() }),
+  }),
+  z.strictObject({
+    v,
+    kind: z.literal('event'),
+    name: z.literal('violation'),
+    directive: z.string().max(MAX_DIRECTIVE),
+  }),
 ])
 
 export const DomToNativeSchema: z.ZodType<DomToNative> = z.discriminatedUnion('kind', [
@@ -163,7 +204,11 @@ export const DomToNativeSchema: z.ZodType<DomToNative> = z.discriminatedUnion('k
   z.strictObject({ v, kind: z.literal('abort'), rid }),
   socketMsg,
   storageMsg,
-  z.strictObject({ v, kind: z.literal('intent'), intent: ChartIntentSchema }),
+  z.strictObject({
+    v,
+    kind: z.literal('intent'),
+    intent: z.union([ChartIntentSchema, ToolIntentSchema]),
+  }),
   eventMsg,
 ])
 

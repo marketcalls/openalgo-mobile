@@ -1,4 +1,6 @@
-import { CHART_TOPICS, isNativeToDomBatch } from './protocol'
+import { type BrokerCaps, brokerCaps } from '~/market/brokers/seed'
+import { TOOLS } from '~/market/tools/registry'
+import { type BrokerCapsJson, CHART_TOPICS, isNativeToDomBatch, TOOL_PAGE_IDS } from './protocol'
 import { NativeToDomBatchSchema } from './schemas'
 
 const good = [
@@ -29,4 +31,22 @@ test('the guard refuses what the schema refuses', () => {
     expect(isNativeToDomBatch(b)).toBe(false)
     expect(NativeToDomBatchSchema.safeParse(b).success).toBe(false)
   }
+})
+
+test('every tool page is a tool of the pinned frontend, once', () => {
+  const tools = new Set(TOOLS.map((t) => t.id))
+  for (const page of TOOL_PAGE_IDS) expect(tools.has(page)).toBe(true)
+  expect(new Set(TOOL_PAGE_IDS).size).toBe(TOOL_PAGE_IDS.length)
+})
+
+test("the seed's broker capabilities are the protocol's BrokerCapsJson, both ways", () => {
+  // protocol.ts imports nothing from market, so the two declarations are held together here
+  const caps: BrokerCapsJson = brokerCaps('zerodha', '2.0.3.5')
+  const back: BrokerCaps = caps
+  expect(Object.keys(back).sort()).toEqual([
+    'broker_name',
+    'broker_type',
+    'leverage_config',
+    'supported_exchanges',
+  ])
 })

@@ -1,8 +1,10 @@
+import { MAX_SAVE_BASE64, SAVE_MIMES, TOOL_PAGE_IDS } from './protocol'
 import {
   ChartIntentSchema,
   DomToNativeSchema,
   NativeToDomBatchSchema,
   parseDomToNative,
+  ToolIntentSchema,
 } from './schemas'
 
 const req = {
@@ -136,5 +138,73 @@ describe('request body bounds', () => {
     expect(DomToNativeSchema.safeParse(req(Array(1_001).fill(1))).success).toBe(false)
     expect(DomToNativeSchema.safeParse(req({ symbol: 'INFY', n: 1, a: [1, 2] })).success).toBe(true)
     expect(parseDomToNative(req({ symbol: 'INFY' })).success).toBe(true)
+  })
+})
+
+describe('tool messages', () => {
+  const save = {
+    type: 'save',
+    name: 'Sector_Rotation_NIFTY_daily_2026-11-27.png',
+    mime: 'image/png',
+    base64: 'iVBORw0KGgo=',
+  }
+  const saves = (x: unknown) => ToolIntentSchema.safeParse(x).success
+  const event = (e: object) => ({ v: 1, kind: 'event', ...e })
+  const ready = (info: object) => event({ name: 'toolReady', info })
+
+  test('a ToolIntent save parses; a bad name, MIME or a 4,000,001-character body is refused', () => {
+    expect(saves(save)).toBe(true)
+    expect(ok({ v: 1, kind: 'intent', intent: save })).toBe(true)
+    // a chart intent is still an intent
+    expect(ok({ v: 1, kind: 'intent', intent: { type: 'depth', inst } })).toBe(true)
+    expect(ok({ v: 1, kind: 'intent', intent: { ...save, type: 'open' } })).toBe(false)
+    expect(saves({ ...save, extra: 1 })).toBe(false)
+
+    for (const name of ['portfolio-tearsheet.html', 'a', 'Sector Rotation 1.png', 'x'.repeat(128)])
+      expect(saves({ ...save, name })).toBe(true)
+    for (const name of [
+      '',
+      'x'.repeat(129),
+      '../x.png',
+      'a/b.png',
+      'a\\b.png',
+      'a:b.png',
+      'a\n.png',
+      'ä.png',
+      '.',
+      '..',
+    ])
+      expect(saves({ ...save, name })).toBe(false)
+
+    for (const mime of SAVE_MIMES) expect(saves({ ...save, mime })).toBe(true)
+    for (const mime of ['image/jpeg', 'IMAGE/PNG', 'text/html;charset=utf-8', 'application/pdf'])
+      expect(saves({ ...save, mime })).toBe(false)
+
+    expect(MAX_SAVE_BASE64).toBe(4_000_000)
+    expect(saves({ ...save, base64: 'A'.repeat(MAX_SAVE_BASE64) })).toBe(true)
+    expect(saves({ ...save, base64: 'A'.repeat(4_000_001) })).toBe(false)
+    // too long even when it is well-formed base64
+    expect(saves({ ...save, base64: 'A'.repeat(4_000_004) })).toBe(false)
+    expect(saves({ ...save, base64: '' })).toBe(true)
+    for (const base64 of ['abc', 'ab=c', 'A===', '****', 'iVBORw0KGgo=\n', 'iVBO Rw0K'])
+      expect(saves({ ...save, base64 })).toBe(false)
+  })
+
+  test('toolReady and violation events parse; an unknown page id does not', () => {
+    for (const page of TOOL_PAGE_IDS)
+      expect(ok(ready({ page, csp: true, webgl: false }))).toBe(true)
+    // tools of the web frontend that are not pages of the app, and malformed info
+    for (const page of ['volsurface', 'optionchain', 'OITRACKER', '', 1])
+      expect(ok(ready({ page, csp: true, webgl: true }))).toBe(false)
+    expect(ok(ready({ page: 'gex', csp: true }))).toBe(false)
+    expect(ok(ready({ page: 'gex', csp: 'yes', webgl: true }))).toBe(false)
+    expect(ok(ready({ page: 'gex', csp: true, webgl: true, extra: 1 }))).toBe(false)
+
+    expect(ok(event({ name: 'violation', directive: 'img-src' }))).toBe(true)
+    expect(ok(event({ name: 'violation', directive: 'x'.repeat(64) }))).toBe(true)
+    expect(ok(event({ name: 'violation', directive: 'x'.repeat(65) }))).toBe(false)
+    expect(ok(event({ name: 'violation' }))).toBe(false)
+    expect(ok(event({ name: 'violation', directive: 1 }))).toBe(false)
+    expect(ok(event({ name: 'violation', directive: 'img-src', url: 'https://x' }))).toBe(false)
   })
 })

@@ -441,6 +441,19 @@ describe('intents', () => {
     expect(requests('placeorder')).toHaveLength(0)
   })
 
+  test("a tool page's save intent is not the chart's: it opens, asks and sends nothing", async () => {
+    await setup()
+    await show(RELIANCE, chartMeta(RELIANCE_META))
+    const calls = fetchFake.calls.length
+    const save = { type: 'save', name: 'x.png', mime: 'image/png', base64: '' } as const
+    await act(async () => chart?.onIntent({ v: 1, kind: 'intent', intent: save }))
+    await pass(10)
+    expect(mockRouter.push).not.toHaveBeenCalled()
+    expect(asked).toHaveLength(0)
+    expect(screen.queryByTestId('toast')).toBeNull()
+    expect(fetchFake.calls).toHaveLength(calls)
+  })
+
   test('an intent for another instrument is refused with a toast and opens nothing (RF 1)', async () => {
     await setup({ 'POST /api/v1/orderbook': book([order({ symbol: 'INFY' })]) })
     await show(RELIANCE, chartMeta(RELIANCE_META))

@@ -57,10 +57,17 @@ export type DomStorageMsg = { v: typeof BRIDGE_VERSION; kind: 'storage' } & (
   | { op: 'set'; key: string; value: string }
   | { op: 'remove'; key: string }
 )
-export type DomIntentMsg = { v: typeof BRIDGE_VERSION; kind: 'intent'; intent: ChartIntent }
+export type DomIntentMsg = {
+  v: typeof BRIDGE_VERSION
+  kind: 'intent'
+  intent: ChartIntent | ToolIntent
+}
 export type DomEvent = { v: typeof BRIDGE_VERSION; kind: 'event' } & (
   | { name: 'loaded' }
   | { name: 'ready'; info: ChartReady }
+  | { name: 'toolReady'; info: ToolReady }
+  /** A CSP violation the tool page saw: its effective directive, never the blocked URL. */
+  | { name: 'violation'; directive: string }
   /**
    * `load`: the chart's first load failed, and the page cannot show it. Without it, the error is
    * the page's own (a window error or an unhandled rejection), which the page goes on after.
@@ -127,6 +134,49 @@ export const CHART_TOPICS = {
 
 /** The rare prop; everything else reaches the page as pushes. */
 export type ChartDomProps = { scheme: 'dark' | 'light' }
+
+/** The web tool pages the app hosts (design 7.8), by the web frontend's tool ids. */
+export const TOOL_PAGE_IDS = [
+  'oitracker',
+  'oirange',
+  'maxpain',
+  'ivsmile',
+  'gex',
+  'gammadensity',
+  'portfolio-backtester',
+  'sip-backtester',
+  'portfolio-analyzer',
+  'sector-rotation',
+] as const
+export type ToolPageId = (typeof TOOL_PAGE_IDS)[number]
+/** The web's broker store (`/api/broker/capabilities`); market/brokers' BrokerCaps is this shape. */
+export type BrokerCapsJson = {
+  broker_name: string
+  broker_type: 'IN_stock' | 'crypto'
+  supported_exchanges: string[]
+  leverage_config: boolean
+}
+export type ToolSeed = { broker: string | null; capabilities: BrokerCapsJson }
+export type ToolInit = { page: ToolPageId; seed: ToolSeed }
+export const TOOL_TOPICS = { init: 'tool.init' } as const
+export type ToolDomProps = { scheme: 'dark' | 'light'; page: ToolPageId }
+
+/** What a tool page may save to the phone: a Sector Rotation PNG, a CSV, the tearsheet's HTML. */
+export const SAVE_MIMES = ['image/png', 'text/csv', 'text/html'] as const
+/** The longest file a save carries, as base64: 3,000,000 bytes. */
+export const MAX_SAVE_BASE64 = 4_000_000
+/** A page's file download, handed to native (the WebView cannot save one). `name` is
+ *  ^[A-Za-z0-9._ -]{1,128}$. */
+export type ToolIntent = {
+  type: 'save'
+  name: string
+  mime: (typeof SAVE_MIMES)[number]
+  base64: string
+}
+/** The body native answers a download with once it has saved the file itself: the page's own
+ *  save of it (a blob link) is then dropped. Here, not in dom/web, so the gateway can import it. */
+export const OPENED_IN_APP = '<!-- oa:opened-in-app -->'
+export type ToolReady = { page: ToolPageId; csp: boolean; webgl: boolean }
 
 // Declared here (type-only imports) so DOM entries can type their props.
 export interface DomHandle extends DOMImperativeFactory {

@@ -261,7 +261,8 @@ function setup(o: { seed?: Partial<TradeSeed>; inst?: Inst } = {}) {
     push,
     dispose,
     $,
-    intents: () => sent.flatMap((m) => (m.kind === 'intent' ? [m.intent] : [])),
+    // every intent the chart page sent: it sends chart intents only
+    intents: () => sent.flatMap((m) => (m.kind === 'intent' ? [m.intent as ChartIntent] : [])),
     panel: () => $('chart-buy')?.parentElement ?? null,
     shown: () => $('chart-buy')?.parentElement?.style.display !== 'none',
     tap: (id: string) => $(id)?.click(),

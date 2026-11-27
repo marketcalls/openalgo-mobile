@@ -236,7 +236,10 @@ export function useChartIntents(o: {
   // One function for the page's whole life, acting with what this render knows.
   const latest = useRef(handle)
   latest.current = handle
-  const onIntent = useCallback((m: DomIntentMsg) => latest.current(m.intent), [])
+  // A save is a tool page's intent; the chart page sends none, and one that came is ignored.
+  const onIntent = useCallback((m: DomIntentMsg) => {
+    if (m.intent.type !== 'save') latest.current(m.intent)
+  }, [])
 
   const pick = (a: PriceAction) => {
     setMenu(null)
