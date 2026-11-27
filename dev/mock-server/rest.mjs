@@ -30,6 +30,7 @@ import {
   TEARSHEET_HTML,
   toolReply,
 } from './tools.mjs'
+import { legHistory, servesLegHistory } from './toolsF.mjs'
 
 const HTML_SHELL =
   '<!doctype html><html><head><title>OpenAlgo</title></head><body><div id="root"></div></body></html>'
@@ -435,6 +436,8 @@ const HANDLERS = {
     if (!Object.values(MOCK_INTERVALS).flat().includes(b.interval)) {
       return [500, { status: 'error', message: `Unsupported timeframe: ${b.interval}` }]
     }
+    // Options and futures: candles with day-hash open interest, whole lots (toolsF.mjs).
+    if (servesLegHistory(b)) return ok(legHistory(b, { nowMs: Date.now() }))
     return ok(
       historySeries({
         symbol: b.symbol,
@@ -566,6 +569,8 @@ function readBody(req) {
   })
 }
 
+const BASKET_STALL_MS = 2000
+
 // Unref'd, so a delayed answer never keeps a closed mock's process alive.
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms).unref())
 
@@ -667,6 +672,11 @@ export function createRest({ state, prices, apiKey, orders, gtt }) {
       let r = failure && !failure.afterApply ? null : route(req, pathname, text)
       if (failure) r = failureReply(failure)
       if (delay?.afterApply) await sleep(delay.ms)
+      // basketStall: the legs are booked, then the proxy gives up: a 502 after 2 s.
+      if (state.current.basketStall && pathKey(pathname) === 'basketorder' && r.status === 200) {
+        await sleep(BASKET_STALL_MS)
+        r = jsonReply(502, { status: 'error', message: 'Bad gateway' })
+      }
       if (!res.destroyed) send(res, r)
     },
 

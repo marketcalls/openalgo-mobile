@@ -29,6 +29,8 @@ const initial = (profile, broker) => ({
   marginUnsupported: false,
   timingsSkewMs: 0,
   thinToolReplies: false,
+  basketFail: null,
+  basketStall: false,
 })
 
 const oneOf = (values) => (v) => values.includes(v) || `must be one of ${JSON.stringify(values)}`
@@ -75,6 +77,10 @@ const STORED = {
   timingsSkewMs: (v) => Number.isInteger(v) || 'must be an integer',
   // The tool POSTs answer their thin replies (tools.mjs) instead of the full report fixtures.
   thinToolReplies: isBool,
+  // basketorder: the leg on this symbol answers "Insufficient funds"; with basketStall the legs
+  // are booked and the answer is a 502 after 2 s (the request outlives the proxy).
+  basketFail: (v) => v === null || typeof v === 'string' || 'must be null or a symbol',
+  basketStall: isBool,
 }
 // One-shot actions: the feed, the order engine or the GTT engine carries them out, and they are
 // not stored.

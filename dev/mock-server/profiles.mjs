@@ -145,6 +145,7 @@ const BASE_ENDPOINTS = [
   'depth',
   'history',
   'optionchain',
+  'basketorder',
   'expiry',
   'intervals',
   'market/timings',

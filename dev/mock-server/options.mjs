@@ -100,10 +100,10 @@ export function premium({ F, K, years, type }) {
   return Math.max(0.05, Number((Math.round(value * 20) / 20).toFixed(2)))
 }
 
-const forward = (spot, years) => spot * (1 + FORWARD_RATE * Math.max(0, years))
-const yearsTo = (expiryTs, nowMs) => (expiryTs - nowMs) / YEAR_MS
+export const forward = (spot, years) => spot * (1 + FORWARD_RATE * Math.max(0, years))
+export const yearsTo = (expiryTs, nowMs) => (expiryTs - nowMs) / YEAR_MS
 const r2 = (x) => Math.round(x * 100) / 100
-const OPTION_SYMBOL = /^([A-Z]+)(\d{2}[A-Z]{3}\d{2})(\d+)(CE|PE)$/
+export const OPTION_SYMBOL = /^([A-Z]+)(\d{2}[A-Z]{3}\d{2})(\d+)(CE|PE)$/
 
 /**
  * What the master and the price book know of a universe option symbol: whole-lot open interest

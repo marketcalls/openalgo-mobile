@@ -2,6 +2,7 @@
 // the order and book schemas, and an order engine behind the four books. One book serves both
 // modes; analyzer mode adds mode:"analyze" to the replies, as the sandbox does.
 import { findInstrument } from './instruments.mjs'
+import { basketReply } from './toolsF.mjs'
 
 // --- Validation, as marshmallow loads restx_api/schemas.py ------------------------------
 // loadFields, req, opt and the validators are shared with gtt.mjs.
@@ -187,6 +188,23 @@ const FIELDS = {
       trigger_price: req('float', TRIGGER),
     }
   },
+  // restx_api/schemas.py:134-176: the legs are validated like an order's, and at least one.
+  basketorder: (v) => ({
+    apikey: req('str'),
+    strategy: req('str'),
+    orders: {
+      type: 'list',
+      required: true,
+      of: {
+        exchange: req('str', oneOf(v.exchanges)),
+        symbol: req('str'),
+        action: req('str', oneOf(ACTIONS)),
+        quantity: req('float', above(0, 'Quantity must be a positive number.')),
+        ...terms,
+      },
+      validate: lengthBetween(1, Number.POSITIVE_INFINITY, 'Orders must contain at least 1 item.'),
+    },
+  }),
   cancelorder: () => ({ ...KEY_AND_STRATEGY, orderid: req('str') }),
   cancelallorder: () => KEY_AND_STRATEGY,
   closeposition: () => KEY_AND_STRATEGY,
@@ -210,6 +228,15 @@ const FIELDS = {
     },
   }),
 }
+// The post_load of each basket leg: a fractional quantity is refused by index.
+function wholeLegs(data) {
+  const errors = new Map()
+  data.orders.forEach((leg, i) => {
+    const r = wholeQuantity(leg)
+    if (r.errors) errors.set(i, r.errors)
+  })
+  return errors.size ? { errors: { orders: errors } } : { data }
+}
 const BOOKS = ['orderbook', 'tradebook', 'positionbook', 'holdings']
 const WHOLE_QUANTITY = ['placeorder', 'placesmartorder', 'splitorder', 'modifyorder']
 
@@ -221,9 +248,10 @@ export const TRADING_SCHEMAS = Object.fromEntries(
   Object.entries(FIELDS).map(([id, fields]) => [
     id,
     {
-      style: BOOKS.includes(id) ? 'dict' : 'repr',
+      style: BOOKS.includes(id) ? 'dict' : id === 'basketorder' ? 'analyzerRepr' : 'repr',
       load(body, version) {
         const r = loadFields(fields(version), body)
+        if (id === 'basketorder') return r.errors ? r : wholeLegs(r.data)
         const whole = version.fractionalQty && WHOLE_QUANTITY.includes(id)
         return r.errors || !whole ? r : wholeQuantity(r.data)
       },
@@ -543,6 +571,18 @@ export function createOrderEngine({ state, prices, now = Date.now }) {
       if (queues()) return queued()
       return unlisted(d) ?? success({ orderid: submit(d) })
     },
+    // services/basket_order_service.py: each leg is placed as a placeorder would be.
+    basketorder: (d) =>
+      basketReply(d, {
+        analyze: analyzer(),
+        semiAuto: queues(),
+        failSymbol: state.current.basketFail,
+        pendingId: queues() ? ++pendingSeq : undefined,
+        place: (leg) =>
+          unlisted(leg)
+            ? { error: `Symbol ${leg.symbol} not found on ${leg.exchange}` }
+            : { orderid: submit(leg) },
+      }),
     // The order that reaches position_size; a fresh trade when both are flat
     // (broker/zerodha/api/order_api.py:364-383, sandbox_service.py:500-532).
     placesmartorder(d) {

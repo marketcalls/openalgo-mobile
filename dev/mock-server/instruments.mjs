@@ -3,8 +3,10 @@
 // NIFTY25NOV25FUT is on a real server (services/symbol_service.py:42-44).
 //
 // The list is the handwritten contracts below plus the option universe of options.mjs, which
-// follows the clock: a Tuesday expiry leaves the master after 15:30 IST.
+// follows the clock: a Tuesday expiry leaves the master after 15:30 IST; toolsF.mjs adds the
+// futures of the stock and commodity underlyings (NIFTY and BANKNIFTY futures are in the universe).
 import { futureExpiries, optionExpiries, universeRows } from './options.mjs'
+import { futuresRows } from './toolsF.mjs'
 
 const equity = (symbol, name, token) => ({
   symbol,
@@ -92,7 +94,10 @@ function master(nowMs) {
   const signature = [...optionExpiries(nowMs), ...futureExpiries(nowMs)].join()
   let m = masters.get(signature)
   if (!m) {
-    const list = [...FIXED, ...universeRows(nowMs)].map((i, n) => ({ id: n + 1, ...i }))
+    const list = [...FIXED, ...universeRows(nowMs), ...futuresRows(nowMs)].map((i, n) => ({
+      id: n + 1,
+      ...i,
+    }))
     m = { list, byKey: new Map(list.map((i) => [`${i.exchange}:${i.symbol}`, i])) }
     masters.set(signature, m)
   }
