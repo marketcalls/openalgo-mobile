@@ -12,8 +12,10 @@ import { gexData } from './gex'
 import { ivSmile } from './ivSmile'
 import { maxPain, oiData } from './oiTracker'
 import { expiries, underlyings } from './pickers'
-import { parseToolQuery, type ToolQuery } from './query'
+import { parseBody, parseToolQuery, type ToolQuery } from './query'
 import { chartinkSearch, siteSearch } from './search'
+import { StrikeProfileQuery, strikeProfile } from './strikeProfile'
+import { VolSurfaceQuery, volSurface } from './volSurface'
 
 export { type RouteDeps, RouteError, type RouteOptions } from './deps'
 export { gammaDensity } from './gammaDensity'
@@ -23,6 +25,14 @@ export { maxPain, oiData } from './oiTracker'
 export { expiries, underlyings } from './pickers'
 export { parseToolQuery, type ToolQuery, ToolQuerySchema } from './query'
 export { type ChartinkHit, chartinkSearch, type SiteSearchHit, siteSearch } from './search'
+export {
+  type FlipLeg,
+  findGammaFlip,
+  StrikeProfileQuery,
+  type StrikeProfileQueryOut,
+  strikeProfile,
+} from './strikeProfile'
+export { VolSurfaceQuery, type VolSurfaceQueryOut, volSurface } from './volSurface'
 
 type Answer = (r: DomRequest, d: RouteDeps, o: RouteOptions) => Promise<unknown>
 
@@ -61,6 +71,16 @@ const TABLE: readonly { method: 'GET' | 'POST'; path: string; answer: Answer }[]
   { method: 'POST', path: '/ivsmile/api/iv-smile-data', answer: tool(ivSmile) },
   { method: 'POST', path: '/gex/api/gex-data', answer: tool(gexData) },
   { method: 'POST', path: '/gammadensity/api/gamma-data', answer: tool(gammaDensity) },
+  {
+    method: 'POST',
+    path: '/strikeprofile/api/profile-data',
+    answer: (r, d, o) => strikeProfile(parseBody(StrikeProfileQuery, r.body), d, o),
+  },
+  {
+    method: 'POST',
+    path: '/volsurface/api/surface-data',
+    answer: (r, d, o) => volSurface(parseBody(VolSurfaceQuery, r.body), d, o),
+  },
 ]
 
 /** Every route answered on the phone, for the gateway's allowlists. */
