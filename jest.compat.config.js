@@ -9,7 +9,9 @@ const expoPreset = require.resolve('babel-preset-expo', {
 module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/test/compat'],
-  transform: { '\\.[jt]sx?$': ['babel-jest', { presets: [expoPreset] }] },
+  // openalgo-charts ships ESM (.mjs) only; the chart's compat test imports its live feed.
+  transform: { '\\.[mc]?[jt]sx?$': ['babel-jest', { presets: [expoPreset] }] },
+  transformIgnorePatterns: ['/node_modules/(?!(openalgo-charts)/)'],
   moduleNameMapper: {
     ...main.moduleNameMapper,
     '^@react-native-async-storage/async-storage$':

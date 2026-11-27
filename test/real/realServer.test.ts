@@ -13,15 +13,25 @@ import { createCapabilityStore } from '~/core/capabilities/store'
 import { profileStorage } from '~/core/config/storage'
 import { atLeast } from '~/core/config/version'
 import { checkKey } from '~/core/credentials/status'
+import type { Api } from '~/core/http/api'
 import { createHttpClient, type HttpClient } from '~/core/http/client'
 import { AnalyzerSchema, DepthSchema, FundsSchema, MultiQuotesSchema } from '~/core/http/schemas'
-import { isExchangeOpen } from '~/core/realtime/marketHours'
+import { isExchangeOpen, istDate } from '~/core/realtime/marketHours'
 import { type Inbound, parseInbound } from '~/core/realtime/protocol'
 import { createTickStore } from '~/core/realtime/tickStore'
 import { createRealtime, type WebSocketCtor } from '~/core/realtime/wsClient'
+import type { DomToNative } from '~/dom/bridge/protocol'
+import { createChartFeeds } from '~/dom/chart/feeds'
+import { createChartRoutes } from '~/dom/gateway/chartRoutes'
+import { createRequestRouter } from '~/dom/gateway/requests'
+import { createWsEmulation } from '~/dom/gateway/wsEmulation'
+import { createDomClient } from '~/dom/web/client'
 import { capabilityReport } from '~/features/account/diagnostics'
 import { feedStep, keyStep, serverStep } from '~/features/onboarding/flow'
 import type { OrderRow } from '~/market/books/schemas'
+import { loadCalendars } from '~/market/chart/calendar'
+import { chartIntervals } from '~/market/chart/intervals'
+import { HistorySchema, IntervalsSchema } from '~/market/chart/schemas'
 import { createGttApi } from '~/market/gtt/api'
 import type { GttRow, GttSpec } from '~/market/gtt/schemas'
 import { GTT_GATES } from '~/market/gtt/support'
@@ -477,6 +487,91 @@ function suite({ url, key, wsUrl }: TestEnv) {
               await api.smartClose(open).catch(() => {})
             } else console.warn('the server is in LIVE mode: a sandbox RELIANCE position is left')
           }
+        }
+      })
+    })
+
+    describe('chart', () => {
+      const api = (): Pick<Api, 'call'> => ({
+        call: (id, body, schema, o) => http.request(id, body, schema, o),
+      })
+      const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+
+      test('chart: 5m history for NSE RELIANCE over 5 days, ascending', async () => {
+        safe()
+        const now = Date.now()
+        // 5 trading days can span 9 calendar days, over a weekend and a holiday
+        const { rows, dropped } = await http.request(
+          'history',
+          {
+            symbol: 'RELIANCE',
+            exchange: 'NSE',
+            interval: '5m',
+            start_date: day(now - 9 * 86_400_000),
+            end_date: day(now),
+          },
+          HistorySchema,
+        )
+        expect(dropped).toBe(0)
+        expect(rows.length).toBeGreaterThan(0)
+        const times = rows.map((r) => r.timestamp)
+        expect(times).toEqual([...times].sort((a, b) => a - b))
+        expect(new Set(times).size).toBe(times.length)
+      })
+
+      test("chart: intervals include 5m and D; the calendar's NSE window is 09:15–15:30 IST after the TZ check", async () => {
+        safe()
+        const raw = await http.request('intervals', {}, IntervalsSchema)
+        const offered = chartIntervals(raw, false)
+        expect(offered).toEqual(expect.arrayContaining(['5m', 'D']))
+
+        const cal = await loadCalendars(api(), Date.now())
+        console.info(`chart calendar source: ${cal.source} (${istDate(Date.now())})`)
+        // on 'defaults' the reads failed: the window then is the app's, so say so
+        expect(cal.source).toBe('server')
+        expect(cal.calendars.NSE?.sessions[0]).toMatch(/^0915-1530/)
+      })
+
+      test('chart: an emulated Depth subscription ticks within 10 s', async () => {
+        safe()
+        if (!wsUrl) return console.info('chart depth tick skipped: no OPENALGO_TEST_WS_URL')
+        if (!isExchangeOpen('NSE', Date.now())) {
+          return console.info('chart depth tick skipped: NSE is outside 09:15-15:30 IST')
+        }
+        const { realtime, store } = await makeRealtime()
+        const emulation = createWsEmulation({
+          realtime,
+          store,
+          // 'fail' mode never polls
+          polling: { register: () => () => {} },
+          orderEvents: { subscribe: () => () => {} },
+          feedMode: () => 'live',
+          whenPolling: 'fail',
+          active: () => true,
+          post: (m) => queueMicrotask(() => client.deliver([m])),
+        })
+        const router = createRequestRouter(createChartRoutes(api()))
+        const client = createDomClient(async (m) => {
+          const msg = m as DomToNative
+          if (msg.kind === 'request')
+            return (await router(msg, new AbortController().signal)) as never
+          if (msg.kind === 'socket') emulation.handle(msg)
+          return { status: 202, body: null } as never
+        })
+        const feeds = createChartFeeds(client)
+        const depths: unknown[] = []
+        try {
+          realtime.start()
+          feeds.live.subscribeDepth({ symbol: 'RELIANCE', exchange: 'NSE', interval: '5m' }, (d) =>
+            depths.push(d),
+          )
+          await until(() => depths.length > 0, TICK_WITHIN_MS, 'a Depth tick')
+          expect(depths.length).toBeGreaterThan(0)
+        } finally {
+          feeds.live.close()
+          emulation.closeAll()
+          realtime.stop()
+          store.reset()
         }
       })
     })
