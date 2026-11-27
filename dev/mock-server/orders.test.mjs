@@ -220,13 +220,21 @@ test('the WS ack refuses an unlisted symbol, and no ticks come for it', async (t
 test('search is a prefix match on symbol or name, with the instrument fields', async (t) => {
   const m = await mock(t)
   const nifty = (await post(m, 'search', { query: 'nifty' })).json.data
-  assert.deepEqual(nifty.map((r) => `${r.exchange}:${r.symbol}`).sort(), [
-    'NFO:NIFTY30DEC2624000CE',
-    'NFO:NIFTY30DEC26FUT',
-    'NSE_INDEX:BANKNIFTY', // its name is NIFTY BANK
-    'NSE_INDEX:NIFTY',
-  ])
-  const nfo = (await post(m, 'search', { query: 'NIFTY', exchange: 'NFO' })).json.data
+  // The fixed contracts come first, then the option universe (options.test.mjs); 500 at most.
+  assert.equal(nifty.length, 500)
+  assert.deepEqual(
+    nifty
+      .slice(0, 4)
+      .map((r) => `${r.exchange}:${r.symbol}`)
+      .sort(),
+    [
+      'NFO:NIFTY30DEC2624000CE',
+      'NFO:NIFTY30DEC26FUT',
+      'NSE_INDEX:BANKNIFTY', // its name is NIFTY BANK
+      'NSE_INDEX:NIFTY',
+    ],
+  )
+  const nfo = (await post(m, 'search', { query: 'NIFTY30DEC', exchange: 'NFO' })).json.data
   assert.equal(nfo.length, 2)
   assert.deepEqual([nfo[0].lotsize, nfo[0].freeze_qty], [65, 1800])
   const byName = (await post(m, 'search', { query: 'Mahindra' })).json.data

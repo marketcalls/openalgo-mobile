@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { optionExpiries } from './options.mjs'
 import { PROFILES } from './profiles.mjs'
 import { startMockServer } from './server.mjs'
 import { runMain } from './test-helpers.mjs'
@@ -43,13 +44,25 @@ const BODIES = {
     start_date: '2026-11-02',
     end_date: '2026-11-20',
   },
-  optionchain: { underlying: 'NIFTY', exchange: 'NSE_INDEX', expiry_date: '30DEC26' },
+  // The first listed expiry as the chain takes it (DDMMMYY).
+  optionchain: {
+    underlying: 'NIFTY',
+    exchange: 'NSE_INDEX',
+    expiry_date: optionExpiries(Date.now())[0].replaceAll('-', ''),
+  },
+  expiry: { symbol: 'NIFTY', exchange: 'NFO', instrumenttype: 'options' },
   multioptiongreeks: { symbols: [{ symbol: 'NIFTY30DEC2624000CE', exchange: 'NFO' }] },
   'portfolio/backtest': {
     holdings: [{ symbol: 'RELIANCE', weight: 1 }],
     start_date: '2025-01-01',
     end_date: '2025-12-31',
   },
+  'portfolio/tearsheet': {
+    holdings: [{ symbol: 'RELIANCE', weight: 1 }],
+    start_date: '2025-01-01',
+    end_date: '2025-12-31',
+  },
+  'portfolio/holdings': {},
   'sip/backtest': {
     symbol: 'NIFTY',
     start_date: '2025-01-01',
@@ -92,6 +105,8 @@ const BODIES = {
 const ENDPOINTS = Object.keys(BODIES)
 // These two need an order that exists; the success test places it first.
 const NEEDS_ORDER = ['modifyorder', 'cancelorder']
+// Answers a file, not JSON; options.test.mjs covers it.
+const HTML_REPLY = ['portfolio/tearsheet']
 
 async function mock(t, o = {}) {
   const m = await startMockServer({ wsPort: 'off', ...o })
@@ -303,7 +318,8 @@ test('every endpoint answers a valid request with success', async (t) => {
       : withKey(endpoint)
     const r = await post(m, endpoint, body)
     assert.equal(r.status, 200, endpoint)
-    assert.equal(r.json.status, 'success', endpoint)
+    if (HTML_REPLY.includes(endpoint)) assert.match(r.type, /^text\/html/, endpoint)
+    else assert.equal(r.json.status, 'success', endpoint)
   }
 })
 

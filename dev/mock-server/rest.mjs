@@ -12,11 +12,24 @@ import {
   timingsFor,
 } from './chart.mjs'
 import { GTT_SCHEMAS } from './gtt.mjs'
-import { findInstrument, searchInstruments } from './instruments.mjs'
+import {
+  findInstrument,
+  instrumentRows,
+  instrumentsCsv,
+  searchInstruments,
+} from './instruments.mjs'
+import { chainBody, futureExpiries, OPTION_UNDERLYINGS, optionExpiries } from './options.mjs'
 import { TRADING_SCHEMAS } from './orders.mjs'
 import { depthLevels, quote } from './prices.mjs'
-import { endpointsOf, swaggerKey } from './profiles.mjs'
+import { endpointsOf, GET_ROUTES, swaggerKey } from './profiles.mjs'
 import { pathKey } from './state.mjs'
+import {
+  BENCHMARKS,
+  ROTATION_OPTIONS,
+  SIP_FREQUENCIES,
+  TEARSHEET_HTML,
+  toolReply,
+} from './tools.mjs'
 
 const HTML_SHELL =
   '<!doctype html><html><head><title>OpenAlgo</title></head><body><div id="root"></div></body></html>'
@@ -73,7 +86,7 @@ function failureReply(f) {
 }
 
 function send(res, r) {
-  res.writeHead(r.status, { 'Content-Type': r.contentType })
+  res.writeHead(r.status, { 'Content-Type': r.contentType, ...r.headers })
   res.end(r.body)
 }
 
@@ -184,6 +197,16 @@ const dateFields =
     Object.fromEntries(
       fs.filter((f) => f in b && !isDate(b[f])).map((f) => [f, ['Not a valid date.']]),
     )
+// restx_api/data_schemas.py:119-130: F_AND_O_EXCHANGES and the two instrument types.
+const F_AND_O_EXCHANGES = ['NFO', 'BFO', 'MCX', 'CDS', 'NCO', 'BCD', 'NCDEX', 'CRYPTO']
+const expiryChecks = (b) => ({
+  ...(b.exchange != null && !F_AND_O_EXCHANGES.includes(b.exchange)
+    ? { exchange: [`Must be one of: ${F_AND_O_EXCHANGES.join(', ')}.`] }
+    : null),
+  ...(b.instrumenttype != null && !['futures', 'options'].includes(b.instrumenttype)
+    ? { instrumenttype: ['Must be one of: futures, options.'] }
+    : null),
+})
 // restx_api/data_schemas.py: history's interval is a OneOf, then the broker's map refuses what it lacks.
 const historyChecks = (b, v) => ({
   ...exchangeField(b, v),
@@ -217,6 +240,11 @@ const SCHEMAS = {
     check: historyChecks,
   },
   intervals: { style: 'dict', required: ['apikey'] },
+  expiry: {
+    style: 'dict',
+    required: ['apikey', 'symbol', 'exchange', 'instrumenttype'],
+    check: expiryChecks,
+  },
   'market/timings': { style: 'dict', required: ['apikey', 'date'], check: dateFields('date') },
   'market/holidays': {
     style: 'dict',
@@ -240,6 +268,16 @@ const SCHEMAS = {
     style: 'dict',
     required: ['apikey', 'holdings', 'start_date', 'end_date'],
     optional: PORTFOLIO_OPTIONAL,
+  },
+  'portfolio/tearsheet': {
+    style: 'dict',
+    required: ['apikey', 'holdings', 'start_date', 'end_date'],
+    optional: PORTFOLIO_OPTIONAL,
+  },
+  'portfolio/holdings': {
+    style: 'dict',
+    required: ['apikey'],
+    optional: ['lookback_days', 'benchmark', 'benchmark_exchange', 'risk_free_rate', 'source'],
   },
   'sip/backtest': {
     style: 'dict',
@@ -292,7 +330,6 @@ const FUNDS = {
   m2munrealized: '-7.88',
   utiliseddebits: '679.34',
 }
-const MONTHS = 'JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC'
 
 const ok = (data) => [200, { status: 'success', data }]
 const analyzerData = (on) => ({ mode: on ? 'analyze' : 'live', analyze_mode: on, total_logs: 0 })
@@ -415,56 +452,26 @@ const HANDLERS = {
   },
   'market/timings': (b, { state }) => ok(timingsFor(b.date, state.current.timingsSkewMs)),
   'market/holidays': (b) => ok(holidaysOf(b.year ?? Number(istDateOf(Date.now()).slice(0, 4)))),
-  optionchain(b, { prices, version }) {
-    const und = prices.get(b.underlying, b.exchange)
-    const fo = String(b.exchange).startsWith('BSE') ? 'BFO' : 'NFO'
-    const atm = Math.round(und.ltp / 50) * 50
-    const count = Number.isInteger(b.strike_count) ? b.strike_count : 2
-    const leg = (strike, type) => {
-      const symbol = `${b.underlying}${b.expiry_date}${strike}${type}`
-      const st = prices.get(symbol, fo)
-      const away = ((type === 'CE' ? 1 : -1) * (strike - atm)) / 50
-      const label = away === 0 ? 'ATM' : `${away < 0 ? 'ITM' : 'OTM'}${Math.abs(away)}`
-      return {
-        symbol,
-        label,
-        ltp: st.ltp,
-        prev_close: st.close,
-        volume: st.volume,
-        oi: st.oi,
-        lotsize: 75,
-      }
+  optionchain: (b, { prices, version }) => chainBody(b, { prices, version, nowMs: Date.now() }),
+  // services/expiry_service.py: the master's expiries of the underlying, dropped once gone.
+  expiry(b) {
+    const symbol = b.symbol.trim().toUpperCase()
+    const exchange = b.exchange.trim().toUpperCase()
+    if (OPTION_UNDERLYINGS[symbol]?.fo !== exchange) {
+      return [
+        404,
+        { status: 'error', message: `No expiry dates found for ${symbol} in ${exchange}` },
+      ]
     }
-    const chain = []
-    for (let i = -count; i <= count; i++) {
-      const strike = atm + i * 50
-      chain.push({ strike, ce: leg(strike, 'CE'), pe: leg(strike, 'PE') })
-    }
-    const body = {
-      status: 'success',
-      underlying: b.underlying,
-      underlying_ltp: und.ltp,
-      underlying_prev_close: und.close,
-      expiry_date: b.expiry_date,
-      atm_strike: atm,
-      chain,
-    }
-    if (version.withGreeks) {
-      // S10: 2.0.2.0 adds these. The mock computes no Greeks, so greeks_included stays false.
-      const m = /^(\d{2})([A-Z]{3})(\d{2})$/.exec(b.expiry_date)
-      const month = m ? MONTHS.indexOf(m[2]) / 3 : -1
-      Object.assign(body, {
-        underlying_symbol: b.underlying,
-        underlying_exchange: b.exchange,
-        expiry_ts:
-          month >= 0 ? Date.UTC(2000 + Number(m[3]), month, Number(m[1]), 10) / 1000 : null,
-        server_ts: Math.floor(Date.now() / 1000),
-        quotes_included: true,
-        greeks_included: false,
-        forward_price: null,
-      })
-    }
-    return [200, body]
+    const data = (b.instrumenttype === 'futures' ? futureExpiries : optionExpiries)(Date.now())
+    return [
+      200,
+      {
+        status: 'success',
+        message: `Found ${data.length} expiry dates for ${symbol} ${b.instrumenttype} in ${exchange}`,
+        data,
+      },
+    ]
   },
   multioptiongreeks(b) {
     const data = b.symbols.map((s) => ({
@@ -478,9 +485,69 @@ const HANDLERS = {
       { status: 'success', data, summary: { total: data.length, success: 0, failed: data.length } },
     ]
   },
-  'portfolio/backtest': () => ok({}),
-  'sip/backtest': () => ok({}),
-  sectorrotation: () => ok({}),
+  'portfolio/backtest': (b) => [200, toolReply('portfolio/backtest', b)],
+  // restx_api/portfolio.py:259-288: a self-contained report, served as an attachment.
+  'portfolio/tearsheet': () => ({
+    status: 200,
+    contentType: HTML,
+    headers: { 'Content-Disposition': 'attachment; filename="portfolio-tearsheet.html"' },
+    body: TEARSHEET_HTML,
+  }),
+  'portfolio/holdings': (b) => [200, toolReply('portfolio/holdings', b)],
+  'sip/backtest': (b) => [200, toolReply('sip/backtest', b)],
+  sectorrotation: (b) => [200, toolReply('sectorrotation', b)],
+}
+
+// --- GET-only routes (design 7.2) -------------------------------------------------
+
+const MISSING_KEY = { apikey: ['Missing data for required field.'] }
+
+/** instruments: the key and the filters come in the query (restx_api/instruments.py). */
+function instrumentsReply(q, apiKey, version) {
+  const csv = q.get('format')?.toLowerCase() === 'csv'
+  const refuse = (status, message) =>
+    csv
+      ? {
+          status,
+          contentType: 'text/plain',
+          body: typeof message === 'string' ? message : pyRepr(message),
+        }
+      : jsonReply(status, { status: 'error', message })
+  const errors = {
+    ...(q.has('apikey') ? null : MISSING_KEY),
+    ...(q.get('exchange') != null && !version.exchanges.includes(q.get('exchange'))
+      ? { exchange: [`Must be one of: ${version.exchanges.join(', ')}.`] }
+      : null),
+    ...(q.has('format') && !['json', 'csv'].includes(q.get('format').toLowerCase())
+      ? { format: ['Must be one of: json, csv.'] }
+      : null),
+  }
+  if (Object.keys(errors).length) return refuse(400, errors)
+  if (q.get('apikey') !== apiKey) return refuse(403, INVALID_KEY.message)
+  const exchange = q.get('exchange') || undefined
+  if (csv) {
+    return {
+      status: 200,
+      contentType: 'text/csv',
+      headers: {
+        'Content-Disposition': `attachment; filename=instruments_${exchange ?? 'all'}.csv`,
+      },
+      body: instrumentsCsv(exchange),
+    }
+  }
+  const data = instrumentRows(exchange).map(({ id: _, ...row }) => row)
+  return jsonReply(200, { status: 'success', message: `Found ${data.length} instruments`, data })
+}
+
+// Each takes the query and the key. benchmarks checks the key; frequencies and options take none.
+const GET_HANDLERS = {
+  instruments: instrumentsReply,
+  'portfolio/benchmarks': (q, apiKey) =>
+    q.get('apikey') === apiKey
+      ? jsonReply(200, { status: 'success', data: BENCHMARKS })
+      : jsonReply(403, INVALID_KEY),
+  'sip/frequencies': () => jsonReply(200, { status: 'success', data: SIP_FREQUENCIES }),
+  'sectorrotation/options': () => jsonReply(200, { status: 'success', data: ROTATION_OPTIONS }),
 }
 
 function isJson(contentType = '') {
@@ -537,8 +604,9 @@ export function createRest({ state, prices, apiKey, orders, gtt }) {
     if (state.current.brokerLoggedOut && id !== 'search') return jsonReply(403, INVALID_KEY)
     try {
       const handler = engine ? engine.handlers[id] : HANDLERS[id]
-      const [status, out] = handler(loaded.data, { state, prices, version })
-      return jsonReply(status, out)
+      const out = handler(loaded.data, { state, prices, version })
+      // A handler answers [status, json], or with a whole reply (the tearsheet's HTML).
+      return Array.isArray(out) ? jsonReply(out[0], out[1]) : out
     } catch (e) {
       console.error('mock-server:', e)
       return UNEXPECTED
@@ -566,6 +634,12 @@ export function createRest({ state, prices, apiKey, orders, gtt }) {
         paths,
       }
       return jsonReply(200, spec)
+    }
+    if (api && GET_ROUTES[id]?.(version)) {
+      if (req.method !== 'GET') {
+        return jsonReply(405, { message: 'The method is not allowed for the requested URL.' })
+      }
+      return GET_HANDLERS[id](new URL(req.url, 'http://mock').searchParams, apiKey, version)
     }
     if (api && endpointsOf(version).includes(id)) {
       if (req.method !== 'POST') {

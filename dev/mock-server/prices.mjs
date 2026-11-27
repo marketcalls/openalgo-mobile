@@ -4,6 +4,7 @@
 // REST quotes move with no socket open (polling mode, WS_PORT=off).
 // The spike keeps its own frozen copy (Task 5: "spike/mock-feed stays as it is"); this is
 // the maintained one.
+import { legFacts } from './options.mjs'
 
 export function hash32(str) {
   let h = 0x811c9dc5 // FNV-1a
@@ -28,7 +29,7 @@ function mulberry32(seed) {
 export const r05 = (x) => Math.max(0.05, Math.round(x * 20) / 20) // NSE tick size 0.05
 const r2 = (x) => Math.round(x * 100) / 100
 
-const UNDERLYING = {
+export const UNDERLYING = {
   NIFTY: 24000,
   BANKNIFTY: 52000,
   FINNIFTY: 23500,
@@ -40,9 +41,12 @@ const OPTION_RE = /^([A-Z&-]+?)(\d{2}[A-Z]{3}\d{2})(\d+(?:\.\d+)?)(CE|PE)$/
 const FUT_RE = /^([A-Z&-]+?)(\d{2}[A-Z]{3}\d{2})FUT$/
 const DERIVATIVES = ['NFO', 'BFO', 'MCX', 'CDS']
 
-function basePrice(symbol, exchange, rng) {
+// Universe options (options.mjs) are priced by Black-76 on the underlying's base price.
+function basePrice(symbol, exchange, rng, at) {
   if (exchange === 'NFO' || exchange === 'BFO') {
     const opt = OPTION_RE.exec(symbol)
+    const facts = opt && UNDERLYING[opt[1]] ? legFacts(symbol, UNDERLYING[opt[1]], at) : undefined
+    if (facts) return facts.premium
     if (opt) {
       const und = UNDERLYING[opt[1]] ?? 100 + rng() * 4900
       const strike = Number(opt[3])
@@ -62,9 +66,12 @@ export const REST_STEP_MS = 1000
 
 function seed(symbol, exchange, at) {
   const rng = mulberry32(hash32(`${exchange}:${symbol}`))
-  const close = r05(basePrice(symbol, exchange, rng))
+  const close = r05(basePrice(symbol, exchange, rng, at))
   const open = r05(close * (1 + (rng() - 0.5) * 0.01))
   const isDeriv = DERIVATIVES.includes(exchange)
+  const facts = legFacts(symbol, UNDERLYING[symbol.replace(/\d.*$/, '')], at)
+  const volume = Math.floor(rng() * 2_000_000)
+  const oi = isDeriv ? 75 * Math.floor(rng() * 100_000) : undefined
   return {
     symbol,
     exchange,
@@ -74,9 +81,9 @@ function seed(symbol, exchange, at) {
     ltp: open,
     high: Math.max(open, close),
     low: Math.min(open, close),
-    volume: Math.floor(rng() * 2_000_000),
+    volume: facts ? facts.volume : volume,
     // Equities have no open interest: the field is absent from their ticks.
-    oi: isDeriv ? 75 * Math.floor(rng() * 100_000) : undefined,
+    oi: facts ? facts.oi : oi,
     isDeriv,
     steppedAt: at,
   }

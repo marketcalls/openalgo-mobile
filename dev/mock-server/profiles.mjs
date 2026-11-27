@@ -7,6 +7,10 @@
 // | 2.0.2.0  |    ✓     | 200 html |  ✓   |      ✓      |  -   |     -      |      ✓      |       ✓       |       -        |
 // | 2.0.3.5  |    ✓     | 404 json |  ✓   |      ✓      |  ✓   |     ✓      |      ✓      |       ✓       |       ✓        |
 //
+// The portfolio+sip column is portfolio/{backtest,tearsheet,holdings} and sip/backtest (POST) and
+// portfolio/benchmarks and sip/frequencies (GET); sectorrotation is POST sectorrotation and GET
+// sectorrotation/options. `expiry` (POST) and `instruments` (GET) exist on every profile.
+//
 // Every profile from 2.0.0.0 also has multioptiongreeks, the WS ping, history.source and the
 // trading endpoints (symbol, the four books, the order writes and margin).
 // modeLabels (2.0.1.1): subscribe acks carry the mode label and unsubscribe normalizes the
@@ -141,6 +145,7 @@ const BASE_ENDPOINTS = [
   'depth',
   'history',
   'optionchain',
+  'expiry',
   'intervals',
   'market/timings',
   'market/holidays',
@@ -169,14 +174,31 @@ export function endpointsOf(p) {
     ...(p.multiOptionGreeks ? ['multioptiongreeks'] : []),
     ...(p.trading ? TRADING_ENDPOINTS : []),
     ...(p.gtt ? GTT_ENDPOINTS : []),
-    ...(p.portfolioSip ? ['portfolio/backtest', 'sip/backtest'] : []),
+    ...(p.portfolioSip
+      ? ['portfolio/backtest', 'portfolio/tearsheet', 'portfolio/holdings', 'sip/backtest']
+      : []),
     ...(p.sectorRotation ? ['sectorrotation'] : []),
   ]
 }
 
 /** The swagger.json `paths` key flask-restx gives an endpoint: route "/" adds a slash. */
 export function swaggerKey(id) {
-  return ['analyzer/toggle', 'multioptiongreeks', 'portfolio/backtest', 'sip/backtest'].includes(id)
+  return [
+    'analyzer/toggle',
+    'multioptiongreeks',
+    'portfolio/backtest',
+    'portfolio/tearsheet',
+    'portfolio/holdings',
+    'sip/backtest',
+  ].includes(id)
     ? `/${id}`
     : `/${id}/`
 }
+
+/** The GET-only routes under /api/v1 (design 7.2) and whether a profile serves each. */
+export const GET_ROUTES = Object.freeze({
+  instruments: () => true,
+  'portfolio/benchmarks': (p) => p.portfolioSip,
+  'sip/frequencies': (p) => p.portfolioSip,
+  'sectorrotation/options': (p) => p.sectorRotation,
+})
