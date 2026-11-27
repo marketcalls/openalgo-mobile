@@ -6,7 +6,7 @@
 //
 // A 'use dom' file exports only its default component (types aside), so the page's lifecycle
 // lives here unexported; the pieces it puts together are in the modules beside it.
-import '~/dom/web/prelude'
+import { PRELUDE } from '~/dom/web/prelude'
 import './eagerChunks'
 import './tiers'
 
@@ -247,6 +247,8 @@ export default function ChartDom({
     const root = rootRef.current
     if (root === null) return
     document.title = DOM_BUNDLE
+    // the prelude ran (a named import that tree shaking keeps; see prelude.ts)
+    document.documentElement.dataset.oaPrelude = PRELUDE
     const send = (e: DomEvent) => void client.call(e).catch(ignore)
     // First, before the widget adds a listener of its own.
     const stopLinks = guardLinks(document, (url) =>

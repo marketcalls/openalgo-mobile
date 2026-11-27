@@ -705,6 +705,33 @@ describe('the tool screen', () => {
     expect(host().n).toBe(3)
   })
 
+  test('a release page that reports no CSP in force is not shown; a dev build shows it', async () => {
+    const g = globalThis as unknown as { __DEV__: boolean }
+    const dev = g.__DEV__
+    await setup()
+    await openTool('maxpain')
+    await load()
+    // (a release build's log prints nothing to the console: logger.ts)
+    g.__DEV__ = false
+    try {
+      await ready('maxpain', { csp: false })
+    } finally {
+      g.__DEV__ = dev
+    }
+    expect(screen.queryByTestId('tool-ready')).toBeNull()
+    expect(screen.getByText(TOOL_TIMEOUT_COPY)).toBeTruthy()
+    // a dev build runs the dev policy; its probe is only logged
+    g.__DEV__ = true
+    try {
+      await press('tool-reload')
+      await load()
+      await ready('maxpain', { csp: false })
+    } finally {
+      g.__DEV__ = dev
+    }
+    expect(label('tool-ready')).toBe('page maxpain')
+  })
+
   test('a refused init fails the first load; an error after ready is only logged', async () => {
     await setup()
     await openTool('maxpain')

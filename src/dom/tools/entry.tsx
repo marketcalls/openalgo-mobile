@@ -20,6 +20,7 @@ import { probeCsp } from '~/dom/web/csp'
 import { installDownloads } from '~/dom/web/downloads'
 import { guardLinks } from '~/dom/web/links'
 import { installNetworkShims } from '~/dom/web/network'
+import type { PRELUDE } from '~/dom/web/prelude'
 import { probeWebGl } from '~/dom/web/webgl'
 import { createLayoutProbe, type LayoutProbe } from './layoutProbe'
 import { TOOL_MARKER } from './marker'
@@ -43,6 +44,8 @@ export type ToolEntryProps = ToolDomProps &
     entry: string
     /** ToolShell, or BareToolShell when none of the entry's pages uses a router or query hook. */
     shell: ComponentType<ToolShellProps>
+    /** The prelude's PRELUDE: the entry imports it by name, so tree shaking keeps the prelude. */
+    prelude: typeof PRELUDE
   }
 
 const isObj = (x: unknown): x is Record<string, unknown> =>
@@ -94,6 +97,7 @@ export function ToolEntry({
   pages,
   entry,
   shell: Shell,
+  prelude,
 }: ToolEntryProps): JSX.Element | null {
   const bridgeRef = useRef(bridge)
   bridgeRef.current = bridge
@@ -126,6 +130,7 @@ export function ToolEntry({
   useEffect(() => {
     document.title = TOOL_MARKER
     document.documentElement.dataset.oaEntry = entry
+    document.documentElement.dataset.oaPrelude = prelude
     // First, before any page code adds a listener of its own (links.ts).
     const stopLinks = guardLinks(document, (url) =>
       send({ v: 1, kind: 'event', name: 'link', url }),
@@ -160,7 +165,7 @@ export function ToolEntry({
       stopDownloads()
       stopLinks()
     }
-  }, [client, entry, send])
+  }, [client, entry, prelude, send])
 
   useEffect(() => {
     if (init === null) return

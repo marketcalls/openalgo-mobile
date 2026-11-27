@@ -51,8 +51,13 @@ EOF
     echo "$REF has no src/dom/bridge/webEntry.web.tsx: it predates the web preview" >&2
     exit 2
   fi
-  echo "== export android (for www.bundle, the DOM pages)"
-  (cd "$OUT/src" && npx expo export --platform android --output-dir "$OUT/android" >"$OUT/android.log" 2>&1)
+  # The DOM pages as they ship: the release tree-shaking flags (package.json export, ci.yml), cold.
+  # Without them the preview shows bytes no APK carries (a tree-shaken export once dropped every
+  # page's prelude, and the preview did not), so the pages also pass the DOM export check here.
+  echo "== export android (for www.bundle, the DOM pages, tree-shaken as they ship)"
+  (cd "$OUT/src" && EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1 \
+    npx expo export --clear --platform android --output-dir "$OUT/android" >"$OUT/android.log" 2>&1)
+  (cd "$OUT/src" && node scripts/check-dom-export.mjs "$OUT/android")
   echo "== export web"
   (cd "$OUT/src" && npx expo export --platform web --output-dir "$OUT/web" >"$OUT/web.log" 2>&1)
   cp -R "$OUT/android/www.bundle" "$OUT/web/www.bundle"

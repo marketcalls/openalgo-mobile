@@ -3,7 +3,7 @@
 // pass through to /api/v1; its PNG save is a blob link the download shim hands to native.
 //
 // A 'use dom' file exports only its default component; the lifecycle is ToolEntry's.
-import '~/dom/web/prelude'
+import { PRELUDE } from '~/dom/web/prelude'
 import './tool.css'
 import './rotation.phone.css'
 
@@ -19,5 +19,5 @@ const PAGES: PageSet = {
 }
 
 export default function SectorRotationDom(p: ToolDomProps & DomEntryProps) {
-  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} shell={ToolShell} />
+  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} shell={ToolShell} prelude={PRELUDE} />
 }

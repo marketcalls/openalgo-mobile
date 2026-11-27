@@ -35,4 +35,15 @@ test('export and every CI build carry the tree-shaking flags, and export clears 
   const top = ci.split(/^jobs:/m)[0]
   assert.match(top, /^ {2}EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH: "1"$/m)
   assert.match(top, /^ {2}EXPO_UNSTABLE_TREE_SHAKING: "1"$/m)
+  // the preview's DOM pages are the shipped ones: the same flags, cold, then the DOM export check
+  const preview = readFileSync(new URL('../dev/preview/preview.sh', import.meta.url), 'utf8')
+  const android = /^.*--platform android.*$/m.exec(preview.replace(/\\\n\s*/g, ' '))?.[0] ?? ''
+  assert.match(android, /EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1/)
+  assert.match(android, /expo export --clear --platform android/)
+  assert.match(preview, /node scripts\/check-dom-export\.mjs "\$OUT\/android"/)
+  // and CI checks the bytes it ships, after the export
+  assert.match(
+    ci,
+    /run: npm run export\n[\s\S]*?run: node scripts\/check-dom-export\.mjs dist-export/,
+  )
 })

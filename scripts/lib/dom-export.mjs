@@ -1,7 +1,28 @@
 // The DOM components `expo export` writes under `<dir>/www.bundle/`: one html page each, with
 // its JS and CSS. The chart and the tool pages are told apart by a literal each page's JS holds.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+
+/** What the prelude puts in every page (design 7.7), read from the app's own source: the release
+ *  policy (src/dom/web/csp.ts DOM_CSP) and the prelude's literal (src/dom/web/prelude.ts). */
+export function preludeNeedles(root = APP_ROOT) {
+  const csp = readFileSync(join(root, 'src/dom/web/csp.ts'), 'utf8')
+  const decl = /export const DOM_CSP =([\s\S]*?)\n\n/.exec(csp)
+  if (!decl) throw new Error('src/dom/web/csp.ts: no DOM_CSP declaration')
+  const policy = [...decl[1].matchAll(/"([^"]*)"/g)].map((m) => m[1]).join('')
+  const prelude = /export const PRELUDE = '([^']+)'/.exec(
+    readFileSync(join(root, 'src/dom/web/prelude.ts'), 'utf8'),
+  )
+  if (!prelude) throw new Error('src/dom/web/prelude.ts: no PRELUDE literal')
+  return { policy, prelude: prelude[1] }
+}
+
+/** The import.meta.env seed (src/dom/web/env.ts VITE_ENV): the frontend's api/client reads
+ *  `import.meta.env.VITE_API_URL` while it first evaluates, so a page without it throws at load. */
+const ENV_SEED = /VITE_API_URL:\s*(?:''|"")/
 
 export const DOM_MARKERS = { chartDom: 'oa-dom:chart', toolDom: 'oa-dom:tool' }
 
@@ -73,21 +94,37 @@ function walk(dir) {
 }
 
 /** Problems that would break a DOM page on the device: it loads from file://, so it must be one
- *  self-contained script. `__loadBundleAsync` is not one: every DOM bundle sets it. */
-export function checkDomExport(dir) {
+ *  self-contained script. `__loadBundleAsync` is not one: every DOM bundle sets it. The bytes that
+ *  ship must also hold what the prelude does: the release CSP, the env seed and the prelude's own
+ *  literal (a tree-shaken export once dropped the prelude from every page; prelude.ts). */
+export function checkDomExport(dir, needles = preludeNeedles()) {
   const problems = []
   const base = join(dir, WWW)
   for (const p of domPages(dir)) {
     if (p.scripts.length !== 1) {
       problems.push(`${p.name}: ${p.scripts.length} scripts, expected exactly 1`)
     }
+    let js = ''
     for (const s of p.scripts) {
       const path = join(base, s.file)
-      if (existsSync(path) && readFileSync(path, 'utf8').includes(WEB_CHUNK)) {
+      if (!existsSync(path)) continue
+      const text = readFileSync(path, 'utf8')
+      js += text
+      if (text.includes(WEB_CHUNK)) {
         problems.push(
           `${p.name}: ${s.file} names a ${WEB_CHUNK} chunk, which a file:// page cannot load`,
         )
       }
+    }
+    if (p.scripts.length === 0) continue
+    if (!js.includes(needles.policy)) {
+      problems.push(`${p.name}: its JS holds no release Content-Security-Policy (DOM_CSP)`)
+    }
+    if (!ENV_SEED.test(js)) {
+      problems.push(`${p.name}: its JS holds no import.meta.env seed (VITE_ENV)`)
+    }
+    if (!js.includes(needles.prelude)) {
+      problems.push(`${p.name}: its JS holds no prelude (${needles.prelude})`)
     }
   }
   for (const f of walk(base)) {

@@ -688,10 +688,12 @@ test('no entry file exports anything but its default', () => {
     expect(exports).toEqual([`export default function ${name}(p: ToolDomProps & DomEntryProps) {`])
     // its own marker for the preview manifest (ux-bar T11-20)
     expect(src).toContain(`'oa-entry:src/dom/tools/${name}.tsx'`)
-    // prelude, then the stylesheets, then the shell's runtime
-    const imports = src.split('\n').filter((l) => /^import ['"]/.test(l))
-    expect(imports[0]).toBe("import '~/dom/web/prelude'")
+    // the prelude by a name it uses (prelude.ts: tree shaking drops a bare import), then the
+    // stylesheets, then the shell's runtime
+    const imports = src.split('\n').filter((l) => /^import\b/.test(l))
+    expect(imports[0]).toBe("import { PRELUDE } from '~/dom/web/prelude'")
     expect(imports[1]).toBe("import './tool.css'")
+    expect(src).toContain('prelude={PRELUDE}')
   }
   // Plotly's touch adaptation only where a page draws Plotly (ux-bar conflict 8)
   const plotly = (n: string) =>

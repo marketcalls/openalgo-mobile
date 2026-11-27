@@ -6,7 +6,7 @@
 // QueryClientProvider, and neither package in this bundle (design 17.6; ruling 12a).
 //
 // A 'use dom' file exports only its default component; the lifecycle is ToolEntry's.
-import '~/dom/web/prelude'
+import { PRELUDE } from '~/dom/web/prelude'
 import './tool.css'
 import './options.phone.css'
 import './plotlyTouch'
@@ -28,5 +28,5 @@ const PAGES: PageSet = {
 }
 
 export default function OptionToolsDom(p: ToolDomProps & DomEntryProps) {
-  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} shell={BareToolShell} />
+  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} shell={BareToolShell} prelude={PRELUDE} />
 }

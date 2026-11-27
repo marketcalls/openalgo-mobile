@@ -169,6 +169,13 @@ export function ToolScreen({ page }: { page: ToolPageId }): JSX.Element {
           'tool',
           `open ${page} ${ms} ms, csp ${csp ? 'on' : 'off'}, webgl ${webgl ? 'yes' : 'no'}`,
         )
+        // A release page with no CSP in force has lost a layer of design 7.7 (images, CSS url()
+        // and links could reach the network): it is not shown. Dev builds run the dev policy.
+        if (!csp && !__DEV__) {
+          log.warn('tool', `${page} runs without its CSP: not shown`)
+          fail.current(TOOL_TIMEOUT_COPY)
+          return
+        }
         setPhase({ kind: 'ready' })
         return
       }

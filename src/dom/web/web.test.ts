@@ -151,6 +151,28 @@ describe('csp', () => {
       expect(meta.content).toBe(DOM_CSP)
     })
 
+    test("every 'use dom' entry imports the prelude first, by a name it uses", () => {
+      // Expo's tree shaking drops a bare `import '~/dom/web/prelude'` (prelude.ts), which shipped
+      // every page without its CSP or env; a named import that the entry uses is kept.
+      const { readdirSync, readFileSync } = jest.requireActual<typeof import('node:fs')>('node:fs')
+      const { join } = jest.requireActual<typeof import('node:path')>('node:path')
+      const src = join(__dirname, '..', '..')
+      const walk = (d: string): string[] =>
+        readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+          e.isDirectory() ? walk(join(d, e.name)) : /\.tsx?$/.test(e.name) ? [join(d, e.name)] : [],
+        )
+      const entries = walk(src).filter((f) => readFileSync(f, 'utf8').startsWith("'use dom'"))
+      expect(entries.length).toBeGreaterThanOrEqual(4)
+      for (const f of entries) {
+        const code = readFileSync(f, 'utf8')
+        const imports = code.split('\n').filter((l) => /^import\b/.test(l))
+        expect([f, imports[0]]).toEqual([f, "import { PRELUDE } from '~/dom/web/prelude'"])
+        expect(code).not.toMatch(/^import ['"][^'"]*prelude['"]/m)
+        // used beyond its import, so the tree shaker counts the binding as used
+        expect(code.split('PRELUDE').length).toBeGreaterThan(2)
+      }
+    })
+
     test('the prelude picks the dev policy only under __DEV__', () => {
       expect(runPrelude(true).content).toBe(DOM_CSP_DEV)
       document.head.innerHTML = ''

@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { compare, measure } from './check-bundles.mjs'
-import { checkDomExport, DOM_MARKERS, domPages } from './lib/dom-export.mjs'
+import { checkDomExport, DOM_MARKERS, domPages, preludeNeedles } from './lib/dom-export.mjs'
+import { loadPage, loadProblems } from './lib/dom-load.mjs'
+
+const NEEDLES = preludeNeedles()
+/** What a page's JS holds when its prelude shipped: the policy, the env seed and the literal. */
+const PRELUDE_JS = `var P="${NEEDLES.policy}",E={MODE:'production',VITE_API_URL:''},L='${NEEDLES.prelude}';`
 
 const page = (scripts, styles = []) =>
   `<!DOCTYPE html><html><head>${styles.map((s) => `<link rel="stylesheet" href="${s}">`).join('')}<style>x{}</style></head><body><div id="root"></div><script>var polyfill=1</script>${scripts.map((s) => `<script src="${s}" defer></script>`).join('')}</body></html>`
@@ -22,7 +27,7 @@ function exportDir(pages, extra = {}) {
   return dir
 }
 
-const CHART_JS = `document.title="${DOM_MARKERS.chartDom}";window.__loadBundleAsync=function(){}`
+const CHART_JS = `${PRELUDE_JS}document.title="${DOM_MARKERS.chartDom}";window.__loadBundleAsync=function(){}`
 
 test('domPages finds each page, its one script and its marker', () => {
   const dir = exportDir([
@@ -75,6 +80,78 @@ test('two scripts, a __common chunk or a web chunk path fails the export check',
 test('a correct page, whose JS holds __loadBundleAsync, passes', () => {
   const dir = exportDir([{ name: 'a', scripts: { 'c.js': CHART_JS } }])
   assert.deepEqual(checkDomExport(dir), [])
+})
+
+test('the needles are the app source: the whole release policy and the prelude literal', () => {
+  assert.match(NEEDLES.policy, /^default-src 'none'; script-src 'self'; .*connect-src 'none'; /)
+  assert.match(NEEDLES.policy, /base-uri 'none'$/)
+  assert.equal(NEEDLES.prelude, 'oa-prelude:csp+env')
+})
+
+test('a page whose JS lacks the policy, the env seed or the prelude fails the export check', () => {
+  // the tree-shaken export at ecb4f00: the prelude gone from every page
+  const title = `document.title="${DOM_MARKERS.toolDom}";`
+  const cases = [
+    [title, /no release Content-Security-Policy[\s\S]*no import\.meta\.env seed[\s\S]*no prelude/],
+    [
+      PRELUDE_JS.replace(NEEDLES.policy, "default-src 'none'"),
+      /no release Content-Security-Policy/,
+    ],
+    [PRELUDE_JS.replace("VITE_API_URL:''", "VITE_API_URL:'x'"), /no import\.meta\.env seed/],
+    [PRELUDE_JS.replace(NEEDLES.prelude, 'oa-prelude:x'), /no prelude/],
+  ]
+  for (const [js, want] of cases) {
+    const dir = exportDir([{ name: 'a', scripts: { 't.js': `${js}${title}` } }])
+    assert.match(checkDomExport(dir).join('\n'), want)
+  }
+  // a double-quoted seed is the same seed
+  const dq = exportDir([
+    { name: 'a', scripts: { 't.js': PRELUDE_JS.replace("VITE_API_URL:''", 'VITE_API_URL:""') } },
+  ])
+  assert.deepEqual(checkDomExport(dq), [])
+})
+
+/** A page that does at load what the prelude and an entry do, less what `drop` names. */
+const LOADING_JS = (drop = []) =>
+  [
+    drop.includes('throw')
+      ? 'throw new Error("Cannot read properties of undefined (reading \'VITE_API_URL\')")'
+      : '',
+    drop.includes('env')
+      ? ''
+      : "globalThis.__ExpoImportMetaRegistry={url:location.href,env:{VITE_API_URL:''}}",
+    drop.includes('csp')
+      ? ''
+      : `var m=document.createElement('meta');m.httpEquiv='Content-Security-Policy';m.content="${NEEDLES.policy}";document.head.prepend(m)`,
+    drop.includes('entry')
+      ? ''
+      : `setTimeout(function(){document.documentElement.dataset.oaPrelude='${NEEDLES.prelude}';window.ReactNativeWebView.postMessage(JSON.stringify({type:'$$native_action',data:{args:[{v:1,kind:'event',name:'loaded'}]}}))},10)`,
+  ].join(';\n')
+
+test('a page loaded in jsdom passes with its CSP, its env and its entry run', async () => {
+  const dir = exportDir([{ name: 'a', scripts: { 'c.js': LOADING_JS() } }])
+  const [p] = domPages(dir)
+  const r = await loadPage(dir, p, { settleMs: 100 })
+  assert.deepEqual(loadProblems(p.name, r, NEEDLES), [])
+  assert.equal(r.csp, NEEDLES.policy)
+})
+
+test('a page that throws at load, or loads without its CSP, env or entry, fails', async () => {
+  const cases = [
+    [
+      'throw',
+      /threw while it loaded: Cannot read properties of undefined \(reading 'VITE_API_URL'\)/,
+    ],
+    ['csp', /no release CSP <meta> after load/],
+    ['env', /import\.meta\.env is not seeded/],
+    ['entry', /its entry never ran[\s\S]*never told the host it loaded/],
+  ]
+  for (const [drop, want] of cases) {
+    const dir = exportDir([{ name: 'a', scripts: { 'c.js': LOADING_JS([drop]) } }])
+    const [p] = domPages(dir)
+    const r = await loadPage(dir, p, { settleMs: 100 })
+    assert.match(loadProblems(p.name, r, NEEDLES).join('\n'), want)
+  }
 })
 
 test('a chartDom over 2,330,000 fails the budget', () => {
