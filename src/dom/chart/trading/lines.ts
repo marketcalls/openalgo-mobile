@@ -6,6 +6,8 @@
 //   instrument. The chart draws one per product, `position:<product>`, since native closes a
 //   position per product (the plan's own adaptation, preflight conflict 21).
 // The colours are the app's BUY green and SELL red; a long position takes BUY's, a short SELL's.
+// A line runs from `lineExtent` of the plot to its right edge, its badges and X from the line's
+// left end.
 import type { Chart, PriceLine } from 'openalgo-charts'
 import type { ChartOrder, ChartPosition } from '~/dom/bridge/protocol'
 
@@ -30,24 +32,45 @@ export const POSITION_PREFIX = 'position:'
 /** What the chart appends to a line's id for a tap on its close segment. */
 export const CLOSE_SUFFIX = '::close'
 
+/**
+ * The plot a line's badges need, its X included: a position's LONG, quantity, `@ avg ±₹P&L` and X
+ * come to about 280 px with a lakh's P&L; an order's (BUY, quantity, type, X) to about 120.
+ */
+export const BADGE_ROOM_PX = 300
+
+/**
+ * How much of the plot a line takes from its right edge: the web's 0.3 on a wide plot, more on a
+ * phone, all of it on one under 300 px. The badges start at the line's left end with no clamp, and
+ * the chart hit-tests nothing past the plot's edge (a tap there drags the price axis), so with the
+ * web's 0.3 a phone's X sat beyond it.
+ */
+export function lineExtent(plotWidth: number): number {
+  return Math.min(1, Math.max(0.3, BADGE_ROOM_PX / plotWidth))
+}
+
 /** Where an order's line sits: a stop at its trigger, any other order at its price. */
 export function bookPrice(o: ChartOrder): number {
   return o.trigger !== null && o.trigger > 0 ? o.trigger : o.price
 }
 
-const orderStyle = (o: ChartOrder, c: TradeColors) => ({
+const orderStyle = (o: ChartOrder, c: TradeColors, extent: number) => ({
   color: o.side === 'BUY' ? c.buy : c.sell,
   badge: o.side,
   qty: o.qty,
   leftLabel: o.type,
+  extentFromRight: extent,
 })
 
-/** Draws `orders` (the instrument's working orders) and removes the lines of the rest. */
+/**
+ * Draws `orders` (the instrument's working orders) and removes the lines of the rest; `extent` is
+ * `lineExtent` of the plot's width.
+ */
 export function syncOrderLines(
   chart: LineChart,
   recs: Map<string, OrderLineRec>,
   orders: ChartOrder[],
   c: TradeColors,
+  extent: number,
 ): void {
   const seen = new Set<string>()
   for (const o of orders) {
@@ -55,20 +78,19 @@ export function syncOrderLines(
     const rec = recs.get(o.id)
     if (rec === undefined) {
       const line = chart.addPriceLine({
-        ...orderStyle(o, c),
+        ...orderStyle(o, c, extent),
         price: bookPrice(o),
         lineWidth: 1,
         dashed: true,
         id: ORDER_PREFIX + o.id,
         cursor: 'ns-resize',
-        extentFromRight: 0.3,
         closeButton: true,
       })
       recs.set(o.id, { line, order: o, dragFrom: null })
       continue
     }
     rec.order = o
-    rec.line.setOptions(orderStyle(o, c))
+    rec.line.setOptions(orderStyle(o, c, extent))
     // A line under the finger stays there; the drag's end puts it at the book price (RF 6).
     if (rec.dragFrom === null) rec.line.setPrice(bookPrice(o))
   }
@@ -90,11 +112,12 @@ export function positionLabel(p: ChartPosition, ltp: number | null): string {
   return `@ ${RUPEES.format(p.avg)}  ${pnl >= 0 ? '+' : '-'}₹${RUPEES.format(Math.abs(pnl))}`
 }
 
-const positionStyle = (p: ChartPosition, ltp: number | null, c: TradeColors) => ({
+const positionStyle = (p: ChartPosition, ltp: number | null, c: TradeColors, extent: number) => ({
   color: p.net > 0 ? c.buy : c.sell,
   badge: p.net > 0 ? 'LONG' : 'SHORT',
   qty: Math.abs(p.net),
   leftLabel: positionLabel(p, ltp),
+  extentFromRight: extent,
 })
 
 /** One line per product with a net position, keyed by product in `recs`. */
@@ -104,6 +127,7 @@ export function syncPositionLines(
   positions: ChartPosition[],
   ltp: number | null,
   c: TradeColors,
+  extent: number,
 ): void {
   const seen = new Set<string>()
   for (const p of positions) {
@@ -112,19 +136,18 @@ export function syncPositionLines(
     const line = recs.get(p.product)
     if (line === undefined) {
       const added = chart.addPriceLine({
-        ...positionStyle(p, ltp, c),
+        ...positionStyle(p, ltp, c, extent),
         price: p.avg,
         lineWidth: 2,
         dashed: false,
         id: POSITION_PREFIX + p.product,
-        extentFromRight: 0.3,
         closeButton: true,
       })
       recs.set(p.product, added)
       continue
     }
     if (line.price !== p.avg) line.setPrice(p.avg)
-    line.setOptions(positionStyle(p, ltp, c))
+    line.setOptions(positionStyle(p, ltp, c, extent))
   }
   for (const [product, line] of recs) {
     if (seen.has(product)) continue

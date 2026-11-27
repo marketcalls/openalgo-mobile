@@ -17,6 +17,7 @@ import { createDomClient } from '~/dom/web/client'
 import { tokens } from '~/ui/tokens'
 import { stubCanvas } from '../testCanvas'
 import { attachTrading, holdTradePushes, type TradeSeed } from './glue'
+import { lineExtent } from './lines'
 
 const INFY: ChartMeta = {
   exchange: 'NSE',
@@ -88,7 +89,12 @@ function emitter() {
   }
 }
 
-/** A chart with what the glue uses; `coordinateToPrice` reads 1000 - y. */
+type Point = { x: number; y: number }
+/** Where a finger grabs a line, and a point well past the chart's 3 px tap slop from it. */
+const GRAB: Point = { x: 100, y: 100 }
+const MOVED: Point = { x: 100, y: 140 }
+
+/** A chart with what the glue uses; `coordinateToPrice` reads 1000 - y, its plot is 360 px wide. */
 function fakeChart() {
   const lines: FakeLine[] = []
   const bus = emitter()
@@ -97,6 +103,7 @@ function fakeChart() {
     move: (id: string, p: number) => void
     end?: (id: string, p: number) => void
   }>()
+  let plotWidth = 360
   const chart = {
     addPriceLine: jest.fn((opts: PriceLineOptions) => {
       const line: FakeLine = {
@@ -136,7 +143,7 @@ function fakeChart() {
     on: bus.on,
     coordinateToPrice: (y: number) => 1000 - y,
     primaryPaneIndex: () => 0,
-    plotRect: () => ({ left: 0, top: 0, width: 360, height: 700 }),
+    plotRect: () => ({ left: 0, top: 0, width: plotWidth, height: 700 }),
   }
   return {
     chart,
@@ -146,15 +153,22 @@ function fakeChart() {
       for (const cb of [...clicks]) cb(id)
     },
     /** A press on a draggable line: the chart says so before anything moves. */
-    grab: (id: string) => bus.emit('drag:start', { id }),
-    drag: (id: string, price: number) => {
+    grab: (id: string, point: Point = GRAB) => bus.emit('drag:start', { id, point }),
+    /** A pointermove of the finger on the line: the chart's drag callbacks, then its event. */
+    drag: (id: string, price: number, point: Point = MOVED) => {
       for (const d of [...drags]) d.move(id, price)
+      bus.emit('drag', { id, price, point })
     },
     release: (id: string, price: number) => {
       for (const d of [...drags]) d.end?.(id, price)
       bus.emit('drag:end', { id, price })
     },
     cancelDrag: (id: string) => bus.emit('drag:cancel', { id, reason: 'pinch' }),
+    /** The phone turned, or the widget's chrome changed: a new plot width. */
+    resize: (width: number) => {
+      plotWidth = width
+      bus.emit('resize', { width, height: 700 })
+    },
     listeners: () => bus.count() + clicks.size + drags.size,
   }
 }
@@ -292,7 +306,7 @@ describe('order and position lines', () => {
         lineWidth: 1,
         dashed: true,
         cursor: 'ns-resize',
-        extentFromRight: 0.3,
+        extentFromRight: lineExtent(360),
         closeButton: true,
         badge: 'BUY',
         qty: 10,
@@ -336,7 +350,7 @@ describe('order and position lines', () => {
         color: dark.buy,
         lineWidth: 2,
         dashed: false,
-        extentFromRight: 0.3,
+        extentFromRight: lineExtent(360),
         closeButton: true,
         badge: 'LONG',
         qty: 10,
@@ -364,6 +378,26 @@ describe('order and position lines', () => {
   test('a position without an LTP reads flat at its average', () => {
     const t = setup({ seed: { meta: INFY, positions: [{ product: 'MIS', net: 3, avg: 99.9 }] } })
     expect(t.chart.line('position:MIS')?.opts.leftLabel).toBe('@ 99.90  +₹0.00')
+  })
+
+  test("a line reaches as far into the plot as its badges need: the web's 0.3 only on a wide plot", () => {
+    expect(lineExtent(1000)).toBe(0.3)
+    expect(lineExtent(600)).toBe(0.5)
+    expect(lineExtent(360)).toBeCloseTo(0.833, 3)
+    // a 360 px phone, its rail hidden: a plot of about 300 px, all of it the line's
+    expect(lineExtent(300)).toBe(1)
+    expect(lineExtent(250)).toBe(1)
+    // a plot not laid out yet
+    expect(lineExtent(0)).toBe(1)
+
+    const t = setup({
+      seed: { meta: INFY, orders: [LIMIT_BUY], positions: [{ product: 'MIS', net: 1, avg: 99 }] },
+    })
+    // The phone turned to landscape: the lines draw again for the wider plot, and back.
+    t.chart.resize(1000)
+    expect(t.chart.lines.map((l) => l.opts.extentFromRight)).toEqual([0.3, 0.3])
+    t.chart.resize(300)
+    expect(t.chart.lines.map((l) => l.opts.extentFromRight)).toEqual([1, 1])
   })
 
   test('the lines and the panel open with the pushes that came before the widget', () => {
@@ -422,6 +456,28 @@ describe('drag to modify', () => {
     t.chart.grab('order:1')
     t.chart.release('order:1', 100.4)
     expect(t.intents()).toHaveLength(1)
+  })
+
+  test("a tap's jitter within the chart's 3 px slop moves nothing and modifies nothing", () => {
+    const t = setup({ seed: { meta: INFY, orders: [LIMIT_BUY] } })
+    const line = t.chart.line('order:1')
+    t.chart.grab('order:1', { x: 100, y: 100 })
+    // 3 px down and 3 across: still a tap, though the finger's price is a tick away
+    t.chart.drag('order:1', 100.4, { x: 103, y: 103 })
+    expect(line?.price).toBe(100)
+    expect(line?.ghost).toBeNull()
+    t.chart.release('order:1', 100.4)
+    expect(t.intents()).toEqual([])
+
+    // One pixel more is a drag, and from then on the line follows the finger, back near the
+    // press included.
+    t.chart.grab('order:1', { x: 100, y: 100 })
+    t.chart.drag('order:1', 100.4, { x: 100, y: 104 })
+    expect(line?.price).toBe(100.4)
+    t.chart.drag('order:1', 100.6, { x: 100, y: 101 })
+    expect(line?.price).toBe(100.6)
+    t.chart.release('order:1', 100.6)
+    expect(t.intents()).toMatchObject([{ type: 'modify', orderid: '1', price: 100.6 }])
   })
 
   test('a drag end puts the line back at the book price until a push moves it (RF 6)', () => {
@@ -487,7 +543,8 @@ describe('on a real chart', () => {
   })
   afterAll(() => restoreCanvas())
 
-  function realChart(seed: Partial<TradeSeed>) {
+  /** `width`: the chart's, the price axis included; a 360 px phone's chart once the rail hides. */
+  function realChart(seed: Partial<TradeSeed>, width = 1000) {
     const frames: Array<() => void> = []
     const root = document.createElement('div')
     root.className = 'oac-widget'
@@ -496,8 +553,7 @@ describe('on a real chart', () => {
     root.append(plot)
     document.body.append(root)
     const chart = createChart(plot, { raf: { schedule: (cb) => frames.push(cb) } })
-    // Wide enough for an order line's pills, X included, to sit inside the plot.
-    chart.applySize(1000, 600)
+    chart.applySize(width, 600)
     const t0 = 1_700_000_000
     chart.addSeries('candlestick').setData(
       Array.from({ length: 50 }, (_, i) => ({
@@ -553,7 +609,12 @@ describe('on a real chart', () => {
     let pointerId = 10
     const canvas = plot.querySelector('canvas') ?? plot
     const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`) as HTMLElement
+    const paint = () => {
+      for (let i = 0; i < 10 && frames.length > 0; i++)
+        for (const frame of frames.splice(0)) frame()
+    }
     return {
+      plotWidth: () => chart.plotRect(0)?.width ?? 0,
       intents: () => sent.flatMap((m) => (m.kind === 'intent' ? [m.intent] : [])),
       clicks,
       crosshairs: () => crosshairs,
@@ -575,6 +636,27 @@ describe('on a real chart', () => {
         const p = { id: ++pointerId, ...at }
         pointer(canvas, 'pointerdown', p)
         pointer(canvas, 'pointerup', p)
+      },
+      /** A finger down at `at`, moved `dy` px, and up there; the chart painted in between. */
+      dragChart(at: { x: number; y: number }, dy: number) {
+        const id = ++pointerId
+        pointer(canvas, 'pointerdown', { id, ...at })
+        pointer(canvas, 'pointermove', { id, x: at.x, y: at.y + dy })
+        paint()
+        pointer(canvas, 'pointerup', { id, x: at.x, y: at.y + dy })
+        paint()
+      },
+      /** A finger held still at `at` past the long press, then lifted. */
+      holdChart(at: { x: number; y: number }) {
+        const p = { id: ++pointerId, ...at }
+        pointer(canvas, 'pointerdown', p)
+        jest.advanceTimersByTime(600)
+        pointer(canvas, 'pointerup', p)
+      },
+      /** Where a price sits on the line: `price`'s y, 10 px in from the plot's right edge. */
+      onLine(price: number) {
+        const y = chart.priceToCoordinate(price) ?? Number.NaN
+        return { x: (chart.plotRect(0)?.width ?? 0) - 10, y }
       },
       /** A finger on a panel button: down, up, then the click the browser makes of them. */
       tapButton(id: string) {
@@ -636,6 +718,53 @@ describe('on a real chart', () => {
       { type: 'trade', inst, side: 'SELL', lots: 1 },
     ])
     expect(t.clicks).toEqual(['position:NRML::close'])
+  })
+
+  // A 360 px phone in the widget's mobile mode, which hides the rail: a plot of about 300 px.
+  test("on a 360 px phone an order's X and a position's X sit on the plot: one cancel, one close", () => {
+    const t = realChart(
+      {
+        orders: [LIMIT_BUY],
+        positions: [{ product: 'NRML', net: 1500, avg: 104.25 }],
+      },
+      360,
+    )
+    expect(t.plotWidth()).toBeLessThan(330)
+    // closeAt finds each X by hovering along its line, and the X is a line's last badge
+    const cancel = t.closeAt('order:1', LIMIT_BUY.price)
+    const close = t.closeAt('position:NRML', 104.25)
+    for (const at of [cancel, close]) expect(at.x).toBeLessThan(t.plotWidth())
+    t.tapChart(cancel)
+    t.tapChart(close)
+    const inst = { exchange: 'NSE', symbol: 'INFY' }
+    expect(t.intents()).toEqual([
+      { type: 'cancel', inst, orderid: '1' },
+      { type: 'close', inst, product: 'NRML' },
+    ])
+  })
+
+  test('a tap on an order line with 3 px of jitter modifies nothing; a drag sends one modify', () => {
+    const t = realChart({ orders: [LIMIT_BUY] }, 360)
+    const at = t.onLine(LIMIT_BUY.price)
+    // 3 px is ticks away at this scale, but within the chart's own tap slop
+    t.dragChart(at, 3)
+    expect(t.intents()).toEqual([])
+    t.dragChart(at, 30)
+    expect(t.intents()).toMatchObject([{ type: 'modify', orderid: '1' }])
+    const modify = t.intents()[0] as Extract<ChartIntent, { type: 'modify' }>
+    expect(modify.price).toBeLessThan(LIMIT_BUY.price)
+  })
+
+  test("a long press on an order's X opens the price menu and sends no cancel", () => {
+    jest.useFakeTimers()
+    const t = realChart({ orders: [LIMIT_BUY] }, 360)
+    t.holdChart(t.closeAt('order:1', LIMIT_BUY.price))
+    expect(t.intents().map((i) => i.type)).toEqual(['priceMenu'])
+    // the chart did make a click of the release
+    expect(t.clicks).toEqual(['order:1::close'])
+    // a tap on the X afterwards is a cancel
+    t.tapChart(t.closeAt('order:1', LIMIT_BUY.price))
+    expect(t.intents().map((i) => i.type)).toEqual(['priceMenu', 'cancel'])
   })
 })
 
@@ -793,6 +922,27 @@ describe('long press', () => {
     expect(t.intents()).toMatchObject([{ type: 'priceMenu', price: 700 }])
   })
 
+  test("a long press on a line's X opens the price menu only: its release's click is no tap", () => {
+    jest.useFakeTimers()
+    const t = setup({
+      seed: { meta: INFY, orders: [LIMIT_BUY], positions: [{ product: 'MIS', net: 1, avg: 99 }] },
+    })
+    for (const x of ['order:1::close', 'position:MIS::close']) {
+      pointer(t.plot, 'pointerdown', { y: 400 })
+      jest.advanceTimersByTime(500)
+      pointer(t.plot, 'pointerup', { y: 400 })
+      // the chart makes a click of the release, whatever the press's length
+      t.chart.click(x)
+    }
+    expect(t.intents().map((i) => i.type)).toEqual(['priceMenu', 'priceMenu'])
+
+    // the next tap on an X is one again
+    pointer(t.plot, 'pointerdown', { y: 400 })
+    pointer(t.plot, 'pointerup', { y: 400 })
+    t.chart.click('order:1::close')
+    expect(t.intents().map((i) => i.type)).toEqual(['priceMenu', 'priceMenu', 'cancel'])
+  })
+
   test('a chart without a tradeable instrument has no price menu', () => {
     jest.useFakeTimers()
     const t = setup({ seed: { meta: NIFTY }, inst: { exchange: 'NSE_INDEX', symbol: 'NIFTY' } })
@@ -840,14 +990,20 @@ describe('instrument', () => {
         positions: [{ product: 'CNC', net: 4, avg: 1500 }],
       },
     })
+    /** A tap the chart makes a click of: its pointerdown first. */
+    const tapX = (id: string) => {
+      pointer(t.plot, 'pointerdown', { y: 400 })
+      pointer(t.plot, 'pointerup', { y: 400 })
+      t.chart.click(id)
+    }
     const all = () => {
       t.tap('chart-buy')
       jest.advanceTimersByTime(200)
       t.chart.grab('order:1')
       t.chart.drag('order:1', 98)
       t.chart.release('order:1', 98)
-      t.chart.click('order:1::close')
-      t.chart.click('position:CNC::close')
+      tapX('order:1::close')
+      tapX('position:CNC::close')
       pointer(t.plot, 'pointerdown', { y: 400 })
       jest.advanceTimersByTime(500)
       pointer(t.plot, 'pointerup', { y: 400 })

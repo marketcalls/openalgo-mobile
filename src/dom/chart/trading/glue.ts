@@ -1,6 +1,7 @@
 // The trading glue (design 7.9.4, 7.9.6), ported from the web terminal's chart wiring,
 // frontend/src/lib/trading/terminal.ts at c8b2896:
-// - drag to modify with a ghost at the old price, snapped to the tick (2706-2745);
+// - drag to modify with a ghost at the old price, snapped to the tick (2706-2745), once the finger
+//   has moved past the chart's own tap slop;
 // - the close buttons (2746-2760);
 // - the depth subscription that prices the buttons (6614-6620). Here it is a second
 //   subscription, beside the widget's own bars, and it names the interval (preflight
@@ -24,6 +25,7 @@ import { tokens } from '~/ui/tokens'
 import {
   bookPrice,
   CLOSE_SUFFIX,
+  lineExtent,
   ORDER_PREFIX,
   type OrderLineRec,
   POSITION_PREFIX,
@@ -35,6 +37,8 @@ import { mountTradePanel } from './panel'
 
 /** The book depth the buttons are priced from (terminal.ts:6619). */
 const DEPTH_LEVEL = 5
+/** The chart's own tap slop (openalgo-charts `_movedFromPress`): a finger that moves no more taps. */
+const TAP_SLOP_PX = 3
 const PRODUCTS: ReadonlySet<string> = new Set(['MIS', 'CNC', 'NRML'])
 const ignore = () => {}
 
@@ -131,6 +135,10 @@ export function attachTrading(
   let depth: { key: string; off: () => void } | null = null
   /** The line the finger is on, from the chart's drag:start to its end or cancel. */
   let dragId: string | null = null
+  /** Where that finger went down, and whether it has left the tap slop since. */
+  let grab: { x: number; y: number; moved: boolean } | null = null
+  /** A long press opened the price menu: the click its release makes (an X under it) is no tap. */
+  let pressed = false
 
   const inst = (): Inst => ({ exchange: widget.exchange(), symbol: widget.symbol() })
   let shown = inst()
@@ -146,8 +154,10 @@ export function attachTrading(
     colors: colors(),
     onTrade: (side, lots) => send({ type: 'trade', side, lots }),
   })
-  const drawOrders = () => syncOrderLines(chart, orderRecs, orders, colors())
-  const drawPositions = () => syncPositionLines(chart, positionRecs, positions, ltp, colors())
+  const extent = () => lineExtent(chart.plotRect(chart.primaryPaneIndex())?.width ?? 0)
+  const drawOrders = () => syncOrderLines(chart, orderRecs, orders, colors(), extent())
+  const drawPositions = () =>
+    syncPositionLines(chart, positionRecs, positions, ltp, colors(), extent())
 
   const stopDepth = () => {
     depth?.off()
@@ -187,42 +197,53 @@ export function attachTrading(
     rec.line.setPrice(bookPrice(rec.order))
   }
 
-  const offDrag = chart.subscribeDrag(
-    (id, price) => {
-      const rec = draggedOrder(id)
-      if (rec === undefined) return
+  // A line drags only while the chart has a drag subscriber. The move is the 'drag' event's, which
+  // says where the finger is: the chart moves a line on every pointermove, a tap's jitter too.
+  const offDrag = chart.subscribeDrag(ignore, (id, price) => {
+    const rec = draggedOrder(id)
+    // A tap on the line, or a drag the chart cancelled, ends with nothing to modify.
+    if (rec === undefined || rec.dragFrom === null) return
+    const from = snap(rec.dragFrom, tick())
+    putBack(rec)
+    const to = snap(price, tick())
+    if (to > 0 && to !== from) send({ type: 'modify', orderid: rec.order.id, price: to })
+  })
+  const offBus = [
+    chart.on('drag:start', (e) => {
+      dragId = e.id
+      grab = { ...e.point, moved: false }
+    }),
+    chart.on('drag', (e) => {
+      const rec = draggedOrder(e.id)
+      if (rec === undefined || grab === null) return
+      const { x, y } = e.point
+      grab.moved ||= Math.abs(x - grab.x) > TAP_SLOP_PX || Math.abs(y - grab.y) > TAP_SLOP_PX
+      if (!grab.moved) return
       if (rec.dragFrom === null) {
         rec.dragFrom = bookPrice(rec.order)
         rec.line.setDragGhost(rec.dragFrom)
       }
-      rec.line.setPrice(snap(price, tick()))
-    },
-    (id, price) => {
-      const rec = draggedOrder(id)
-      // A tap on the line, or a drag the chart cancelled, ends with nothing to modify.
-      if (rec === undefined || rec.dragFrom === null) return
-      const from = snap(rec.dragFrom, tick())
-      putBack(rec)
-      const to = snap(price, tick())
-      if (to > 0 && to !== from) send({ type: 'modify', orderid: rec.order.id, price: to })
-    },
-  )
-  const offBus = [
-    chart.on('drag:start', (e) => {
-      dragId = e.id
+      rec.line.setPrice(snap(e.price, tick()))
     }),
     chart.on('drag:end', () => {
       dragId = null
+      grab = null
     }),
     chart.on('drag:cancel', (e) => {
       dragId = null
+      grab = null
       const rec = draggedOrder(e.id)
       if (rec !== undefined && rec.dragFrom !== null) putBack(rec)
+    }),
+    // A turned phone, or the widget's chrome, changes the plot's width: the lines' reach with it.
+    chart.on('resize', () => {
+      drawOrders()
+      drawPositions()
     }),
   ]
 
   const offClick = chart.subscribeClick((id) => {
-    if (!id.endsWith(CLOSE_SUFFIX)) return
+    if (pressed || !id.endsWith(CLOSE_SUFFIX)) return
     const target = id.slice(0, -CLOSE_SUFFIX.length)
     if (target.startsWith(ORDER_PREFIX)) {
       const rec = orderRecs.get(target.slice(ORDER_PREFIX.length))
@@ -238,6 +259,7 @@ export function attachTrading(
   const offPress = attachLongPress(plot, {
     blocked: () => widget.draw.activeTool() !== null || dragId !== null || !tradeable(),
     onPress: (y) => {
+      pressed = true
       const pane = chart.primaryPaneIndex()
       const rect = chart.plotRect(pane)
       if (rect === null || y < rect.top || y > rect.top + rect.height) return
@@ -251,6 +273,10 @@ export function attachTrading(
   // event was handled (preflight conflict 25): the long press is the price menu instead.
   const noMenu = (e: Event) => e.preventDefault()
   widget.root.addEventListener('contextmenu', noMenu, true)
+  const onDown = () => {
+    pressed = false
+  }
+  plot.addEventListener('pointerdown', onDown, true)
 
   const offSymbol = widget.on('symbol', () => {
     const now = inst()
@@ -291,6 +317,7 @@ export function attachTrading(
     dispose() {
       for (const off of [...offPushes, ...offBus, offDrag, offClick, offSymbol, offPress]) off()
       widget.root.removeEventListener('contextmenu', noMenu, true)
+      plot.removeEventListener('pointerdown', onDown, true)
       stopDepth()
       panel.dispose()
       if (widget.isDestroyed) return
