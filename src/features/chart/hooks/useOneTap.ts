@@ -121,13 +121,12 @@ export function useOneTap() {
   const [outcome, setOutcome] = useState<WriteOutcome | null>(null)
   /** The chart is mounted and in front, where its line shows. */
   const inFront = useRef(focused)
-  inFront.current = focused
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    inFront.current = focused
+    return () => {
       inFront.current = false
-    },
-    [],
-  )
+    }
+  }, [focused])
   /** The last line the order out told once the chart had gone: kept for the next review. */
   const goneLine = useRef<string | null>(null)
   /** Stops following the last placed order's status in the book. */
