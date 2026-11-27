@@ -1,0 +1,49 @@
+# The option chain tool in analyzer (sandbox) mode against the mock server (CI job e2e-android):
+# tap the at-the-money call, BUY from its leg sheet, review the ticket as ANALYZE, place the
+# order and return to the chain. Needs the mock started with PORT=5000 WS_PORT=8765 and reset
+# before the flow.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+# Analyzer mode before onboarding, so the first mode the app reads is ANALYZE.
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"analyzer":true}'
+- runFlow: onboarding-live.yaml
+
+- tapOn: "Tools"
+- scrollUntilVisible:
+    element:
+      id: tool-tile-OPTIONCHAIN
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: tool-tile-OPTIONCHAIN
+- extendedWaitUntil:
+    visible:
+      id: oc-ce-ATM
+    timeout: 20000
+- tapOn:
+    id: oc-ce-ATM
+- tapOn:
+    id: oc-leg-buy
+- assertVisible:
+    id: ticket-screen
+- tapOn:
+    id: ticket-review
+- assertVisible:
+    id: review-mode-badge
+    text: ANALYZE
+# Confirm stays disabled until the review has read the mode and the order book
+- tapOn:
+    id: ticket-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible: "Order placed"
+    timeout: 15000
+- tapOn:
+    id: ticket-done
+- assertVisible:
+    id: oc-screen

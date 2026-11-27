@@ -1,0 +1,30 @@
+# A tool that runs on the device (CI job e2e-android): open Max Pain from the Tools tab, wait for
+# the page's own ready probe, see its figure computed from the on-device route and check the CSP
+# probe counted no violations. Needs the mock started with PORT=5000 WS_PORT=8765 and reset
+# before the flow. If the WebView text is not found, read e2e-debug-<PROFILE> first.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+
+- tapOn: "Tools"
+- scrollUntilVisible:
+    element:
+      id: tool-tile-MAXPAIN
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: tool-tile-MAXPAIN
+- extendedWaitUntil:
+    visible:
+      id: tool-ready
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Max Pain: \\d+"
+    timeout: 20000
+- assertVisible:
+    id: tool-csp
+    text: "violations 0"
+- tapOn:
+    id: tool-back

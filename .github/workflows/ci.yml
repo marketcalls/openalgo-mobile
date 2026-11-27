@@ -487,6 +487,12 @@ jobs:
           reset_mock
           run_flow chart-analyzer
           stop_mock
+          start_mock 8765
+          reset_mock
+          run_flow tools-maxpain
+          reset_mock
+          run_flow optionchain-analyzer
+          stop_mock
           if [ "${#FAILED[@]}" -gt 0 ]; then
             echo "Failed flows: ${FAILED[*]}"
             exit 1

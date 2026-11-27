@@ -75,7 +75,7 @@ test('the trading flows and the mock control script exist and start from a clean
 
 // A header badge (GTT's, the chart's) shows the mode the tabs layout read on mount and on a
 // foreground: set later, the flow would see LIVE.
-for (const f of ['gtt-analyzer', 'chart-analyzer']) {
+for (const f of ['gtt-analyzer', 'chart-analyzer', 'optionchain-analyzer']) {
   test(`${f} sets analyzer mode before onboarding, so the first mode the app reads is ANALYZE`, () => {
     const text = readFileSync(join(e2e, `${f}.yaml`), 'utf8')
     assert.match(text, /- launchApp:\n\s+clearState: true/)

@@ -29,6 +29,8 @@ Writing a flow:
 | `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
 | `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | in the instrument sheet at full height, the 20-level switch shows `depth-bid-19` |
 | `chart-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` (set before onboarding) | the chart opens from the instrument sheet (`chart-ready`, the ANALYZE badge), its DOM `Chart buy` button opens the order ticket, reviewed as ANALYZE and placed, Done returns to the chart |
+| `tools-maxpain.yaml` | `PORT=5000 WS_PORT=8765` | Tools tab, the Max Pain tile opens the tool (`tool-ready`), its figure `Max Pain: {n}` is computed from the on-device route and `tool-csp` reads `violations 0` |
+| `optionchain-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` (set before onboarding) | the Option Chain tool shows `oc-ce-ATM`, its leg sheet's BUY opens the order ticket, reviewed as ANALYZE and placed, Done returns to `oc-screen` |
 
 The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5 (`gtt-analyzer.yaml` only for 2.0.3.5). The trading flows start with the mock
 restarted on `PORT=5000 WS_PORT=8765` and reset (`POST /__mock/reset`) before each flow;
@@ -147,14 +149,14 @@ Chart
   buttons are DOM, with no ids: the flow taps `Chart buy` by its accessibility label)
 
 Tools
-- the tab: `tools-grid`, `tool-tile-{ID}` (the tool's web id in upper case, such as `MAXPAIN` or
+- the tab: `tools-grid`, `tool-tile-{ID}` * (the tool's web id in upper case, such as `MAXPAIN` or
   `PORTFOLIO-BACKTESTER`), `tool-tile-note-{ID}` (on a tool that does not open here: "Needs
   OpenAlgo {version}" or "Not in this build yet")
-- the tool screen: `tool-screen`, `tool-back`, `tool-title` (a tap scrolls the page to its top),
+- the tool screen: `tool-screen`, `tool-back` *, `tool-title` (a tap scrolls the page to its top),
   `tool-mode`, `tool-subtitle` (the line under the header, with the status badges),
   `tool-subtitle-text`, `tool-progress`, `tool-body`, `tool-dom`, `tool-skeleton`, `tool-reload`,
   `tool-unavailable` (a later tool or a broken link)
-- its probes, each a 1×1 text read by its label: `tool-ready` (`page {id}`), `tool-csp`
+- its probes, each a 1×1 text read by its label: `tool-ready` * (`page {id}`), `tool-csp` *
   (`violations {n}`), `tool-layout` (`overflow {n}`, once the page has measured itself)
 - a held order's review: `tool-held-sheet`, `tool-held-scroll`, `tool-held-head`,
   `tool-held-review`, `tool-held-mode`, `tool-held-summary`, `tool-held-notice`,
@@ -164,7 +166,7 @@ Tools
   tool is waiting")
 
 Option chain (`/optionchain/{key}`, and the Option Chain tool)
-- `oc-screen`, `oc-screen-incomplete` (a link that names no chain), `oc-back`
+- `oc-screen` *, `oc-screen-incomplete` (a link that names no chain), `oc-back`
 - the header: `oc-underlying` (a tap opens the underlying picker), `oc-spot-ltp`, `oc-mode`,
   `oc-polling-note` (polling only: "Polling: prices refresh every 5 s." or 10 s),
   `oc-expiry-{N}` (the two nearest expiries' chips, `0` the nearest: "02 Dec · 2d" or "Today"),
@@ -172,7 +174,7 @@ Option chain (`/optionchain/{key}`, and the Option Chain tool)
   `oc-greek-{GREEK}` (Greeks view; not for flows: the Greek is lower case, one of iv, delta,
   gamma, theta and vega), `oc-colhead`
 - the ladder: `oc-ladder`, `oc-row-{STRIKE}` (a strike's `.` is `_`), `oc-ce-{STRIKE}`,
-  `oc-pe-{STRIKE}` (a side: a tap opens its leg sheet), `oc-ce-ATM`, `oc-pe-ATM` (the strike
+  `oc-pe-{STRIKE}` (a side: a tap opens its leg sheet), `oc-ce-ATM` *, `oc-pe-ATM` (the strike
   nearest the live spot), `oc-ce-ltp-{STRIKE}`, `oc-pe-ltp-{STRIKE}`, `oc-ce-oi-{STRIKE}`,
   `oc-pe-oi-{STRIKE}`, `oc-oibar-ce-{STRIKE}`, `oc-oibar-pe-{STRIKE}`, `oc-spot` (the live spot
   between its strikes), `oc-jump-atm` (while ATM is off screen), `oc-footer` (PCR, OI totals and
@@ -182,7 +184,7 @@ Option chain (`/optionchain/{key}`, and the Option Chain tool)
 - the pickers: `oc-underlying-sheet`, `oc-pick-search`, `oc-exchange-{EXCHANGE}`,
   `oc-pick-{UNDERLYING}`, `oc-expiry-sheet`, `oc-expiry-row-{N}`, `oc-count-sheet`, `oc-count-{N}`
 - a leg's sheet: `oc-leg-sheet`, `oc-leg-title`, `oc-leg-sub`, `oc-leg-ltp`, `oc-leg-lots`
-  ("2 lots · 150 qty"), `oc-leg-lots-inc`, `oc-leg-lots-dec`, `oc-leg-trade`, `oc-leg-buy`,
+  ("2 lots · 150 qty"), `oc-leg-lots-inc`, `oc-leg-lots-dec`, `oc-leg-trade`, `oc-leg-buy` *,
   `oc-leg-sell`, `oc-leg-buy-caption`, `oc-leg-sell-caption` ("at 120.55 ask"), `oc-leg-chart`,
   `oc-leg-depth`, `oc-leg-greeks` (the facts: bid, ask, OI, volume and the five Greeks)
 
