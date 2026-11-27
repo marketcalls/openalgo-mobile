@@ -9,8 +9,10 @@
 // - Every write that starts here is 'mobile-chart': the ticket and modify links carry
 //   `source: 'chart'`, the cancel and close their strategy; every price is snapped to the tick
 //   again (preflight conflict 26).
-import { type Href, useRouter } from 'expo-router'
-import { createElement, type ReactNode, useCallback, useRef, useState } from 'react'
+// - One screen opens at a time: a push (a ticket, modify, depth) that has not yet taken the focus
+//   drops the next, so a double tap on a slow phone never stacks two tickets.
+import { type Href, useFocusEffect, useIsFocused, useRouter } from 'expo-router'
+import { createElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { usePrefs } from '~/core/config/prefs'
 import type { ChartIntent, ChartMeta, DomIntentMsg, Inst } from '~/dom/bridge/protocol'
 import { orderSummary, useOrderWrites } from '~/features/orders'
@@ -32,6 +34,8 @@ import { useOneTap } from './useOneTap'
 export const WRONG_SYMBOL = 'The chart was changing symbol. Try again.'
 export const NOT_OPEN = 'This order is no longer open.'
 export const NO_POSITION = 'No open position for this product.'
+/** How long a push may take to take the focus before the chart opens another (a push that failed). */
+export const PUSH_SETTLE_MS = 1_500
 
 const isInst = (a: Inst, b: Inst) => a.exchange === b.exchange && a.symbol === b.symbol
 
@@ -78,6 +82,27 @@ export function useChartIntents(o: {
    * tap opens one confirm and one modify sheet.
    */
   const reading = useRef(false)
+  const focused = useIsFocused()
+  const inFront = useRef(focused)
+  inFront.current = focused
+  /**
+   * A screen this chart pushed is on its way in: the focus may not have moved yet (a sheet's
+   * opening on a slow phone), and until the chart is back in front, or PUSH_SETTLE_MS has passed
+   * for a push that never took the focus, no other opens.
+   */
+  const pushing = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const settled = useCallback(() => {
+    if (pushing.current !== null) clearTimeout(pushing.current)
+    pushing.current = null
+  }, [])
+  useFocusEffect(settled)
+  useEffect(() => settled, [settled])
+  /** Opens `href` over the chart, unless the chart is not in front or one it opened is coming. */
+  const go = (href: string) => {
+    if (!inFront.current || pushing.current !== null) return
+    pushing.current = setTimeout(settled, PUSH_SETTLE_MS)
+    router.push(href as Href)
+  }
 
   const here = (inst: Inst) => isInst(o.current(), inst)
   /** The metadata, when it is the instrument's: just after a symbol change it may not be yet. */
@@ -130,7 +155,7 @@ export function useChartIntents(o: {
       quantity,
       source: 'chart',
     })
-    router.push(href as Href)
+    go(href)
   }
 
   /** A long press: the orders the ticket can open at the pressed price, if any. */
@@ -174,7 +199,7 @@ export function useChartIntents(o: {
           const price = snapTick(intent.price, meta?.tick, intent.price)
           // a stop's line is its trigger (T12): the drag moves the trigger, not the limit price
           const preset = isStop(row.pricetype) ? { trigger_price: price } : { price }
-          router.push(modifyHref(row.orderid, { ...preset, source: 'chart' }) as Href)
+          go(modifyHref(row.orderid, { ...preset, source: 'chart' }))
         })
         return
       case 'cancel':
@@ -201,7 +226,7 @@ export function useChartIntents(o: {
         })
         return
       case 'depth':
-        router.push(depthHref(inst.exchange, inst.symbol) as Href)
+        go(depthHref(inst.exchange, inst.symbol))
         return
       case 'symbol':
         // the chart screen switches the instrument (T14)
@@ -215,7 +240,7 @@ export function useChartIntents(o: {
 
   const pick = (a: PriceAction) => {
     setMenu(null)
-    if (here(a.params)) router.push(ticketHref(a.params) as Href)
+    if (here(a.params)) go(ticketHref(a.params))
     else toast(WRONG_SYMBOL)
   }
 

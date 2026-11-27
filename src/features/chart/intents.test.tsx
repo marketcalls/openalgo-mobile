@@ -37,14 +37,58 @@ import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { NO_POSITION, NOT_OPEN, useChartIntents, WRONG_SYMBOL } from './hooks/useChartIntents'
+import {
+  NO_POSITION,
+  NOT_OPEN,
+  PUSH_SETTLE_MS,
+  useChartIntents,
+  WRONG_SYMBOL,
+} from './hooks/useChartIntents'
 import { ABOVE_FREEZE, EARLIER_OUT, MODE_UNKNOWN, ONE_TAP_BUSY } from './hooks/useOneTap'
 
-const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
-jest.mock('expo-router', () => ({
-  useRouter: () => mockRouter,
-  useIsFocused: () => true,
-}))
+/**
+ * The chart's focus, as React Navigation runs it. A push takes it: by default the pushed screen
+ * then goes again at once (`returns`), `opens` keeps it open, `never` is a push that takes no
+ * focus at all (one that failed).
+ */
+const mockFocus = {
+  on: true,
+  subs: new Set<() => void>(),
+  push: 'returns' as 'returns' | 'opens' | 'never',
+  set(on: boolean) {
+    mockFocus.on = on
+    for (const fn of [...mockFocus.subs]) fn()
+  },
+}
+const mockRouter = {
+  back: jest.fn(),
+  push: jest.fn((_href: string) => {
+    if (mockFocus.push === 'never') return
+    setTimeout(() => mockFocus.set(false), 0)
+    if (mockFocus.push === 'returns') setTimeout(() => mockFocus.set(true), 5)
+  }),
+  replace: jest.fn(),
+  dismissTo: jest.fn(),
+}
+jest.mock('expo-router', () => {
+  const { useEffect, useSyncExternalStore } = require('react')
+  const useIsFocused = (): boolean =>
+    useSyncExternalStore(
+      (fn: () => void) => {
+        mockFocus.subs.add(fn)
+        return () => mockFocus.subs.delete(fn)
+      },
+      () => mockFocus.on,
+    )
+  return {
+    useRouter: () => mockRouter,
+    useIsFocused,
+    useFocusEffect: (effect: () => undefined | (() => void)) => {
+      const on = useIsFocused()
+      useEffect(() => (on ? effect() : undefined), [on, effect])
+    },
+  }
+})
 jest.mock('expo-local-authentication', () => ({
   SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
   authenticateAsync: jest.fn(),
@@ -346,6 +390,8 @@ let answer: boolean | null = true
 
 beforeEach(() => {
   jest.useFakeTimers({ now: T0 })
+  mockFocus.on = true
+  mockFocus.push = 'returns'
   useConnection.getState().reset()
   usePrefs.setState({ confirmLiveWrites: false, chartOneTap: false })
   current = RELIANCE
@@ -598,6 +644,35 @@ describe('intents', () => {
     await twice({ inst: RELIANCE, type: 'cancel', orderid: 'A1' })
     await pass(1_000)
     expect(asked).toHaveLength(1)
+  })
+
+  test('a double tap opens one ticket: the next push waits for the chart to be in front again', async () => {
+    await setup()
+    await show(RELIANCE, chartMeta(RELIANCE_META))
+    const buy = { inst: RELIANCE, type: 'trade', side: 'BUY', lots: 1 } as const
+    // the ticket's sheet is still coming up when the second tap lands (past the DOM's 120 ms)
+    mockFocus.push = 'opens'
+    await send(buy)
+    await pass(200)
+    await send(buy)
+    await send({ inst: RELIANCE, type: 'depth' })
+    expect(mockRouter.push).toHaveBeenCalledTimes(1)
+    // the ticket was placed and closed: the chart is in front, and the next tap opens one
+    await act(async () => mockFocus.set(true))
+    await send(buy)
+    expect(mockRouter.push).toHaveBeenCalledTimes(2)
+
+    // a push that never took the focus leaves the chart deaf for PUSH_SETTLE_MS only
+    await act(async () => mockFocus.set(true))
+    mockFocus.push = 'never'
+    await send({ inst: RELIANCE, type: 'depth' })
+    expect(mockRouter.push).toHaveBeenCalledTimes(3)
+    await pass(200)
+    await send(buy)
+    expect(mockRouter.push).toHaveBeenCalledTimes(3)
+    await pass(PUSH_SETTLE_MS)
+    await send(buy)
+    expect(mockRouter.push).toHaveBeenCalledTimes(4)
   })
 
   test('a long press shows the price actions and a pick opens the preset ticket', async () => {
