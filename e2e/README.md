@@ -28,6 +28,7 @@ Writing a flow:
 | `gtt-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` (set before onboarding); `PROFILE` 2.0.3.5 only | the header badge reads ANALYZE; a SELL GTT from the instrument sheet reviewed as ANALYZE, listed active as 1001 in the Orders GTT segment, then cancelled |
 | `trading-semiauto.yaml` | `PORT=5000 WS_PORT=8765`, control `semiAuto` | a market buy from the instrument sheet is queued for the web Action Center and the Orders tab shows the Semi-Auto banner |
 | `depth-levels.yaml` | `BROKER=dhan PORT=5000 WS_PORT=8765`, control `maxDepth` 20 | in the instrument sheet at full height, the 20-level switch shows `depth-bid-19` |
+| `chart-analyzer.yaml` | `PORT=5000 WS_PORT=8765`, control `analyzer` | the chart opens from the instrument sheet (`chart-ready`, the ANALYZE badge), its DOM `Chart buy` button opens the order ticket, reviewed as ANALYZE and placed, Done returns to the chart |
 
 The job runs the flows for `PROFILE` 2.0.0.0 and 2.0.3.5 (`gtt-analyzer.yaml` only for 2.0.3.5). The trading flows start with the mock
 restarted on `PORT=5000 WS_PORT=8765` and reset (`POST /__mock/reset`) before each flow;
@@ -138,6 +139,12 @@ Portfolio
 - `funds-view`, `funds-{ID}`, `funds-cash`, `funds-collateral`, `funds-margin-used`,
   `funds-m2m-realised`, `funds-m2m-unrealised`
 
+Chart
+- `chart-screen` *, `chart-ready` *, `chart-mode` *, `chart-back` *, `chart-dom`, `chart-depth`,
+  `chart-onetap`, `chart-polling-note`, `chart-reload`, `chart-price-buy-limit`,
+  `chart-price-sell-limit`, `chart-price-buy-stop`, `chart-price-sell-stop` (the widget's own
+  buttons are DOM, with no ids: the flow taps `Chart buy` by its accessibility label)
+
 Status
 - `badge-http`, `badge-polling` *, `badge-broker`, `mode-badge`
 - `banner-banned`, `banner-key`, `banner-broker`, `banner-polling`, `broker-banner-login`,
@@ -152,7 +159,7 @@ Account
 - `link-server`, `link-key`, `link-diagnostics`, `link-lost-phone`, `link-backup`
 - `server-save`, `key-save`, `broker-status`, `broker-login`
 - `analyzer-toggle`, `analyzer-error`, `analyzer-semi-auto`
-- `pref-app-lock`, `pref-confirm-live`, `pref-hide-content`, `pref-update-check`, `account-update`, `app-lock-unavailable`,
+- `pref-chart-onetap` (the chart's one-tap switch), `pref-app-lock`, `pref-confirm-live`, `pref-hide-content`, `pref-update-check`, `account-update`, `app-lock-unavailable`,
   `confirm-live-unavailable`, `lock-after-{MS}`, `theme-{MODE}`
 - `diagnostics-copy`, `diagnostics-refresh`, `cap-{FEATURE}`, `lost-step-{N}`
 - `sign-out`, `sign-out-confirm`, `sign-out-delete`, `signout-backup`

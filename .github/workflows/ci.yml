@@ -333,6 +333,10 @@ jobs:
           reset_mock
           run_flow depth-levels
           stop_mock
+          start_mock 8765
+          reset_mock
+          run_flow chart-analyzer
+          stop_mock
           if [ "${#FAILED[@]}" -gt 0 ]; then
             echo "Failed flows: ${FAILED[*]}"
             exit 1

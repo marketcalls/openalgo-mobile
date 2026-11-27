@@ -1,0 +1,58 @@
+# The chart in analyzer (sandbox) mode against the mock server (CI job e2e-android): open the
+# chart from the instrument sheet, tap the chart's own Buy button (a DOM button, reached through
+# the WebView's accessibility tree), review the ticket as ANALYZE and place the order. Needs the
+# mock started with PORT=5000 WS_PORT=8765 and reset before the flow.
+appId: in.openalgo.mobile
+---
+- launchApp:
+    clearState: true
+- runFlow: onboarding-live.yaml
+- runScript:
+    file: scripts/mock.js
+    env:
+      CONTROL: '{"analyzer":true}'
+
+# RELIANCE is the first default row
+- scrollUntilVisible:
+    element:
+      id: watch-row-NSE-RELIANCE
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: watch-row-NSE-RELIANCE
+- tapOn:
+    id: inst-chart
+- extendedWaitUntil:
+    visible:
+      id: chart-ready
+    timeout: 20000
+- assertVisible:
+    id: chart-mode
+    text: ANALYZE
+
+# the DOM button, found by its accessibility label
+- tapOn: "Chart buy"
+- assertVisible:
+    id: ticket-screen
+- tapOn:
+    id: ticket-review
+- assertVisible:
+    id: review-mode-badge
+    text: ANALYZE
+# Confirm stays disabled until the review has read the mode and the order book
+- tapOn:
+    id: ticket-confirm
+    enabled: true
+- extendedWaitUntil:
+    visible: "Order placed"
+    timeout: 15000
+- assertVisible:
+    id: order-result
+
+# Done returns to the chart that opened the ticket
+- tapOn:
+    id: ticket-done
+- assertVisible:
+    id: chart-screen
+- tapOn:
+    id: chart-back
