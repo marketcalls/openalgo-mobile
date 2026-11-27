@@ -88,3 +88,85 @@ test('a chartDom over 2,330,000 fails the budget', () => {
   assert.match(r.lines.join('\n'), /chartDom: 2330001 FAIL, over the 2330000 byte limit/)
   assert.equal(compare({ android: 1, ios: 1, chartDom: 2330000 }, cfg).ok, true)
 })
+
+const TOOL = (entry, pad = 0) =>
+  `document.title="${DOM_MARKERS.toolDom}";x="oa-entry:src/dom/tools/${entry}.tsx";${'a'.repeat(pad)}`
+
+test('three toolDom pages are found by their marker and toolDom is the largest', () => {
+  const dir = exportDir([
+    { name: 'a', scripts: { 'c.js': CHART_JS } },
+    { name: 'b', scripts: { 'o.js': TOOL('OptionToolsDom', 300) } },
+    { name: 'c', scripts: { 'p.js': TOOL('PortfolioToolsDom', 200) } },
+    { name: 'd', scripts: { 's.js': TOOL('SectorRotationDom', 100) } },
+  ])
+  writeFileSync(join(dir, 'metadata.json'), JSON.stringify({ fileMetadata: {} }))
+  const tools = domPages(dir).filter((p) => p.marker === 'toolDom')
+  assert.deepEqual(tools.map((p) => p.entry).sort(), [
+    'OptionToolsDom',
+    'PortfolioToolsDom',
+    'SectorRotationDom',
+  ])
+  const m = measure(dir)
+  assert.equal(m.toolDom, TOOL('OptionToolsDom', 300).length)
+  assert.equal(m.toolPages.PortfolioToolsDom, TOOL('PortfolioToolsDom', 200).length)
+  assert.equal(Object.keys(m.toolPages).length, 3)
+})
+
+test('a toolDom page over 1,900,000 fails even when the others pass', () => {
+  const cfg = {
+    growth: 0.05,
+    limits: { android: 7000000, ios: 7000000, chartDom: 2330000, toolDom: 1900000 },
+    baseline: { android: null, ios: null, chartDom: null, toolDom: null },
+  }
+  const ok = { android: 1, ios: 1, chartDom: 1 }
+  const r = compare(
+    {
+      ...ok,
+      toolDom: 1900001,
+      toolPages: { OptionToolsDom: 1000, PortfolioToolsDom: 1900001, SectorRotationDom: 5 },
+    },
+    cfg,
+  )
+  assert.equal(r.ok, false)
+  assert.match(r.lines.join('\n'), /PortfolioToolsDom: 1900001 FAIL, over the 1900000 byte limit/)
+})
+
+test('a page over 1,900,000 passes under its own limit and fails over it', () => {
+  const cfg = {
+    growth: 0.05,
+    limits: {
+      android: 7000000,
+      ios: 7000000,
+      chartDom: 2330000,
+      toolDom: 1900000,
+      toolDomPages: { OptionToolsDom: 2200000 },
+    },
+    baseline: { android: null, ios: null, chartDom: null, toolDom: null },
+  }
+  const ok = { android: 1, ios: 1, chartDom: 1 }
+  const pass = compare(
+    { ...ok, toolDom: 2100000, toolPages: { OptionToolsDom: 2100000, SectorRotationDom: 9 } },
+    cfg,
+  )
+  assert.equal(pass.ok, true)
+  assert.match(pass.lines.join('\n'), /OptionToolsDom: 2100000 ok, 100000 B under the limit/)
+  const fail = compare({ ...ok, toolDom: 2200001, toolPages: { OptionToolsDom: 2200001 } }, cfg)
+  assert.equal(fail.ok, false)
+  assert.match(fail.lines.join('\n'), /OptionToolsDom: 2200001 FAIL, over the 2200000 byte limit/)
+  // another entry keeps 1,900,000
+  assert.equal(compare({ ...ok, toolDom: 1900001, toolPages: { GexDom: 1900001 } }, cfg).ok, false)
+})
+
+test('toolDom growth over the baseline still fails', () => {
+  const cfg = {
+    growth: 0.05,
+    limits: { android: 7000000, ios: 7000000, chartDom: 2330000, toolDom: 1900000 },
+    baseline: { android: null, ios: null, chartDom: null, toolDom: 1000000 },
+  }
+  const r = compare(
+    { android: 1, ios: 1, chartDom: 1, toolDom: 1060000, toolPages: { A: 1060000 } },
+    cfg,
+  )
+  assert.equal(r.ok, false)
+  assert.match(r.lines.join('\n'), /toolDom \+6\.0% over the baseline/)
+})

@@ -23,6 +23,11 @@ export function measure(dir) {
     if (!page.marker) continue
     const js = page.scripts.reduce((n, s) => n + s.bytes, 0)
     out[page.marker] = Math.max(out[page.marker] ?? 0, js)
+    if (page.marker === 'toolDom') {
+      // each tool page is held to its own limit, by entry name (the html name when it has none)
+      out.toolPages ??= {}
+      out.toolPages[page.entry ?? page.name] = js
+    }
   }
   return out
 }
@@ -32,6 +37,7 @@ export function compare(measured, cfg) {
   const lines = []
   let ok = true
   for (const [name, limit] of Object.entries(cfg.limits)) {
+    if (typeof limit !== 'number') continue // toolDomPages: per-entry limits, used below
     const size = measured[name]
     const base = cfg.baseline[name]
     const isPlatform = PLATFORMS.includes(name)
@@ -48,7 +54,21 @@ export function compare(measured, cfg) {
       continue
     }
     const problems = []
-    if (size > limit) problems.push(`over the ${limit} byte limit`)
+    // tool pages are held to a limit each (toolDomPages by entry name, else the toolDom limit);
+    // the toolDom line then tracks growth of the largest page only
+    const pages = name === 'toolDom' ? measured.toolPages : undefined
+    if (pages) {
+      for (const [entry, bytes] of Object.entries(pages).sort()) {
+        const own = cfg.limits.toolDomPages?.[entry] ?? limit
+        const over = bytes > own
+        if (over) ok = false
+        lines.push(
+          `${entry}: ${bytes} ${over ? `FAIL, over the ${own} byte limit` : `ok, ${own - bytes} B under the limit`}`,
+        )
+      }
+    } else if (size > limit) {
+      problems.push(`over the ${limit} byte limit`)
+    }
     let growth = ''
     if (typeof base === 'number') {
       const pct = ((size / base - 1) * 100).toFixed(1)
@@ -59,7 +79,7 @@ export function compare(measured, cfg) {
     }
     if (problems.length) ok = false
     let room = ''
-    if (!problems.length) {
+    if (!problems.length && !pages) {
       room = `, ${limit - size} B under the limit`
       const onePr = typeof base === 'number' ? Math.round(base * cfg.growth) : null
       if (onePr !== null && limit - size < onePr) {
@@ -82,7 +102,7 @@ function main(argv) {
   const cfg = JSON.parse(readFileSync(BASELINE, 'utf8'))
   const measured = measure(resolve(dir))
   if (argv.includes('--update')) {
-    for (const name of Object.keys(cfg.limits)) {
+    for (const name of Object.keys(cfg.limits).filter((n) => n !== 'toolDomPages')) {
       cfg.baseline[name] = measured[name] ?? null
     }
     writeFileSync(BASELINE, `${JSON.stringify(cfg, null, 2)}\n`)

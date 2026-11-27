@@ -4,12 +4,15 @@
     "android": 7000000,
     "ios": 7000000,
     "chartDom": 2330000,
-    "toolDom": 1900000
+    "toolDom": 1900000,
+    "toolDomPages": {
+      "OptionToolsDom": 2200000
+    }
   },
   "baseline": {
-    "android": 5868326,
-    "ios": 5765859,
-    "chartDom": 2324879,
-    "toolDom": null
+    "android": 6142849,
+    "ios": 6044927,
+    "chartDom": 2089573,
+    "toolDom": 1924760
   }
 }

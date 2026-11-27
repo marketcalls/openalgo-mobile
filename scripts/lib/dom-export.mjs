@@ -30,7 +30,20 @@ function markerOf(base, scripts) {
   return null
 }
 
-/** Every *.html page under `<dir>/www.bundle`: its scripts and styles (file, bytes) and its marker. */
+const ENTRY = /oa-entry:src\/dom\/tools\/([A-Za-z0-9_]+)\.tsx/
+
+/** The tool entry a page holds (`oa-entry:src/dom/tools/<Entry>.tsx`), by its component name. */
+function entryOf(base, scripts) {
+  for (const s of scripts) {
+    const path = join(base, s.file)
+    if (!existsSync(path)) continue
+    const m = ENTRY.exec(readFileSync(path, 'utf8'))
+    if (m) return m[1]
+  }
+  return null
+}
+
+/** Every *.html page under `<dir>/www.bundle`: its scripts and styles (file, bytes), its marker and its tool entry name. */
 export function domPages(dir) {
   const base = join(dir, WWW)
   if (!existsSync(base)) return []
@@ -41,7 +54,14 @@ export function domPages(dir) {
       const html = readFileSync(join(base, name), 'utf8')
       const scripts = assets(html, SCRIPT_SRC).map((r) => sized(base, r))
       const styles = assets(html, STYLE_HREF).map((r) => sized(base, r))
-      return { name, html, scripts, styles, marker: markerOf(base, scripts) }
+      return {
+        name,
+        html,
+        scripts,
+        styles,
+        marker: markerOf(base, scripts),
+        entry: entryOf(base, scripts),
+      }
     })
 }
 

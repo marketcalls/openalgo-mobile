@@ -20,6 +20,9 @@ env:
   NODE_VERSION: "26"
   CI: "1"
   EXPO_NO_TELEMETRY: "1"
+  # the same tree shaking the `export` script measured, so the APK and iOS builds ship the measured bundles
+  EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH: "1"
+  EXPO_UNSTABLE_TREE_SHAKING: "1"
   BUILD_NUMBER: ${{ github.run_number }}
 
 jobs:

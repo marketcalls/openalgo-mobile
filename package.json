@@ -12,7 +12,7 @@
     "test:compat": "jest -c jest.compat.config.js --runInBand",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\" \"dev/**/*.test.mjs\"",
     "boundaries": "depcruise src --config .dependency-cruiser.cjs",
-    "export": "expo export --platform android --platform ios --output-dir dist-export",
+    "export": "EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1 node scripts/export.mjs",
     "bundles": "node scripts/check-bundles.mjs dist-export",
     "tokens": "node scripts/gen-tokens.mjs",
     "tokens:check": "node scripts/gen-tokens.mjs --check",
