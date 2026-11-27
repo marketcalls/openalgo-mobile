@@ -101,3 +101,12 @@ test('tools/[toolId] has no header', async () => {
   expect(tool?.options).toEqual({ headerShown: false })
   await act(async () => view.unmount())
 })
+
+test('optionchain/[key] has no header', async () => {
+  const view = await render(<AppLayout />)
+  await waitFor(() => expect(mockScreens.some((s) => s.name === 'optionchain/[key]')).toBe(true))
+  const chain = mockScreens.filter((s) => s.name === 'optionchain/[key]').at(-1)
+  // the chain draws its own header (OptionChainScreen), as the tool route does
+  expect(chain?.options).toEqual({ headerShown: false })
+  await act(async () => view.unmount())
+})

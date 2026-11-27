@@ -42,6 +42,8 @@ type Props = {
   onSnap?(index: number): void
   /** The drag area, under the handle. */
   header: ReactNode
+  /** A tap on the body reaches its row while the keyboard is up (a search field in the header). */
+  persistTaps?: boolean
   children: ReactNode
 }
 
@@ -52,6 +54,7 @@ export function BottomSheet({
   onClose,
   onSnap,
   header,
+  persistTaps = false,
   children,
 }: Props) {
   const { c } = useTheme()
@@ -165,6 +168,7 @@ export function BottomSheet({
           testID={`${testID}-body`}
           style={{ maxHeight: Math.max(0, height * (snapPoints[index] ?? 1) - headerHeight) }}
           contentContainerStyle={{ paddingBottom: insets.bottom }}
+          keyboardShouldPersistTaps={persistTaps ? 'handled' : 'never'}
         >
           {children}
         </ScrollView>

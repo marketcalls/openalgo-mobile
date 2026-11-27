@@ -1,6 +1,12 @@
-import { NotYetAvailable } from '~/ui/NotYetAvailable'
+import { useLocalSearchParams } from 'expo-router'
+import { ChainLinkIncomplete, OptionChainScreen, targetFromKey } from '~/features/optionchain'
 
-/** Option chains arrive after this build; the route exists so links to it work. */
+/** The chain of an underlying, by its quote key (`NSE_INDEX:NIFTY`), as optionChainHref links it. */
 export default function OptionChainRoute() {
-  return <NotYetAvailable what="Option chains" />
+  const { key } = useLocalSearchParams<{ key: string }>()
+  const target = targetFromKey(key ?? '')
+  if (!target) return <ChainLinkIncomplete />
+  return (
+    <OptionChainScreen key={`${target.optionsExchange}:${target.underlying}`} initial={target} />
+  )
 }

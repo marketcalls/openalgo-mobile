@@ -114,6 +114,9 @@ function deviceDeps(api: KeyedApi): RouteDeps {
   return {
     options: {
       expiries: async () => ['01-DEC-26', '08-DEC-26'],
+      expiriesQuery: () => {
+        throw new Error('no screen observes expiries here')
+      },
       futuresPrice: async () => null,
       chain: () => Promise.reject(new Error('no chain is read here')),
     },

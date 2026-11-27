@@ -37,3 +37,27 @@ export function fmtQty(n?: number): string {
   if (!usable(n)) return '--'
   return Math.round(n).toLocaleString(FORMAT)
 }
+
+/** The units an OI figure is read in, largest first. */
+const OI_UNITS = [
+  [1e7, 'Cr'],
+  [1e5, 'L'],
+  [1e3, 'K'],
+] as const
+
+/** Open interest as a trader reads a chain: `950`, `45.6K`, `1.23L`, `12.5L`, `1.2Cr`. */
+export function fmtOi(n?: number): string {
+  if (!usable(n)) return '--'
+  for (const [size, unit] of OI_UNITS) {
+    if (Math.abs(n) < size) continue
+    const v = n / size
+    return `${fmtPrice(v, unit === 'L' && Math.abs(v) < 10 ? 2 : 1)}${unit}`
+  }
+  return fmtQty(n)
+}
+
+/** A strike: `24,500`, or `12,345.50` when it has a fraction. */
+export function fmtStrike(n?: number): string {
+  if (!usable(n)) return '--'
+  return fmtPrice(n, Number.isInteger(n) ? 0 : 2)
+}

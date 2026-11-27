@@ -621,17 +621,14 @@ describe('the Tools tab', () => {
 })
 
 describe('the tool route', () => {
-  test('a later tool and Option Chain say they are coming; an unknown id is an incomplete link', async () => {
+  // Option Chain's native screen opens from this route too: features/optionchain's suite.
+  test('a later tool says it is coming; an unknown id is an incomplete link', async () => {
     await setup()
     await openTool('volsurface')
     expect(screen.getByText("Tools aren't in this build yet.")).toBeTruthy()
     expect(mockDom.mounts).toBe(0)
     await press('tool-back')
     expect(mockRouter.back).toHaveBeenCalledTimes(1)
-
-    mockParams = { toolId: 'optionchain' }
-    await view?.rerender(tree(services as Services, <ToolRoute />))
-    expect(screen.getByText("Option chains aren't in this build yet.")).toBeTruthy()
 
     mockParams = { toolId: 'nope' }
     await view?.rerender(tree(services as Services, <ToolRoute />))

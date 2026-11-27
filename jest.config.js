@@ -32,6 +32,16 @@ const ESM_PACKAGES = [
 ]
 const transformIgnorePatterns = [`/node_modules/(?!(${ESM_PACKAGES.join('|')})/)`]
 
+// The native project's: jest-expo's own list (jest-preset.js), with FlashList compiled too, as it
+// ships ESM only (the Option Chain's ladder). A jest-expo whose list no longer reads so fails here.
+const { transformIgnorePatterns: expoIgnore } = require('jest-expo/jest-preset')
+const nativeTransformIgnorePatterns = expoIgnore.map((p, i) =>
+  i === 0 ? p.replace('(?!(', '(?!(@shopify/flash-list|') : p,
+)
+if (nativeTransformIgnorePatterns[0] === expoIgnore[0]) {
+  throw new Error('jest-expo transformIgnorePatterns changed: add @shopify/flash-list again')
+}
+
 /** @type {import('jest').Config} */
 module.exports = {
   moduleNameMapper,
@@ -45,6 +55,7 @@ module.exports = {
       // Maps Reanimated's web-only modules for Jest and chains the worklets resolver.
       resolver: 'react-native-reanimated/jest/resolver',
       setupFiles: ['<rootDir>/jest.setup.ts'],
+      transformIgnorePatterns: nativeTransformIgnorePatterns,
       moduleNameMapper,
       // Scratch space: the golden pipeline's server and its Python environment, whose
       // package.json files collide in the haste map (scripts/gen-golden.mjs).

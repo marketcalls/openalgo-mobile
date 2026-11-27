@@ -1,4 +1,8 @@
-import { INDEX_OPTION_UNDERLYINGS, optionChainTarget } from './optionChain'
+import { expectLog, keepExpectedLogs } from '../../test/helpers/consoleLogs'
+import { INDEX_OPTION_UNDERLYINGS, optionChainTarget, stockHasOptions } from './optionChain'
+
+beforeEach(() => keepExpectedLogs())
+afterEach(() => jest.restoreAllMocks())
 
 const target = (exchange: string, symbol: string, name = symbol) =>
   optionChainTarget({ exchange, symbol, name })
@@ -79,5 +83,43 @@ describe('optionChainTarget', () => {
       NSE_INDEX: ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY', 'NIFTYNXT50'],
       BSE_INDEX: ['SENSEX', 'BANKEX', 'SENSEX50'],
     })
+  })
+})
+
+describe('stockHasOptions (useOptionChainTarget for an NSE stock)', () => {
+  const deps = (listed: boolean | null, expiries: () => Promise<string[]>) => ({
+    master: { hasOptions: jest.fn(async () => listed) },
+    options: { expiries: jest.fn(expiries) },
+  })
+
+  test('the symbol master answers when it is stored, with no read', async () => {
+    const yes = deps(true, async () => [])
+    expect(await stockHasOptions(yes, 'RELIANCE')).toBe(true)
+    expect(yes.master.hasOptions).toHaveBeenCalledWith('NFO', 'RELIANCE')
+    const no = deps(false, async () => ['30-DEC-26'])
+    expect(await stockHasOptions(no, 'IDEA')).toBe(false)
+    expect(yes.options.expiries).not.toHaveBeenCalled()
+    expect(no.options.expiries).not.toHaveBeenCalled()
+  })
+
+  test("without a master, the day's expiry read decides: listed expiries mean options", async () => {
+    const listed = deps(null, async () => ['30-DEC-26'])
+    expect(await stockHasOptions(listed, 'RELIANCE')).toBe(true)
+    expect(listed.options.expiries).toHaveBeenCalledWith('NFO', 'RELIANCE', 'options')
+    expect(
+      await stockHasOptions(
+        deps(null, async () => []),
+        'IDEA',
+      ),
+    ).toBe(false)
+  })
+
+  test('a failed read offers no chain', async () => {
+    const warned = expectLog('warn', /option chain check for RELIANCE failed/)
+    const failing = deps(null, async () => {
+      throw new Error('down')
+    })
+    expect(await stockHasOptions(failing, 'RELIANCE')).toBe(false)
+    expect(warned).toHaveLength(1)
   })
 })

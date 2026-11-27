@@ -1,9 +1,9 @@
 // The instrument sheet (design 17.2), Kite's: it opens at half height, and its header drags, or
 // its handle taps, it to full height. The header holds the symbol, the price and the watchlist
-// toggle; the body BUY and SELL, the chart, option chain and GTT links, the depth, and at full
-// height the day's quote. The depth panel holds the sheet's one subscription (an index, with no
-// book, holds its mode-2 quote instead); the rest only read its quote. An expired or unknown
-// contract shows only that, and takes no feed slot.
+// toggle; the body BUY and SELL, the chart, option chain (an NSE stock's once it is known to list
+// options) and GTT links, the depth, and at full height the day's quote. The depth panel holds the
+// sheet's one subscription (an index, with no book, holds its mode-2 quote instead); the rest only
+// read its quote. An expired or unknown contract shows only that, and takes no feed slot.
 import { type Href, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
@@ -12,9 +12,10 @@ import { DepthPanel } from '~/features/depth'
 import { BrokerBanner } from '~/market/components/SessionBanners'
 import { useGttSupport } from '~/market/gtt/queries'
 import { isQuoteOnly } from '~/market/instruments/exchanges'
+import type { InstrumentMeta } from '~/market/instruments/meta'
 import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
 import { chartHref, gttHref, optionChainHref, ticketHref } from '~/market/links'
-import { optionChainTarget } from '~/market/optionChain'
+import { useOptionChainTarget } from '~/market/optionChain'
 import { useBrokerBlocked } from '~/market/session'
 import type { Side } from '~/market/types'
 import { Badge } from '~/ui/Badge'
@@ -55,21 +56,28 @@ export function InstrumentSheet({ exchange, symbol }: Key) {
         ) : inst.loading ? (
           <Skeleton />
         ) : (
-          <Body exchange={exchange} symbol={symbol} name={inst.meta?.name} expanded={expanded} />
+          <Body
+            exchange={exchange}
+            symbol={symbol}
+            meta={inst.meta ?? { exchange, symbol, name: '' }}
+            expanded={expanded}
+          />
         )}
       </View>
     </BottomSheet>
   )
 }
 
-function Body(p: Key & { name?: string; expanded: boolean }) {
+function Body(
+  p: Key & { meta: Pick<InstrumentMeta, 'exchange' | 'symbol' | 'name'>; expanded: boolean },
+) {
   const { exchange, symbol } = p
   const router = useRouter()
   const gtt = useGttSupport(exchange)
   // The sheet is replaced, not stacked under: a push after a modal would sit beneath it on iOS.
   const go = (href: string) => router.replace(href as Href)
   const quoteOnly = isQuoteOnly(exchange)
-  const chain = optionChainTarget({ exchange, symbol, name: p.name ?? '' })
+  const chain = useOptionChainTarget(p.meta)
   return (
     <>
       {quoteOnly ? (

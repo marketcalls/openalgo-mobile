@@ -153,7 +153,7 @@ Tools
 - the tool screen: `tool-screen`, `tool-back`, `tool-title` (a tap scrolls the page to its top),
   `tool-mode`, `tool-subtitle` (the line under the header, with the status badges),
   `tool-subtitle-text`, `tool-progress`, `tool-body`, `tool-dom`, `tool-skeleton`, `tool-reload`,
-  `tool-unavailable` (a later tool, Option Chain before its screen, or a broken link)
+  `tool-unavailable` (a later tool or a broken link)
 - its probes, each a 1×1 text read by its label: `tool-ready` (`page {id}`), `tool-csp`
   (`violations {n}`), `tool-layout` (`overflow {n}`, once the page has measured itself)
 - a held order's review: `tool-held-sheet`, `tool-held-scroll`, `tool-held-head`,
@@ -162,6 +162,29 @@ Tools
   `tool-held-cancel`, `tool-held-result`, `tool-held-orderbook`, `tool-held-done`,
   `tool-held-queue` (in the footer while more orders from the tool wait: "1 more order from this
   tool is waiting")
+
+Option chain (`/optionchain/{key}`, and the Option Chain tool)
+- `oc-screen`, `oc-screen-incomplete` (a link that names no chain), `oc-back`
+- the header: `oc-underlying` (a tap opens the underlying picker), `oc-spot-ltp`, `oc-mode`,
+  `oc-polling-note` (polling only: "Polling: prices refresh every 5 s." or 10 s),
+  `oc-expiry-{N}` (the two nearest expiries' chips, `0` the nearest: "02 Dec · 2d" or "Today"),
+  `oc-expiry` ("More": every expiry), `oc-greeks` (the Price/Greeks switch), `oc-count` ("±10"),
+  `oc-greek-{GREEK}` (Greeks view; not for flows: the Greek is lower case, one of iv, delta,
+  gamma, theta and vega), `oc-colhead`
+- the ladder: `oc-ladder`, `oc-row-{STRIKE}` (a strike's `.` is `_`), `oc-ce-{STRIKE}`,
+  `oc-pe-{STRIKE}` (a side: a tap opens its leg sheet), `oc-ce-ATM`, `oc-pe-ATM` (the strike
+  nearest the live spot), `oc-ce-ltp-{STRIKE}`, `oc-pe-ltp-{STRIKE}`, `oc-ce-oi-{STRIKE}`,
+  `oc-pe-oi-{STRIKE}`, `oc-oibar-ce-{STRIKE}`, `oc-oibar-pe-{STRIKE}`, `oc-spot` (the live spot
+  between its strikes), `oc-jump-atm` (while ATM is off screen), `oc-footer` (PCR, OI totals and
+  "Updated hh:mm:ss")
+- states: `oc-skeleton`, `oc-error` (with "Try again"), `oc-refresh-error`, `oc-empty-expiry`
+  ("Pick another expiry"), `oc-empty-underlying`
+- the pickers: `oc-underlying-sheet`, `oc-pick-search`, `oc-exchange-{EXCHANGE}`,
+  `oc-pick-{UNDERLYING}`, `oc-expiry-sheet`, `oc-expiry-row-{N}`, `oc-count-sheet`, `oc-count-{N}`
+- a leg's sheet: `oc-leg-sheet`, `oc-leg-title`, `oc-leg-sub`, `oc-leg-ltp`, `oc-leg-lots`
+  ("2 lots · 150 qty"), `oc-leg-lots-inc`, `oc-leg-lots-dec`, `oc-leg-trade`, `oc-leg-buy`,
+  `oc-leg-sell`, `oc-leg-buy-caption`, `oc-leg-sell-caption` ("at 120.55 ask"), `oc-leg-chart`,
+  `oc-leg-depth`, `oc-leg-greeks` (the facts: bid, ask, OI, volume and the five Greeks)
 
 Status
 - `badge-http`, `badge-polling` *, `badge-broker`, `mode-badge`

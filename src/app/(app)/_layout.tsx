@@ -216,16 +216,8 @@ function AppShell({ s }: { s: Services }) {
                   />
                   {/* A tool draws its own header; its swipe back follows the page's view. */}
                   <Stack.Screen name="tools/[toolId]" options={{ headerShown: false }} />
-                  <Stack.Screen
-                    name="optionchain/[key]"
-                    options={{
-                      headerShown: true,
-                      title: 'Option chain',
-                      headerStyle: { backgroundColor: c.background },
-                      headerTintColor: c.foreground,
-                      headerShadowVisible: false,
-                    }}
-                  />
+                  {/* The chain draws its own header: only its ladder scrolls. */}
+                  <Stack.Screen name="optionchain/[key]" options={{ headerShown: false }} />
                 </Stack>
                 <ToastHost />
               </View>

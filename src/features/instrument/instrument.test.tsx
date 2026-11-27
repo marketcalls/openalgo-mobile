@@ -20,7 +20,6 @@ import { buildTheme } from '~/ui/theme'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import ChartRoute from '../../app/(app)/chart/[key]'
 import InstrumentRoute from '../../app/(app)/instrument/[key]'
-import OptionChainRoute from '../../app/(app)/optionchain/[key]'
 import { InstrumentSheet } from './screens/InstrumentSheet'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
@@ -93,6 +92,8 @@ const setup = (seed: Record<string, string> = {}, o: SetupOptions = {}) => {
       const name = NAMES[body.symbol ?? ''] ?? `${body.symbol} FULL NAME`
       return { symbol: body.symbol, exchange: body.exchange, name }
     }
+    // no NSE stock here lists options (optionchain.test.tsx opens one that does)
+    if (id === 'expiry') return []
     throw new Error(`unexpected ${id}`)
   })
   const acquire = jest.fn((_r: unknown) => () => {})
@@ -106,6 +107,11 @@ const setup = (seed: Record<string, string> = {}, o: SetupOptions = {}) => {
   const polling = { register: () => () => {}, health: () => 'none', onHealth: () => () => {} }
   const live = { realtime, polling, store } as unknown as LiveServices
   const caps = { get: () => o.caps ?? null, subscribe: () => () => {}, setFeature: jest.fn() }
+  // no gc timer: it would hold the test process open
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+  })
+  const clock = { now: Date.now, offsetMs: () => 0, noteServerTs: jest.fn(), noteDate: jest.fn() }
   const services = {
     api: { call },
     store,
@@ -115,11 +121,9 @@ const setup = (seed: Record<string, string> = {}, o: SetupOptions = {}) => {
     storage: profileStorage(kv, 'p1'),
     profile: { get: () => ({ id: 'p1', broker: o.broker ?? null }) },
     orderEvents: createOrderEventBus(),
+    queryClient: client,
+    clock,
   } as unknown as Services
-  // no gc timer: it would hold the test process open
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
-  })
   const tree = (node: React.ReactElement) => (
     <ServicesProvider value={services}>
       <TradingProvider now={Date.now}>
@@ -309,8 +313,13 @@ describe('option chain', () => {
     expect(mockReplace).toHaveBeenLastCalledWith(href)
   })
 
-  test('an NSE stock has none (until the symbol master can tell)', async () => {
-    await open('NSE', 'RELIANCE')
+  test('an NSE stock that lists no options has none (the one expiry read says so)', async () => {
+    const h = await open('NSE', 'RELIANCE')
+    expect(h.call).toHaveBeenCalledWith(
+      'expiry',
+      { symbol: 'RELIANCE', exchange: 'NFO', instrumenttype: 'options' },
+      expect.anything(),
+    )
     expect(screen.queryByTestId('inst-optionchain')).toBeNull()
   })
 })
@@ -428,12 +437,5 @@ describe('the chart route', () => {
   })
 })
 
-describe('placeholder routes', () => {
-  test('the option chain route says option chains are not in this build', async () => {
-    mockParams = { key: 'NSE_INDEX%3ANIFTY' }
-    await render(<OptionChainRoute />)
-    expect(screen.getByText("Option chains aren't in this build yet.")).toBeTruthy()
-  })
-
-  // the tools route is the Tools feature's now: features/tools/tools.test.tsx
-})
+// The option chain route is the Option Chain feature's: features/optionchain/optionchain.test.tsx;
+// the tools route the Tools feature's: features/tools/tools.test.tsx.

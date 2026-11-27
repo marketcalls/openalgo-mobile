@@ -196,6 +196,16 @@ describe('OptionsData', () => {
     queryClient.clear()
   })
 
+  test("a screen's observer and a tool's read share the one expiry entry", async () => {
+    const { options, calls, queryClient } = setup(() => expiryReply(['02-DEC-26']))
+    const q = options.expiriesQuery('NFO', 'NIFTY', 'options')
+    expect(q.queryKey).toEqual(qk.expiry(PID, 'NFO', 'NIFTY', 'options'))
+    expect(await queryClient.fetchQuery(q)).toEqual(['02-DEC-26'])
+    expect(await options.expiries('NFO', 'NIFTY', 'options')).toEqual(['02-DEC-26'])
+    expect(calls).toHaveLength(1)
+    queryClient.clear()
+  })
+
   test("expiries roll with the server's IST day, not a skewed phone clock", async () => {
     const { options, calls, queryClient, clock } = setup(() => expiryReply(['30-DEC-26']))
     // the phone is 3 minutes ahead of the server

@@ -22,9 +22,25 @@ export type ChainQuery = {
   with_greeks?: boolean
 }
 
+type ExpiryType = 'options' | 'futures'
+
 export type OptionsData = {
   /** The listed expiries, DD-MMM-YY, nearest first; one read per IST day. */
-  expiries(exchange: string, underlying: string, type: 'options' | 'futures'): Promise<string[]>
+  expiries(exchange: string, underlying: string, type: ExpiryType): Promise<string[]>
+  /**
+   * The same read as query options, for a screen to observe: one cache entry with `expiries`
+   * (a queryFn that fetched its own key would wait on itself).
+   */
+  expiriesQuery(
+    exchange: string,
+    underlying: string,
+    type: ExpiryType,
+  ): {
+    queryKey: ReturnType<typeof qk.expiry>
+    queryFn: () => Promise<string[]>
+    staleTime: (q: { state: { dataUpdatedAt: number } }) => number
+    gcTime: number
+  }
   /**
    * The futures price the OI tools show: the future of `expiry` (DDMMMYY) when one is listed,
    * else the nearest, quoted as `U + DDMMMYY + 'FUT'`; null when none is listed or its quote
@@ -53,19 +69,21 @@ export function createOptionsData(d: {
   /** The IST day on the server's clock; `deviceMs` is a time on the phone's. */
   const serverDay = (deviceMs: number) => istDate(deviceMs + clock.offsetMs())
 
+  const expiriesQuery: OptionsData['expiriesQuery'] = (exchange, underlying, type) => ({
+    queryKey: qk.expiry(pid, exchange, underlying, type),
+    queryFn: () =>
+      api.call('expiry', { symbol: underlying, exchange, instrumenttype: type }, ExpirySchema),
+    // the server drops an expiry at its own midnight: fresh until the server's IST day moves on
+    staleTime: (q) =>
+      serverDay(q.state.dataUpdatedAt) === istDate(clock.now()) ? Number.POSITIVE_INFINITY : 0,
+    gcTime: Number.POSITIVE_INFINITY,
+  })
   const expiries: OptionsData['expiries'] = (exchange, underlying, type) =>
-    queryClient.fetchQuery({
-      queryKey: qk.expiry(pid, exchange, underlying, type),
-      queryFn: () =>
-        api.call('expiry', { symbol: underlying, exchange, instrumenttype: type }, ExpirySchema),
-      // the server drops an expiry at its own midnight: fresh until the server's IST day moves on
-      staleTime: (q) =>
-        serverDay(q.state.dataUpdatedAt) === istDate(clock.now()) ? Number.POSITIVE_INFINITY : 0,
-      gcTime: Number.POSITIVE_INFINITY,
-    })
+    queryClient.fetchQuery(expiriesQuery(exchange, underlying, type))
 
   return {
     expiries,
+    expiriesQuery,
 
     async futuresPrice(underlying, exchange, expiry, chainLtp) {
       if (CRYPTO_EXCHANGES.has(exchange.toUpperCase())) return chainLtp
