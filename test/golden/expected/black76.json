@@ -11771,7 +11771,8 @@
       "t": 0.019178082191780823,
       "price": 900,
       "iv": null,
-      "error": "price is below intrinsic value"
+      "error": "price is below intrinsic value",
+      "greeks": null
     },
     {
       "label": "below intrinsic",
@@ -11781,7 +11782,8 @@
       "t": 0.019178082191780823,
       "price": 900,
       "iv": null,
-      "error": "price is below intrinsic value"
+      "error": "price is below intrinsic value",
+      "greeks": null
     },
     {
       "label": "at the maximum",
@@ -11791,7 +11793,13 @@
       "t": 0.019178082191780823,
       "price": 24000,
       "iv": 4.999999999999996,
-      "error": null
+      "error": null,
+      "greeks": {
+        "delta": 0.6354084451404302,
+        "gamma": 2.2609882702333278e-05,
+        "theta": -446.0031656350667,
+        "vega": 12.488088637781875
+      }
     },
     {
       "label": "at the maximum",
@@ -11801,7 +11809,13 @@
       "t": 0.019178082191780823,
       "price": 25000,
       "iv": 4.999999999999996,
-      "error": null
+      "error": null,
+      "greeks": {
+        "delta": -0.38695767715641516,
+        "gamma": 2.303604681232752e-05,
+        "theta": -454.409690544542,
+        "vega": 12.723471335247186
+      }
     },
     {
       "label": "above the maximum",
@@ -11811,7 +11825,8 @@
       "t": 0.019178082191780823,
       "price": 24001,
       "iv": null,
-      "error": "price exceeds theoretical maximum"
+      "error": "price exceeds theoretical maximum",
+      "greeks": null
     },
     {
       "label": "above the maximum",
@@ -11821,7 +11836,8 @@
       "t": 0.019178082191780823,
       "price": 25001,
       "iv": null,
-      "error": "price exceeds theoretical maximum"
+      "error": "price exceeds theoretical maximum",
+      "greeks": null
     },
     {
       "label": "0.05 deep out of the money",
@@ -11831,7 +11847,13 @@
       "t": 0.019178082191780823,
       "price": 0.05,
       "iv": 0.36476579815619914,
-      "error": null
+      "error": null,
+      "greeks": {
+        "delta": 0.00016916729755108196,
+        "gamma": 5.345257551585778e-07,
+        "theta": -0.0561172628517387,
+        "vega": 0.02153824958084245
+      }
     },
     {
       "label": "0.05 deep out of the money",
@@ -11841,7 +11863,13 @@
       "t": 0.019178082191780823,
       "price": 0.05,
       "iv": 0.4464608806315865,
-      "error": null
+      "error": null,
+      "greeks": {
+        "delta": -0.00013631410527233697,
+        "gamma": 3.567664969342228e-07,
+        "theta": -0.056111323236342395,
+        "vega": 0.017595237553568007
+      }
     },
     {
       "label": "0.05 deep out of the money",
@@ -11851,7 +11879,45 @@
       "t": 0.005479452054794521,
       "price": 0.05,
       "iv": 0.35490597415133196,
-      "error": null
+      "error": null,
+      "greeks": {
+        "delta": 0.00015030026877328926,
+        "gamma": 4.2465691084199194e-07,
+        "theta": -0.19812927170443756,
+        "vega": 0.02233033942899538
+      }
+    },
+    {
+      "label": "a price from sigma 6.2",
+      "flag": "c",
+      "F": 24000,
+      "K": 24000,
+      "t": 0.019178082191780823,
+      "price": 7975.140570767097,
+      "iv": 4.999999999999996,
+      "error": null,
+      "greeks": {
+        "delta": 0.6354084451404302,
+        "gamma": 2.2609882702333278e-05,
+        "theta": -446.0031656350667,
+        "vega": 12.488088637781875
+      }
+    },
+    {
+      "label": "at intrinsic",
+      "flag": "c",
+      "F": 24000,
+      "K": 23000,
+      "t": 0.019178082191780823,
+      "price": 1000,
+      "iv": 1e-06,
+      "error": null,
+      "greeks": {
+        "delta": 1.0,
+        "gamma": 0.0,
+        "theta": -0.0,
+        "vega": 0.0
+      }
     }
   ],
   "symbols": [

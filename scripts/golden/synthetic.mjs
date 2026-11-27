@@ -8,12 +8,13 @@
 //                        Max Pain with nothing to work with);
 //   nifty-gaps           mid-week, with strikes of zero OI on either side and the ATM put unpriced;
 //   crudeoil-mcx-2000    CRUDEOIL on MCX at 20:00 IST on its expiry day, before MCX's 23:30 cut-off.
+// Only plan E's reads of the recording are kept: plan F's superset and master are not E's edges.
 //   node scripts/golden/synthetic.mjs [--check]
 // --check exits 1 when a committed file differs from what this builds.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { requestKey } from '../lib/golden-keys.mjs'
+import { CASES, recordedCalls, requestKey } from '../lib/golden-keys.mjs'
 
 const INPUTS = fileURLToPath(new URL('../../test/golden/inputs/', import.meta.url))
 const BASE = 'mock-nifty.json'
@@ -143,8 +144,16 @@ export function inputText(input) {
   return `${JSON.stringify(out, null, 2)}\n`
 }
 
+/** The recording with plan E's reads only (golden-keys.mjs recordedCalls). */
+export function planE(input) {
+  const c = CASES.find((x) => x.id === input.case)
+  const keys = recordedCalls(c, input.expiry, input.fut).map((x) => requestKey(x.endpoint, x.body))
+  const responses = Object.fromEntries(keys.map((k) => [k, input.responses[k]]))
+  return { ...input, responses }
+}
+
 function main(argv) {
-  const base = JSON.parse(readFileSync(join(INPUTS, BASE), 'utf8'))
+  const base = planE(JSON.parse(readFileSync(join(INPUTS, BASE), 'utf8')))
   const check = argv.includes('--check')
   let stale = 0
   for (const [id, input] of Object.entries(synthetic(base))) {

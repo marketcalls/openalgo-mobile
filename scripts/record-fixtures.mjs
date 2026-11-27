@@ -1,11 +1,15 @@
 // Records the /api/v1 replies the golden tests feed the server's Python with (design 9.2):
-//   npm run record-fixtures -- --mock <url> | --real | --from <raw dir>  [--out <dir>] [--case <id>]...
+//   npm run record-fixtures -- --mock <url> | --real | [--from <raw dir>] [--from-f <raw-f dir>]
+//                              [--out <dir>] [--case <id>]...
 // --mock reads a local mock with its key; --real reads the test server in .env.test.local (in
-// analyzer mode only); --from converts the controller's raw recordings (record-raw.mjs). Each
-// case becomes <out>/<source>-<case>.json (default test/golden/inputs). Only reads are sent.
-// Nothing is written when any case is refused: a failed read, or a reply holding the key or an
-// api key field. Only file names and call counts are printed, never a URL or the key.
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+// analyzer mode only); --from converts the controller's raw recordings (record-raw.mjs) and
+// --from-f its part-F superset (record-raw-f.mjs, with its instruments-<EX>.csv), merged per
+// case when both are given (preflight F conflict 11). A recording holds plan E's reads and plan
+// F's superset (scripts/lib/golden-record-f.mjs) with the case's master. Each case becomes
+// <out>/<source>-<case>.json (default test/golden/inputs). Only reads are sent. Nothing is
+// written when any case is refused: a failed read, or a reply holding the key or an api key
+// field. Only file names and call counts are printed, never a URL or the key.
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -14,21 +18,38 @@ import {
   CASES,
   chainCall,
   expiryCalls,
+  GREEKS_CHAIN,
   LEGS_CHAIN,
   recordedCalls,
   requestKey,
 } from './lib/golden-keys.mjs'
+import {
+  contextF,
+  masterExchanges,
+  masterOf,
+  parseInstrumentsRows,
+  recordedCallsF,
+  strategyLegsOf,
+  unservable,
+} from './lib/golden-record-f.mjs'
 import { loadTestEnv } from './lib/test-env.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const TEST_ENV = join(ROOT, '.env.test.local')
 const DEFAULT_OUT = join(ROOT, 'test/golden/inputs')
 const TIMEOUT_MS = 30_000
+/** A whole exchange's instruments CSV (src/core/http/endpoints.ts instruments). */
+const CSV_TIMEOUT_MS = 120_000
 /** Between two reads of the real server, as the controller's recorder paces them. */
 const REAL_PACE_MS = 400
 const KEY_FIELD = /api_?key/i
 const RAW_FILE = /^(?:real|mock)-[a-z]+\.json$/
+const RAW_F_FILE = /^real-[a-z]+\.json$/
 const TOP_KEYS = ['case', 'source', 'serverNowMs', 'underlying', 'exchange', 'expiry', 'fut']
+/** Part F's, after TOP_KEYS when the input has them. */
+const F_KEYS = ['master', 'strategyLegs']
+/** Rounds of reads after which a part-F recording that still asks for more is refused. */
+const MAX_ROUNDS = 8
 const LOOPBACK = /^(localhost|127(\.\d{1,3}){3}|\[::1\]|0\.0\.0\.0)$/
 
 /** A case that cannot be stored; the message names no URL and no key. */
@@ -83,7 +104,8 @@ function inputText(input) {
       .sort()
       .map((k) => [k, input.responses[k]]),
   )
-  const top = Object.fromEntries(TOP_KEYS.map((k) => [k, input[k]]))
+  const keys = [...TOP_KEYS, ...F_KEYS.filter((k) => k in input)]
+  const top = Object.fromEntries(keys.map((k) => [k, input[k]]))
   return `${JSON.stringify({ ...top, responses }, null, 2)}\n`
 }
 
@@ -95,8 +117,29 @@ function checkedText(input, keys) {
   return text
 }
 
-/** Records one case through `send(endpoint, body)` → { status, date, json }. */
-async function recordCase(c, { source, send, withGreeks }) {
+/** The case's master from `rows(exchange)` → that exchange's MasterRow list. */
+async function caseMaster(c, rows, serverNowMs) {
+  const byExchange = {}
+  for (const ex of masterExchanges(c)) byExchange[ex] = await rows(ex)
+  return masterOf(c, byExchange, serverNowMs)
+}
+
+/** Part F's input fields, once the recording `input` holds its superset. */
+function partF(c, input) {
+  const ctx = contextF(c, input)
+  const expiry = ctx.expiries[0]
+  return {
+    master: input.master,
+    strategyLegs: strategyLegsOf(c, ctx.chain20, expiry ? expiry.replaceAll('-', '') : null),
+  }
+}
+
+/**
+ * Records one case through `send(endpoint, body)` → { status, date, json }: plan E's reads,
+ * then part F's superset, read until it asks for nothing new (its later reads follow the
+ * replies: the probe chain's window, the ATM legs, the strikes the reference reaches).
+ */
+async function recordCase(c, { source, send, withGreeks, instruments }) {
   const responses = {}
   const replies = {}
   const read = async ({ endpoint, body }) => {
@@ -119,7 +162,30 @@ async function recordCase(c, { source, send, withGreeks }) {
   }
   const { underlying, exchange } = c
   const serverNowMs = serverNow(replies[legsKey])
-  return { case: c.id, source, serverNowMs, underlying, exchange, expiry, fut, responses }
+  if (typeof replies[legsKey].json.server_ts !== 'number') {
+    throw new Refused('part F needs a server from 2.0.2.0 (with_greeks)')
+  }
+  const master = await caseMaster(c, instruments, serverNowMs)
+  const input = { serverNowMs, master, responses }
+  for (let round = 0; ; round++) {
+    const todo = recordedCallsF(c, contextF(c, input)).filter(
+      (x) => !(requestKey(x.endpoint, x.body) in responses),
+    )
+    if (todo.length === 0) break
+    if (round === MAX_ROUNDS) throw new Refused('part F still asks for more reads')
+    for (const call of todo) await read(call)
+  }
+  return {
+    case: c.id,
+    source,
+    serverNowMs,
+    underlying,
+    exchange,
+    expiry,
+    fut,
+    ...partF(c, input),
+    responses,
+  }
 }
 
 /** One raw recording (record-raw.mjs shape) as an input: the analyzer read dropped, extras kept. */
@@ -158,6 +224,70 @@ function fromRaw(rec) {
   }
 }
 
+/**
+ * One part-F raw recording (record-raw-f.mjs shape) as its responses: the analyzer read dropped.
+ * Its clock is the first expiry's with-Greeks chain at 20; its expiry the first listed.
+ */
+function fromRawF(rec) {
+  const c = CASES.find((x) => x.id === rec.case)
+  if (!c || rec.source !== 'real') throw new Refused('not a golden case')
+  const calls = (rec.calls ?? []).filter((x) => x.endpoint !== 'analyzer')
+  const bad = calls.filter((x) => !succeeded(x))
+  if (bad.length) throw new Refused(`${bad.length} reads did not succeed`)
+  if (!Array.isArray(rec.expiries) || rec.expiries.length === 0) {
+    throw new Refused('no option expiries')
+  }
+  const responses = {}
+  for (const x of calls) responses[requestKey(x.endpoint, x.body)] = x.json
+  const expiry = compact(String(rec.expiries[0]))
+  const probe = chainCall(c, expiry, GREEKS_CHAIN, { withGreeks: true })
+  const ts = responses[requestKey(probe.endpoint, probe.body)]?.server_ts
+  if (typeof ts !== 'number') throw new Refused(`the chain at ${GREEKS_CHAIN} has no server clock`)
+  const { underlying, exchange } = c
+  return {
+    case: c.id,
+    source: 'real',
+    serverNowMs: ts * 1000,
+    underlying,
+    exchange,
+    expiry,
+    fut: futureSymbol(c, expiry, rec.futExpiries),
+    nearest: rec.expiries[0],
+    responses,
+  }
+}
+
+/** The first options expiry a converted recording lists (DD-MMM-YY), or undefined. */
+function nearestOf(c, input) {
+  const [options] = expiryCalls(c)
+  return input.responses[requestKey(options.endpoint, options.body)]?.data?.[0]
+}
+
+/**
+ * A case from its raw recordings, either side optional (preflight F conflict 11): E's clock,
+ * expiry and future when E's is there, every reply of both (F's on a clash), and the master
+ * from the raw-f CSVs. A part F the merged replies cannot serve is left out, `pending` says why;
+ * null when nothing is left.
+ */
+async function mergeRaw(c, e, f, csvRows) {
+  if (!f) return { input: e }
+  if (e && nearestOf(c, e) !== f.nearest) {
+    throw new Refused('the two recordings have a different nearest expiry')
+  }
+  const { nearest: _nearest, ...rest } = f
+  const base = e ? { ...e, responses: { ...e.responses, ...f.responses } } : rest
+  const master = await caseMaster(c, csvRows, base.serverNowMs)
+  const input = { ...base, master }
+  const missing = unservable(input, recordedCallsF(c, contextF(c, input)))
+  if (missing.length > 0) {
+    const first = requestKey(missing[0].endpoint, missing[0].body)
+    const pending = `part F pending, ${missing.length} reads not recorded (${first})`
+    return { input: e ?? null, pending }
+  }
+  const { master: _master, responses, ...top } = input
+  return { input: { ...top, ...partF(c, input), responses } }
+}
+
 function parseRaw(text) {
   try {
     return JSON.parse(text)
@@ -168,7 +298,8 @@ function parseRaw(text) {
 
 function client(url, key, paceMs) {
   const base = url.replace(/\/+$/, '')
-  return async (endpoint, body) => {
+  const pace = () => (paceMs ? new Promise((ok) => setTimeout(ok, paceMs)) : undefined)
+  const send = async (endpoint, body) => {
     let r
     try {
       const res = await fetch(`${base}/api/v1/${endpoint}`, {
@@ -186,14 +317,54 @@ function client(url, key, paceMs) {
     } catch (e) {
       throw new Refused(`${endpoint}: the request failed (${e?.name ?? 'Error'})`)
     }
-    if (paceMs) await new Promise((ok) => setTimeout(ok, paceMs))
+    await pace()
     return r
+  }
+  // The instruments CSV is a keyed GET (the key in its query string): read once per exchange.
+  const csv = new Map()
+  const instruments = (exchange) => {
+    if (!csv.has(exchange)) {
+      const read = async () => {
+        const q = new URLSearchParams({ apikey: key, exchange, format: 'csv' })
+        let res
+        let text
+        try {
+          res = await fetch(`${base}/api/v1/instruments?${q}`, {
+            signal: AbortSignal.timeout(CSV_TIMEOUT_MS),
+          })
+          text = await res.text()
+        } catch (e) {
+          throw new Refused(`instruments ${exchange}: the request failed (${e?.name ?? 'Error'})`)
+        }
+        await pace()
+        if (res.status !== 200) throw new Refused(`instruments ${exchange} answered ${res.status}`)
+        return parseInstrumentsRows(text)
+      }
+      csv.set(exchange, read())
+    }
+    return csv.get(exchange)
+  }
+  return { send, instruments }
+}
+
+/** The raw-f folder's instruments-<EX>.csv rows of `exchange`, read once. */
+function rawInstruments(dir) {
+  const csv = new Map()
+  return async (exchange) => {
+    if (!csv.has(exchange)) {
+      const file = join(dir, `instruments-${exchange}.csv`)
+      if (!existsSync(file)) throw new Refused(`no instruments-${exchange}.csv`)
+      csv.set(exchange, parseInstrumentsRows(readFileSync(file, 'utf8')))
+    }
+    return csv.get(exchange)
   }
 }
 
 function usage(message) {
   console.log(`record-fixtures: ${message}`)
-  console.log('usage: --mock <url> | --real | --from <raw dir>  [--out <dir>] [--case <id>]...')
+  console.log(
+    'usage: --mock <url> | --real | [--from <raw dir>] [--from-f <raw-f dir>]  [--out <dir>] [--case <id>]...',
+  )
   process.exit(2)
 }
 
@@ -205,6 +376,7 @@ async function main() {
         mock: { type: 'string' },
         real: { type: 'boolean' },
         from: { type: 'string' },
+        'from-f': { type: 'string' },
         out: { type: 'string' },
         case: { type: 'string', multiple: true },
       },
@@ -212,8 +384,11 @@ async function main() {
   } catch (e) {
     usage(e.message)
   }
-  const modes = ['mock', 'real', 'from'].filter((m) => values[m] !== undefined)
-  if (modes.length !== 1) usage('give exactly one of --mock, --real and --from')
+  const raw = values.from !== undefined || values['from-f'] !== undefined
+  const modes = ['mock', 'real'].filter((m) => values[m] !== undefined)
+  if (modes.length + (raw ? 1 : 0) !== 1) {
+    usage('give exactly one of --mock, --real and --from / --from-f')
+  }
   const only = values.case ?? []
   const unknown = only.filter((id) => !CASES.some((c) => c.id === id))
   if (unknown.length) usage(`unknown case ${unknown.join(', ')}`)
@@ -228,15 +403,32 @@ async function main() {
     return true
   }
   let refused = false
-  if (values.from) {
-    const dir = resolve(values.from)
-    for (const name of readdirSync(dir)
-      .filter((f) => RAW_FILE.test(f))
-      .sort()) {
-      const id = name.replace(/^[a-z]+-|\.json$/g, '')
+  if (raw) {
+    const edir = values.from === undefined ? null : resolve(values.from)
+    const fdir = values['from-f'] === undefined ? null : resolve(values['from-f'])
+    const eNames = new Map()
+    if (edir) {
+      for (const name of readdirSync(edir).filter((f) => RAW_FILE.test(f))) {
+        eNames.set(name.replace(/^[a-z]+-|\.json$/g, ''), name)
+      }
+    }
+    // a .partial.json (a case the recorder could not complete) is not one
+    const fIds = new Set(
+      (fdir ? readdirSync(fdir) : [])
+        .filter((f) => RAW_F_FILE.test(f))
+        .map((f) => f.replace(/^real-|\.json$/g, '')),
+    )
+    const csvRows = fdir ? rawInstruments(fdir) : null
+    for (const id of [...new Set([...eNames.keys(), ...fIds])].sort()) {
       if (!chosen({ id })) continue
       try {
-        const input = fromRaw(parseRaw(readFileSync(join(dir, name), 'utf8')))
+        const read = (dir, name) => parseRaw(readFileSync(join(dir, name), 'utf8'))
+        const e = eNames.has(id) ? fromRaw(read(edir, eNames.get(id))) : null
+        const f = fIds.has(id) ? fromRawF(read(fdir, `real-${id}.json`)) : null
+        const c = CASES.find((x) => x.id === (e ?? f).case)
+        const { input, pending } = await mergeRaw(c, e, f, csvRows)
+        if (pending) console.log(`${id}: ${pending}`)
+        if (!input) continue
         const text = checkedText(input, [real?.key, DEFAULT_API_KEY])
         files.push([
           `${input.source}-${input.case}.json`,
@@ -266,7 +458,7 @@ async function main() {
       url = values.mock
       key = process.env.MOCK_API_KEY ?? DEFAULT_API_KEY
     }
-    const send = client(url, key, source === 'real' ? REAL_PACE_MS : 0)
+    const { send, instruments } = client(url, key, source === 'real' ? REAL_PACE_MS : 0)
     if (source === 'real') {
       const mode = await send('analyzer', {}).catch(() => null)
       if (mode?.json?.data?.mode !== 'analyze')
@@ -274,7 +466,8 @@ async function main() {
     }
     for (const c of CASES.filter((x) => chosen(x) && (source === 'real' || !x.realOnly))) {
       try {
-        const input = await recordCase(c, { source, send, withGreeks: source === 'real' })
+        const withGreeks = source === 'real'
+        const input = await recordCase(c, { source, send, withGreeks, instruments })
         const text = checkedText(input, [key])
         files.push([`${source}-${c.id}.json`, text, Object.keys(input.responses).length])
       } catch (e) {

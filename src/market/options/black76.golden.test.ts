@@ -106,7 +106,7 @@ function sameRounded(k: keyof typeof PLACES, ours: number, want: number, flag: F
 test('the golden grid is the one T5 generated', () => {
   expect(B76.rate).toBe(0)
   expect(B76.grid).toHaveLength(840)
-  expect(B76.edges).toHaveLength(9)
+  expect(B76.edges).toHaveLength(11)
   expect(B76.symbols).toHaveLength(12)
   // The named exception is one row of this grid, so it cannot drift onto another.
   expect(B76.grid.filter(isLibmResidue)).toHaveLength(1)

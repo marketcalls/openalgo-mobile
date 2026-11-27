@@ -43,17 +43,28 @@ export function expiryCalls(c) {
   return [read('options'), read('futures')]
 }
 
-/** The chain read at `strike_count` for `expiry` (DDMMMYY), with no with_greeks key. */
-export function chainCall(c, expiry, strikeCount) {
-  return {
-    endpoint: 'optionchain',
-    body: {
-      underlying: c.underlying,
-      exchange: c.exchange,
-      expiry_date: expiry,
-      strike_count: strikeCount,
-    },
+/**
+ * The chain read at `strike_count` for `expiry` (DDMMMYY): with no with_greeks key, or with
+ * `with_greeks: true` when `withGreeks` (a 2.0.2.0 field, never sent as false).
+ */
+export function chainCall(c, expiry, strikeCount, { withGreeks = false } = {}) {
+  const body = {
+    underlying: c.underlying,
+    exchange: c.exchange,
+    expiry_date: expiry,
+    strike_count: strikeCount,
   }
+  return { endpoint: 'optionchain', body: withGreeks ? { ...body, with_greeks: true } : body }
+}
+
+/** A history read: `window` is { start_date, end_date }, both IST YYYY-MM-DD. */
+export function historyCall(symbol, exchange, interval, window) {
+  return { endpoint: 'history', body: { symbol, exchange, interval, ...window } }
+}
+
+/** A quote read. */
+export function quotesCall(symbol, exchange) {
+  return { endpoint: 'quotes', body: { symbol, exchange } }
 }
 
 /**
@@ -63,10 +74,7 @@ export function chainCall(c, expiry, strikeCount) {
  */
 export function recordedCalls(c, expiry, fut, { withGreeks = false } = {}) {
   const calls = [...expiryCalls(c), ...CHAIN_COUNTS.map((n) => chainCall(c, expiry, n))]
-  if (withGreeks) {
-    const chain = chainCall(c, expiry, GREEKS_CHAIN)
-    calls.push({ ...chain, body: { ...chain.body, with_greeks: true } })
-  }
-  if (fut) calls.push({ endpoint: 'quotes', body: { symbol: fut, exchange: c.exchange } })
+  if (withGreeks) calls.push(chainCall(c, expiry, GREEKS_CHAIN, { withGreeks }))
+  if (fut) calls.push(quotesCall(fut, c.exchange))
   return calls
 }

@@ -11,8 +11,8 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
-        "futures_price": 24016.1,
+        "spot_price": 23989.7,
+        "futures_price": 24008.25,
         "lot_size": 65,
         "pcr_oi": 0,
         "pcr_volume": 0.93,
@@ -264,8 +264,8 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
-        "futures_price": 24016.1,
+        "spot_price": 23989.7,
+        "futures_price": 24008.25,
         "atm_strike": 24000,
         "max_pain_strike": 22850,
         "lot_size": 65,
@@ -610,7 +610,7 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
+        "spot_price": 23989.7,
         "atm_strike": 24000,
         "atm_iv": null,
         "skew": null,
@@ -879,8 +879,8 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
-        "futures_price": 24016.1,
+        "spot_price": 23989.7,
+        "futures_price": 24008.25,
         "lot_size": 65,
         "atm_strike": 24000,
         "expiry_date": "01DEC26",
@@ -1711,32 +1711,32 @@
         "underlying": "NIFTY",
         "exchange": "NFO",
         "expiry_date": "01DEC26",
-        "spot_price": 24006.3,
-        "forward_price": 24006.3,
+        "spot_price": 23989.7,
+        "forward_price": 23989.7,
         "atm_strike": 24000,
         "atm_iv": 15.0,
         "dte_days": 0.0,
         "interest_rate": 0,
         "peak_intraday_strike": null,
         "peak_expiry_strike": null,
-        "sigma_move": 188.48,
-        "one_sigma_low": 23817.82,
-        "one_sigma_high": 24194.78,
-        "two_sigma_low": 23629.34,
-        "two_sigma_high": 24383.26,
+        "sigma_move": 188.35,
+        "one_sigma_low": 23801.35,
+        "one_sigma_high": 24178.05,
+        "two_sigma_low": 23613.0,
+        "two_sigma_high": 24366.4,
         "intraday_band": {
-          "sigma_move": 188.48,
-          "one_sigma_low": 23817.82,
-          "one_sigma_high": 24194.78,
-          "two_sigma_low": 23629.34,
-          "two_sigma_high": 24383.26
+          "sigma_move": 188.35,
+          "one_sigma_low": 23801.35,
+          "one_sigma_high": 24178.05,
+          "two_sigma_low": 23613.0,
+          "two_sigma_high": 24366.4
         },
         "expiry_band": {
           "sigma_move": 0.11,
-          "one_sigma_low": 24006.19,
-          "one_sigma_high": 24006.41,
-          "two_sigma_low": 24006.07,
-          "two_sigma_high": 24006.53
+          "one_sigma_low": 23989.59,
+          "one_sigma_high": 23989.81,
+          "two_sigma_low": 23989.47,
+          "two_sigma_high": 23989.93
         },
         "chain": [
           {
@@ -2121,7 +2121,7 @@
   },
   "legs": [],
   "withGreeks": {
-    "forward": 24006.3,
+    "forward": 23989.7,
     "years": 0.0,
     "days": 0.0,
     "rows": [

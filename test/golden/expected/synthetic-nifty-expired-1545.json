@@ -11,8 +11,8 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
-        "futures_price": 24016.1,
+        "spot_price": 23989.7,
+        "futures_price": 24008.25,
         "lot_size": 65,
         "pcr_oi": 0.95,
         "pcr_volume": 0.93,
@@ -264,8 +264,8 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
-        "futures_price": 24016.1,
+        "spot_price": 23989.7,
+        "futures_price": 24008.25,
         "atm_strike": 24000,
         "max_pain_strike": 24050,
         "lot_size": 65,
@@ -610,7 +610,7 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
+        "spot_price": 23989.7,
         "atm_strike": 24000,
         "atm_iv": null,
         "skew": null,
@@ -879,8 +879,8 @@
       "body": {
         "status": "success",
         "underlying": "NIFTY",
-        "spot_price": 24006.3,
-        "futures_price": 24016.1,
+        "spot_price": 23989.7,
+        "futures_price": 24008.25,
         "lot_size": 65,
         "atm_strike": 24000,
         "expiry_date": "01DEC26",
@@ -1711,32 +1711,32 @@
         "underlying": "NIFTY",
         "exchange": "NFO",
         "expiry_date": "01DEC26",
-        "spot_price": 24006.3,
-        "forward_price": 24024.45,
+        "spot_price": 23989.7,
+        "forward_price": 24005.3,
         "atm_strike": 24000,
         "atm_iv": 15.0,
         "dte_days": 0.0,
         "interest_rate": 0,
         "peak_intraday_strike": 24050,
         "peak_expiry_strike": null,
-        "sigma_move": 188.48,
-        "one_sigma_low": 23817.82,
-        "one_sigma_high": 24194.78,
-        "two_sigma_low": 23629.34,
-        "two_sigma_high": 24383.26,
+        "sigma_move": 188.35,
+        "one_sigma_low": 23801.35,
+        "one_sigma_high": 24178.05,
+        "two_sigma_low": 23613.0,
+        "two_sigma_high": 24366.4,
         "intraday_band": {
-          "sigma_move": 188.48,
-          "one_sigma_low": 23817.82,
-          "one_sigma_high": 24194.78,
-          "two_sigma_low": 23629.34,
-          "two_sigma_high": 24383.26
+          "sigma_move": 188.35,
+          "one_sigma_low": 23801.35,
+          "one_sigma_high": 24178.05,
+          "two_sigma_low": 23613.0,
+          "two_sigma_high": 24366.4
         },
         "expiry_band": {
           "sigma_move": 0.11,
-          "one_sigma_low": 24006.19,
-          "one_sigma_high": 24006.41,
-          "two_sigma_low": 24006.07,
-          "two_sigma_high": 24006.53
+          "one_sigma_low": 23989.59,
+          "one_sigma_high": 23989.81,
+          "two_sigma_low": 23989.47,
+          "two_sigma_high": 23989.93
         },
         "chain": [
           {
@@ -1744,7 +1744,7 @@
             "ce_oi": 663975,
             "pe_oi": 262860,
             "iv": null,
-            "density_intraday": 2.7054823255920027e-06,
+            "density_intraday": 5.153527263264783e-06,
             "density_expiry": 0.0
           },
           {
@@ -1752,7 +1752,7 @@
             "ce_oi": 85865,
             "pe_oi": 1100450,
             "iv": null,
-            "density_intraday": 1.972056429757027e-05,
+            "density_intraday": 3.651736135400153e-05,
             "density_expiry": 0.0
           },
           {
@@ -1760,7 +1760,7 @@
             "ce_oi": 992680,
             "pe_oi": 776035,
             "iv": null,
-            "density_intraday": 0.00015440332239929268,
+            "density_intraday": 0.00027796086152779545,
             "density_expiry": 0.0
           },
           {
@@ -1768,7 +1768,7 @@
             "ce_oi": 744835,
             "pe_oi": 1271400,
             "iv": null,
-            "density_intraday": 0.0008528015021977347,
+            "density_intraday": 0.0014926177010388853,
             "density_expiry": 0.0
           },
           {
@@ -1776,7 +1776,7 @@
             "ce_oi": 32370,
             "pe_oi": 484185,
             "iv": null,
-            "density_intraday": 0.0009772019068978273,
+            "density_intraday": 0.0016629726625066684,
             "density_expiry": 0.0
           },
           {
@@ -1784,7 +1784,7 @@
             "ce_oi": 1018160,
             "pe_oi": 801515,
             "iv": null,
-            "density_intraday": 0.01421994673607346,
+            "density_intraday": 0.0235301871937587,
             "density_expiry": 0.0
           },
           {
@@ -1792,7 +1792,7 @@
             "ce_oi": 148785,
             "pe_oi": 996970,
             "iv": null,
-            "density_intraday": 0.034176580001699715,
+            "density_intraday": 0.054993193871782704,
             "density_expiry": 0.0
           },
           {
@@ -1800,7 +1800,7 @@
             "ce_oi": 703365,
             "pe_oi": 914030,
             "iv": null,
-            "density_intraday": 0.1702554448275845,
+            "density_intraday": 0.26641611323927916,
             "density_expiry": 0.0
           },
           {
@@ -1808,7 +1808,7 @@
             "ce_oi": 1308060,
             "pe_oi": 1091415,
             "iv": null,
-            "density_intraday": 0.8244834645641155,
+            "density_intraday": 1.2547195343497002,
             "density_expiry": 0.0
           },
           {
@@ -1816,7 +1816,7 @@
             "ce_oi": 1152970,
             "pe_oi": 510705,
             "iv": null,
-            "density_intraday": 1.7268849640603652,
+            "density_intraday": 2.555991062207646,
             "density_expiry": 0.0
           },
           {
@@ -1824,7 +1824,7 @@
             "ce_oi": 1110395,
             "pe_oi": 1019200,
             "iv": null,
-            "density_intraday": 6.182775699579182,
+            "density_intraday": 8.900952805570777,
             "density_expiry": 0.0
           },
           {
@@ -1832,7 +1832,7 @@
             "ce_oi": 252655,
             "pe_oi": 161460,
             "iv": null,
-            "density_intraday": 3.115111856938369,
+            "density_intraday": 4.362239414105235,
             "density_expiry": 0.0
           },
           {
@@ -1840,7 +1840,7 @@
             "ce_oi": 585910,
             "pe_oi": 851565,
             "iv": null,
-            "density_intraday": 25.96596663266652,
+            "density_intraday": 35.37112239811362,
             "density_expiry": 0.0
           },
           {
@@ -1848,7 +1848,7 @@
             "ce_oi": 594620,
             "pe_oi": 377975,
             "iv": null,
-            "density_intraday": 39.118486202085556,
+            "density_intraday": 51.839454458520905,
             "density_expiry": 0.0
           },
           {
@@ -1856,7 +1856,7 @@
             "ce_oi": 1289925,
             "pe_oi": 200590,
             "iv": null,
-            "density_intraday": 123.83227630180909,
+            "density_intraday": 159.6510234326637,
             "density_expiry": 0.0
           },
           {
@@ -1864,7 +1864,7 @@
             "ce_oi": 81185,
             "pe_oi": 105690,
             "iv": null,
-            "density_intraday": 29.764847844969943,
+            "density_intraday": 37.33587298198479,
             "density_expiry": 0.0
           },
           {
@@ -1872,7 +1872,7 @@
             "ce_oi": 950560,
             "pe_oi": 1041755,
             "iv": null,
-            "density_intraday": 564.9071374346296,
+            "density_intraday": 689.4610173117828,
             "density_expiry": 0.0
           },
           {
@@ -1880,7 +1880,7 @@
             "ce_oi": 977990,
             "pe_oi": 1077245,
             "iv": null,
-            "density_intraday": 963.743331420699,
+            "density_intraday": 1144.5352189537443,
             "density_expiry": 0.0
           },
           {
@@ -1888,7 +1888,7 @@
             "ce_oi": 170495,
             "pe_oi": 387140,
             "iv": null,
-            "density_intraday": 401.9259565666871,
+            "density_intraday": 464.4874190548069,
             "density_expiry": 0.0
           },
           {
@@ -1896,7 +1896,7 @@
             "ce_oi": 523835,
             "pe_oi": 432640,
             "iv": null,
-            "density_intraday": 985.3274225265969,
+            "density_intraday": 1108.1371051128535,
             "density_expiry": 0.0
           },
           {
@@ -1904,7 +1904,7 @@
             "ce_oi": 92170,
             "pe_oi": 749905,
             "iv": null,
-            "density_intraday": 1153.4038299483307,
+            "density_intraday": 1262.4207898349337,
             "density_expiry": 0.0
           },
           {
@@ -1912,7 +1912,7 @@
             "ce_oi": 572520,
             "pe_oi": 45955,
             "iv": null,
-            "density_intraday": 1048.3001120154597,
+            "density_intraday": 1116.716399309065,
             "density_expiry": 0.0
           },
           {
@@ -1920,7 +1920,7 @@
             "ce_oi": 133705,
             "pe_oi": 158210,
             "iv": null,
-            "density_intraday": 570.1076994828213,
+            "density_intraday": 591.1167547363397,
             "density_expiry": 0.0
           },
           {
@@ -1928,7 +1928,7 @@
             "ce_oi": 365820,
             "pe_oi": 149175,
             "iv": null,
-            "density_intraday": 1079.5384590136514,
+            "density_intraday": 1089.527179615366,
             "density_expiry": 0.0
           },
           {
@@ -1936,7 +1936,7 @@
             "ce_oi": 1061125,
             "pe_oi": 1271790,
             "iv": null,
-            "density_intraday": 4891.681981165474,
+            "density_intraday": 4805.8048953840225,
             "density_expiry": 0.0
           },
           {
@@ -1944,7 +1944,7 @@
             "ce_oi": 849615,
             "pe_oi": 758420,
             "iv": null,
-            "density_intraday": 3144.5542498682944,
+            "density_intraday": 3007.4558841485227,
             "density_expiry": 0.0
           },
           {
@@ -1952,7 +1952,7 @@
             "ce_oi": 357110,
             "pe_oi": 148525,
             "iv": null,
-            "density_intraday": 860.1499987433128,
+            "density_intraday": 800.8861845892075,
             "density_expiry": 0.0
           },
           {
@@ -1960,7 +1960,7 @@
             "ce_oi": 274950,
             "pe_oi": 848445,
             "iv": null,
-            "density_intraday": 1551.3144499735272,
+            "density_intraday": 1406.2967200854537,
             "density_expiry": 0.0
           },
           {
@@ -1968,7 +1968,7 @@
             "ce_oi": 1241695,
             "pe_oi": 984100,
             "iv": null,
-            "density_intraday": 2329.302195384171,
+            "density_intraday": 2055.9259179436795,
             "density_expiry": 0.0
           },
           {
@@ -1976,7 +1976,7 @@
             "ce_oi": 1152385,
             "pe_oi": 1176890,
             "iv": null,
-            "density_intraday": 1725.2920090041157,
+            "density_intraday": 1482.766001083878,
             "density_expiry": 0.0
           },
           {
@@ -1984,7 +1984,7 @@
             "ce_oi": 721760,
             "pe_oi": 338715,
             "iv": null,
-            "density_intraday": 519.4631222357029,
+            "density_intraday": 434.72728473207826,
             "density_expiry": 0.0
           },
           {
@@ -1992,7 +1992,7 @@
             "ce_oi": 315120,
             "pe_oi": 98475,
             "iv": null,
-            "density_intraday": 125.23776745297799,
+            "density_intraday": 102.06417996629517,
             "density_expiry": 0.0
           },
           {
@@ -2000,7 +2000,7 @@
             "ce_oi": 745745,
             "pe_oi": 293930,
             "iv": null,
-            "density_intraday": 181.98574444031289,
+            "density_intraday": 144.43579971346827,
             "density_expiry": 0.0
           },
           {
@@ -2008,7 +2008,7 @@
             "ce_oi": 41795,
             "pe_oi": 1042600,
             "iv": null,
-            "density_intraday": 102.65031913625823,
+            "density_intraday": 79.3452123080938,
             "density_expiry": 0.0
           },
           {
@@ -2016,7 +2016,7 @@
             "ce_oi": 629330,
             "pe_oi": 1081145,
             "iv": null,
-            "density_intraday": 81.95091926674718,
+            "density_intraday": 61.6965092599021,
             "density_expiry": 0.0
           },
           {
@@ -2024,7 +2024,7 @@
             "ce_oi": 449930,
             "pe_oi": 1107665,
             "iv": null,
-            "density_intraday": 35.364201830237384,
+            "density_intraday": 25.932254054440122,
             "density_expiry": 0.0
           },
           {
@@ -2032,7 +2032,7 @@
             "ce_oi": 881595,
             "pe_oi": 790400,
             "iv": null,
-            "density_intraday": 16.84999402700593,
+            "density_intraday": 12.035635075104793,
             "density_expiry": 0.0
           },
           {
@@ -2040,7 +2040,7 @@
             "ce_oi": 1300325,
             "pe_oi": 685230,
             "iv": null,
-            "density_intraday": 8.322607693106441,
+            "density_intraday": 5.790881144147819,
             "density_expiry": 0.0
           },
           {
@@ -2048,7 +2048,7 @@
             "ce_oi": 1079260,
             "pe_oi": 862615,
             "iv": null,
-            "density_intraday": 3.1735218270575714,
+            "density_intraday": 2.151125291227239,
             "density_expiry": 0.0
           },
           {
@@ -2056,7 +2056,7 @@
             "ce_oi": 1247220,
             "pe_oi": 38415,
             "iv": null,
-            "density_intraday": 0.7682137233692576,
+            "density_intraday": 0.5073038931976654,
             "density_expiry": 0.0
           },
           {
@@ -2064,7 +2064,7 @@
             "ce_oi": 509405,
             "pe_oi": 100230,
             "iv": null,
-            "density_intraday": 0.12495396321382565,
+            "density_intraday": 0.08039349748782329,
             "density_expiry": 0.0
           },
           {
@@ -2072,7 +2072,7 @@
             "ce_oi": 1302535,
             "pe_oi": 695500,
             "iv": null,
-            "density_intraday": 0.13183767481772837,
+            "density_intraday": 0.08264525424825785,
             "density_expiry": 0.0
           },
           {
@@ -2080,7 +2080,7 @@
             "ce_oi": 826670,
             "pe_oi": 925925,
             "iv": null,
-            "density_intraday": 0.03495284367583783,
+            "density_intraday": 0.02134966429072034,
             "density_expiry": 0.0
           },
           {
@@ -2088,7 +2088,7 @@
             "ce_oi": 787345,
             "pe_oi": 129610,
             "iv": null,
-            "density_intraday": 0.005191443241741839,
+            "density_intraday": 0.0030899351083427335,
             "density_expiry": 0.0
           },
           {
@@ -2096,7 +2096,7 @@
             "ce_oi": 142480,
             "pe_oi": 1225835,
             "iv": null,
-            "density_intraday": 0.0020663560939192817,
+            "density_intraday": 0.0011985098262903898,
             "density_expiry": 0.0
           },
           {
@@ -2104,7 +2104,7 @@
             "ce_oi": 1236950,
             "pe_oi": 718445,
             "iv": null,
-            "density_intraday": 0.0007403488659554945,
+            "density_intraday": 0.00041847586594530404,
             "density_expiry": 0.0
           },
           {
@@ -2112,7 +2112,7 @@
             "ce_oi": 429455,
             "pe_oi": 338260,
             "iv": null,
-            "density_intraday": 6.852537526618182e-05,
+            "density_intraday": 3.7748985518184074e-05,
             "density_expiry": 0.0
           }
         ]
@@ -2123,8 +2123,8 @@
     {
       "symbol": "NIFTY01DEC2622750CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1274.45,
+      "spot": 23989.7,
+      "price": 1255.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -2134,7 +2134,7 @@
     {
       "symbol": "NIFTY01DEC2622750PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2145,8 +2145,8 @@
     {
       "symbol": "NIFTY01DEC2622800CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1224.45,
+      "spot": 23989.7,
+      "price": 1205.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -2156,7 +2156,7 @@
     {
       "symbol": "NIFTY01DEC2622800PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2167,8 +2167,8 @@
     {
       "symbol": "NIFTY01DEC2622850CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1174.45,
+      "spot": 23989.7,
+      "price": 1155.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -2178,7 +2178,7 @@
     {
       "symbol": "NIFTY01DEC2622850PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2189,8 +2189,8 @@
     {
       "symbol": "NIFTY01DEC2622900CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1124.45,
+      "spot": 23989.7,
+      "price": 1105.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -2200,7 +2200,7 @@
     {
       "symbol": "NIFTY01DEC2622900PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2211,8 +2211,8 @@
     {
       "symbol": "NIFTY01DEC2622950CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1074.5,
+      "spot": 23989.7,
+      "price": 1055.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -2222,7 +2222,7 @@
     {
       "symbol": "NIFTY01DEC2622950PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2233,8 +2233,8 @@
     {
       "symbol": "NIFTY01DEC2623000CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1024.5,
+      "spot": 23989.7,
+      "price": 1005.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -2244,7 +2244,7 @@
     {
       "symbol": "NIFTY01DEC2623000PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2255,8 +2255,8 @@
     {
       "symbol": "NIFTY01DEC2623050CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 974.5,
+      "spot": 23989.7,
+      "price": 955.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -2266,7 +2266,7 @@
     {
       "symbol": "NIFTY01DEC2623050PE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -2277,8 +2277,8 @@
     {
       "symbol": "NIFTY01DEC2623100CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 924.55,
+      "spot": 23989.7,
+      "price": 905.35,
       "status": 400,
       "body": {
         "status": "error",
@@ -2288,8 +2288,8 @@
     {
       "symbol": "NIFTY01DEC2623100PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.1,
+      "spot": 23989.7,
+      "price": 0.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -2299,8 +2299,8 @@
     {
       "symbol": "NIFTY01DEC2623150CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 874.65,
+      "spot": 23989.7,
+      "price": 855.4,
       "status": 400,
       "body": {
         "status": "error",
@@ -2310,8 +2310,8 @@
     {
       "symbol": "NIFTY01DEC2623150PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.2,
+      "spot": 23989.7,
+      "price": 0.1,
       "status": 400,
       "body": {
         "status": "error",
@@ -2321,8 +2321,8 @@
     {
       "symbol": "NIFTY01DEC2623200CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 824.8,
+      "spot": 23989.7,
+      "price": 805.45,
       "status": 400,
       "body": {
         "status": "error",
@@ -2332,8 +2332,8 @@
     {
       "symbol": "NIFTY01DEC2623200PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.35,
+      "spot": 23989.7,
+      "price": 0.2,
       "status": 400,
       "body": {
         "status": "error",
@@ -2343,8 +2343,8 @@
     {
       "symbol": "NIFTY01DEC2623250CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 775.05,
+      "spot": 23989.7,
+      "price": 755.6,
       "status": 400,
       "body": {
         "status": "error",
@@ -2354,8 +2354,8 @@
     {
       "symbol": "NIFTY01DEC2623250PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.55,
+      "spot": 23989.7,
+      "price": 0.35,
       "status": 400,
       "body": {
         "status": "error",
@@ -2365,8 +2365,8 @@
     {
       "symbol": "NIFTY01DEC2623300CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 725.4,
+      "spot": 23989.7,
+      "price": 705.9,
       "status": 400,
       "body": {
         "status": "error",
@@ -2376,8 +2376,8 @@
     {
       "symbol": "NIFTY01DEC2623300PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.95,
+      "spot": 23989.7,
+      "price": 0.6,
       "status": 400,
       "body": {
         "status": "error",
@@ -2387,8 +2387,8 @@
     {
       "symbol": "NIFTY01DEC2623350CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 676,
+      "spot": 23989.7,
+      "price": 656.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -2398,8 +2398,8 @@
     {
       "symbol": "NIFTY01DEC2623350PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1.5,
+      "spot": 23989.7,
+      "price": 1.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -2409,8 +2409,8 @@
     {
       "symbol": "NIFTY01DEC2623400CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 626.85,
+      "spot": 23989.7,
+      "price": 607,
       "status": 400,
       "body": {
         "status": "error",
@@ -2420,8 +2420,8 @@
     {
       "symbol": "NIFTY01DEC2623400PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 2.4,
+      "spot": 23989.7,
+      "price": 1.7,
       "status": 400,
       "body": {
         "status": "error",
@@ -2431,8 +2431,8 @@
     {
       "symbol": "NIFTY01DEC2623450CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 578.15,
+      "spot": 23989.7,
+      "price": 558.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -2442,8 +2442,8 @@
     {
       "symbol": "NIFTY01DEC2623450PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 3.7,
+      "spot": 23989.7,
+      "price": 2.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -2453,8 +2453,8 @@
     {
       "symbol": "NIFTY01DEC2623500CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 530.05,
+      "spot": 23989.7,
+      "price": 509.65,
       "status": 400,
       "body": {
         "status": "error",
@@ -2464,8 +2464,8 @@
     {
       "symbol": "NIFTY01DEC2623500PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 5.6,
+      "spot": 23989.7,
+      "price": 4.35,
       "status": 400,
       "body": {
         "status": "error",
@@ -2475,8 +2475,8 @@
     {
       "symbol": "NIFTY01DEC2623550CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 482.7,
+      "spot": 23989.7,
+      "price": 462,
       "status": 400,
       "body": {
         "status": "error",
@@ -2486,8 +2486,8 @@
     {
       "symbol": "NIFTY01DEC2623550PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 8.25,
+      "spot": 23989.7,
+      "price": 6.7,
       "status": 400,
       "body": {
         "status": "error",
@@ -2497,8 +2497,8 @@
     {
       "symbol": "NIFTY01DEC2623600CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 436.4,
+      "spot": 23989.7,
+      "price": 415.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -2508,8 +2508,8 @@
     {
       "symbol": "NIFTY01DEC2623600PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 11.9,
+      "spot": 23989.7,
+      "price": 10.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -2519,8 +2519,8 @@
     {
       "symbol": "NIFTY01DEC2623650CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 391.35,
+      "spot": 23989.7,
+      "price": 369.95,
       "status": 400,
       "body": {
         "status": "error",
@@ -2530,8 +2530,8 @@
     {
       "symbol": "NIFTY01DEC2623650PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 16.85,
+      "spot": 23989.7,
+      "price": 14.7,
       "status": 400,
       "body": {
         "status": "error",
@@ -2541,8 +2541,8 @@
     {
       "symbol": "NIFTY01DEC2623700CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 347.85,
+      "spot": 23989.7,
+      "price": 326.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -2552,8 +2552,8 @@
     {
       "symbol": "NIFTY01DEC2623700PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 23.4,
+      "spot": 23989.7,
+      "price": 20.95,
       "status": 400,
       "body": {
         "status": "error",
@@ -2563,8 +2563,8 @@
     {
       "symbol": "NIFTY01DEC2623750CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 306.25,
+      "spot": 23989.7,
+      "price": 284.5,
       "status": 400,
       "body": {
         "status": "error",
@@ -2574,8 +2574,8 @@
     {
       "symbol": "NIFTY01DEC2623750PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 31.8,
+      "spot": 23989.7,
+      "price": 29.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -2585,8 +2585,8 @@
     {
       "symbol": "NIFTY01DEC2623800CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 266.85,
+      "spot": 23989.7,
+      "price": 245.15,
       "status": 400,
       "body": {
         "status": "error",
@@ -2596,8 +2596,8 @@
     {
       "symbol": "NIFTY01DEC2623800PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 42.4,
+      "spot": 23989.7,
+      "price": 39.85,
       "status": 400,
       "body": {
         "status": "error",
@@ -2607,8 +2607,8 @@
     {
       "symbol": "NIFTY01DEC2623850CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 229.95,
+      "spot": 23989.7,
+      "price": 208.5,
       "status": 400,
       "body": {
         "status": "error",
@@ -2618,8 +2618,8 @@
     {
       "symbol": "NIFTY01DEC2623850PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 55.5,
+      "spot": 23989.7,
+      "price": 53.2,
       "status": 400,
       "body": {
         "status": "error",
@@ -2629,8 +2629,8 @@
     {
       "symbol": "NIFTY01DEC2623900CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 195.8,
+      "spot": 23989.7,
+      "price": 174.85,
       "status": 400,
       "body": {
         "status": "error",
@@ -2640,8 +2640,8 @@
     {
       "symbol": "NIFTY01DEC2623900PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 71.35,
+      "spot": 23989.7,
+      "price": 69.55,
       "status": 400,
       "body": {
         "status": "error",
@@ -2651,8 +2651,8 @@
     {
       "symbol": "NIFTY01DEC2623950CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 164.65,
+      "spot": 23989.7,
+      "price": 144.45,
       "status": 400,
       "body": {
         "status": "error",
@@ -2662,8 +2662,8 @@
     {
       "symbol": "NIFTY01DEC2623950PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 90.2,
+      "spot": 23989.7,
+      "price": 89.2,
       "status": 400,
       "body": {
         "status": "error",
@@ -2673,8 +2673,8 @@
     {
       "symbol": "NIFTY01DEC2624000CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 136.6,
+      "spot": 23989.7,
+      "price": 117.5,
       "status": 400,
       "body": {
         "status": "error",
@@ -2684,8 +2684,8 @@
     {
       "symbol": "NIFTY01DEC2624000PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 112.15,
+      "spot": 23989.7,
+      "price": 112.2,
       "status": 400,
       "body": {
         "status": "error",
@@ -2695,8 +2695,8 @@
     {
       "symbol": "NIFTY01DEC2624050CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 111.8,
+      "spot": 23989.7,
+      "price": 93.95,
       "status": 400,
       "body": {
         "status": "error",
@@ -2706,8 +2706,8 @@
     {
       "symbol": "NIFTY01DEC2624050PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 137.3,
+      "spot": 23989.7,
+      "price": 138.7,
       "status": 400,
       "body": {
         "status": "error",
@@ -2717,8 +2717,8 @@
     {
       "symbol": "NIFTY01DEC2624100CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 90.15,
+      "spot": 23989.7,
+      "price": 73.85,
       "status": 400,
       "body": {
         "status": "error",
@@ -2728,8 +2728,8 @@
     {
       "symbol": "NIFTY01DEC2624100PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 165.7,
+      "spot": 23989.7,
+      "price": 168.6,
       "status": 400,
       "body": {
         "status": "error",
@@ -2739,8 +2739,8 @@
     {
       "symbol": "NIFTY01DEC2624150CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 71.6,
+      "spot": 23989.7,
+      "price": 57,
       "status": 400,
       "body": {
         "status": "error",
@@ -2750,8 +2750,8 @@
     {
       "symbol": "NIFTY01DEC2624150PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 197.1,
+      "spot": 23989.7,
+      "price": 201.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -2761,8 +2761,8 @@
     {
       "symbol": "NIFTY01DEC2624200CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 55.95,
+      "spot": 23989.7,
+      "price": 43.2,
       "status": 400,
       "body": {
         "status": "error",
@@ -2772,8 +2772,8 @@
     {
       "symbol": "NIFTY01DEC2624200PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 231.5,
+      "spot": 23989.7,
+      "price": 237.9,
       "status": 400,
       "body": {
         "status": "error",
@@ -2783,8 +2783,8 @@
     {
       "symbol": "NIFTY01DEC2624250CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 43.05,
+      "spot": 23989.7,
+      "price": 32.1,
       "status": 400,
       "body": {
         "status": "error",
@@ -2794,8 +2794,8 @@
     {
       "symbol": "NIFTY01DEC2624250PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 268.6,
+      "spot": 23989.7,
+      "price": 276.8,
       "status": 400,
       "body": {
         "status": "error",
@@ -2805,8 +2805,8 @@
     {
       "symbol": "NIFTY01DEC2624300CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 32.55,
+      "spot": 23989.7,
+      "price": 23.35,
       "status": 400,
       "body": {
         "status": "error",
@@ -2816,8 +2816,8 @@
     {
       "symbol": "NIFTY01DEC2624300PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 308.1,
+      "spot": 23989.7,
+      "price": 318.1,
       "status": 400,
       "body": {
         "status": "error",
@@ -2827,8 +2827,8 @@
     {
       "symbol": "NIFTY01DEC2624350CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 24.2,
+      "spot": 23989.7,
+      "price": 16.65,
       "status": 400,
       "body": {
         "status": "error",
@@ -2838,8 +2838,8 @@
     {
       "symbol": "NIFTY01DEC2624350PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 349.75,
+      "spot": 23989.7,
+      "price": 361.4,
       "status": 400,
       "body": {
         "status": "error",
@@ -2849,8 +2849,8 @@
     {
       "symbol": "NIFTY01DEC2624400CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 17.7,
+      "spot": 23989.7,
+      "price": 11.65,
       "status": 400,
       "body": {
         "status": "error",
@@ -2860,8 +2860,8 @@
     {
       "symbol": "NIFTY01DEC2624400PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 393.25,
+      "spot": 23989.7,
+      "price": 406.35,
       "status": 400,
       "body": {
         "status": "error",
@@ -2871,8 +2871,8 @@
     {
       "symbol": "NIFTY01DEC2624450CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 12.7,
+      "spot": 23989.7,
+      "price": 7.95,
       "status": 400,
       "body": {
         "status": "error",
@@ -2882,8 +2882,8 @@
     {
       "symbol": "NIFTY01DEC2624450PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 438.25,
+      "spot": 23989.7,
+      "price": 452.7,
       "status": 400,
       "body": {
         "status": "error",
@@ -2893,8 +2893,8 @@
     {
       "symbol": "NIFTY01DEC2624500CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 8.95,
+      "spot": 23989.7,
+      "price": 5.35,
       "status": 400,
       "body": {
         "status": "error",
@@ -2904,8 +2904,8 @@
     {
       "symbol": "NIFTY01DEC2624500PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 484.5,
+      "spot": 23989.7,
+      "price": 500.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -2915,8 +2915,8 @@
     {
       "symbol": "NIFTY01DEC2624550CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 6.2,
+      "spot": 23989.7,
+      "price": 3.5,
       "status": 400,
       "body": {
         "status": "error",
@@ -2926,8 +2926,8 @@
     {
       "symbol": "NIFTY01DEC2624550PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 531.75,
+      "spot": 23989.7,
+      "price": 548.2,
       "status": 400,
       "body": {
         "status": "error",
@@ -2937,8 +2937,8 @@
     {
       "symbol": "NIFTY01DEC2624600CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 4.2,
+      "spot": 23989.7,
+      "price": 2.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -2948,8 +2948,8 @@
     {
       "symbol": "NIFTY01DEC2624600PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 579.75,
+      "spot": 23989.7,
+      "price": 596.95,
       "status": 400,
       "body": {
         "status": "error",
@@ -2959,8 +2959,8 @@
     {
       "symbol": "NIFTY01DEC2624650CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 2.8,
+      "spot": 23989.7,
+      "price": 1.4,
       "status": 400,
       "body": {
         "status": "error",
@@ -2970,8 +2970,8 @@
     {
       "symbol": "NIFTY01DEC2624650PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 628.35,
+      "spot": 23989.7,
+      "price": 646.15,
       "status": 400,
       "body": {
         "status": "error",
@@ -2981,8 +2981,8 @@
     {
       "symbol": "NIFTY01DEC2624700CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1.85,
+      "spot": 23989.7,
+      "price": 0.85,
       "status": 400,
       "body": {
         "status": "error",
@@ -2992,8 +2992,8 @@
     {
       "symbol": "NIFTY01DEC2624700PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 677.4,
+      "spot": 23989.7,
+      "price": 695.6,
       "status": 400,
       "body": {
         "status": "error",
@@ -3003,8 +3003,8 @@
     {
       "symbol": "NIFTY01DEC2624750CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1.2,
+      "spot": 23989.7,
+      "price": 0.5,
       "status": 400,
       "body": {
         "status": "error",
@@ -3014,8 +3014,8 @@
     {
       "symbol": "NIFTY01DEC2624750PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 726.7,
+      "spot": 23989.7,
+      "price": 745.25,
       "status": 400,
       "body": {
         "status": "error",
@@ -3025,8 +3025,8 @@
     {
       "symbol": "NIFTY01DEC2624800CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.75,
+      "spot": 23989.7,
+      "price": 0.3,
       "status": 400,
       "body": {
         "status": "error",
@@ -3036,8 +3036,8 @@
     {
       "symbol": "NIFTY01DEC2624800PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 776.3,
+      "spot": 23989.7,
+      "price": 795.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -3047,8 +3047,8 @@
     {
       "symbol": "NIFTY01DEC2624850CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.45,
+      "spot": 23989.7,
+      "price": 0.15,
       "status": 400,
       "body": {
         "status": "error",
@@ -3058,8 +3058,8 @@
     {
       "symbol": "NIFTY01DEC2624850PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 826,
+      "spot": 23989.7,
+      "price": 844.9,
       "status": 400,
       "body": {
         "status": "error",
@@ -3069,8 +3069,8 @@
     {
       "symbol": "NIFTY01DEC2624900CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.3,
+      "spot": 23989.7,
+      "price": 0.1,
       "status": 400,
       "body": {
         "status": "error",
@@ -3080,8 +3080,8 @@
     {
       "symbol": "NIFTY01DEC2624900PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 875.8,
+      "spot": 23989.7,
+      "price": 894.8,
       "status": 400,
       "body": {
         "status": "error",
@@ -3091,8 +3091,8 @@
     {
       "symbol": "NIFTY01DEC2624950CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.15,
+      "spot": 23989.7,
+      "price": 0.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -3102,8 +3102,8 @@
     {
       "symbol": "NIFTY01DEC2624950PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 925.7,
+      "spot": 23989.7,
+      "price": 944.8,
       "status": 400,
       "body": {
         "status": "error",
@@ -3113,8 +3113,8 @@
     {
       "symbol": "NIFTY01DEC2625000CE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 0.1,
+      "spot": 23989.7,
+      "price": 0.05,
       "status": 400,
       "body": {
         "status": "error",
@@ -3124,8 +3124,8 @@
     {
       "symbol": "NIFTY01DEC2625000PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 975.65,
+      "spot": 23989.7,
+      "price": 994.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -3135,7 +3135,7 @@
     {
       "symbol": "NIFTY01DEC2625050CE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -3146,8 +3146,8 @@
     {
       "symbol": "NIFTY01DEC2625050PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1025.6,
+      "spot": 23989.7,
+      "price": 1044.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -3157,7 +3157,7 @@
     {
       "symbol": "NIFTY01DEC2625100CE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -3168,8 +3168,8 @@
     {
       "symbol": "NIFTY01DEC2625100PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1075.55,
+      "spot": 23989.7,
+      "price": 1094.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -3179,7 +3179,7 @@
     {
       "symbol": "NIFTY01DEC2625150CE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -3190,8 +3190,8 @@
     {
       "symbol": "NIFTY01DEC2625150PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1125.55,
+      "spot": 23989.7,
+      "price": 1144.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -3201,7 +3201,7 @@
     {
       "symbol": "NIFTY01DEC2625200CE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -3212,8 +3212,8 @@
     {
       "symbol": "NIFTY01DEC2625200PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1175.55,
+      "spot": 23989.7,
+      "price": 1194.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -3223,7 +3223,7 @@
     {
       "symbol": "NIFTY01DEC2625250CE",
       "exchange": "NFO",
-      "spot": 24006.3,
+      "spot": 23989.7,
       "price": 0.05,
       "status": 400,
       "body": {
@@ -3234,8 +3234,8 @@
     {
       "symbol": "NIFTY01DEC2625250PE",
       "exchange": "NFO",
-      "spot": 24006.3,
-      "price": 1225.55,
+      "spot": 23989.7,
+      "price": 1244.75,
       "status": 400,
       "body": {
         "status": "error",
@@ -3244,7 +3244,7 @@
     }
   ],
   "withGreeks": {
-    "forward": 24024.45,
+    "forward": 24005.3,
     "years": 0.0,
     "days": 0.0,
     "rows": [
