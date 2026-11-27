@@ -25,6 +25,20 @@ test('intervals answers the mock set', async (t) => {
   assert.deepEqual(r.json.data.minutes, ['1m', '3m', '5m', '10m', '15m', '30m'])
 })
 
+test('before 2.0.2.2 intervals also lists the 60m alias, which history refuses', async (t) => {
+  const old = await mock(t, { profile: '2.0.0.0' })
+  const r = await post(old, 'intervals')
+  assert.deepEqual(r.json.data.minutes, [...MOCK_INTERVALS.minutes, '60m'])
+  const h = await post(old, 'history', {
+    symbol: 'RELIANCE',
+    exchange: 'NSE',
+    interval: '60m',
+    start_date: '2026-11-09',
+    end_date: '2026-11-10',
+  })
+  assert.equal(h.status, 400)
+})
+
 test('5m history over two weekdays is 150 session bars, ascending, ending at the price', () => {
   const rows = historySeries(FIVE)
   assert.equal(rows.length, 150)

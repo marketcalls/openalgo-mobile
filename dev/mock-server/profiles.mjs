@@ -88,6 +88,8 @@ const V1 = {
   sandboxGtt: false,
   gttStatus: false,
   gttBrokers: Object.freeze([]),
+  // Before 2.0.2.2 `intervals` lists the broker map's aliases (Zerodha's 60m), which `history` refuses.
+  intervalAliases: true,
 }
 const V2_0_0_0 = {
   ...V1,
@@ -117,6 +119,7 @@ const V2_0_3_5 = {
   sectorRotation: true,
   gttStatus: true,
   gttBrokers: GTT_BROKERS_C8B2896,
+  intervalAliases: false,
 }
 
 export const PROFILES = Object.freeze({

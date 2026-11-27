@@ -20,7 +20,9 @@ import { createDomClient } from '~/dom/web/client'
 import { createBridgedFetch } from '~/dom/web/fetch'
 import { createBridgedSocketFactory } from '~/dom/web/socket'
 import { inSession } from '~/market/chart/calendar'
+import { chartIntervals } from '~/market/chart/intervals'
 import { chartIntervalsQuery, sessionCalendarsQuery } from '~/market/chart/queries'
+import { TimingsSchema } from '~/market/chart/schemas'
 import { type App, type AppOptions, apiCalls, makeApp, sleep, until } from '../helpers/compatApp'
 import { type MockServerProcess, startMockServerProcess } from '../helpers/mockServer'
 
@@ -88,7 +90,7 @@ function page(a: App, o: Partial<EmulationDeps> = {}) {
 }
 
 describe.each(['2.0.0.0', '2.0.3.5'])('chart on %s', (profile) => {
-  test('opening costs at most 5 native calls, and none the second time that day', async () => {
+  test('opening costs at most 4 native calls, and none the second time that day', async () => {
     const { mock, app } = await start(profile)
     const pid = app.profile.get().id
     const opening = async () => {
@@ -122,6 +124,22 @@ describe.each(['2.0.0.0', '2.0.3.5'])('chart on %s', (profile) => {
     expect(await chartCalls()).toEqual(before)
   })
 
+  test('60m: advertised only before 2.0.2.2, dropped from the picker, refused by history', async () => {
+    const { mock, app } = await start(profile)
+    const { feeds } = page(app)
+    const raw = await app.queryClient.fetchQuery(chartIntervalsQuery(app.api, app.profile.get().id))
+    expect(raw.minutes?.includes('60m')).toBe(profile === '2.0.0.0')
+    const offered = chartIntervals(raw, false)
+    expect(offered).not.toContain('60m')
+    expect(offered).toEqual(expect.arrayContaining(['5m', 'D']))
+    const to = Math.floor(Date.now() / 1000)
+    await expect(
+      feeds.live.getBars({ ...BARS, interval: '60m', from: to - 5 * 86_400, to }),
+    ).rejects.toBeDefined()
+    // the server refused it (400) rather than the app dropping it first
+    expect((await mock.stats()).requests.history).toBe(1)
+  })
+
   test('history through the gateway returns the mock bars; a placeorder path never reaches the server', async () => {
     const { mock, app } = await start(profile)
     const { client, feeds } = page(app)
@@ -153,6 +171,33 @@ describe.each(['2.0.0.0', '2.0.3.5'])('chart on %s', (profile) => {
     expect(app.realtime.confirmedDepth('NSE', 'RELIANCE')).toBe(5)
   })
 
+  test('ticks carry the trade time: frames hold ltt, and a bar lands on its minute', async () => {
+    const { app } = await start(profile)
+    const { client } = page(app)
+    const socket = createBridgedSocketFactory(client)(DOM_WS_URL)
+    const ltts: number[] = []
+    socket.onmessage = (e) => {
+      const m = JSON.parse(e.data as string) as { type?: string; data?: { ltt?: number } }
+      if (m.type === 'market_data' && m.data?.ltt !== undefined) ltts.push(m.data.ltt)
+    }
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ action: 'authenticate', api_key: NATIVE_KEY }))
+      socket.send(
+        JSON.stringify({
+          action: 'subscribe',
+          mode: 'Quote',
+          symbols: [{ symbol: 'RELIANCE', exchange: 'NSE' }],
+        }),
+      )
+    }
+    cleanups.push(() => socket.close())
+    await until(() => ltts.length > 0, 8000, 'a frame with ltt')
+    // epoch ms from the store, within the minute of the mock's own clock
+    const ltt = ltts[0] ?? 0
+    expect(ltt).toBeGreaterThan(1e12)
+    expect(Math.abs(ltt - Date.now())).toBeLessThan(60_000)
+  })
+
   test('polling relay: with WS off, frames come from multiquotes', async () => {
     const { mock, app } = await start(
       profile,
@@ -176,9 +221,14 @@ describe.each(['2.0.0.0', '2.0.3.5'])('chart on %s', (profile) => {
   test("a UTC server's timings are corrected to 09:15–15:30 IST", async () => {
     const { mock, app } = await start(profile)
     await mock.control({ timingsSkewMs: IST })
+    // the skew is on the wire: the raw row opens 5.5 h late, so the correction has work to do
+    const raw = await app.api.call('market/timings', { date: DAY }, TimingsSchema)
+    expect(raw.find((r) => r.exchange === 'NSE')?.start_time).toBe(at('09:15') + IST)
     const cal = await app.queryClient.fetchQuery(
       sessionCalendarsQuery(app.api, app.profile.get().id, DAY),
     )
+    // 'defaults' is also 09:15-15:30: only the server source proves the correction was applied
+    expect(cal.source).toBe('server')
     const nse = cal.calendars.NSE
     expect(nse?.sessions[0]).toMatch(/^0915-1530/)
     if (!nse) return
@@ -225,8 +275,8 @@ test('2.0.3.5: a 1012 close is handled natively and the DOM socket keeps getting
   await sleep(0)
 })
 
-test('OpenAlgoLiveDataFeed gets live bars through the bridged socket', async () => {
-  // The T4 client and socket against the emulation, over the app's tick store alone.
+/** The T4 client and socket against the emulation, over the app's tick store alone. */
+function memoryFeed() {
   const store = createTickStore((flush) => void setTimeout(flush, 16))
   const acquired: string[] = []
   const post = (m: Parameters<EmulationDeps['post']>[0]) =>
@@ -272,14 +322,63 @@ test('OpenAlgoLiveDataFeed gets live bars through the bridged socket', async () 
     socketFactory: createBridgedSocketFactory(client),
     timezone: 'Asia/Kolkata',
   })
+  return { store, acquired, feed }
+}
+const INFY = { symbol: 'INFY', exchange: 'NSE', interval: '1m' }
+
+test('OpenAlgoLiveDataFeed gets live bars through the bridged socket', async () => {
+  const { store, acquired, feed } = memoryFeed()
   const closes: number[] = []
-  const stop = feed.subscribeBars({ symbol: 'INFY', exchange: 'NSE', interval: '1m' }, (bar) =>
-    closes.push(bar.close),
-  )
+  const stop = feed.subscribeBars(INFY, (bar) => closes.push(bar.close))
   cleanups.push(stop)
   await until(() => acquired.includes('NSE:INFY:1'), 3000, 'the subscription')
   // a tick after the subscribe, as the app's feed would put it
   store.put('NSE:INFY', { ltp: 1500 }, 'ws')
   await until(() => closes.includes(1500), 3000, 'a bar closing at 1500')
+  feed.close()
+})
+
+test('a bars and a depth subscription on one symbol feed each tick to the candle builder once', async () => {
+  const { store, acquired, feed } = memoryFeed()
+  const closes: number[] = []
+  const depths: unknown[] = []
+  cleanups.push(feed.subscribeBars(INFY, (bar) => closes.push(bar.close)))
+  cleanups.push(feed.subscribeDepth(INFY, (d) => depths.push(d), { depthLevel: 5 }))
+  await until(
+    () => acquired.includes('NSE:INFY:1') && acquired.includes('NSE:INFY:3'),
+    3000,
+    'both per-mode holds',
+  )
+  const book = {
+    buy: [{ price: 1499.95, quantity: 10, orders: 1 }],
+    sell: [{ price: 1500.05, quantity: 12, orders: 2 }],
+    levels: 1,
+  }
+  // Prices 1501..1503, the first on an empty book (the store merges patches, so only a first
+  // tick has none), the others with one: every frame the
+  // mode-3 hold sends carries a depth object, and none of them may reach the candle builder.
+  for (const [i, ltp] of [1501, 1502, 1503].entries()) {
+    const before = closes.length
+    const depthsBefore = depths.length
+    store.put('NSE:INFY', i === 0 ? { ltp } : { ltp, depth: book }, 'ws')
+    await until(() => closes.includes(ltp) && depths.length > depthsBefore, 3000, `tick ${ltp}`)
+    await sleep(60)
+    expect(closes.slice(before)).toEqual([ltp])
+  }
+  expect(closes).toEqual([1501, 1502, 1503])
+  feed.close()
+})
+
+test('a tick time becomes the bar time: the ltt in the frame is the one the library builds on', async () => {
+  const { store, acquired, feed } = memoryFeed()
+  const bars: { time: number; close: number }[] = []
+  cleanups.push(feed.subscribeBars(INFY, (b) => bars.push({ time: b.time, close: b.close })))
+  await until(() => acquired.includes('NSE:INFY:1'), 3000, 'the subscription')
+  // 10:31:30 IST, a minute that is not this one
+  const ltt = Date.parse('2026-11-26T05:01:30Z')
+  store.put('NSE:INFY', { ltp: 1520, ltt }, 'ws')
+  await until(() => bars.some((b) => b.close === 1520), 3000, 'a bar at 1520')
+  const bar = bars.find((b) => b.close === 1520)
+  expect(bar?.time).toBe(Math.floor(ltt / 60_000) * 60)
   feed.close()
 })

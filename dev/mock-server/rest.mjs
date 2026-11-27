@@ -408,7 +408,11 @@ const HANDLERS = {
       }),
     )
   },
-  intervals: () => ok(structuredClone(MOCK_INTERVALS)),
+  intervals(_b, { version }) {
+    const data = structuredClone(MOCK_INTERVALS)
+    if (version.intervalAliases) data.minutes.push('60m')
+    return ok(data)
+  },
   'market/timings': (b, { state }) => ok(timingsFor(b.date, state.current.timingsSkewMs)),
   'market/holidays': (b) => ok(holidaysOf(b.year ?? Number(istDateOf(Date.now()).slice(0, 4)))),
   optionchain(b, { prices, version }) {

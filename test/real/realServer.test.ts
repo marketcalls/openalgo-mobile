@@ -567,6 +567,16 @@ function suite({ url, key, wsUrl }: TestEnv) {
           )
           await until(() => depths.length > 0, TICK_WITHIN_MS, 'a Depth tick')
           expect(depths.length).toBeGreaterThan(0)
+          // ltt per adapter: the broker's trade time rides the depth stream too, else the library
+          // would bar a new price on an old trade's minute. Read-only: nothing here is placed.
+          await until(
+            () => store.get('NSE:RELIANCE')?.ltt !== undefined,
+            TICK_WITHIN_MS,
+            'a trade time (ltt) on the Depth stream',
+          )
+          const ltt = store.get('NSE:RELIANCE')?.ltt ?? 0
+          console.info(`chart depth ltt: ${Math.round((Date.now() - ltt) / 1000)} s old`)
+          expect(Math.abs(Date.now() - ltt)).toBeLessThan(10 * 60_000)
         } finally {
           feeds.live.close()
           emulation.closeAll()
