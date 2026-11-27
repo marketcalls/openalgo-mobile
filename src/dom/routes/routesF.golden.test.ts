@@ -143,3 +143,30 @@ test.each(CASES)(
     expect(d.misses).toEqual([])
   },
 )
+
+/** The builder's two chart tabs: each service's request, to its route. */
+const STRATEGY_PATHS: readonly [GoldenRouteF, string][] = [
+  ['get_strategy_chart_data', '/strategybuilder/api/strategy-chart'],
+  ['get_multi_strike_oi_data', '/strategybuilder/api/multi-strike-oi'],
+]
+
+test.each(CASES)(
+  '$id: strategyChart and multiStrikeOi equal Python',
+  async ({ input, expected }) => {
+    const d = goldenDeps(input)
+    const routes = createDeviceRoutes(d)
+    for (const [name, path] of STRATEGY_PATHS) {
+      const want = expected.routesF?.[name]
+      if (!want) throw new Error(`${input.case}: no ${name} golden`)
+      const route = routes.find((r) => r.method === 'POST' && r.path === path)
+      if (!route) throw new Error(`no route ${path}`)
+      const got: DomReply = await route.handle(
+        { v: 1, kind: 'request', rid: 1, method: 'POST', path, body: want.args as JSONValue },
+        new AbortController().signal,
+      )
+      // exact: every rounded figure, -0 included
+      expect([name, got.status, got.body]).toEqual([name, want.status, want.body])
+    }
+    expect(d.misses).toEqual([])
+  },
+)

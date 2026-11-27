@@ -7,6 +7,7 @@ import { ApiError } from '~/core/http/errors'
 import type { DomReply, DomRequest, JSONValue } from '~/dom/bridge/protocol'
 import { fromApiError, type Route } from '~/dom/gateway/requests'
 import { type RouteDeps, RouteError, type RouteOptions } from './deps'
+import { futuresContracts } from './futures'
 import { gammaDensity } from './gammaDensity'
 import { gexData } from './gex'
 import { intervalsReply } from './intervals'
@@ -19,10 +20,12 @@ import { parseBody, parseToolQuery, type ToolQuery } from './query'
 import { chartinkSearch, siteSearch } from './search'
 import { StraddleQuery, straddleData } from './straddle'
 import { lotSize, SimulateQuery, straddleSimulate } from './straddlePnl'
+import { multiStrikeOi, StrategyChartQuery, strategyChart } from './strategyChart'
 import { StrikeProfileQuery, strikeProfile } from './strikeProfile'
 import { VolSurfaceQuery, volSurface } from './volSurface'
 
 export { type RouteDeps, RouteError, type RouteOptions } from './deps'
+export { type FuturesContract, futuresContracts, LEG_EXCHANGES } from './futures'
 export { gammaDensity } from './gammaDensity'
 export { gexData } from './gex'
 export { IvChartQuery, type IvChartQueryOut, ivChart } from './ivChart'
@@ -54,6 +57,15 @@ export {
   type SimulateQueryOut,
   straddleSimulate,
 } from './straddlePnl'
+export {
+  explicitWindow,
+  type MultiStrikeLeg,
+  type MultiStrikeReply,
+  multiStrikeOi,
+  StrategyChartQuery,
+  type StrategyChartQueryOut,
+  strategyChart,
+} from './strategyChart'
 export {
   type FlipLeg,
   findGammaFlip,
@@ -154,6 +166,26 @@ const TABLE: readonly { method: 'GET' | 'POST'; path: string; answer: Answer }[]
     method: 'GET',
     path: '/straddlepnl/api/intervals',
     answer: (_r, d) => intervalsReply('raw', d),
+  },
+  {
+    method: 'POST',
+    path: '/strategybuilder/api/strategy-chart',
+    answer: (r, d, o) => strategyChart(parseBody(StrategyChartQuery, r.body), d, o),
+  },
+  {
+    method: 'POST',
+    path: '/strategybuilder/api/multi-strike-oi',
+    answer: (r, d, o) => multiStrikeOi(parseBody(StrategyChartQuery, r.body), d, o),
+  },
+  {
+    method: 'GET',
+    path: '/strategybuilder/api/intervals',
+    answer: (_r, d) => intervalsReply('raw', d),
+  },
+  {
+    method: 'GET',
+    path: '/scalping/api/futures',
+    answer: (r, d, o) => futuresContracts(arg(r, 'underlying'), arg(r, 'exchange'), d, o),
   },
 ]
 

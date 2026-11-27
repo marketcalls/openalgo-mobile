@@ -126,7 +126,7 @@ const settle = () => new Promise((r) => setImmediate(r))
 beforeEach(() => keepExpectedLogs())
 afterEach(() => jest.restoreAllMocks())
 
-test('the device routes are the twenty session routes the tool pages call', () => {
+test('the device routes are the twenty-four session routes the tool pages call', () => {
   expect(DEVICE_ROUTES).toEqual([
     { method: 'GET', path: '/search/api/underlyings' },
     { method: 'GET', path: '/search/api/expiries' },
@@ -144,6 +144,10 @@ test('the device routes are the twenty session routes the tool pages call', () =
     { method: 'POST', path: '/straddlepnl/api/simulate' },
     { method: 'GET', path: '/straddlepnl/api/lotsize' },
     { method: 'GET', path: '/straddlepnl/api/intervals' },
+    { method: 'POST', path: '/strategybuilder/api/strategy-chart' },
+    { method: 'POST', path: '/strategybuilder/api/multi-strike-oi' },
+    { method: 'GET', path: '/strategybuilder/api/intervals' },
+    { method: 'GET', path: '/scalping/api/futures' },
   ])
   const h = setup()
   expect(h.routes.map(({ method, path }) => ({ method, path }))).toEqual(DEVICE_ROUTES)

@@ -82,7 +82,8 @@ const CHART_COPY: StraddleCopy = {
 const abortError = () =>
   Object.assign(new Error('The page aborted the request.'), { name: 'AbortError' })
 
-const throwIfAborted = (signal?: AbortSignal) => {
+/** An aborted page request rejects with an AbortError, so the router answers nothing. */
+export const throwIfAborted = (signal?: AbortSignal) => {
   if (signal?.aborted) throw abortError()
 }
 
