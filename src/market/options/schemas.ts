@@ -1,5 +1,5 @@
 // The option replies the tools and the Option Chain read (design 7.8): `/expiry` and
-// `/optionchain` as services/option_chain_service.py builds it at openalgo.ref (:648-744). A
+// `/optionchain` as services/option_chain_service.py builds it at openalgo.ref (:656-745). A
 // 2.0.0.0 server (b7cdf2636) sends no quote identity, expiry instant, server clock or Greeks, so
 // those are optional. Numbers that arrive as strings are read as numbers.
 import { z } from 'zod'
