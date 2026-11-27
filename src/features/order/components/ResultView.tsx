@@ -7,6 +7,7 @@ import { StyleSheet, View } from 'react-native'
 import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { QUEUED_COPY } from '~/market/components/SessionBanners'
 import { CHECKING } from '~/market/orders/outcome'
+import { PLACED_REJECTED } from '~/market/orders/placedStatus'
 import { reconcileText, type TicketResult, waitText } from '~/market/orders/result'
 import { LIVE_SURPRISE } from '~/market/orders/submit'
 import { Badge } from '~/ui/Badge'
@@ -22,9 +23,7 @@ function PlacedStatus({ status }: { status: string }) {
   const rejected = status === 'rejected'
   return (
     <Text testID="order-result-status" tone={rejected ? 'loss' : 'muted'}>
-      {rejected
-        ? 'Rejected by the broker. See the order book for the reason.'
-        : `Status: ${status || '--'}`}
+      {rejected ? PLACED_REJECTED : `Status: ${status || '--'}`}
     </Text>
   )
 }

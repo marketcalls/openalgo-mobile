@@ -21,6 +21,7 @@ import type { InstrumentMeta } from '~/market/instruments/meta'
 import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
 import { ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
+import { followPlaced } from '~/market/orders/placedStatus'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { MODE_LABEL } from '~/market/orders/confirmWrite'
 import { placementOutcome, resultLine, type Sent, type TicketResult } from '~/market/orders/result'
@@ -57,14 +58,6 @@ type Step =
   | { kind: 'result'; result: TicketResult }
 
 const SPLIT_WAIT_SEC = Math.round(ENDPOINTS.splitorder.timeoutMs / 1000)
-
-/**
- * After "Order placed", the reads of the order book for its status: a broker's RMS can reject a
- * placed order a moment later (funds, price band), and that comes back only in the book. An order
- * event for it reads at once. They stop at a status the order cannot leave.
- */
-export const PLACED_STATUS_DELAYS_MS: readonly number[] = [1500, 3000, 6000]
-const FINAL: readonly string[] = ['complete', 'rejected', 'cancelled']
 
 /** The toast when the sheet goes while the order is on its way. */
 export const STILL_SENDING = 'Your order is still being sent. Its outcome will show here.'
@@ -176,48 +169,21 @@ function Ticket({ params, meta }: { params: TicketParams; meta: InstrumentMeta }
     cachedIds,
   })
   const { book, guard, otherOut, earlierLine } = shell
-  /** The placed order's status, once the book or its order event shows it. */
+  /** The placed order's status, once the book or its order event shows it (`followPlaced`). */
   const [placedStatus, setPlacedStatus] = useState<string | null>(null)
   const placedId =
     step.kind === 'result' && step.result.kind === 'placed' ? step.result.orderid : null
   useEffect(() => {
     if (placedId === null) return
-    let on = true
-    let wake = () => {}
-    const seen = (status: string) => {
-      if (!on) return
-      setPlacedStatus(status)
-      if (status === 'rejected') notifyError()
-    }
-    const off = s.orderEvents.subscribe((u) => {
-      if (u.orderid === placedId) wake()
+    return followPlaced({
+      orderid: placedId,
+      orderEvents: s.orderEvents,
+      readBook: () => trading.orders.orderbook({ fresh: true }),
+      seen: (status) => {
+        setPlacedStatus(status)
+        if (status === 'rejected') notifyError()
+      },
     })
-    void (async () => {
-      for (const ms of PLACED_STATUS_DELAYS_MS) {
-        await new Promise<void>((resolve) => {
-          const t = setTimeout(resolve, ms)
-          wake = () => {
-            clearTimeout(t)
-            resolve()
-          }
-        })
-        if (!on) return
-        let status: string | undefined
-        try {
-          const b = await trading.orders.orderbook({ fresh: true })
-          status = b.orders.find((r) => r.orderid === placedId)?.status
-        } catch {
-          continue
-        }
-        if (status === undefined) continue
-        seen(status)
-        if (FINAL.includes(status)) return
-      }
-    })()
-    return () => {
-      on = false
-      off()
-    }
   }, [placedId, s, trading])
 
   const caps = s.caps.get()
