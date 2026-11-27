@@ -7,15 +7,18 @@
 // any moment (Review Focus 2), so every write reads the mode just before it goes and refuses in
 // LIVE, and every write reply must carry the sandbox tag: one that does not went to the broker,
 // and is undone at once (the order cancelled, the buy sold back).
+import { QueryClient } from '@tanstack/react-query'
 import { WebSocket } from 'ws'
 import { type Capabilities, VERSION_GATES } from '~/core/capabilities/gates'
 import { createCapabilityStore } from '~/core/capabilities/store'
 import { profileStorage } from '~/core/config/storage'
 import { atLeast } from '~/core/config/version'
 import { checkKey } from '~/core/credentials/status'
-import type { Api } from '~/core/http/api'
+import { type Api, createApi, type FieldGate, type KeyedApi } from '~/core/http/api'
 import { createHttpClient, type HttpClient } from '~/core/http/client'
+import { createScheduler } from '~/core/http/scheduler'
 import { AnalyzerSchema, DepthSchema, FundsSchema, MultiQuotesSchema } from '~/core/http/schemas'
+import { createServerClock } from '~/core/http/serverClock'
 import { isExchangeOpen, istDate } from '~/core/realtime/marketHours'
 import { type Inbound, parseInbound } from '~/core/realtime/protocol'
 import { createTickStore } from '~/core/realtime/tickStore'
@@ -25,6 +28,7 @@ import { createChartFeeds } from '~/dom/chart/feeds'
 import { createChartRoutes } from '~/dom/gateway/chartRoutes'
 import { createRequestRouter } from '~/dom/gateway/requests'
 import { createWsEmulation } from '~/dom/gateway/wsEmulation'
+import { createDeviceRoutes, type RouteDeps } from '~/dom/routes'
 import { createDomClient } from '~/dom/web/client'
 import { capabilityReport } from '~/features/account/diagnostics'
 import { feedStep, keyStep, serverStep } from '~/features/onboarding/flow'
@@ -37,6 +41,12 @@ import type { GttRow, GttSpec } from '~/market/gtt/schemas'
 import { GTT_GATES } from '~/market/gtt/support'
 import { SymbolSchema, toMeta } from '~/market/instruments/meta'
 import { snapTick } from '~/market/instruments/tick'
+import { createSymbolMaster } from '~/market/master/master'
+import { createMemoryMasterDb } from '~/market/master/memoryDb'
+import { chainForward, withGreeksChain } from '~/market/options/black76'
+import { createOptionsData } from '~/market/options/data'
+import { expiryInstantMs, optionsExchangeOf, serverYears } from '~/market/options/expiry'
+import { OptionChainSchema } from '~/market/options/schemas'
 import { createOrderApi } from '~/market/orders/api'
 import { memoryKV } from '../helpers/memoryKV'
 import { loadTestEnv, type TestEnv } from './env'
@@ -586,10 +596,136 @@ function suite({ url, key, wsUrl }: TestEnv) {
       })
     })
 
+    // The tools' routes and the Greeks (read-only: every call here is a read).
+    const toolDeps = () => {
+      const fields: FieldGate = { adapt: (_id, body) => body, markUnsupported: () => {} }
+      const api: KeyedApi = createApi({ http, scheduler: createScheduler(), fields })
+      const clock = createServerClock(() => Date.now())
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const options = createOptionsData({ api, queryClient, pid: 'p0123456789ab', clock })
+      const master = createSymbolMaster({
+        api,
+        db: Promise.resolve(createMemoryMasterDb()),
+        pid: 'p0123456789ab',
+        now: Date.now,
+      })
+      const deps: RouteDeps = { options, master, api, now: clock.now }
+      return { api, options, master, deps, clock }
+    }
+    const nearest = async (options: ReturnType<typeof toolDeps>['options']) => {
+      const list = await options.expiries('NFO', 'NIFTY', 'options')
+      const first = list[0]
+      if (first === undefined) throw new Error('no NIFTY option expiry listed')
+      return first.replaceAll('-', '')
+    }
+    const isSuccess = (b: unknown) => (b as { status?: string } | null)?.status === 'success'
+
+    test('tools: each on-device route answers success for NIFTY nearest expiry', async () => {
+      safe()
+      const { options, deps } = toolDeps()
+      const routes = createDeviceRoutes(deps)
+      const expiry_date = await nearest(options)
+      const body = { underlying: 'NIFTY', exchange: 'NFO', expiry_date }
+      const ask = async (method: 'GET' | 'POST', path: string, x: object) => {
+        const r = routes.find((v) => v.method === method && v.path === path)
+        if (!r) throw new Error(`no route ${method} ${path}`)
+        const reply = await r.handle(
+          { v: 1, kind: 'request', rid: 1, method, path, ...x },
+          new AbortController().signal,
+        )
+        return { path, status: reply.status, ok: isSuccess(reply.body) }
+      }
+      const got = [
+        await ask('GET', '/search/api/underlyings', { query: { exchange: 'NFO' } }),
+        await ask('GET', '/search/api/expiries', {
+          query: { exchange: 'NFO', underlying: 'NIFTY', instrumenttype: 'options' },
+        }),
+        await ask('POST', '/oitracker/api/oi-data', { body }),
+        await ask('POST', '/oitracker/api/maxpain', { body }),
+        await ask('POST', '/ivsmile/api/iv-smile-data', { body }),
+        await ask('POST', '/gex/api/gex-data', { body }),
+        await ask('POST', '/gammadensity/api/gamma-data', { body }),
+      ]
+      expect(got.map((g) => ({ ...g, status: g.status }))).toEqual(
+        got.map((g) => ({ path: g.path, status: 200, ok: true })),
+      )
+    })
+
+    test('tools: the with_greeks mode matches the server on ≥ 98% of legs, the rest within one unit in the last place', async () => {
+      safe()
+      if (!atLeast(caps.version, '2.0.2.0')) {
+        console.info(`with_greeks needs 2.0.2.0; this server is ${caps.version ?? 'unknown'}`)
+        return
+      }
+      const { options } = toolDeps()
+      const expiry_date = await nearest(options)
+      const raw = await http.request(
+        'optionchain',
+        { underlying: 'NIFTY', exchange: 'NFO', expiry_date, strike_count: 25, with_greeks: true },
+        OptionChainSchema,
+      )
+      expect(raw.greeks_included).toBe(true)
+      const expiryMs =
+        typeof raw.expiry_ts === 'number'
+          ? raw.expiry_ts * 1000
+          : expiryInstantMs(raw.expiry_date, optionsExchangeOf('NFO'))
+      expect(expiryMs).not.toBeNull()
+      // priced at the server's own clock, from the forward the chain names
+      const now = (raw.server_ts ?? Date.now() / 1000) * 1000
+      const forward =
+        raw.forward_price ?? chainForward(raw.chain, raw.atm_strike, raw.underlying_ltp)
+      const mine = withGreeksChain(raw.chain, {
+        forward,
+        years: serverYears(expiryMs ?? 0, now).years,
+      })
+      const UNIT = { iv: 0.01, delta: 1e-4, gamma: 1e-6, theta: 1e-4, vega: 1e-4 } as const
+      const FIELD = {
+        iv: 'implied_volatility',
+        delta: 'delta',
+        gamma: 'gamma',
+        theta: 'theta',
+        vega: 'vega',
+      } as const
+      let legs = 0
+      let exact = 0
+      const misses: string[] = []
+      raw.chain.forEach((row, i) => {
+        for (const side of ['ce', 'pe'] as const) {
+          const theirs = row[side]
+          const ours = mine[i]?.[side] ?? null
+          if (!theirs || theirs.delta === undefined) continue
+          legs++
+          const diffs = (Object.keys(UNIT) as (keyof typeof UNIT)[]).map((k) => {
+            const a = theirs[FIELD[k]]
+            const b = ours?.[k]
+            return a === undefined || b === undefined ? Number.POSITIVE_INFINITY : Math.abs(a - b)
+          })
+          if (diffs.every((d) => d === 0)) exact++
+          else if (!diffs.every((d, j) => d <= (Object.values(UNIT)[j] ?? 0) * 1.0001)) {
+            misses.push(`${row.strike}${side}`)
+          }
+        }
+      })
+      expect(legs).toBeGreaterThan(10)
+      console.info(
+        `with_greeks: ${exact}/${legs} legs exact; beyond one unit: ${misses.join(' ') || 'none'}`,
+      )
+      expect(exact / legs).toBeGreaterThanOrEqual(0.98)
+      expect(misses).toEqual([])
+    })
+
+    test('tools: the NFO instruments CSV parses and lists NIFTY and BANKNIFTY', async () => {
+      safe()
+      const { master } = toolDeps()
+      expect(await master.ensure('NFO')).toBe('today')
+      const { list, source } = await master.underlyingsNow('NFO')
+      expect(source).toBe('today')
+      expect(list).toEqual(expect.arrayContaining(['NIFTY', 'BANKNIFTY']))
+    })
+
     // Plan B: the checks below arrive with the screens they cover.
     test.todo('tool: portfolio backtest')
     test.todo('tool: SIP backtest')
     test.todo('tool: sector rotation')
-    test.todo('tool: option chain with greeks')
   })
 }

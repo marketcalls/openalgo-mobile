@@ -5,6 +5,8 @@ import path from 'node:path'
 
 const MAIN = path.resolve(__dirname, '../../dev/mock-server/main.mjs')
 const READY = /^MOCK_READY rest=(\S+) ws=(\S+)$/m
+// Taken at load: a tool page's runtime replaces the global fetch (see compatApp.ts).
+const nodeFetch = globalThis.fetch
 const START_TIMEOUT_MS = 10_000
 
 export type MockStats = {
@@ -75,7 +77,7 @@ export function startMockServerProcess(
       onEarlyExit = null
       const origin = m[1]
       const call = async (method: 'GET' | 'POST', body?: unknown) => {
-        const res = await fetch(`${origin}/__mock/control`, {
+        const res = await nodeFetch(`${origin}/__mock/control`, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: body === undefined ? undefined : JSON.stringify(body),

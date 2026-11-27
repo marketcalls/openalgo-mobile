@@ -21,6 +21,9 @@ import { serverStep } from '~/features/onboarding/flow'
 import { memoryKV } from './memoryKV'
 import type { MockServerProcess } from './mockServer'
 
+// Node's fetch, taken when this module loads: a tool page's runtime replaces the global one with
+// its bridged fetch (dom/web/prelude), and the app's own traffic must not go through it.
+const nodeFetch = globalThis.fetch
 export const KEY = 'ab'.repeat(32)
 export const WRONG_KEY = 'cd'.repeat(32)
 export const PROFILE_IDS = ['2.0.0.0', '2.0.1.6', '2.0.2.0', '2.0.3.5'] as const
@@ -42,7 +45,7 @@ export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 /** The caps a real probe of the mock gives. */
 export async function probeCaps(mock: MockServerProcess): Promise<Capabilities> {
-  const r = await serverStep(mock.origin, { fetch, allowDevHosts: true, now: Date.now })
+  const r = await serverStep(mock.origin, { fetch: nodeFetch, allowDevHosts: true, now: Date.now })
   if (r.kind !== 'ok') throw new Error(`serverStep gave ${r.kind}`)
   return r.caps
 }
@@ -126,7 +129,7 @@ export async function makeApp(mock: MockServerProcess, o: AppOptions = {}): Prom
   const deps: AppDeps = {
     fetch: (input, init) => {
       fetches++
-      return fetch(input, init)
+      return nodeFetch(input, init)
     },
     WebSocketImpl: NodeWebSocket,
     secureKV,
