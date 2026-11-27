@@ -48,6 +48,7 @@ import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 import type { InstrumentMeta } from '~/market/instruments/meta'
 import { useInstrument } from '~/market/instruments/useInstrument'
 import { depthHref, ordersHref } from '~/market/links'
+import { useOpenOrBack } from '~/market/useOpenOrBack'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
 import { Skeleton } from '~/ui/Skeleton'
@@ -155,6 +156,7 @@ function Frame({ children }: { children: ReactNode }) {
 function Chart({ opening }: { opening: Inst }) {
   const s = useServices()
   const router = useRouter()
+  const openOrBack = useOpenOrBack()
   const { scheme, c } = useTheme()
   const active = useScreenActive()
   const conn = useConnection()
@@ -376,7 +378,7 @@ function Chart({ opening }: { opening: Inst }) {
         mode={conn.analyzer}
         oneTap={oneTap}
         onBack={() => router.back()}
-        onDepth={() => router.push(depthHref(inst.exchange, inst.symbol) as Href)}
+        onDepth={() => openOrBack('depth/[key]', inst, depthHref(inst.exchange, inst.symbol))}
       />
       <View style={styles.badges}>
         <StatusBadges

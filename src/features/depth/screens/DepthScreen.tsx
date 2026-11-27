@@ -17,6 +17,7 @@ import { useInstrument, useIsUnknown } from '~/market/instruments/useInstrument'
 import { chartHref, ticketHref } from '~/market/links'
 import { useBrokerBlocked } from '~/market/session'
 import type { TicketParams } from '~/market/types'
+import { useOpenOrBack } from '~/market/useOpenOrBack'
 import { Badge } from '~/ui/Badge'
 import { Button } from '~/ui/Button'
 import { Change } from '~/ui/Change'
@@ -125,7 +126,7 @@ function Title({ exchange, symbol, name }: Key & { name?: string }) {
 /** LTP and change, the day's range, prev close and volume, and OI where contracts trade in lots. */
 function Header(p: Key & { name?: string; q: Quote | undefined }) {
   const { exchange, symbol, q } = p
-  const router = useRouter()
+  const openOrBack = useOpenOrBack()
   const stale = useFeedStale()
   return (
     <View style={styles.header}>
@@ -135,7 +136,7 @@ function Header(p: Key & { name?: string; q: Quote | undefined }) {
           testID="depth-chart"
           title="Chart"
           variant="secondary"
-          onPress={() => router.push(chartHref(exchange, symbol) as Href)}
+          onPress={() => openOrBack('chart/[key]', p, chartHref(exchange, symbol))}
         />
       </View>
       <View style={{ opacity: stale ? 0.5 : 1 }}>

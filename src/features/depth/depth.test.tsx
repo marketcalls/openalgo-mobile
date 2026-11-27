@@ -27,9 +27,15 @@ import { DepthScreen } from './screens/DepthScreen'
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
 const mockPush = jest.fn()
 let mockKey = 'NSE%3ARELIANCE'
+/** The stack the depth screen is on: by default it is the only screen. */
+const mockStack: { routes: { name: string; params?: object }[] } = { routes: [] }
+const mockBack = jest.fn()
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, back: mockBack }),
   useLocalSearchParams: () => ({ key: mockKey }),
+  useNavigation: () => ({
+    getState: () => ({ index: mockStack.routes.length - 1, routes: mockStack.routes }),
+  }),
 }))
 
 const FIVE_ONLY = 'This broker sends 5 levels here.'
@@ -741,6 +747,29 @@ describe('quote-only and unknown', () => {
     await open('NSE', 'RELIANCE')
     await fireEvent.press(screen.getByTestId('depth-chart'))
     expect(mockPush).toHaveBeenLastCalledWith(chartHref('NSE', 'RELIANCE'))
+  })
+
+  test("from the instrument's own chart, Chart goes back to it rather than stacking another", async () => {
+    // the chart's own symbol change set its param encoded (setParams)
+    mockStack.routes = [
+      { name: '(tabs)' },
+      { name: 'chart/[key]', params: { key: 'NSE%3ARELIANCE' } },
+      { name: 'depth/[key]', params: { key: 'NSE:RELIANCE' } },
+    ]
+    try {
+      const a = await open('NSE', 'RELIANCE')
+      await fireEvent.press(screen.getByTestId('depth-chart'))
+      expect(mockBack).toHaveBeenCalledTimes(1)
+      expect(mockPush).not.toHaveBeenCalled()
+      await a.unmount()
+      // another instrument's chart beneath: a chart of this one is pushed
+      await open('NSE', 'INFY')
+      await fireEvent.press(screen.getByTestId('depth-chart'))
+      expect(mockPush).toHaveBeenLastCalledWith(chartHref('NSE', 'INFY'))
+      expect(mockBack).toHaveBeenCalledTimes(1)
+    } finally {
+      mockStack.routes = []
+    }
   })
 
   test('an expired contract: "Expired or unknown", and no feed slot or poll', async () => {

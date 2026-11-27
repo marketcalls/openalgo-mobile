@@ -64,6 +64,8 @@ const mockRouter = {
 let mockParams: Record<string, string> = {}
 /** Whether the chart is the screen in front; a ticket or a sheet over it takes the focus. */
 const mockFocus = { on: true, subs: new Set<() => void>() }
+/** The stack the chart is on: by default it is the only screen. */
+const mockStack: { routes: { name: string; params?: object }[] } = { routes: [] }
 jest.mock('expo-router', () => {
   const { useEffect, useSyncExternalStore } = require('react')
   const useIsFocused = (): boolean =>
@@ -77,6 +79,9 @@ jest.mock('expo-router', () => {
   return {
     useRouter: () => mockRouter,
     useLocalSearchParams: () => mockParams,
+    useNavigation: () => ({
+      getState: () => ({ index: mockStack.routes.length - 1, routes: mockStack.routes }),
+    }),
     useIsFocused,
     // as React Navigation runs it: at each focus, cleaned up at the blur
     useFocusEffect: (effect: () => undefined | (() => void)) => {
@@ -1035,6 +1040,27 @@ describe('notices and modes', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith('/depth/NSE%3ARELIANCE')
     await press('chart-back')
     expect(mockRouter.back).toHaveBeenCalledTimes(1)
+  })
+
+  test("opened from the instrument's depth, Depth goes back to it rather than stacking another", async () => {
+    mockStack.routes = [
+      { name: '(tabs)' },
+      { name: 'depth/[key]', params: { key: 'NSE:RELIANCE' } },
+      { name: 'chart/[key]', params: { key: 'NSE:RELIANCE' } },
+    ]
+    try {
+      await setup()
+      await open()
+      await press('chart-depth')
+      expect(mockRouter.back).toHaveBeenCalledTimes(1)
+      expect(mockRouter.push).not.toHaveBeenCalled()
+      // another instrument's depth beneath: this one's is pushed
+      mockStack.routes[1] = { name: 'depth/[key]', params: { key: 'NSE:INFY' } }
+      await press('chart-depth')
+      expect(mockRouter.push).toHaveBeenLastCalledWith('/depth/NSE%3ARELIANCE')
+    } finally {
+      mockStack.routes = []
+    }
   })
 })
 
