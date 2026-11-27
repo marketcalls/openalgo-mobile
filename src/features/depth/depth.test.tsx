@@ -507,7 +507,8 @@ describe('confirming deeper levels (ruling 10)', () => {
     await h.tick({ depth: book(5) })
     expect(judge).toHaveBeenLastCalledWith(expect.objectContaining({ wsLevels: [5, 5] }))
     expect(screen.getByText(FIVE_ONLY)).toBeTruthy()
-  })
+    // 54 renders of a 20-level ladder: under a second alone, about 4 s in a full parallel run
+  }, 15_000)
 })
 
 describe('ladder', () => {
