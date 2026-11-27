@@ -1,0 +1,149 @@
+/* Sector Rotation on a phone (ux-bar E-ROT), after phone.css. Shared terms and conventions are in
+   phone.css. The map is an SVG in its own user units (a 16:10 viewBox shown at about a fifth of its
+   size), so its type and marks are set in those units. */
+
+@media (max-width: 767.98px) {
+  /* The map stays legible: quadrant names, head labels, axis labels, dots and trails (E-ROT-1). */
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    svg[aria-label="Sector rotation map"]
+    g[letter-spacing]
+    > text {
+    font-size: 60px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    svg[aria-label="Sector rotation map"]
+    text.fill-foreground {
+    font-size: 64px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    svg[aria-label="Sector rotation map"]
+    text.fill-muted-foreground {
+    font-size: 52px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    svg[aria-label="Sector rotation map"]
+    circle.stroke-background {
+    r: 30px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    svg[aria-label="Sector rotation map"]
+    g
+    > circle:not(.stroke-background) {
+    r: 11px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"] #oa-tool svg[aria-label="Sector rotation map"] polyline {
+    stroke-width: 6;
+  }
+
+  /* The controls in two columns, the search on one full line, so half the map is in view at
+     360x640 (E-ROT-2). */
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > .flex.flex-wrap.items-end.gap-3 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > .flex.flex-wrap.items-end.gap-3
+    :is([data-slot="select-trigger"], input[type="range"]) {
+    width: 100%;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > .flex.flex-wrap.items-end.gap-3
+    > p {
+    grid-column: 1 / -1;
+    padding-bottom: 0;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > .flex.flex-wrap.items-center.gap-2
+    > [class~="min-w-72"] {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  /* The symbol table: compact cells, RS and Mom. in view at 412 px (E-ROT-4). */
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"] #oa-tool .overflow-auto > table :is(th, td) {
+    padding-inline: 6px;
+  }
+}
+
+/* At 360 px the table scrolls sideways under a pinned checkbox and name (E-ROT-4). */
+@media (max-width: 400px) {
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"]
+    #oa-tool
+    .overflow-auto
+    > table
+    :is(th, td):nth-child(-n + 2) {
+    position: sticky;
+    z-index: 1;
+    background: var(--card);
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"] #oa-tool .overflow-auto > table :is(th, td):first-child {
+    left: 0;
+    min-width: 36px;
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"] #oa-tool .overflow-auto > table :is(th, td):nth-child(2) {
+    left: 36px;
+  }
+}
+
+/* With no hover, the hover-only Remove shows; the small controls get a 44 px hit (E-ROT-3, G4). */
+@media (hover: none) {
+  /* @pages sector-rotation */
+  html[data-oa-tool="sector-rotation"] #oa-tool button[aria-label^="Remove "] {
+    opacity: 0.7;
+  }
+}
+/* @pages sector-rotation */
+html[data-oa-tool="sector-rotation"]
+  #oa-tool
+  :is(
+    button[aria-label^="Remove "],
+    button[role="checkbox"],
+    [data-screenshot-ignore] > [data-slot="button"]
+  ) {
+  position: relative;
+}
+/* @pages sector-rotation */
+html[data-oa-tool="sector-rotation"]
+  #oa-tool
+  :is(
+    button[aria-label^="Remove "],
+    button[role="checkbox"],
+    [data-screenshot-ignore] > [data-slot="button"]
+  )::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}

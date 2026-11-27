@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { parseBrokers, parseExchanges, parseTools } from './lib/frontend-gen.mjs'
-import { listOpenalgoDir, readOpenalgoFile } from './openalgo-src.mjs'
+import {
+  parseBrokers,
+  parseExchanges,
+  parseTools,
+  renderFrontendIndexCss,
+} from './lib/frontend-gen.mjs'
+import { listOpenalgoDir, readOpenalgoFile, readRef } from './openalgo-src.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (rel) => readOpenalgoFile(rel, { repoRoot: root })
@@ -119,4 +124,56 @@ test('--check fails when a generated file is stale', () => {
   assert.throws(() => run('--check'), /stale/)
   run()
   run('--check')
+})
+
+test("the tool pages' copy of index.css drops only its two package @imports", () => {
+  const src = read('frontend/src/index.css')
+  const css = renderFrontendIndexCss({ src, ref: 'c8b2896' })
+  assert.match(css.split('\n')[0], /^\/\* GENERATED from openalgo c8b2896 .*Do not edit\. \*\/$/)
+  assert.doesNotMatch(css, /@import\s+["'](tailwindcss|tw-animate-css)["']/)
+  // everything else is the web's, line for line
+  const kept = src
+    .split('\n')
+    .filter((l) => !/^@import\s+["'](tailwindcss|tw-animate-css)["'];\s*$/.test(l))
+  assert.equal(css.split('\n').slice(1).join('\n'), kept.join('\n'))
+  assert.match(css, /@custom-variant dark/)
+  assert.match(css, /@theme inline/)
+})
+
+test('an index.css without both package @imports fails loudly', () => {
+  assert.throws(
+    () => renderFrontendIndexCss({ src: '@import "tailwindcss";\n:root{}', ref: 'x' }),
+    /tw-animate-css/,
+  )
+  assert.throws(
+    () =>
+      renderFrontendIndexCss({
+        src: '@import "tailwindcss";\n@import "tw-animate-css";\n@import "./other.css";\n',
+        ref: 'x',
+      }),
+    /other\.css/,
+  )
+})
+
+test('gen-frontend writes src/dom/tools/frontend-index.css and --check finds it stale', () => {
+  const out = mkdtempSync(join(tmpdir(), 'oa-gen-css-'))
+  try {
+    const run = (...a) =>
+      execFileSync('node', [join(root, 'scripts/gen-frontend.mjs'), '--out', out, ...a], {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    run()
+    const f = join(out, 'src/dom/tools/frontend-index.css')
+    assert.equal(
+      readFileSync(f, 'utf8'),
+      renderFrontendIndexCss({ src: read('frontend/src/index.css'), ref: readRef(root) }),
+    )
+    run('--check')
+    writeFileSync(f, `${readFileSync(f, 'utf8')}\n.x{}`)
+    assert.throws(() => run('--check'), /frontend-index\.css is stale/)
+  } finally {
+    rmSync(out, { recursive: true, force: true })
+  }
 })

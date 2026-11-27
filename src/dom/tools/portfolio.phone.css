@@ -1,0 +1,411 @@
+/* The portfolio tools on a phone (ux-bar T11-08, T11-10, T11-16, T11-17 and E-PB, E-PR, E-SB,
+   E-SR, E-PA), after phone.css. Shared terms and conventions are in phone.css. */
+
+/* openalgo-charts sets touch-action: none inline on its holder (role=application): a vertical
+   swipe that starts on a chart scrolls the page, horizontal pan and pinch stay the chart's
+   (T11-16, G11). */
+/* @pages portfolio-backtester sip-backtester */
+[data-oa-tool] #oa-tool [role="application"] {
+  /* biome-ignore lint/complexity/noImportantStyles: the chart holder's inline touch-action */
+  touch-action: pan-y !important;
+}
+
+/* The app's profit and loss colours on the pages' good and bad values; a "good" green on a
+   negative value reads as the loss it is (helpers.ts marks it) (G7, T11-19). */
+/* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+html:is(
+    [data-oa-tool="portfolio-backtester"],
+    [data-oa-tool="sip-backtester"],
+    [data-oa-tool="portfolio-analyzer"]
+  )
+  #oa-tool
+  :is([class~="text-emerald-500"], [class~="text-emerald-600"]) {
+  color: var(--oa-profit);
+}
+/* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+html:is(
+    [data-oa-tool="portfolio-backtester"],
+    [data-oa-tool="sip-backtester"],
+    [data-oa-tool="portfolio-analyzer"]
+  )
+  #oa-tool
+  :is([class~="text-rose-500"], [class~="text-rose-600"], [data-oa-sign="neg"]) {
+  color: var(--oa-loss);
+}
+
+@media (max-width: 767.98px) {
+  /* Cards keep their frame, with 12 px padding (T11-08). */
+  /* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+  #oa-tool [data-slot="card"] {
+    gap: 12px;
+    padding-block: 12px;
+  }
+  /* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+  #oa-tool :is([data-slot="card-header"], [data-slot="card-content"]:not([class~="p-0"])) {
+    padding-inline: 12px;
+  }
+
+  /* Report stats two across, values at 20 px (T11-10). */
+  /* @pages portfolio-backtester sip-backtester */
+  html:is([data-oa-tool="portfolio-backtester"], [data-oa-tool="sip-backtester"])
+    #oa-tool
+    .grid:has(> [data-slot="card"] > [data-slot="card-content"].p-4 > .text-2xl) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  /* @pages portfolio-backtester sip-backtester */
+  html:is([data-oa-tool="portfolio-backtester"], [data-oa-tool="sip-backtester"])
+    #oa-tool
+    [data-slot="card-content"].p-4
+    > .text-2xl {
+    font-size: 20px;
+  }
+
+  /* Tables: tight cells, numbers on one line, the first column pinned inside the table's own
+     scroller (T11-17, G3). */
+  /* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+  #oa-tool table :is(th, td) {
+    padding: 8px;
+  }
+  /* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+  #oa-tool table .text-right {
+    white-space: nowrap;
+  }
+  /* @pages portfolio-backtester sip-backtester portfolio-analyzer */
+  #oa-tool
+    :is(.overflow-x-auto, .overflow-auto, [data-slot="card-content"])
+    > table
+    :is(th, td):first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--card);
+  }
+  /* Tab strips: one sideways-scrolling line that stays at the top (T11-17, E-SR-1). */
+  /* @pages portfolio-backtester sip-backtester */
+  #oa-tool :is([data-slot="tabs-list"], .flex.gap-1.border-b:has(> button)) {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    width: 100%;
+    height: auto;
+    justify-content: flex-start;
+    overflow-x: auto;
+    background: var(--background);
+  }
+  /* @pages portfolio-backtester sip-backtester */
+  #oa-tool
+    :is([data-slot="tabs-list"], .flex.gap-1.border-b:has(> button))
+    > :is([data-slot="tabs-trigger"], button) {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+  /* @pages portfolio-backtester */
+  #oa-tool [data-slot="tabs-trigger"][data-state="active"] {
+    box-shadow: inset 0 -2px 0 var(--primary);
+  }
+
+  /* A holding is a two-line unit: the symbol on its own line, then exchange, weight, % and Remove,
+     with a divider below (E-PB-1). */
+  /* @pages portfolio-backtester */
+  html[data-oa-tool="portfolio-backtester"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.items-center.gap-2:has(> [data-slot="select-trigger"]) {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  /* @pages portfolio-backtester */
+  html[data-oa-tool="portfolio-backtester"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.items-center.gap-2:has(> [data-slot="select-trigger"])
+    > :first-child {
+    grid-column: 1 / -1;
+    width: auto;
+  }
+  /* @pages portfolio-backtester */
+  html[data-oa-tool="portfolio-backtester"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.items-center.gap-2:has(> [data-slot="select-trigger"])
+    > :is([data-slot="select-trigger"], [data-slot="input"]) {
+    width: auto;
+    min-width: 0;
+  }
+  /* The run row: the total on its line, Analyze full width at 48 px (E-PB-3). */
+  /* @pages portfolio-backtester */
+  html[data-oa-tool="portfolio-backtester"] #oa-tool .border-t.pt-3 > [class~="ml-auto"] {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+  /* @pages portfolio-backtester */
+  html[data-oa-tool="portfolio-backtester"]
+    #oa-tool
+    .border-t.pt-3
+    > [class~="ml-auto"]
+    > [data-slot="button"]:last-child {
+    flex: 1 1 100%;
+    min-height: 48px;
+  }
+  /* The builder's error stays in view above the bottom edge (E-PB-2). */
+  /* @pages portfolio-backtester */
+  html[data-oa-tool="portfolio-backtester"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > [class~="border-rose-500/40"]:last-child {
+    position: sticky;
+    bottom: 8px;
+    z-index: 20;
+  }
+
+  /* The allocation chart keeps 280 px; its legend goes below, two columns (E-PR-1). */
+  /* @pages portfolio-backtester */
+  #oa-tool .space-y-2 > .flex.items-start.gap-4:has(> .relative.flex-1) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* @pages portfolio-backtester */
+  #oa-tool .space-y-2 > .flex.items-start.gap-4:has(> .relative.flex-1) > .relative.flex-1 {
+    min-width: 280px;
+    margin-left: 36px;
+  }
+  /* @pages portfolio-backtester */
+  #oa-tool .space-y-2 > .flex.items-start.gap-4:has(> .relative.flex-1) > [class~="w-40"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px 12px;
+    width: auto;
+  }
+  /* Crisis rows stack: no header row, no dates column, the bar inset under the name (E-PR-2). */
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool .space-y-3 > [class~="grid-cols-[15rem_10rem_1fr]"]:first-child {
+    display: none;
+  }
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool [class~="grid-cols-[15rem_10rem_1fr]"] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool [class~="grid-cols-[15rem_10rem_1fr]"] > :nth-child(2) {
+    display: none;
+  }
+  /* @pages portfolio-backtester portfolio-analyzer */
+  #oa-tool [class~="grid-cols-[15rem_10rem_1fr]"] > :nth-child(3) {
+    margin-left: 52px;
+    margin-right: 52px;
+  }
+  /* The stats tab leads with its table (E-PR-3). */
+  /* @pages portfolio-backtester */
+  #oa-tool [data-slot="tabs-content"].space-y-4:has(> [data-slot="card"] table) {
+    display: flex;
+    flex-direction: column;
+  }
+  /* @pages portfolio-backtester */
+  #oa-tool
+    [data-slot="tabs-content"].space-y-4:has(> [data-slot="card"] table)
+    > [data-slot="card"]:has(table) {
+    order: -1;
+  }
+
+  /* The monthly heatmap's year column stays as it scrolls sideways (E-PR-3). */
+  /* @pages portfolio-backtester sip-backtester */
+  /* biome-ignore lint/style/noDescendingSpecificity: a heatmap's year cell, not a holding's symbol */
+  #oa-tool .overflow-x-auto > .grid.gap-1 > .contents > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--card);
+  }
+
+  /* SIP: the plan's fields as a form grid, Run full width at 48 px (E-SB-2). */
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-3 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-3
+    > :first-child {
+    grid-column: 1 / -1;
+  }
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-3
+    :is([data-slot="input"], [data-slot="select-trigger"], .relative) {
+    width: 100%;
+  }
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"] #oa-tool .border-t.pt-3 > [class~="ml-auto"] {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"]
+    #oa-tool
+    .border-t.pt-3
+    > [class~="ml-auto"]
+    > [data-slot="button"] {
+    flex: 1 1 100%;
+    min-height: 48px;
+  }
+  /* The SIP builder's error stays in view above the bottom edge (E-SB-1). */
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > [class~="border-destructive/50"]:last-child {
+    position: sticky;
+    bottom: 8px;
+    z-index: 20;
+  }
+  /* The report's headline figures at 18 px (E-SR-2). */
+  /* @pages sip-backtester */
+  html[data-oa-tool="sip-backtester"] #oa-tool [data-oa-route="extra"] [class~="text-xl"] {
+    font-size: 18px;
+  }
+
+  /* Analyzer: Lookback and Data source on one line, Analyse Holdings full width below (E-PA-1). */
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > :first-child
+    > .flex.items-end.gap-3 {
+    display: grid;
+    flex: 1 1 100%;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 8px;
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > :first-child
+    > .flex.items-end.gap-3
+    :is([data-slot="input"], [data-slot="select-trigger"]) {
+    width: 100%;
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > :first-child
+    > .flex.items-end.gap-3
+    > [data-slot="button"] {
+    grid-column: 1 / -1;
+    min-height: 48px;
+  }
+  /* Its summary metrics as bordered list rows: label left, 18 px value right (E-PA-2). */
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"] #oa-tool .grid[class~="md:grid-cols-5"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    .grid[class~="md:grid-cols-5"]
+    > [data-slot="card"] {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    .grid[class~="md:grid-cols-5"]
+    > [data-slot="card"]
+    + [data-slot="card"] {
+    border-top: 1px solid var(--border);
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    .grid[class~="md:grid-cols-5"]
+    [data-slot="card-content"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    padding: 6px 12px;
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    .grid[class~="md:grid-cols-5"]
+    [data-slot="card-content"]
+    > :nth-child(2) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin-top: 0;
+    font-size: 18px;
+    text-align: right;
+  }
+  /* Before the first run, what the button does; while it runs, a static block where the report
+     comes (E-PA-3). */
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    > [data-oa-route="root"]
+    > :only-child
+    > :first-child:last-child::after {
+    content: "Tap Analyse Holdings to grade the holdings in your broker account.";
+    display: block;
+    flex: 1 1 100%;
+    padding-top: 8px;
+    font-size: 13px;
+    color: var(--muted-foreground);
+  }
+  /* @pages portfolio-analyzer */
+  html[data-oa-tool="portfolio-analyzer"]
+    #oa-tool
+    > [data-oa-route="root"]
+    > :only-child
+    > :first-child:last-child:has([data-slot="button"]:disabled)::after {
+    content: "";
+    height: 160px;
+    border-radius: 12px;
+    background: var(--muted);
+  }
+}
+
+@media (pointer: coarse) {
+  /* The charge fields big enough to type in, and their toggles to tap (E-PB-3). */
+  /* @pages portfolio-backtester sip-backtester */
+  #oa-tool [data-slot="input"][class~="h-7"][class~="w-20"] {
+    width: 96px;
+    height: 40px;
+    font-size: 15px;
+  }
+  /* @pages portfolio-backtester sip-backtester */
+  #oa-tool .rounded-lg.border.p-3 .flex.gap-1 > button {
+    min-height: 40px;
+  }
+}

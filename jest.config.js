@@ -22,6 +22,8 @@ const ESM_PACKAGES = [
   'cmdk',
   'sonner',
   'react-router',
+  // react-router's ESM-only dependency
+  'cookie-es',
   'tailwind-merge',
   'class-variance-authority',
   'clsx',

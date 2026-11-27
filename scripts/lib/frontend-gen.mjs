@@ -130,3 +130,23 @@ ${rows}
 }
 `
 }
+
+// frontend/src/index.css for the tool pages' stylesheet (src/dom/tools/tool.css): Tailwind resolves a
+// CSS @import from the importing file, and openalgo/frontend has no node_modules, so its two package
+// @imports cannot resolve there; tool.css imports both from the app instead. Every other line is the
+// web's. A changed list of @imports fails loudly.
+const PACKAGE_IMPORT = /^@import\s+["'](tailwindcss|tw-animate-css)["'];\s*$/
+export function renderFrontendIndexCss({ src, ref }) {
+  const dropped = []
+  const kept = src.split('\n').filter((line) => {
+    const m = PACKAGE_IMPORT.exec(line)
+    if (m) dropped.push(m[1])
+    return !m
+  })
+  for (const name of ['tailwindcss', 'tw-animate-css']) {
+    if (!dropped.includes(name)) throw new Error(`index.css: @import "${name}" not found`)
+  }
+  const other = kept.find((line) => /^\s*@import\b/.test(line))
+  if (other) throw new Error(`index.css: an @import this copy cannot resolve: ${other.trim()}`)
+  return `/* GENERATED from openalgo ${ref} (frontend/src/index.css, without its @import of tailwindcss and tw-animate-css) by scripts/gen-frontend.mjs. Do not edit. */\n${kept.join('\n')}`
+}

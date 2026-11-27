@@ -7,6 +7,7 @@
       "!src/ui/tokens.ts",
       "!src/market/tools/registry.ts",
       "!src/market/brokers/registry.ts",
+      "!src/dom/tools/frontend-index.css",
       "!assets/brand/openalgo-logo.svg",
       "!spike",
       "!test/fixtures",
@@ -20,6 +21,7 @@
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "javascript": { "formatter": { "quoteStyle": "single", "semicolons": "asNeeded" } },
+  "css": { "parser": { "tailwindDirectives": true } },
   "linter": { "enabled": true },
   "assist": { "actions": { "source": { "organizeImports": "on" } } }
 }

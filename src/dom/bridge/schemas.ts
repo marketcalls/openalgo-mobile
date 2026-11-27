@@ -9,7 +9,9 @@ import {
   type NativeToDom,
   SAVE_MIMES,
   TOOL_PAGE_IDS,
+  TOOL_TOPICS,
   type ToolIntent,
+  type ToolTopics,
 } from './protocol'
 
 export const MAX_PATH = 256
@@ -20,6 +22,13 @@ export const MAX_ORDERID = 64
 export const MAX_MESSAGE = 500
 export const MAX_URL = 2_048
 export const MAX_DIRECTIVE = 64
+export const MAX_ROUTE = 64
+export const MAX_PAGE_ERROR = 200
+/** The largest overflow a tool page reports: wider than any phone. */
+export const MAX_OVERFLOW = 100_000
+
+/** The topics native pushes to a tool page (the page spells the same values: dom/tools/pages.ts). */
+export const TOOL_PUSH_TOPICS: ToolTopics = { ...TOOL_TOPICS, back: 'tool.back', top: 'tool.top' }
 
 const price = z.number().finite().positive()
 const inst = z.strictObject({
@@ -189,6 +198,26 @@ const eventMsg = z.discriminatedUnion('name', [
     name: z.literal('violation'),
     directive: z.string().max(MAX_DIRECTIVE),
   }),
+  z.strictObject({
+    v,
+    kind: z.literal('event'),
+    name: z.literal('layout'),
+    overflow: z.number().int().min(0).max(MAX_OVERFLOW),
+  }),
+  z.strictObject({
+    v,
+    kind: z.literal('event'),
+    name: z.literal('route'),
+    path: z.string().max(MAX_ROUTE),
+  }),
+  z.strictObject({ v, kind: z.literal('event'), name: z.literal('back'), handled: z.boolean() }),
+  z.strictObject({
+    v,
+    kind: z.literal('event'),
+    name: z.literal('pageError'),
+    message: z.string().max(MAX_PAGE_ERROR),
+  }),
+  z.strictObject({ v, kind: z.literal('event'), name: z.literal('reload') }),
 ])
 
 export const DomToNativeSchema: z.ZodType<DomToNative> = z.discriminatedUnion('kind', [

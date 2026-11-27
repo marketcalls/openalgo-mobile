@@ -74,6 +74,16 @@ export type DomEvent = { v: typeof BRIDGE_VERSION; kind: 'event' } & (
    */
   | { name: 'error'; message: string; load?: true }
   | { name: 'link'; url: string }
+  /** The tool page's widest overflow past the viewport's right edge, in whole px (0: none). */
+  | { name: 'layout'; overflow: number }
+  /** The path a tool page shows (its MemoryRouter's), at most 64 characters. */
+  | { name: 'route'; path: string }
+  /** The tool page's answer to a `back` push: whether it closed something or went back itself. */
+  | { name: 'back'; handled: boolean }
+  /** A tool page's route failed to render and shows its fallback; at most 200 characters. */
+  | { name: 'pageError'; message: string }
+  /** The trader asked for the tool page to load again (its fallback's Reload tool). */
+  | { name: 'reload' }
 )
 export type DomToNative =
   | DomRequest
@@ -159,7 +169,17 @@ export type BrokerCapsJson = {
 export type ToolSeed = { broker: string | null; capabilities: BrokerCapsJson }
 export type ToolInit = { page: ToolPageId; seed: ToolSeed }
 export const TOOL_TOPICS = { init: 'tool.init' } as const
-export type ToolDomProps = { scheme: 'dark' | 'light'; page: ToolPageId }
+/**
+ * Every topic native pushes to a tool page: init, then back (answered by a `back` event) and top
+ * (scroll to the top). ChartDom loads this file, so only `init` is a value here; the others are
+ * spelled where they are used, typed by this (dom/bridge/schemas.ts for native, dom/tools for the
+ * page), so the two sides cannot drift.
+ */
+export type ToolTopics = typeof TOOL_TOPICS & {
+  readonly back: 'tool.back'
+  readonly top: 'tool.top'
+}
+export type ToolDomProps = { scheme: 'dark' | 'light'; page: ToolPageId; reduceMotion: boolean }
 
 /** What a tool page may save to the phone: a Sector Rotation PNG, a CSV, the tearsheet's HTML. */
 export const SAVE_MIMES = ['image/png', 'text/csv', 'text/html'] as const

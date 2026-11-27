@@ -1,6 +1,6 @@
-// Generates the tool registry, the web's default underlyings and the broker exchange map from the
-// pinned openalgo source. `--check` fails if a generated file is stale. `--out <dir>` writes (or
-// checks) under <dir> instead of the repo root.
+// Generates the tool registry, the web's default underlyings, the broker exchange map and the tool
+// pages' copy of the web's index.css from the pinned openalgo source. `--check` fails if a
+// generated file is stale. `--out <dir>` writes (or checks) under <dir> instead of the repo root.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,7 @@ import {
   parseExchanges,
   parseTools,
   renderBrokersRegistry,
+  renderFrontendIndexCss,
   renderToolsRegistry,
 } from './lib/frontend-gen.mjs'
 import { listOpenalgoDir, readOpenalgoFile, readRef } from './openalgo-src.mjs'
@@ -32,6 +33,10 @@ const brokers = parseBrokers(listOpenalgoDir('broker', { repoRoot: root }), (n) 
 const files = {
   'src/market/tools/registry.ts': renderToolsRegistry({ tools, underlyings, fallback, ref }),
   'src/market/brokers/registry.ts': renderBrokersRegistry({ brokers, ref }),
+  'src/dom/tools/frontend-index.css': renderFrontendIndexCss({
+    src: read('frontend/src/index.css'),
+    ref,
+  }),
 }
 
 if (argv.includes('--check')) {

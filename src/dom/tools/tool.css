@@ -1,0 +1,16 @@
+/* The tool pages' stylesheet (design 7.7): Tailwind 4 with the web frontend's own index.css, built
+   only from the class names the frontend source and this folder use, then the shared phone rules.
+   Each entry imports its family's phone rules after this file. */
+
+/* Resolved from the app's node_modules: openalgo/frontend has none (frontend-index.css). */
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "./frontend-index.css";
+@import "./phone.css";
+
+/* No automatic detection: only the frontend's source and the shell's own classes are scanned. */
+@source "../../../openalgo/frontend/src";
+/* A comment in TickBox.tsx holds an arbitrary mask url() utility; Expo's CSS pipeline refuses a
+   local url (spike CHANGES.md §4), and no tool page renders TickBox. */
+@source not "../../../openalgo/frontend/src/components/trading/TickBox.tsx";
+@source ".";

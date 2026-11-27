@@ -1,0 +1,268 @@
+/* The six option tools on a phone (ux-bar T11-07, T11-08, T11-10 and OT, MP, OR, IV, GX, GD),
+   after phone.css. Shared terms and conventions are in phone.css. */
+
+/* A backstop for adaptPlotly: no mode bar over a 2D chart, whatever its config (T11-04). A 3D
+   scene (.gl-container, plan F's Vol Surface) may keep the buttons its page chose. */
+/* @pages none */
+#oa-tool .js-plotly-plot:not(:has(.gl-container)) .modebar-container {
+  display: none;
+}
+
+@media (max-width: 767.98px) {
+  /* Steady chart heights: the Plot's inline 500/450/420 px (hence !important) and the loading
+     placeholder's, from --oa-plot-h, which the keyboard never changes (T11-07, G11). */
+  /* @pages oitracker oirange maxpain ivsmile */
+  #oa-tool
+    [data-slot="card-content"]
+    > div:is([style*="height: 500px"], [style*="height: 450px"], [style*="height: 420px"]),
+  #oa-tool :is([class~="h-[500px]"], [class~="h-[450px]"], [class~="h-[420px]"]) {
+    /* biome-ignore lint/complexity/noImportantStyles: the Plot's inline height */
+    height: var(--oa-plot-h) !important;
+  }
+  /* Two charts on the page: each a little shorter. */
+  /* @pages gex gammadensity */
+  html:is([data-oa-tool="gex"], [data-oa-tool="gammadensity"])
+    #oa-tool
+    [data-slot="card-content"]
+    > div:is([style*="height: 450px"], [style*="height: 420px"]),
+  html:is([data-oa-tool="gex"], [data-oa-tool="gammadensity"])
+    #oa-tool
+    :is([class~="h-[450px]"], [class~="h-[420px]"]) {
+    /* biome-ignore lint/complexity/noImportantStyles: the Plot's inline height */
+    height: var(--oa-plot-h2) !important;
+  }
+
+  /* Quiet chrome: flat cards, a hairline between them, content to the gutter (T11-08). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
+  #oa-tool [data-slot="card"] {
+    gap: 0;
+    padding-block: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+  /* @pages oirange gex gammadensity */
+  #oa-tool [data-slot="card"] + [data-slot="card"] {
+    border-top: 1px solid var(--border);
+  }
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
+  #oa-tool [data-slot="card-content"] {
+    padding-inline: 0;
+  }
+
+  /* The stat badges read as a dense grid, two or more across, ellipsized at large font (T11-10,
+     OT-1). */
+  /* @pages oitracker oirange maxpain ivsmile gex */
+  #oa-tool > [data-oa-route] > * > .flex.flex-wrap.gap-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr));
+    gap: 6px;
+  }
+  /* @pages oitracker oirange maxpain ivsmile gex */
+  #oa-tool > [data-oa-route] > * > .flex.flex-wrap.gap-2 > [data-slot="badge"] {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Max Pain is the hero number, first and full width (MP-1). */
+  /* @pages maxpain */
+  html[data-oa-tool="maxpain"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > .flex.flex-wrap.gap-2
+    > [data-slot="badge"][class~="font-semibold"] {
+    order: -1;
+    grid-column: 1 / -1;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  /* OI Range: "Last updated" takes a full row at 12 px (OR-2). */
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    > [data-oa-route]
+    > *
+    > .flex.flex-wrap.gap-2
+    > [class~="ml-auto"] {
+    grid-column: 1 / -1;
+    margin-left: 0;
+    font-size: 12px;
+  }
+  /* OI Range's range card: a two-column grid, the presets four across, Show All and Reset two
+     each, 40x44 steppers (OR-1). */
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-4 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-4
+    > :last-child {
+    grid-column: 1 / -1;
+  }
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-4
+    > :last-child
+    > .flex {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    [data-slot="card-content"]
+    > .flex.flex-wrap.items-end.gap-4
+    > :last-child
+    > .flex
+    > [data-slot="button"]:nth-last-child(-n + 2) {
+    grid-column: span 2;
+  }
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    :is([aria-label$="min strike"], [aria-label$="max strike"]) {
+    width: 40px;
+    min-height: 44px;
+  }
+  /* @pages oirange */
+  html[data-oa-tool="oirange"]
+    #oa-tool
+    [data-slot="card-content"]
+    [data-slot="input"][type="number"] {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  /* The auto-refresh switch's label is a 44 px row (OR-2). */
+  /* @pages oirange */
+  html[data-oa-tool="oirange"] #oa-tool label[for="auto-refresh"] {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* IV Smile's near-ATM table: its header pins to the page as it scrolls (IV-1). */
+  /* @pages ivsmile */
+  html[data-oa-tool="ivsmile"] #oa-tool [data-slot="card-content"] > .overflow-x-auto:has(> table) {
+    overflow: visible;
+  }
+  /* @pages ivsmile */
+  html[data-oa-tool="ivsmile"] #oa-tool table {
+    font-size: 13px;
+  }
+  /* @pages ivsmile */
+  html[data-oa-tool="ivsmile"] #oa-tool table :is(th, td) {
+    padding: 6px 8px;
+  }
+  /* @pages ivsmile */
+  html[data-oa-tool="ivsmile"] #oa-tool table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--background);
+  }
+
+  /* GEX's table: a box no taller than the chart, its Strike column, head and total pinned (GX-1). */
+  /* @pages gex */
+  html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] {
+    max-height: var(--oa-plot-h);
+  }
+  /* @pages gex */
+  html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] table {
+    font-size: 12.5px;
+  }
+  /* @pages gex */
+  html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] table :is(th, td) {
+    padding: 5px 6px;
+    white-space: nowrap;
+  }
+  /* @pages gex */
+  html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] table :is(th, td):first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--background);
+  }
+  /* @pages gex */
+  html[data-oa-tool="gex"] #oa-tool [class~="max-h-[500px]"] thead th:first-child {
+    z-index: 2;
+  }
+  /* @pages gex */
+  html[data-oa-tool="gex"]
+    #oa-tool
+    [class~="max-h-[500px]"]
+    tr[class~="bg-yellow-500/10"]
+    > td:first-child {
+    background: color-mix(in oklab, var(--color-yellow-500) 10%, var(--background));
+  }
+  /* Resistance and support side by side, net GEX below them (GX-3). */
+  /* @pages gex */
+  html[data-oa-tool="gex"] #oa-tool .grid[class~="md:grid-cols-3"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  /* @pages gex */
+  /* biome-ignore lint/style/noDescendingSpecificity: GEX's last level card, not OI Range's */
+  html[data-oa-tool="gex"] #oa-tool .grid[class~="md:grid-cols-3"] > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  /* Gamma Density's eight stats in two compact rows (GD-1). */
+  /* @pages gammadensity */
+  html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] {
+    grid-template-columns: repeat(auto-fill, minmax(5.6em, 1fr));
+    gap: 6px;
+  }
+  /* @pages gammadensity */
+  html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] > [data-slot="card"] {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  /* @pages gammadensity */
+  html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] [data-slot="card-content"] {
+    padding: 6px 8px;
+  }
+  /* @pages gammadensity */
+  html[data-oa-tool="gammadensity"] #oa-tool [class~="xl:grid-cols-8"] [class~="text-lg"] {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Gamma Density's Live/Snapshot badge is about the data, not the trading mode: neutral, and
+   prefixed so it never reads as a second LIVE badge (GD-4, G16). */
+/* @pages gammadensity */
+html[data-oa-tool="gammadensity"] #oa-tool h1 + [data-slot="badge"] {
+  border-color: transparent;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  text-transform: none;
+}
+/* @pages gammadensity */
+html[data-oa-tool="gammadensity"] #oa-tool h1 + [data-slot="badge"]::before {
+  content: "Data: ";
+}

@@ -1,0 +1,217 @@
+/* The tool pages on a phone (design 7.7 "Phone layout"; ux-bar §1 and Task 11), shared by every
+   tool page. Each family adds its own rules: options, portfolio and rotation.phone.css.
+   - phone = (max-width: 767.98px) holds the layout rules; touch = (pointer: coarse) the hit sizes.
+   - Unlayered, so these beat Tailwind's @layer utilities without !important; !important only
+     against inline styles (Plot heights, Radix popper geometry, openalgo-charts' touch-action).
+   - Radix portals (pickers, dialogs) render under <body>, outside #oa-tool: they are styled from
+     html[data-oa-tool], which the seed sets.
+   - Selectors use data-slot, aria-label, role and whole class words (~=), never [class*=].
+   - Each rule names the pages it is for (@pages <tool ids>) for T15's selector contract, or none:
+     what no state of that contract renders (a component no plan E page has yet, or Plotly's own
+     DOM, which the contract's Plot stub does not draw). */
+
+/* No sideways page scroll (G1). clip, not hidden: hidden makes <html> a scroller and breaks every
+   position: sticky below it. */
+/* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+html,
+body {
+  max-width: 100vw;
+  overflow-x: clip;
+}
+
+/* Chart heights from --oa-vh, which the shell sets once per width (T11-07). */
+/* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+:root {
+  --oa-plot-h: clamp(300px, calc(var(--oa-vh, 7.8px) * 58), 480px);
+  --oa-plot-h2: clamp(260px, calc(var(--oa-vh, 7.8px) * 46), 420px);
+}
+
+/* One column that fits the WebView: Expo's #root is a flex row (T11-01). Numbers are tabular (G5);
+   a tap shows no grey flash (T11-18). */
+/* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+#oa-tool {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The native header carries the tool's name: the page's own title and blurb go on its main route;
+   a results route keeps its own (G2, T11-08). */
+/* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+#oa-tool[data-oa-main] h1,
+#oa-tool[data-oa-main] h1 + p,
+#oa-tool[data-oa-main] :has(> h1) + p {
+  display: none;
+}
+
+/* A tap on a control selects nothing (T11-18). */
+/* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+#oa-tool :is(button, [data-slot="badge"], .js-plotly-plot) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* No text below 12 px (G6). */
+/* @pages gammadensity portfolio-backtester sip-backtester portfolio-analyzer */
+#oa-tool :is([class~="text-[9px]"], [class~="text-[10px]"], [class~="text-[11px]"]) {
+  font-size: 12px;
+}
+
+@media (max-width: 767.98px) {
+  /* One 16 px page gutter in place of the page's py-6, p-4 or px-4 (T11-01, G2). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  #oa-tool > [data-oa-route] > * {
+    padding: 8px 16px 32px;
+  }
+
+  /* What is too wide scrolls inside its own box; nothing is clipped (T11-02). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  #oa-tool :is(.grid > *, [data-slot="card"], [data-slot="tabs-content"]) {
+    min-width: 0;
+  }
+  /* @pages portfolio-backtester sip-backtester */
+  #oa-tool [data-slot="card-content"]:has(> table) {
+    overflow-x: auto;
+  }
+  /* @pages portfolio-backtester */
+  #oa-tool .font-mono {
+    overflow-wrap: anywhere;
+  }
+
+  /* Control rows wrap into thumb-sized rows; :not([data-slot]) keeps a select trigger's chevron
+     on its line (T11-09). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  #oa-tool .flex:is(.items-center, .items-end):is(.gap-2, .gap-3, .gap-4):not([data-slot]) {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
+  #oa-tool :is([class~="w-[100px]"], [class~="w-[160px]"]) {
+    width: auto;
+    flex: 1 1 9em;
+    min-width: 0;
+  }
+
+  /* A picker opens as a bottom sheet: the popper's geometry is inline, hence !important. dvh
+     shrinks with the keyboard and --oa-vh does not, so a search field at the top stays on
+     screen (T11-11). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester sector-rotation */
+  html[data-oa-tool] [data-radix-popper-content-wrapper]:has(> [data-slot="popover-content"]) {
+    /* biome-ignore lint/complexity/noImportantStyles: the popper's inline position */
+    position: fixed !important;
+    /* biome-ignore lint/complexity/noImportantStyles: the popper's inline left and top */
+    inset: auto 0 0 0 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: the popper's inline translate */
+    transform: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: the popper's inline max-content */
+    min-width: 0 !important;
+  }
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester sector-rotation */
+  html[data-oa-tool] [data-radix-popper-content-wrapper] > [data-slot="popover-content"] {
+    width: 100%;
+    max-height: min(calc(var(--oa-vh, 7.8px) * 70), calc(100dvh - 24px));
+    overflow-y: auto;
+    border-radius: 12px 12px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.45);
+  }
+  /* The tap that closes the sheet never lands on a page control. Popovers only: a tooltip must
+     never freeze the page. */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester sector-rotation */
+  body:has([data-radix-popper-content-wrapper] > [data-slot="popover-content"][data-state="open"])
+    #oa-tool {
+    pointer-events: none;
+  }
+
+  /* Dialogs and alert dialogs open as bottom sheets (T11-13). */
+  /* @pages sector-rotation */
+  html[data-oa-tool] :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]) {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    translate: none;
+    width: 100%;
+    max-width: none;
+    max-height: min(calc(var(--oa-vh, 7.8px) * 92), 100dvh);
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  /* @pages sector-rotation */
+  html[data-oa-tool] [data-slot="dialog-close"] {
+    top: 6px;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+  }
+  /* A row of equal buttons, the primary (last) on the right. */
+  /* @pages none */
+  html[data-oa-tool] :is([data-slot="dialog-footer"], [data-slot="alert-dialog-footer"]) {
+    flex-direction: row;
+  }
+  /* @pages none */
+  /* biome-ignore lint/style/noDescendingSpecificity: a dialog's buttons, not the page root */
+  html[data-oa-tool] :is([data-slot="dialog-footer"], [data-slot="alert-dialog-footer"]) > * {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Every control a 44 px hit; its value ellipsizes rather than grows the row (G4, T11-09). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  #oa-tool
+    :is(
+      [data-slot="select-trigger"],
+      [data-slot="button"],
+      [data-slot="input"],
+      [data-slot="popover-trigger"]
+    ) {
+    min-height: 44px;
+    height: auto;
+  }
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  #oa-tool [data-slot="select-trigger"] > [data-slot="select-value"] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* Picker rows at 44 px and a readable 15 px; a 16 px search field (no zoom on focus) (T11-11). */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  html[data-oa-tool] :is([data-slot="select-item"], [data-slot="command-item"]) {
+    min-height: 44px;
+    font-size: 15px;
+  }
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
+  html[data-oa-tool] [cmdk-input] {
+    font-size: 16px;
+  }
+}
+
+/* No animation, flash or smooth scroll when the phone asks for reduced motion (T11-18, G14). */
+@media (prefers-reduced-motion: reduce) {
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+  html[data-oa-tool] *,
+  html[data-oa-tool] *::before,
+  html[data-oa-tool] *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+}
+/* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester portfolio-analyzer sector-rotation */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 0.01ms;
+  animation-iteration-count: 1;
+  transition-duration: 0.01ms;
+  scroll-behavior: auto;
+}

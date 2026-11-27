@@ -1,9 +1,10 @@
-import { MAX_SAVE_BASE64, SAVE_MIMES, TOOL_PAGE_IDS } from './protocol'
+import { MAX_SAVE_BASE64, SAVE_MIMES, TOOL_PAGE_IDS, TOOL_TOPICS } from './protocol'
 import {
   ChartIntentSchema,
   DomToNativeSchema,
   NativeToDomBatchSchema,
   parseDomToNative,
+  TOOL_PUSH_TOPICS,
   ToolIntentSchema,
 } from './schemas'
 
@@ -206,5 +207,32 @@ describe('tool messages', () => {
     expect(ok(event({ name: 'violation' }))).toBe(false)
     expect(ok(event({ name: 'violation', directive: 1 }))).toBe(false)
     expect(ok(event({ name: 'violation', directive: 'img-src', url: 'https://x' }))).toBe(false)
+  })
+
+  test('the shell events parse within their bounds; the push topics extend TOOL_TOPICS', () => {
+    expect(TOOL_PUSH_TOPICS).toEqual({ init: TOOL_TOPICS.init, back: 'tool.back', top: 'tool.top' })
+
+    for (const overflow of [0, 1, 360, 100_000])
+      expect(ok(event({ name: 'layout', overflow }))).toBe(true)
+    for (const overflow of [-1, 0.5, 100_001, Number.NaN, '0', null])
+      expect(ok(event({ name: 'layout', overflow }))).toBe(false)
+    expect(ok(event({ name: 'layout' }))).toBe(false)
+
+    expect(ok(event({ name: 'route', path: '/portfolio-backtester/results' }))).toBe(true)
+    expect(ok(event({ name: 'route', path: `/${'x'.repeat(63)}` }))).toBe(true)
+    expect(ok(event({ name: 'route', path: `/${'x'.repeat(64)}` }))).toBe(false)
+    expect(ok(event({ name: 'route', path: 1 }))).toBe(false)
+
+    expect(ok(event({ name: 'back', handled: true }))).toBe(true)
+    expect(ok(event({ name: 'back', handled: false }))).toBe(true)
+    expect(ok(event({ name: 'back', handled: 'yes' }))).toBe(false)
+    expect(ok(event({ name: 'back' }))).toBe(false)
+
+    expect(ok(event({ name: 'pageError', message: 'x'.repeat(200) }))).toBe(true)
+    expect(ok(event({ name: 'pageError', message: 'x'.repeat(201) }))).toBe(false)
+    expect(ok(event({ name: 'pageError' }))).toBe(false)
+
+    expect(ok(event({ name: 'reload' }))).toBe(true)
+    expect(ok(event({ name: 'reload', page: 'gex' }))).toBe(false)
   })
 })
