@@ -1015,7 +1015,7 @@ describe('the phone stylesheets in the page (ux-bar T11)', () => {
     })
   })
 
-  test("the EOY chart's year labels thin out at 9 or more years, the latest always shown (E-PR-3)", async () => {
+  test("the EOY chart's year labels take their bars' slots and thin out at 9 or more years, the latest always shown (E-PR-3)", async () => {
     removeCss = phoneCss('phone.css', 'portfolio.phone.css')
     const { EoyChart } = require('@/components/portfolio/EoyChart') as {
       EoyChart: (p: {
@@ -1038,6 +1038,20 @@ describe('the phone stylesheets in the page (ux-bar T11)', () => {
         await act(async () => root.render(createElement(EoyChart, { rows })))
         const labels = Array.from(main.querySelectorAll('.flex.pl-12 > span'))
         expect(labels.map((l) => l.textContent)).toEqual(rows.map((r) => r.year))
+        // Every label, shown or hidden, is exactly 1/n of the strip, as its bars are in the SVG:
+        // flex-1 with no automatic minimum, which would hold a slot at its year's width (about
+        // 30 px at 12 px) and push the strip off the card from 9 years at 360 px. A year wider
+        // than its slot centres on it. jsdom does no layout, so the browser measurement is in
+        // the T11 report (fix round 2); this checks the rules that give it.
+        for (const l of labels) {
+          expect({
+            year: l.textContent,
+            minWidth: phoneRule(l, 'min-width')?.value,
+            display: getComputedStyle(l).display,
+            justify: getComputedStyle(l).justifyContent,
+          }).toEqual({ year: l.textContent, minWidth: '0', display: 'flex', justify: 'center' })
+          expect(l.className.split(' ')).toContain('flex-1')
+        }
         const hidden = labels.filter((l) => getComputedStyle(l).visibility === 'hidden')
         // a hidden label keeps its slot under its bars
         for (const l of hidden) expect(getComputedStyle(l).display).not.toBe('none')

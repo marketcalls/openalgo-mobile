@@ -216,9 +216,23 @@ html:is(
     order: -1;
   }
 
-  /* The EOY chart's year labels thin out at 9 or more years, to every second one, and at 17 or
-     more to every fourth, so 4-digit years at 12 px never touch; the latest year always shows,
-     and a hidden label keeps its slot under its bars (E-PR-3). */
+  /* Each EOY year label takes exactly its year's slot, 1/n of the strip, as its bars do in the
+     SVG: a flex item's automatic minimum would hold it at its text's width (about 30 px for a
+     4-digit year at 12 px), wider than a slot from 9 years at 360 px, and push the strip and the
+     latest year off the card. A year wider than its slot stays centred under its bars, over its
+     hidden neighbours' slots (E-PR-3). */
+  /* @pages portfolio-backtester */
+  #oa-tool
+    .space-y-2:has(> .relative > svg[aria-label="End-of-year returns against the benchmark"])
+    > .flex.pl-12
+    > span {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+  }
+  /* The year labels thin out at 9 or more years, to every second one, and at 17 or more to every
+     fourth, so 4-digit years at 12 px do not touch up to 32 years at 360 px; the latest year
+     always shows, and a hidden label keeps its slot under its bars (E-PR-3). */
   /* @pages portfolio-backtester */
   #oa-tool
     .space-y-2:has(> .relative > svg[aria-label="End-of-year returns against the benchmark"])
