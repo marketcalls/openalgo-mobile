@@ -1,0 +1,86 @@
+// The session routes the tool pages call, answered on the phone from /api/v1 (design 7.8, the
+// plan's tool contract): none of them is ever sent to the server. Each answers what its web route
+// answers with 200; a reply the route makes itself (a bad body, a service's 404 or 500) with that
+// status and body; and a failed /api/v1 read with plan D's fromApiError reply, never a 401. An
+// aborted page request rejects, so the router answers nothing.
+import { ApiError } from '~/core/http/errors'
+import type { DomReply, DomRequest, JSONValue } from '~/dom/bridge/protocol'
+import { fromApiError, type Route } from '~/dom/gateway/requests'
+import { type RouteDeps, RouteError, type RouteOptions } from './deps'
+import { gammaDensity } from './gammaDensity'
+import { gexData } from './gex'
+import { ivSmile } from './ivSmile'
+import { maxPain, oiData } from './oiTracker'
+import { expiries, underlyings } from './pickers'
+import { parseToolQuery, type ToolQuery } from './query'
+import { chartinkSearch, siteSearch } from './search'
+
+export { type RouteDeps, RouteError, type RouteOptions } from './deps'
+export { gammaDensity } from './gammaDensity'
+export { gexData } from './gex'
+export { ivSmile } from './ivSmile'
+export { maxPain, oiData } from './oiTracker'
+export { expiries, underlyings } from './pickers'
+export { parseToolQuery, type ToolQuery, ToolQuerySchema } from './query'
+export { type ChartinkHit, chartinkSearch, type SiteSearchHit, siteSearch } from './search'
+
+type Answer = (r: DomRequest, d: RouteDeps, o: RouteOptions) => Promise<unknown>
+
+/** A query-string value as the route's `request.args.get(name, "")` reads it. */
+const arg = (r: DomRequest, name: string) => r.query?.[name] ?? ''
+/** A tool POST: the web route's checks on the body, then its service. */
+const tool =
+  (service: (q: ToolQuery, d: RouteDeps, o: RouteOptions) => Promise<unknown>): Answer =>
+  (r, d, o) =>
+    service(parseToolQuery(r.body), d, o)
+
+const TABLE: readonly { method: 'GET' | 'POST'; path: string; answer: Answer }[] = [
+  {
+    method: 'GET',
+    path: '/search/api/underlyings',
+    answer: (r, d) => underlyings(arg(r, 'exchange'), d),
+  },
+  {
+    method: 'GET',
+    path: '/search/api/expiries',
+    answer: (r, d) =>
+      expiries(arg(r, 'exchange'), arg(r, 'underlying'), r.query?.instrumenttype, d),
+  },
+  {
+    method: 'GET',
+    path: '/search/api/search',
+    answer: (r, d, o) => siteSearch(arg(r, 'q'), r.query?.exchange, d, o),
+  },
+  {
+    method: 'GET',
+    path: '/chartink/search',
+    answer: (r, d, o) => chartinkSearch(arg(r, 'q'), r.query?.exchange, d, o),
+  },
+  { method: 'POST', path: '/oitracker/api/oi-data', answer: tool(oiData) },
+  { method: 'POST', path: '/oitracker/api/maxpain', answer: tool(maxPain) },
+  { method: 'POST', path: '/ivsmile/api/iv-smile-data', answer: tool(ivSmile) },
+  { method: 'POST', path: '/gex/api/gex-data', answer: tool(gexData) },
+  { method: 'POST', path: '/gammadensity/api/gamma-data', answer: tool(gammaDensity) },
+]
+
+/** Every route answered on the phone, for the gateway's allowlists. */
+export const DEVICE_ROUTES: readonly { method: 'GET' | 'POST'; path: string }[] = TABLE.map(
+  ({ method, path }) => ({ method, path }),
+)
+
+export function createDeviceRoutes(d: RouteDeps): Route[] {
+  return TABLE.map(({ method, path, answer }) => ({
+    method,
+    path,
+    async handle(r, signal): Promise<DomReply> {
+      try {
+        // the replies are the web routes' JSON bodies
+        return { status: 200, body: (await answer(r, d, { signal })) as JSONValue }
+      } catch (e) {
+        if (e instanceof RouteError) return { status: e.status, body: e.body }
+        if (e instanceof ApiError && !signal.aborted) return fromApiError(e)
+        throw e
+      }
+    },
+  }))
+}
