@@ -545,6 +545,36 @@ test('the page renders at its route inside MemoryRouter; the results route rende
   ])
 })
 
+test("each new route wakes the shell's helpers, as the report mounts after its builder", async () => {
+  // the observer that marks the web's always-emerald Total Return as a loss lets go after 10 s
+  // idle; a backtest that runs longer must still have its report marked (helpers.test.ts)
+  const helpers = require('./helpers') as typeof import('./helpers')
+  const real = helpers.installHelpers
+  const wake = jest.fn()
+  const spy = jest.spyOn(helpers, 'installHelpers').mockImplementation((w) => {
+    const h = real(w)
+    return {
+      wake: () => {
+        wake()
+        h.wake()
+      },
+      dispose: h.dispose,
+    }
+  })
+  try {
+    const page = await mountTool(PortfolioToolsDom, { page: 'portfolio-backtester' })
+    await page.init()
+    await waitFor(() => button('Analyze Portfolio'))
+    expect(spy).toHaveBeenCalledTimes(1)
+    const before = wake.mock.calls.length
+    await click(button('Analyze Portfolio'))
+    await waitFor(() => text().includes('Backtest Report'))
+    expect(wake.mock.calls.length).toBe(before + 1)
+  } finally {
+    spy.mockRestore()
+  }
+})
+
 test('toolReady carries page, csp and webgl', async () => {
   const page = await mountTool(OptionToolsDom, { page: 'gex' })
   await page.init()

@@ -3,7 +3,9 @@
 // - the GEX table opens centred on its ATM row, until the trader touches it;
 // - a focused text field scrolls to the top of the view once the keyboard is up;
 // - a page's "good" green on a negative value reads as a loss (data-oa-sign=neg, phone.css).
-// The observer lets go after 10 s with no change and on dispose; a tap starts it again.
+// The observer lets go after 10 s with no change and on dispose; a tap, or `wake` (the shell calls
+// it on each new route: a backtest's report mounts long after the builder last changed), starts
+// it again.
 
 const IDLE_MS = 10_000
 const KEYBOARD_MS = 250
@@ -17,7 +19,13 @@ const TEXT_INPUT = /^(text|number|search|email|tel|url|date)$/
 /** Whether `text` reads as a negative number (a minus sign or a hyphen-minus first). */
 export const isNegative = (text: string): boolean => /^\s*[-−]\s*[₹\d.]/.test(text)
 
-export function installHelpers(win: Window & typeof globalThis): () => void {
+export type Helpers = {
+  /** Starts the observer again, and marks what is there now. */
+  wake(): void
+  dispose(): void
+}
+
+export function installHelpers(win: Window & typeof globalThis): Helpers {
   const doc = win.document
   let lastTap: { at: number; target: EventTarget | null } = { at: 0, target: null }
   const touchedTables = new WeakSet<Element>()
@@ -103,11 +111,18 @@ export function installHelpers(win: Window & typeof globalThis): () => void {
   win.addEventListener('pointerdown', onPointerDown, true)
   doc.addEventListener('focusin', onFocusIn, true)
   watch()
-  return () => {
-    letGo()
-    for (const t of timers) clearTimeout(t)
-    timers.clear()
-    win.removeEventListener('pointerdown', onPointerDown, true)
-    doc.removeEventListener('focusin', onFocusIn, true)
+  let disposed = false
+  return {
+    wake() {
+      if (!disposed) watch()
+    },
+    dispose() {
+      disposed = true
+      letGo()
+      for (const t of timers) clearTimeout(t)
+      timers.clear()
+      win.removeEventListener('pointerdown', onPointerDown, true)
+      doc.removeEventListener('focusin', onFocusIn, true)
+    },
   }
 }

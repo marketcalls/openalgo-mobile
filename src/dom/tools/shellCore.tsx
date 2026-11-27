@@ -21,12 +21,13 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
 import { Toaster } from 'sonner'
 import type { DomEvent, ToolPageId, ToolSeed } from '~/dom/bridge/protocol'
-import { installHelpers } from './helpers'
+import { type Helpers, installHelpers } from './helpers'
 import { type PageSet, TOOL_PUSH_TOPICS, TOOL_ROUTES } from './pages'
 import { seedStores } from './seed'
 import { useAlertStore } from './stores'
@@ -269,7 +270,27 @@ export function ShellCore({
   useEffect(() => {
     document.documentElement.toggleAttribute('data-reduce-motion', reduceMotion)
   }, [reduceMotion])
-  useEffect(() => installHelpers(window), [])
+  const helpers = useRef<Helpers | null>(null)
+  useEffect(() => {
+    const h = installHelpers(window)
+    helpers.current = h
+    return () => {
+      helpers.current = null
+      h.dispose()
+    }
+  }, [])
+  // A new route wakes the helpers, whose observer may have let go meanwhile (a backtest's report
+  // lands long after its builder last changed), as entry.tsx starts the layout probe on it.
+  const routed = useMemo<ShellHost>(
+    () => ({
+      ...host,
+      send(e) {
+        host.send(e)
+        if (e.name === 'route') helpers.current?.wake()
+      },
+    }),
+    [host],
+  )
   useViewportUnit()
 
   const position = useAlertStore((s) => s.position)
@@ -279,7 +300,7 @@ export function ShellCore({
   return (
     <>
       <Frame path={TOOL_ROUTES[page].path}>
-        {(at) => <ToolRoutes page={page} pages={pages} host={host} at={at} />}
+        {(at) => <ToolRoutes page={page} pages={pages} host={routed} at={at} />}
       </Frame>
       <Toaster
         theme={scheme}
