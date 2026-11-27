@@ -314,6 +314,33 @@ describe('allowlists', () => {
     expect(Object.keys(TOOL_ALLOWLIST).sort()).toEqual([...TOOL_PAGE_IDS].sort())
   })
 
+  test('a row naming an endpoint off the read or history lane never builds (defence in depth)', () => {
+    // a mistaken pass row for an order, a close or the analyzer switch would send it unreviewed
+    const offLane = (Object.keys(ENDPOINTS) as (keyof typeof ENDPOINTS)[]).filter(
+      (id) => ENDPOINTS[id].lane !== 'read' && ENDPOINTS[id].lane !== 'history',
+    )
+    expect(offLane).toEqual(
+      expect.arrayContaining(['optionsorder', 'closeposition', 'analyzer/toggle', 'cancelorder']),
+    )
+    const { api } = wire({})
+    for (const id of offLane) {
+      const { method, path } = ENDPOINTS[id]
+      const kind = method === 'GET' ? 'lookup' : 'pass'
+      jest.replaceProperty(TOOL_ALLOWLIST, 'gex', [{ method, path, kind }])
+      expect(() =>
+        createToolRoutes('gex', { api, deps: deviceDeps(api), save: async () => {} }),
+      ).toThrow(/order write|lane/)
+    }
+    // the lanes a tool reads on still build
+    jest.replaceProperty(TOOL_ALLOWLIST, 'gex', [
+      { method: 'POST', path: '/api/v1/history', kind: 'pass' },
+      { method: 'POST', path: '/api/v1/quotes', kind: 'pass' },
+    ])
+    expect(
+      createToolRoutes('gex', { api, deps: deviceDeps(api), save: async () => {} }),
+    ).toHaveLength(2)
+  })
+
   test('the pass-through tools list their /api/v1 calls as the tool contract does', () => {
     const rows = (page: ToolPageId) =>
       TOOL_ALLOWLIST[page].map((s) => `${s.kind} ${s.method} ${s.path}`)

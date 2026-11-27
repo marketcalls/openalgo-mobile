@@ -35,13 +35,18 @@ const DOWNLOADS: Partial<Record<EndpointId, (body: Record<string, unknown>) => s
       : 'portfolio-tearsheet.html',
 }
 
-/** The /api/v1 endpoint a row names, by its path and the method its kind sends. */
+/** The /api/v1 endpoint a row names, by its path and the method its kind sends. A tool only
+ *  reads: an endpoint on an order, smart or control lane (an order, a close, the analyzer switch)
+ *  never builds as a row, whatever else guards it (defence in depth beside ORDER_WRITE_PATHS). */
 function endpointOf(spec: ToolRouteSpec): EndpointId {
   const id = spec.path.slice('/api/v1/'.length) as EndpointId
   const def = Object.hasOwn(ENDPOINTS, id) ? ENDPOINTS[id] : undefined
   const method = spec.kind === 'lookup' ? 'GET' : 'POST'
   if (def?.path !== spec.path || def.method !== method || spec.method !== method) {
     throw new Error(`no ${spec.kind} endpoint at ${spec.method} ${spec.path}`)
+  }
+  if (def.lane !== 'read' && def.lane !== 'history') {
+    throw new Error(`${spec.path} is on the ${def.lane} lane: a tool row only reads`)
   }
   return id
 }
