@@ -6,12 +6,14 @@ import {
   type Positionbook,
   PositionbookSchema,
 } from '../books/schemas'
+import type { BasketLeg } from './basket'
 import {
   findWorkingExit,
   NO_REPLY_DELAYS_MS,
   noReplyDelays,
   poll,
   RECONCILE_DELAYS_MS,
+  reconcileBasket,
   reconcileCancelAll,
   reconcileClose,
   reconcilePlacement,
@@ -425,6 +427,95 @@ describe('reconcileSplit and unreadable rows', () => {
       ),
     )
     expect((await reconcileSplit({ fetchOrders: all, ...args })).checked).toBe(true)
+  })
+})
+
+describe('reconcileBasket', () => {
+  const CE = 'NIFTY01DEC2624500CE'
+  const PE = 'NIFTY01DEC2624500PE'
+  const leg = (o: Partial<BasketLeg> = {}): BasketLeg => ({
+    symbol: CE,
+    exchange: 'NFO',
+    action: 'BUY',
+    quantity: 75,
+    pricetype: 'LIMIT',
+    product: 'NRML',
+    price: 120.5,
+    trigger_price: 0,
+    disclosed_quantity: 0,
+    ...o,
+  })
+  const row = (o: Record<string, unknown>) =>
+    raw({ exchange: 'NFO', symbol: CE, product: 'NRML', quantity: '75', ...o })
+  const args = { sentAt: SENT_AT, sleep }
+
+  test('reconcileBasket finds each leg once, ignores known ids, and reports a leg still absent as null (RF 1)', async () => {
+    // two like legs and a short put; one CE row was in the book before the send
+    const legs = [leg(), leg(), leg({ symbol: PE, action: 'SELL' })]
+    const fetchOrders = fetches(
+      book(row({ orderid: 'OLD' }), row({ orderid: 'C1' })),
+      book(
+        row({ orderid: 'OLD' }),
+        row({ orderid: 'C1' }),
+        row({ orderid: 'P1', symbol: PE, action: 'SELL' }),
+      ),
+    )
+    const out = await reconcileBasket({ fetchOrders, legs, knownIds: new Set(['OLD']), ...args })
+    expect(out.found.map((r) => r?.orderid ?? null)).toEqual(['C1', null, 'P1'])
+    expect(out.checked).toBe(true)
+    // a leg still absent: every delay is read
+    expect(fetchOrders).toHaveBeenCalledTimes(3)
+  })
+
+  test('each leg is its own candidate: contract, side, product and quantity; it stops once every leg is found', async () => {
+    const legs = [leg(), leg({ symbol: PE, action: 'SELL', quantity: 150 })]
+    const fetchOrders = fetches(
+      book(
+        row({ orderid: 'SIDE', action: 'SELL' }),
+        row({ orderid: 'PROD', product: 'MIS' }),
+        row({ orderid: 'QTY', symbol: PE, action: 'SELL', quantity: '75' }),
+        row({ orderid: 'EXCH', exchange: 'BFO' }),
+        row({ orderid: 'STALE', timestamp: '25-Nov-2026 09:27:59' }),
+      ),
+      book(
+        row({ orderid: 'C1' }),
+        row({ orderid: 'P1', symbol: PE, action: 'SELL', quantity: '150' }),
+      ),
+    )
+    const out = await reconcileBasket({
+      fetchOrders,
+      legs,
+      knownIds: NONE,
+      ...args,
+      delaysMs: noReplyDelays(),
+    })
+    expect(out.found.map((r) => r?.orderid)).toEqual(['C1', 'P1'])
+    expect(out.checked).toBe(true)
+    expect(fetchOrders).toHaveBeenCalledTimes(2)
+  })
+
+  test('a leg missing while a row could not be read is not checked; no read working is all null', async () => {
+    const legs = [leg(), leg({ symbol: PE, action: 'SELL' })]
+    const some = fetches(book(row({ orderid: 'C1' }), unreadable()))
+    expect(
+      await reconcileBasket({ fetchOrders: some, legs, knownIds: NONE, ...args }),
+    ).toMatchObject({
+      found: [{ orderid: 'C1' }, null],
+      checked: false,
+    })
+    const all = fetches(
+      book(
+        row({ orderid: 'C1' }),
+        row({ orderid: 'P1', symbol: PE, action: 'SELL' }),
+        unreadable(),
+      ),
+    )
+    expect(
+      (await reconcileBasket({ fetchOrders: all, legs, knownIds: NONE, ...args })).checked,
+    ).toBe(true)
+    expect(
+      await reconcileBasket({ fetchOrders: fetches(network()), legs, knownIds: NONE, ...args }),
+    ).toEqual({ found: [null, null], checked: false })
   })
 })
 

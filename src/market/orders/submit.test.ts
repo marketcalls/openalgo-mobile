@@ -539,4 +539,10 @@ describe('submitOrderAction: ANALYZE shown, the server answered LIVE', () => {
       'This GTT cancellation was sent in LIVE mode. The server switched to LIVE after your review.',
     )
   })
+
+  test("liveSurpriseText('basket') names the basket", () => {
+    expect(liveSurpriseText('basket')).toBe(
+      'This basket was placed in LIVE mode. The server switched to LIVE after your review.',
+    )
+  })
 })

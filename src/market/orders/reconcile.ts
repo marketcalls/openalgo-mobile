@@ -1,6 +1,7 @@
 // After a write whose outcome is unknown (MaybePlaced, or a success without an id), the books
 // say what happened (design 7.10). These only read: nothing here ever sends an order.
 import { isWorking, type OrderRow, type PositionRow } from '../books/schemas'
+import type { BasketLeg } from './basket'
 import type { OrderSpec, PositionToClose } from './schemas'
 
 /** The books lag a write the server answered: each check reads after 2, 5 and 10 s. */
@@ -36,7 +37,7 @@ export function noReplyDelays(children?: number): number[] {
 const WINDOW_MS = 120_000
 
 /** `dropped`: rows of the book that could not be read (`lenientRows`); one could be ours. */
-type FetchOrders = () => Promise<{ orders: readonly OrderRow[]; dropped?: number }>
+export type FetchOrders = () => Promise<{ orders: readonly OrderRow[]; dropped?: number }>
 
 /** The books lag the write, so each check waits, then reads once, per delay. */
 export type Polling = {
@@ -61,7 +62,7 @@ type Placement = Polling & {
 export type Reconciled<T> = { found: T; checked: boolean }
 
 /** A row that could be the order sent: the same contract, side and product, new, and recent. */
-function isCandidate(r: OrderRow, p: Placement): boolean {
+function isCandidate(r: OrderRow, p: Pick<Placement, 'spec' | 'sentAt' | 'knownIds'>): boolean {
   const { spec } = p
   return (
     r.symbol === spec.symbol &&
@@ -165,6 +166,51 @@ export function reconcileSplit(
   }
   const all = (found: OrderRow[]) => found.length >= p.children.length
   return pollOrders(p, pick, all, all, [])
+}
+
+/**
+ * The orders a basket made, one per leg in the legs' order: each leg is its own placement (its
+ * contract, side, product and quantity, new and recent), and a row is used by one leg only, so
+ * two like legs need two rows. A leg the book does not show is null. It stops early once every
+ * leg is found; otherwise it gives what the last read that worked showed. The caller picks the
+ * legs sought (a whole basket, or some of its legs), and the answer follows their order.
+ */
+export function reconcileBasket({
+  fetchOrders,
+  legs,
+  sentAt,
+  knownIds,
+  ...polling
+}: Polling & {
+  fetchOrders: FetchOrders
+  legs: readonly BasketLeg[]
+  sentAt: number
+  knownIds: ReadonlySet<string>
+}): Promise<Reconciled<Array<OrderRow | null>>> {
+  const all = (found: Array<OrderRow | null>) => found.every((r) => r !== null)
+  return poll(
+    polling,
+    fetchOrders,
+    ({ orders, dropped = 0 }) => {
+      const rows = newestFirst(orders)
+      const used = new Set<OrderRow>()
+      const found = legs.map((spec) => {
+        const r = rows.find(
+          (row) =>
+            !used.has(row) &&
+            row.quantity === spec.quantity &&
+            isCandidate(row, { spec, sentAt, knownIds }),
+        )
+        if (!r) return null
+        used.add(r)
+        return r
+      })
+      // a leg not found while some rows could not be read may be one of them
+      return { found, checked: dropped === 0 || all(found) }
+    },
+    all,
+    legs.map(() => null),
+  )
 }
 
 /**

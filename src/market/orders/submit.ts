@@ -23,6 +23,7 @@ export type ActionKind =
   | 'gttPlace'
   | 'gttModify'
   | 'gttCancel'
+  | 'basket'
 
 export type Outcome<R> =
   /**
@@ -61,6 +62,7 @@ const SENT_LIVE: Record<ActionKind, string> = {
   gttPlace: 'This GTT was placed',
   gttModify: 'This GTT change was sent',
   gttCancel: 'This GTT cancellation was sent',
+  basket: 'This basket was placed',
 }
 
 /** The danger notice for a `liveSurprise` outcome of a `kind` write. */

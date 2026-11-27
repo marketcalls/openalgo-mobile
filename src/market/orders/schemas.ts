@@ -32,7 +32,7 @@ export type ModifyChange = Partial<
 >
 
 /** C9: MARKET carries no price and SL-M only the trigger; LIMIT the price; SL both. Unsent is 0. */
-function priceFields(pricetype: string, price: number, trigger: number) {
+export function priceFields(pricetype: string, price: number, trigger: number) {
   return {
     price: pricetype === 'MARKET' || pricetype === 'SL-M' ? 0 : price,
     trigger_price: pricetype === 'SL' || pricetype === 'SL-M' ? trigger : 0,
