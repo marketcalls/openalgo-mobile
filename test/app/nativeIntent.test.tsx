@@ -2,7 +2,8 @@
 // too (a `url` listener that never fires), and the first mock required stays.
 import 'expo-linking'
 import { render } from '@testing-library/react-native'
-import { router, Slot, useLocalSearchParams } from 'expo-router'
+import { ExpoRoot, router, Slot, useLocalSearchParams } from 'expo-router'
+import { getMockContext } from 'expo-router/build/testing-library/mock-config'
 import { act, renderRouter, screen } from 'expo-router/testing-library'
 import { Text } from 'react-native'
 import * as nativeIntent from '~/app/+native-intent'
@@ -11,12 +12,15 @@ import type { TicketParams } from '~/market/types'
 import { LONG_TOAST_MS, ToastHost } from '~/ui/Toast'
 
 // Expo Router subscribes to expo-linking's `url` event for links that come while the app runs; a
-// test delivers one through it as the OS does.
+// test delivers one through it as the OS does. At a cold start it reads the OS's initial URL
+// (getLinkingURL on iOS, the platform jest-expo runs).
 const mockUrlListeners = new Set<(e: { url: string }) => unknown>()
+let mockLinkingURL: string | null = null
 jest.mock('expo-linking', () => ({
   ...jest.requireActual('expo-linking'),
   createURL: (p: string) => `openalgo://${p}`,
   resolveScheme: () => 'openalgo',
+  getLinkingURL: () => mockLinkingURL,
   addEventListener: (_type: string, fn: (e: { url: string }) => unknown) => {
     mockUrlListeners.add(fn)
     return { remove: () => mockUrlListeners.delete(fn) }
@@ -56,9 +60,22 @@ const SELL: TicketParams = {
   quantity: 1000,
 }
 const REFUSED = "Orders can't be opened from a link"
+const SELL_QUERY = 'exchange=NSE&symbol=SBIN&action=SELL&pricetype=MARKET&quantity=1000'
+
+/**
+ * A cold start as the device has one: the OS's initial URL, whole. renderRouter's `initialUrl`
+ * is read as a path against `file:`, which drops a link's scheme and host, so it cannot stand in
+ * for `openalgo://order:/new?…`.
+ */
+async function coldStart(url: string) {
+  mockLinkingURL = url
+  process.env.EXPO_ROUTER_IMPORT_MODE = 'sync'
+  return render(<ExpoRoot context={getMockContext(routes)} />)
+}
 
 // The toast store outlives a render: a host left over from the last test lets it time out.
 beforeEach(async () => {
+  mockLinkingURL = null
   jest.useFakeTimers()
   const host = await render(<ToastHost />)
   await act(async () => jest.advanceTimersByTime(LONG_TOAST_MS))
@@ -86,6 +103,29 @@ describe('a link at the cold start', () => {
     expect(screen.getByTestId('watchlist')).toBeOnTheScreen()
     expect(screen.queryByTestId(blocked)).toBeNull()
     expect(screen.getByTestId('toast')).toHaveTextContent(REFUSED)
+  })
+
+  // The URL parser drops an empty port (host `order`, path `/new`), and the launcher's
+  // `__expo_url` names an ftp link whose default port it drops: the router reads both as the
+  // ticket, with every value the link gives.
+  test.each([
+    [`openalgo://order/new?${SELL_QUERY}`, 'instrument'],
+    [`openalgo://order:/new?${SELL_QUERY}`, 'instrument'],
+    [
+      `openalgo://x?__expo_url=${encodeURIComponent(`ftp://order:21/new?${SELL_QUERY}`)}`,
+      'watchlist',
+    ],
+  ])('the OS starts the app with %s: the %s opens, never the ticket', async (url, lands) => {
+    await coldStart(url)
+    expect(screen.getByTestId(lands)).toBeOnTheScreen()
+    expect(screen.queryByTestId('ticket')).toBeNull()
+    expect(screen.getByTestId('toast')).toHaveTextContent(REFUSED)
+  })
+
+  test('the OS starts the app with a chart link: the chart opens, with no toast', async () => {
+    await coldStart('openalgo://chart:/NSE%3AITC')
+    expect(screen.getByTestId('chart')).toHaveTextContent('"key":"NSE:ITC"', { exact: false })
+    expect(screen.queryByTestId('toast')).toBeNull()
   })
 
   test('a GTT ticket link opens the instrument it names', async () => {
@@ -123,6 +163,29 @@ describe('a link while the app runs', () => {
     await deliver('openalgo://order/123/modify?price=1')
     expect(screen.queryByTestId('modify')).toBeNull()
     expect(screen.getByTestId('watchlist')).toBeOnTheScreen()
+  })
+
+  // As at the cold start: the router reads both as the ticket, with every value the link gives.
+  test.each([
+    [`openalgo://order:/new?${SELL_QUERY}`, 'instrument'],
+    [
+      `openalgo://x?__expo_url=${encodeURIComponent(`ftp://order:21/new?${SELL_QUERY}`)}`,
+      'watchlist',
+    ],
+  ])('%s opens the %s, never the ticket', async (url, lands) => {
+    await renderRouter(routes, { initialUrl: '/chart/NSE%3AITC' })
+    await deliver(url)
+    expect(screen.getByTestId(lands)).toBeOnTheScreen()
+    expect(screen.queryByTestId('ticket')).toBeNull()
+    expect(screen.queryByTestId('chart')).toBeNull()
+    expect(screen.getByTestId('toast')).toHaveTextContent(REFUSED)
+  })
+
+  test('a link opens the route the router reads from it, here past an empty port', async () => {
+    await renderRouter(routes, { initialUrl: '/' })
+    await deliver('openalgo://chart:/NSE%3AITC')
+    expect(screen.getByTestId('chart')).toHaveTextContent('"key":"NSE:ITC"', { exact: false })
+    expect(screen.queryByTestId('toast')).toBeNull()
   })
 
   test('a chart link from another app opens the chart', async () => {
