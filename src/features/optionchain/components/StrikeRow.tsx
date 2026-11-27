@@ -217,20 +217,35 @@ function Num(p: {
   )
 }
 
-/** An 18 % tint for 400 ms when the LTP of the same symbol moves; none under reduced motion. */
+/**
+ * An 18 % tint for 400 ms when the LTP of the same symbol moves, at most once per 400 ms (ux G14):
+ * a move while one shows changes nothing, so a busy leg never flickers green and red. None under
+ * reduced motion; a recycled row showing another leg drops its tint.
+ */
 function useFlash(symbol: string, ltp: number, reduceMotion: boolean): string | null {
   const { trade } = useTheme()
   const last = useRef({ symbol, ltp })
+  /** When the flash on show ends. */
+  const until = useRef(0)
   const [flash, setFlash] = useState<string | null>(null)
   useEffect(() => {
     const prev = last.current
     last.current = { symbol, ltp }
-    // a recycled row showing another leg is not a move
-    if (reduceMotion || prev.symbol !== symbol || prev.ltp === ltp) return
+    if (prev.symbol !== symbol || reduceMotion) {
+      until.current = 0
+      setFlash(null)
+      return
+    }
+    if (prev.ltp === ltp || Date.now() < until.current) return
+    until.current = Date.now() + FLASH_MS
     setFlash(tint(ltp > prev.ltp ? trade.profit : trade.loss, 0.18))
-    const t = setTimeout(() => setFlash(null), FLASH_MS)
-    return () => clearTimeout(t)
   }, [symbol, ltp, reduceMotion, trade])
+  // it ends 400 ms after it began, whatever ticks meanwhile
+  useEffect(() => {
+    if (flash === null) return
+    const t = setTimeout(() => setFlash(null), Math.max(0, until.current - Date.now()))
+    return () => clearTimeout(t)
+  }, [flash])
   return flash
 }
 

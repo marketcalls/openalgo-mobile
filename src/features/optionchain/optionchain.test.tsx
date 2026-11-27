@@ -23,10 +23,12 @@ import { TradingProvider } from '~/market/trading'
 import { fmtOi, fmtPrice } from '~/ui/format'
 import { ToastHost } from '~/ui/Toast'
 import { buildTheme } from '~/ui/theme'
+import * as motion from '~/ui/useReduceMotion'
 import { chainReply } from '../../../test/helpers/chains'
 import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { CHAIN_LINK_INCOMPLETE, legTicket, OptionChainScreen, targetFromKey, targetFromU } from '.'
+import { tint } from './components/StrikeRow'
 import { chainSession, type LadderRow, ladderItems, noExpiries } from './model'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
@@ -202,6 +204,13 @@ function setup(o: SetupOptions = {}) {
     ids: () => call.mock.calls.map(([i]) => i),
     tick: (key: string, patch: QuotePatch) => act(async () => store.put(key, patch, 'ws')),
   }
+}
+
+/** The flash tint of the cell that holds `id`'s text (the nearest View above it), or null. */
+function cellTint(id: string): string | null {
+  let n = screen.getByTestId(id).parent
+  while (n && n.type !== 'View') n = n.parent
+  return (StyleSheet.flatten(n?.props.style)?.backgroundColor as string | undefined) ?? null
 }
 
 const settle = () =>
@@ -795,6 +804,49 @@ describe('the screen', () => {
     await back()
     expect(screen.queryByTestId('oc-leg-sheet')).toBeNull()
     expect(held(symbol).every((r) => (r?.mock.calls.length ?? 0) > 0)).toBe(true)
+  })
+
+  test('a moving LTP flashes at most once per 400 ms, never flickering (G14)', async () => {
+    jest.useFakeTimers({ now: NOW })
+    const advance = (ms: number) => act(async () => void (await jest.advanceTimersByTimeAsync(ms)))
+    const h = setup()
+    await render(h.tree(<OptionChainScreen initial={null} />))
+    await advance(0)
+    const leg = legAt(chainOf(), ATM, 'ce')
+    const key = `NFO:${leg.symbol}`
+    const tintOf = () => cellTint(`oc-ce-ltp-${ATM}`)
+    const up = tint(trade.profit, 0.18)
+    const down = tint(trade.loss, 0.18)
+    expect(tintOf()).toBeNull()
+    await h.tick(key, { ltp: leg.ltp + 1 })
+    expect(tintOf()).toBe(up)
+    // a fall 100 ms later, while the rise shows: still the one flash, which ends on time
+    await advance(100)
+    await h.tick(key, { ltp: leg.ltp - 1 })
+    expect(tintOf()).toBe(up)
+    await advance(310)
+    expect(tintOf()).toBeNull()
+    // past the 400 ms the next move flashes
+    await h.tick(key, { ltp: leg.ltp - 2 })
+    expect(tintOf()).toBe(down)
+    await advance(400)
+    expect(tintOf()).toBeNull()
+  })
+
+  test('under reduced motion a moving LTP never flashes (G14)', async () => {
+    jest.useFakeTimers({ now: NOW })
+    jest.spyOn(motion, 'useReduceMotion').mockReturnValue(true)
+    const advance = (ms: number) => act(async () => void (await jest.advanceTimersByTimeAsync(ms)))
+    const h = setup()
+    await render(h.tree(<OptionChainScreen initial={null} />))
+    await advance(0)
+    await advance(50)
+    const leg = legAt(chainOf(), ATM, 'ce')
+    for (const d of [1, -1, 2]) {
+      await h.tick(`NFO:${leg.symbol}`, { ltp: leg.ltp + d })
+      expect(cellTint(`oc-ce-ltp-${ATM}`)).toBeNull()
+      await advance(500)
+    }
   })
 
   test('one LIVE badge, in the header (ux G16)', async () => {
