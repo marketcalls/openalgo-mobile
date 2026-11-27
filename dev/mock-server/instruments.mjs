@@ -100,8 +100,8 @@ function master(nowMs) {
 }
 
 /** The instrument (its fields are /symbol's data), or undefined when it is not listed. */
-export function findInstrument(symbol, exchange) {
-  return master(Date.now()).byKey.get(`${String(exchange).toUpperCase()}:${symbol}`)
+export function findInstrument(symbol, exchange, nowMs = Date.now()) {
+  return master(nowMs).byKey.get(`${String(exchange).toUpperCase()}:${symbol}`)
 }
 
 /** /search: a prefix match on symbol or name, any case (services/search_service.py:60-73). */

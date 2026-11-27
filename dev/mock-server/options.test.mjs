@@ -84,7 +84,7 @@ test('NIFTY strike_count 10 gives 21 strikes, ATM labelled, legs listed in the m
   ])
   for (const row of body.chain) {
     for (const leg of [row.ce, row.pe]) {
-      const i = findInstrument(leg.symbol, 'NFO')
+      const i = findInstrument(leg.symbol, 'NFO', NOW)
       assert.ok(i, leg.symbol)
       assert.equal(i.lotsize, 65)
       assert.equal(leg.lotsize, 65)
