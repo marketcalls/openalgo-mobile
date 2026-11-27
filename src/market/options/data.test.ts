@@ -145,6 +145,27 @@ describe('schemas', () => {
     expect(nulls.expiry_ts).toBeNull()
     expect(nulls.chain[0]?.ce).toMatchObject({ ltp: 0, oi: 0 })
   })
+
+  test('a leg the server sent no ltp for reads 0 and says so; an ltp of 0 is a price', () => {
+    const legs = OptionChainSchema.parse({
+      ...OLD_CHAIN,
+      chain: [
+        { strike: 23900, ce: leg('A', { ltp: null }), pe: leg('B', { ltp: '' }) },
+        { strike: 23950, ce: leg('C', { ltp: undefined }), pe: leg('D', { ltp: 'n/a' }) },
+        { strike: 24000, ce: leg('E', { ltp: 0 }), pe: leg('F', { ltp: '95.5' }) },
+      ],
+    }).chain.flatMap((r) => [r.ce, r.pe])
+    expect(legs.map((l) => [l?.symbol, l?.ltp, l?.ltpMissing])).toEqual([
+      ['A', 0, true],
+      ['B', 0, true],
+      ['C', 0, true],
+      ['D', 0, true],
+      ['E', 0, undefined],
+      ['F', 95.5, undefined],
+    ])
+    // a priced leg carries no marker, so its parse is the server's fields only
+    expect(legs[4]).not.toHaveProperty('ltpMissing')
+  })
 })
 
 describe('OptionsData', () => {

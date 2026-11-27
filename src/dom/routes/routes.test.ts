@@ -357,6 +357,28 @@ describe('Gamma Density without an ATM IV or an ATM forward', () => {
   })
 })
 
+test('the Gamma Density forward is the spot when an ATM leg has no ltp, and K + C − P when it is 0', async () => {
+  const forward = async (ce: Record<string, unknown>, pe: Record<string, unknown>) => {
+    const row = {
+      strike: 24000,
+      ce: leg('NIFTY01DEC2624000CE', { ltp: 120, oi: 1000, ...ce }),
+      pe: leg('NIFTY01DEC2624000PE', { ltp: 95.5, oi: 1000, ...pe }),
+    }
+    const h = setup(() => chainReply([row]))
+    const r = await h.post('/gammadensity/api/gamma-data', QUERY)
+    expect(r.status).toBe(200)
+    return (r.body as { forward_price: number }).forward_price
+  }
+  // a leg's ltp null (or not sent): synthetic_future_service.py:133-150 cannot price the forward,
+  // so `forward or spot_price` (gamma_density_service.py:212) is the spot (conflict 24)
+  expect(await forward({ ltp: null }, {})).toBe(24010.5)
+  expect(await forward({}, { ltp: null })).toBe(24010.5)
+  expect(await forward({}, { ltp: undefined })).toBe(24010.5)
+  // 0 is a price, taken as given: K + C − 0
+  expect(await forward({}, { ltp: 0 })).toBe(24120)
+  expect(await forward({}, {})).toBe(24024.5)
+})
+
 describe('a chain error passes its status and message; no route ever answers 401', () => {
   test('a refused chain is the server reason with its status', async () => {
     const h = setup(

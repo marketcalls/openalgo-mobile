@@ -14,10 +14,10 @@ const quote = optNum.catch(undefined).transform((v) => v ?? 0)
 /** A Greek the server attaches only where it computed one; absent otherwise. */
 const greek = optNum.catch(undefined)
 
-const ChainLeg = z.object({
+const ChainLegFields = z.object({
   symbol: str,
   label: str.catch(''),
-  ltp: quote,
+  ltp: optNum.catch(undefined),
   bid: quote,
   ask: quote,
   bid_qty: quote,
@@ -36,6 +36,18 @@ const ChainLeg = z.object({
   theta: greek,
   vega: greek,
 })
+type ChainLegFields = z.output<typeof ChainLegFields>
+
+/**
+ * A leg. An `ltp` the server sent as null, or not at all or unreadably, is 0, as every service
+ * reads it (`ce.get("ltp", 0) or 0`), and only such a leg carries `ltpMissing: true`. Gamma
+ * Density's forward tells it from a price of 0: with no ltp the synthetic future fails and the
+ * service falls back to the spot (conflict 24).
+ */
+const ChainLeg = ChainLegFields.transform(
+  (leg): Omit<ChainLegFields, 'ltp'> & { ltp: number; ltpMissing?: true } =>
+    leg.ltp === undefined ? { ...leg, ltp: 0, ltpMissing: true } : { ...leg, ltp: leg.ltp },
+)
 
 /** A strike's row: a side the server does not list (or cannot read) is null. */
 const ChainRow = z.object({

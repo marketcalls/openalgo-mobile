@@ -3,8 +3,9 @@
 // services/gamma_density_service.py calculate_gamma_density (:127-353) over /api/v1/optionchain
 // at 23 strikes a side.
 // - F is the chain's own ATM parity, round(K + C − P, 2) as synthetic_future_service.py:152,173
-//   rounds it, else the spot (design 7.8: the server's second, synthetic-future fetch is not
-//   made; scripts/golden/harness.py patches _resolve_forward_price the same way).
+//   rounds it, else the spot: when the ATM row lacks a leg or a leg has no ltp (:133-150 fail)
+//   (design 7.8: the server's second, synthetic-future fetch is not made;
+//   scripts/golden/harness.py patches _resolve_forward_price the same way).
 // - Pass one inverts each leg's IV (opengreeks semantics, _safe_iv :100-111) and takes the ATM
 //   strike's mean, else the median of the strikes', else 0.15. Pass two prices each leg's gamma
 //   (_safe_gamma :114-124) at the full time to expiry and at one day, as Γ×OI densities.
@@ -29,11 +30,16 @@ const FALLBACK_IV = 0.15
 /** DEFAULT_INTEREST_RATES (option_greeks_service.py:63-68) is 0 on every exchange. */
 const INTEREST_RATE = 0
 
-/** The ATM row's K + C − P to 2 places; null (the spot) when the row lacks a leg (conflict 24). */
+/**
+ * The ATM row's K + C − P to 2 places; null (the spot) when the row lacks a leg or a leg has no
+ * ltp (conflict 24). An ltp of 0 is a price: the synthetic future takes it as given.
+ */
 function atmForward(rows: readonly ChainRow[], atm: number): number | null {
   const row = rows.find((r) => r.strike === atm)
-  if (!row?.ce || !row.pe) return null
-  return pyRound(atm + row.ce.ltp - row.pe.ltp, 2)
+  const ce = row?.ce
+  const pe = row?.pe
+  if (!ce || !pe || ce.ltpMissing || pe.ltpMissing) return null
+  return pyRound(atm + ce.ltp - pe.ltp, 2)
 }
 
 /** The 1σ and 2σ levels around the spot for a σ move (_band :306-313). */
