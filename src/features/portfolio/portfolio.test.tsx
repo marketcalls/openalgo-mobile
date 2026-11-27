@@ -27,7 +27,7 @@ import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
-import { usePositionWrites } from './index'
+import { CLOSE_ALL_OUT, CLOSE_OUT, usePositionWrites } from './index'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
 const mockRouter = { back: jest.fn(), push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn() }
@@ -157,11 +157,18 @@ const pass = (ms: number) =>
   })
 
 /** What the chart does: a close of its own, through the feature's index, tagged 'mobile-chart'. */
+/** Another screen's position writes (the chart's): its own submit guard and session owner. */
 function ChartClose() {
   const w = usePositionWrites()
   const row = { symbol: 'RELIANCE', exchange: 'NSE', product: 'CNC', quantity: 10 } as PositionRow
   return (
-    <Pressable testID="chart-close" onPress={() => w.closeOne(row, { strategy: 'mobile-chart' })} />
+    <>
+      <Pressable
+        testID="chart-close"
+        onPress={() => w.closeOne(row, { strategy: 'mobile-chart' })}
+      />
+      <Pressable testID="other-close-all" onPress={() => w.closeAll(1)} />
+    </>
   )
 }
 
@@ -336,6 +343,59 @@ describe('close one', () => {
     expect(asked.map((a) => a.title)).toEqual(['LIVE · Close RELIANCE CNC?'])
     expect(requests('placesmartorder')).toHaveLength(1)
     expect(bodyOf('placesmartorder')).toMatchObject({ strategy: 'mobile-chart', product: 'CNC' })
+  })
+
+  // The duplicate close that reverses a position (rulings 5): the session's hold, not the buttons.
+  test("the tab's close still out: a chart close of that position sends nothing and asks nothing", async () => {
+    let reply: (r: ScriptedReply) => void = () => {}
+    await setup({
+      'POST /api/v1/placesmartorder': () =>
+        new Promise<ScriptedReply>((resolve) => {
+          reply = resolve
+        }),
+    })
+    await show({ chart: true })
+    await press('pos-close-NSE-RELIANCE-CNC')
+    expect(asked).toHaveLength(1)
+    expect(requests('placesmartorder')).toHaveLength(1)
+
+    await press('chart-close')
+    expect(asked).toHaveLength(1)
+    expect(requests('placesmartorder')).toHaveLength(1)
+    expect(text('toast')).toBe(CLOSE_OUT)
+    // close all from another screen waits for it too
+    await pass(200)
+    await press('other-close-all')
+    expect(asked).toHaveLength(1)
+    expect(requests('closeposition')).toHaveLength(0)
+    expect(text('toast')).toBe(CLOSE_ALL_OUT)
+
+    // its outcome known once the check after it ends, the chart's close may go
+    await act(async () => reply(placed))
+    await pass(30_000)
+    await press('chart-close')
+    expect(asked).toHaveLength(2)
+    expect(requests('placesmartorder')).toHaveLength(2)
+  })
+
+  test("a close all still out: the chart's close sends nothing", async () => {
+    let reply: (r: ScriptedReply) => void = () => {}
+    await setup({
+      'POST /api/v1/closeposition': () =>
+        new Promise<ScriptedReply>((resolve) => {
+          reply = resolve
+        }),
+    })
+    await show({ chart: true })
+    await press('pf-close-all')
+    expect(requests('closeposition')).toHaveLength(1)
+    await press('chart-close')
+    expect(asked).toHaveLength(1)
+    expect(requests('placesmartorder')).toHaveLength(0)
+    expect(text('toast')).toBe(CLOSE_OUT)
+    await act(async () =>
+      reply(ok({ status: 'success', message: 'All Open Positions Squared Off' })),
+    )
   })
 
   test('a flat reply says "Already flat"', async () => {

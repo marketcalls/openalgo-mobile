@@ -93,7 +93,16 @@ export function holdOrder(
 
 /** True while another owner of this session has a write on `scope` whose outcome is not known. */
 export function otherOrderOut(t: Trading, owner: object, scope: PendingScope = NEW_ORDER): boolean {
-  return [...pendingOf(t).holds].some((h) => h.scope === scope && h.owner !== owner)
+  return otherScopeOut(t, owner, (s) => s === scope)
+}
+
+/** True while another owner of this session has a write out on any scope `test` takes. */
+export function otherScopeOut(
+  t: Trading,
+  owner: object,
+  test: (scope: PendingScope) => boolean,
+): boolean {
+  return [...pendingOf(t).holds].some((h) => h.owner !== owner && test(h.scope))
 }
 
 function useSession<T>(t: Trading, read: (p: Pending) => T): T {

@@ -8,7 +8,9 @@
 // closing order may be working unfilled (a circuit, an illiquid option, a queued order), and the
 // server sizes a second close from the position the first has not yet closed, so both would fill
 // and reverse it. The check then reads the orderbook for a working closing order, and the line
-// points to the order book. The position's Close waits (`onPosition`) until the check ends.
+// points to the order book. The position's Close waits (`onPosition`) until the check ends, here
+// and on any other screen: a close the session holds elsewhere (the Positions tab's, the chart's,
+// close all) is never sent again from this one.
 import { useState } from 'react'
 import type { EndpointId } from '~/core/http/endpoints'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
@@ -20,7 +22,15 @@ import { confirmLiveOrder } from '~/market/orders/confirmLive'
 import { confirmInMode } from '~/market/orders/confirmWrite'
 import { useSubmitGuard } from '~/market/orders/guard'
 import { CHECKING, errorText, modeChanged, sandboxed, settle, sleep } from '~/market/orders/outcome'
-import { ALL_POSITIONS, holdOrder, onPosition, type PendingScope } from '~/market/orders/pending'
+import {
+  ALL_POSITIONS,
+  holdOrder,
+  isPositionScope,
+  onPosition,
+  otherOrderOut,
+  otherScopeOut,
+  type PendingScope,
+} from '~/market/orders/pending'
 import {
   findWorkingExit,
   noReplyDelays,
@@ -41,6 +51,10 @@ export const POSITION_CLOSED = 'Position is closed'
 export const ALL_CLOSED = 'All positions are closed'
 export const CLOSE_UNCHECKED =
   "Couldn't check the positions. Check the order book before closing again."
+/** Another screen's close of this position, or close all, is not settled yet. */
+export const CLOSE_OUT = 'A close of this position is on its way. Close waits for it.'
+/** Another screen's close of a position is not settled yet. */
+export const CLOSE_ALL_OUT = 'A close is on its way. Close all waits for it.'
 export const CLOSE_ALL_BODY =
   'This closes every open position in the account at market, across all strategies and the web.'
 export const closeOneBody = (row: Pick<PositionRow, 'symbol' | 'product' | 'quantity'>) =>
@@ -109,11 +123,27 @@ export function usePositionWrites() {
     toast(line.text)
   }
 
+  /**
+   * Another screen holds a close this write would repeat: the position's own, close all's, or for
+   * close all any position's. Said with a toast; true when so.
+   */
+  const heldElsewhere = (scope: PendingScope): boolean => {
+    const all = scope === ALL_POSITIONS
+    const out = all
+      ? otherScopeOut(trading, me, isPositionScope)
+      : otherOrderOut(trading, me, scope) || otherOrderOut(trading, me, ALL_POSITIONS)
+    if (!out) return false
+    notifyWarning()
+    toast(all ? CLOSE_ALL_OUT : CLOSE_OUT)
+    return true
+  }
+
   const write = <R>(w: Write<R>) =>
     void guard.run(async () => {
       setSemiBlocked(null)
       setLiveSurprise(null)
       setOutcome(null)
+      if (heldElsewhere(w.scope)) return
       const c = await confirmInMode(trading.analyzer, { ...w.confirm, destructive: true })
       if (c.kind === 'error') {
         notifyWarning()
@@ -126,6 +156,8 @@ export function usePositionWrites() {
         return
       }
       if (c.kind === 'declined') return
+      // and once more: another screen's close may have gone while the confirm was up
+      if (heldElsewhere(w.scope)) return
       const release = holdOrder(trading, me, w.scope)
       try {
         const out = await submitOrderAction({

@@ -18,7 +18,8 @@ import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { OutcomeLine } from '~/market/components/OutcomeLine'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import type { InstrumentMeta } from '~/market/instruments/meta'
-import { holdOrder, NEW_ORDER } from '~/market/orders/pending'
+import { CLOSE_OUT } from '~/features/portfolio'
+import { ALL_POSITIONS, holdOrder, NEW_ORDER, onPosition } from '~/market/orders/pending'
 import { liveSurpriseText } from '~/market/orders/submit'
 import { QUOTE_ONLY_COPY } from '~/market/orders/ticket'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
@@ -539,6 +540,38 @@ describe('intents', () => {
     await pass(2_100)
     expect(text('write-outcome-text')).toBe('Position is closed')
     expect(requests('placeorder')).toHaveLength(0)
+  })
+
+  // The duplicate close that reverses a position (rulings 5): the Positions tab's Close waits for
+  // the session's hold, and so does the chart's, which no button state guards.
+  test("a chart close while another screen's close of the position, or close all, is out sends nothing", async () => {
+    await setup({
+      'POST /api/v1/positionbook': positions([position()]),
+      'POST /api/v1/placesmartorder': ok({ status: 'success', orderid: 'P1' }),
+    })
+    await show(RELIANCE, chartMeta(RELIANCE_META))
+    const tab = {}
+    const scope = onPosition({ exchange: 'NSE', symbol: 'RELIANCE', product: 'CNC' })
+    for (const held of [scope, ALL_POSITIONS]) {
+      const release = holdOrder(trading as Trading, tab, held)
+      await send({ inst: RELIANCE, type: 'close', product: 'CNC' })
+      await pass(300)
+      expect(toast()).toBe(CLOSE_OUT)
+      release()
+    }
+    expect(asked).toHaveLength(0)
+
+    // the tab's close goes while the chart's confirm is up: the chart's still sends nothing
+    let release = () => {}
+    jest.spyOn(Alert, 'alert').mockImplementation((_t, _b, buttons?: AlertButton[]) => {
+      release = holdOrder(trading as Trading, tab, scope)
+      buttons?.find((x) => x.style !== 'cancel')?.onPress?.()
+    })
+    await send({ inst: RELIANCE, type: 'close', product: 'CNC' })
+    await pass(300)
+    expect(toast()).toBe(CLOSE_OUT)
+    expect(requests('placesmartorder')).toHaveLength(0)
+    release()
   })
 
   test('an intent sent twice while the book is read acts once: one modify, one confirm', async () => {
