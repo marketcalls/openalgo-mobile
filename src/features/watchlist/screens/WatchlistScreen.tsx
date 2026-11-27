@@ -97,6 +97,11 @@ function renameOrDelete(title: string, onRename: () => void, onDelete: () => voi
 }
 
 /** Moves on each time the screen comes into focus. */
+/** `build()` at focus `_focus` and seed `_seeded` (see the rows memo). */
+function snapshotAt<T>(_focus: number, _seeded: unknown, build: () => T): T {
+  return build()
+}
+
 function useFocusCount(active: boolean): number {
   const [n, setN] = useState(0)
   useEffect(() => {
@@ -151,9 +156,13 @@ export function WatchlistScreen() {
   // change, and again once the first seed after a focus, a list switch or a sort change is in.
   // Never on a tick, nor on a seed outside those (the broker session turning active, the unknown
   // set clearing): rows do not jump under a finger.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `focus` and `seeded` retake the snapshot
+  // `focus` and `seeded` retake the snapshot. They are arguments, not only listed dependencies:
+  // the React Compiler memoizes on what the callback reads and drops any other.
   const rows = useMemo(
-    () => (loaded && list ? buildRows(list, { editing, quoteOf: (k) => store.get(k) }) : []),
+    () =>
+      snapshotAt(focus, seeded, () =>
+        loaded && list ? buildRows(list, { editing, quoteOf: (k) => store.get(k) }) : [],
+      ),
     [loaded, list, editing, store, focus, seeded],
   )
   const offsets = useMemo(() => rowOffsets(rows), [rows])

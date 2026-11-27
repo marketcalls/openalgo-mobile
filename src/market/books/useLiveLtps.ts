@@ -38,10 +38,19 @@ export function useLiveLtps(
     }
   }, [on, joined, realtime, polling, store])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `version` marks a tick
-  return useMemo(() => {
-    const out: Record<string, number | undefined> = {}
-    if (on) for (const k of joined === '' ? [] : joined.split('|')) out[k] = store.get(k)?.ltp
-    return out
-  }, [on, joined, store, version])
+  // `version` marks a tick. It is an argument, not only a listed dependency: the React Compiler
+  // memoizes on what the callback reads and drops any other, which froze these prices at the
+  // screen's first read.
+  return useMemo(() => ltpsAt(version, store, on ? joined : ''), [on, joined, store, version])
+}
+
+/** Each key's LTP in `store` at tick `_version` (see the memo above). */
+function ltpsAt(
+  _version: number,
+  store: { get(k: string): { ltp?: number } | undefined },
+  joined: string,
+): Record<string, number | undefined> {
+  const out: Record<string, number | undefined> = {}
+  for (const k of joined === '' ? [] : joined.split('|')) out[k] = store.get(k)?.ltp
+  return out
 }

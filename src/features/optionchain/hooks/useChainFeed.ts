@@ -110,17 +110,27 @@ export function useChainFeed(p: {
   }, [feeding, watched, s.store])
 
   const quoteOf = useMemo<QuoteOf>(() => (live ? (k) => s.store.get(k) : NONE), [live, s.store])
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `beat`, the throttled tick, re-reads
+  // `beat`, the throttled tick, re-reads the store's ticks. It is an argument, not only a listed
+  // dependency: the React Compiler memoizes on what the callback reads and drops any other, which
+  // left the ATM band, the ITM tint and the spot marker a tick behind the header's spot (OC-3).
   const pricing = useMemo(
     () =>
-      chain
-        ? livePricing(chain, quoteOf, {
-            optionsExchange,
-            underlyingKey: underlyingKey ?? '',
-            clockOffsetMs: s.clock.offsetMs(),
-          })
-        : null,
+      pricedAt(beat, chain, quoteOf, {
+        optionsExchange,
+        underlyingKey: underlyingKey ?? '',
+        clockOffsetMs: s.clock.offsetMs(),
+      }),
     [chain, quoteOf, optionsExchange, underlyingKey, s.clock, beat],
   )
   return { underlyingKey, quoteOf, pricing }
+}
+
+/** `livePricing` at tick `_beat` (see the memo above). */
+function pricedAt(
+  _beat: number,
+  chain: OptionChain | undefined,
+  quoteOf: QuoteOf,
+  o: Parameters<typeof livePricing>[2],
+): ChainPricing | null {
+  return chain ? livePricing(chain, quoteOf, o) : null
 }
