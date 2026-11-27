@@ -5,17 +5,24 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { domPages } from './lib/dom-export.mjs'
 
 const BASELINE = fileURLToPath(new URL('../bundle-baseline.json', import.meta.url))
 const PLATFORMS = ['android', 'ios']
 
-/** Sizes in bytes of the platform bundles listed in `<dir>/metadata.json`. */
+/** Sizes in bytes of the platform bundles listed in `<dir>/metadata.json`, and of the DOM pages. */
 export function measure(dir) {
   const meta = JSON.parse(readFileSync(join(dir, 'metadata.json'), 'utf8'))
   const out = {}
   for (const p of PLATFORMS) {
     const file = meta.fileMetadata?.[p]?.bundle
     if (file) out[p] = statSync(join(dir, file)).size
+  }
+  // a DOM page's size is its JS: the largest page with that marker
+  for (const page of domPages(dir)) {
+    if (!page.marker) continue
+    const js = page.scripts.reduce((n, s) => n + s.bytes, 0)
+    out[page.marker] = Math.max(out[page.marker] ?? 0, js)
   }
   return out
 }

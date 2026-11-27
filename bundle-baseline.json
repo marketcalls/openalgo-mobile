@@ -7,9 +7,9 @@
     "toolDom": 1900000
   },
   "baseline": {
-    "android": 5720691,
-    "ios": 5620055,
-    "chartDom": null,
+    "android": 5868326,
+    "ios": 5765859,
+    "chartDom": 2324879,
     "toolDom": null
   }
 }
