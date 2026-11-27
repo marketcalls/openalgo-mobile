@@ -131,6 +131,84 @@ describe('fetchHistoryBatch', () => {
     expect(sent).toHaveLength(before)
   })
 
+  /** A gate the test opens and shuts; a shut one waits for the next opening or the abort. */
+  function gateOf() {
+    let shut = false
+    let opened: (() => void)[] = []
+    const gate = (signal: AbortSignal) =>
+      shut
+        ? new Promise<void>((resolve, reject) => {
+            opened.push(resolve)
+            signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+          })
+        : Promise.resolve()
+    return {
+      gate,
+      shut: () => {
+        shut = true
+      },
+      open: () => {
+        shut = false
+        for (const o of opened) o()
+        opened = []
+      },
+    }
+  }
+
+  test('a gate is awaited before each read: none starts while it is shut, and none is sent twice', async () => {
+    const { api, sent, most } = setup()
+    expectLog('warn', /\[history\] NFO:[A-H] dropped 1 rows/)
+    const g = gateOf()
+    const reqs = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(request)
+    const settled: [number, string][] = []
+    const batch = fetchHistoryBatch(api, reqs, {
+      gate: g.gate,
+      onSettle: (i, r) => settled.push([i, r instanceof ApiError ? r.kind : `${r.length} rows`]),
+    })
+    // A, B and C are out; shut, they come back, and nothing more goes
+    await jest.advanceTimersByTimeAsync(100)
+    g.shut()
+    await jest.advanceTimersByTimeAsync(10_000)
+    expect(sent.map((b) => b.symbol)).toEqual(['A', 'B', 'C'])
+    expect(settled).toEqual([0, 1, 2].map((i) => [i, '2 rows']))
+    // open again: the rest go, each once, still at most 3 in flight
+    g.open()
+    await jest.advanceTimersByTimeAsync(30_000)
+    const out = await batch
+    expect(sent).toEqual(reqs)
+    expect(most()).toBe(3)
+    expect(out.every(Array.isArray)).toBe(true)
+    expect(settled.map(([i]) => i).sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+  })
+
+  test('an abort while the gate is shut ends the batch at once and sends nothing more', async () => {
+    const { api, sent } = setup()
+    expectLog('warn', /\[history\] NFO:[A-C] dropped 1 rows/)
+    const g = gateOf()
+    const ctrl = new AbortController()
+    const progress: number[] = []
+    const batch = fetchHistoryBatch(api, ['A', 'B', 'C', 'D', 'E'].map(request), {
+      signal: ctrl.signal,
+      gate: g.gate,
+      onProgress: (d) => progress.push(d),
+    })
+    await jest.advanceTimersByTimeAsync(100)
+    g.shut()
+    await jest.advanceTimersByTimeAsync(5_000)
+    ctrl.abort()
+    const out = await batch
+    expect(out.map((r) => (r instanceof ApiError ? r.kind : 'rows'))).toEqual([
+      'rows',
+      'rows',
+      'rows',
+      'Network',
+      'Network',
+    ])
+    expect(progress).toEqual([1, 2, 3, 4, 5])
+    await jest.advanceTimersByTimeAsync(10_000)
+    expect(sent.map((b) => b.symbol)).toEqual(['A', 'B', 'C'])
+  })
+
   test('an empty batch sends nothing', async () => {
     const { api, sent } = setup()
     const onProgress = jest.fn()

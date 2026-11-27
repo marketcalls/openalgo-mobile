@@ -38,6 +38,7 @@ import { createToolRoutes, type SavedFile } from '~/dom/gateway/toolRoutes'
 import { createWsEmulation } from '~/dom/gateway/wsEmulation'
 import { brokerCaps } from '~/market/brokers/seed'
 import { chartIntervalsQuery } from '~/market/chart/queries'
+import { createPrevOiCache } from '~/market/history/prevOi'
 import { currentBroker } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { toast } from '~/ui/Toast'
@@ -296,6 +297,8 @@ export function useToolGateway(o: {
           active: () => shown.current.active,
           untilActive: (signal) => untilActive(whenActive, signal),
           intervals: () => s.queryClient.fetchQuery(chartIntervalsQuery(s.api, s.profile.get().id)),
+          // every cache on the profile's storage shares one copy and one write queue
+          prevOi: createPrevOiCache(s.storage),
         },
         save: share,
         greeksOnServer,

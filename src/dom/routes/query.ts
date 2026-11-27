@@ -15,6 +15,11 @@ export const EXPIRY_COPY = 'Invalid expiry_date format. Expected DDMMMYY'
 /** The routes' `except Exception` reply, which a field that is not a string reaches. */
 export const FAILED_COPY = 'An error occurred processing your request'
 
+/** int(v): an int, a float cut toward 0, a bool or a string of digits; anything else raises. */
+export const PyInt = z
+  .union([z.number(), z.boolean(), z.string().regex(/^\s*[+-]?\d+\s*$/)])
+  .transform((v) => (typeof v === 'string' ? Number.parseInt(v, 10) : Math.trunc(Number(v))))
+
 /** `data.get(name, "").strip()[:max]`. */
 const field = (max: number) =>
   z

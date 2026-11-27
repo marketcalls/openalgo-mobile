@@ -5,7 +5,9 @@ import { isRecord } from '~/core/http/errors'
 import type { DomReply, JSONValue } from '~/dom/bridge/protocol'
 import { keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type GoldenRouteF, goldenCases, goldenDeps } from '../../../test/helpers/golden'
-import { createDeviceRoutes } from './index'
+import { RouteError } from './deps'
+import { createDeviceRoutes, OiProfileQuery, oiProfile } from './index'
+import { parseBody } from './query'
 
 /** How far the flip may sit from the server's: numpy's dot and opengreeks' gamma_array sum and
  *  price in their own order, which moves the interpolated crossing in its last digits. */
@@ -65,3 +67,52 @@ test.each(CASES)(
     expect(d.misses).toEqual([])
   },
 )
+
+test.each(CASES)('$id: ivChart and oiProfile equal Python', async ({ input, expected }) => {
+  const d = goldenDeps(input)
+  const want = (name: GoldenRouteF) => {
+    const w = expected.routesF?.[name]
+    if (!w) throw new Error(`${input.case}: no ${name} golden`)
+    return w
+  }
+
+  const iv = want('get_iv_chart_data')
+  const route = createDeviceRoutes(d).find((r) => r.path === '/ivchart/api/iv-data')
+  if (!route) throw new Error('no route /ivchart/api/iv-data')
+  const got: DomReply = await route.handle(
+    {
+      v: 1,
+      kind: 'request',
+      rid: 1,
+      method: 'POST',
+      path: '/ivchart/api/iv-data',
+      body: iv.args as JSONValue,
+    },
+    new AbortController().signal,
+  )
+  expect(['get_iv_chart_data', got.status, got.body]).toEqual([
+    'get_iv_chart_data',
+    iv.status,
+    iv.body,
+  ])
+
+  // every leg's previous-day OI before the answer (preflight F conflict 20)
+  const oi = want('get_oi_profile_data')
+  let reply: { status: number; body: unknown }
+  try {
+    const q = parseBody(OiProfileQuery, oi.args)
+    reply = {
+      status: 200,
+      body: await oiProfile(q, d, { firstAnswerMs: Number.POSITIVE_INFINITY }),
+    }
+  } catch (e) {
+    if (!(e instanceof RouteError)) throw e
+    reply = { status: e.status, body: e.body }
+  }
+  expect(['get_oi_profile_data', reply.status, reply.body]).toEqual([
+    'get_oi_profile_data',
+    oi.status,
+    oi.body,
+  ])
+  expect(d.misses).toEqual([])
+})

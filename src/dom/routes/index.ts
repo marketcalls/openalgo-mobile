@@ -9,7 +9,10 @@ import { fromApiError, type Route } from '~/dom/gateway/requests'
 import { type RouteDeps, RouteError, type RouteOptions } from './deps'
 import { gammaDensity } from './gammaDensity'
 import { gexData } from './gex'
+import { intervalsReply } from './intervals'
+import { IvChartQuery, ivChart } from './ivChart'
 import { ivSmile } from './ivSmile'
+import { OiProfileQuery, oiProfile } from './oiProfile'
 import { maxPain, oiData } from './oiTracker'
 import { expiries, underlyings } from './pickers'
 import { parseBody, parseToolQuery, type ToolQuery } from './query'
@@ -20,7 +23,16 @@ import { VolSurfaceQuery, volSurface } from './volSurface'
 export { type RouteDeps, RouteError, type RouteOptions } from './deps'
 export { gammaDensity } from './gammaDensity'
 export { gexData } from './gex'
+export { IvChartQuery, type IvChartQueryOut, ivChart } from './ivChart'
 export { ivSmile } from './ivSmile'
+export {
+  OI_BACKGROUND_MS,
+  OI_FIRST_ANSWER_MS,
+  OiProfileQuery,
+  type OiProfileQueryOut,
+  oiPartialNote,
+  oiProfile,
+} from './oiProfile'
 export { maxPain, oiData } from './oiTracker'
 export { expiries, underlyings } from './pickers'
 export { parseToolQuery, type ToolQuery, ToolQuerySchema } from './query'
@@ -80,6 +92,26 @@ const TABLE: readonly { method: 'GET' | 'POST'; path: string; answer: Answer }[]
     method: 'POST',
     path: '/volsurface/api/surface-data',
     answer: (r, d, o) => volSurface(parseBody(VolSurfaceQuery, r.body), d, o),
+  },
+  {
+    method: 'POST',
+    path: '/ivchart/api/iv-data',
+    answer: (r, d, o) => ivChart(parseBody(IvChartQuery, r.body), d, o),
+  },
+  {
+    method: 'GET',
+    path: '/ivchart/api/intervals',
+    answer: (_r, d) => intervalsReply('intraday', d),
+  },
+  {
+    method: 'POST',
+    path: '/oiprofile/api/profile-data',
+    answer: (r, d, o) => oiProfile(parseBody(OiProfileQuery, r.body), d, o),
+  },
+  {
+    method: 'GET',
+    path: '/oiprofile/api/intervals',
+    answer: (_r, d) => intervalsReply('oiprofile', d),
   },
 ]
 

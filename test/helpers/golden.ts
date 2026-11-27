@@ -1,13 +1,15 @@
 // The golden cases (design 9.2): each recorded input in test/golden/inputs with what the server's
 // own Python made of it in test/golden/expected (scripts/golden/harness.py), and a fake Api that
 // answers from the recording: by request key (scripts/lib/golden-keys.mjs) for plan E's routes,
-// and for plan F's by the superset rule the harness serves the Python by. Tests only.
+// and for plan F's chains and history by the superset rule the harness serves the Python by.
+// Tests only.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { QueryClient } from '@tanstack/react-query'
 import type { z } from 'zod'
 import { type Api, type KeyedApi, stableJson } from '~/core/http/api'
 import { createServerClock } from '~/core/http/serverClock'
+import { istDate } from '~/core/realtime/marketHours'
 import type { RouteDeps, ToolProgress } from '~/dom/routes/deps'
 import type { MasterRow } from '~/market/master/db'
 import type { LegGreeks } from '~/market/options/black76'
@@ -217,13 +219,60 @@ function servedChain(input: GoldenInput, ask: Record<string, unknown>): Record<s
   return reply
 }
 
+const HISTORY_PREFIX = 'history '
+
+/** A candle's IST date: its timestamp in seconds, or in ms when over 1e12. */
+const rowDate = (row: unknown): string | null => {
+  const t = isObject(row) ? row.timestamp : undefined
+  return isNumber(t) ? istDate(t > 1e12 ? t : t * 1000) : null
+}
+
 /**
- * Plan F's fake Api: an optionchain read by the superset rule (servedChain), any other read by
- * its request key. An unrecorded read throws.
+ * The history reply for `ask` (the twin of golden-record-f.mjs servedHistory): the recorded read
+ * of the same symbol, exchange and interval (case-folded), the widest if several (the earliest
+ * start, then the latest end), cut to the rows whose IST date lies within the asked start_date
+ * and end_date, in recorded order.
+ */
+function servedHistory(input: GoldenInput, ask: Record<string, unknown>): Record<string, unknown> {
+  const fold = (v: unknown) => String(v ?? '').toLowerCase()
+  const triple = (b: Record<string, unknown>) =>
+    [b.symbol, b.exchange, b.interval].map(fold).join('\u0000')
+  const want = triple(ask)
+  let source: { start: string; end: string; reply: unknown } | null = null
+  for (const [key, reply] of Object.entries(input.responses)) {
+    if (!key.startsWith(HISTORY_PREFIX)) continue
+    const body = JSON.parse(key.slice(HISTORY_PREFIX.length)) as Record<string, unknown>
+    if (triple(body) !== want) continue
+    const start = String(body.start_date)
+    const end = String(body.end_date)
+    const wider =
+      source === null || start < source.start || (start === source.start && end > source.end)
+    if (wider) source = { start, end, reply }
+  }
+  const { start_date: start, end_date: end } = ask
+  if (source === null || typeof start !== 'string' || typeof end !== 'string') {
+    throw new Error(`golden ${input.case}: no recorded reply for history ${stableJson(ask)}`)
+  }
+  const rows = isObject(source.reply) && Array.isArray(source.reply.data) ? source.reply.data : []
+  const data = rows.filter((row: unknown) => {
+    const d = rowDate(row)
+    return d !== null && d >= start && d <= end
+  })
+  return { status: 'success', data: structuredClone(data) }
+}
+
+/**
+ * Plan F's fake Api: an optionchain or history read by the superset rule (servedChain,
+ * servedHistory), any other read by its request key. An unrecorded read throws.
  */
 export function fakeApiF(input: GoldenInput): Pick<KeyedApi, 'call' | 'get'> {
+  const served = (id: string, body: Record<string, unknown>): unknown => {
+    if (id === 'optionchain') return servedChain(input, body)
+    if (id === 'history') return servedHistory(input, body)
+    return recorded(input, id, body)
+  }
   const answer = <T>(id: string, body: Record<string, unknown>, schema: z.ZodType<T>): T =>
-    schema.parse(id === 'optionchain' ? servedChain(input, body) : recorded(input, id, body))
+    schema.parse(served(id, body))
   return {
     call: async (id, body, schema) => answer(id, body, schema),
     get: async (id, query, schema) => answer(id, query, schema),
@@ -268,7 +317,8 @@ export type GoldenDeps = RouteDeps & {
 /**
  * Plan F's routes over the recording: fakeApiF, the input's master, the server's clock at
  * serverNowMs (every chain's server_ts is that instant, preflight F conflict 8), the Greeks priced
- * on the server, the screen shown and its progress recorded.
+ * on the server, the screen shown, its progress recorded and an empty in-memory previous-day OI
+ * cache (testRouteDeps').
  */
 export function goldenDeps(input: GoldenInput): GoldenDeps {
   const fake = fakeApiF(input)

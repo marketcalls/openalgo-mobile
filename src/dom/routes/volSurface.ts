@@ -21,7 +21,7 @@ import { expiryInstantMs, optionsExchangeOf, parseOptionSymbol } from '~/market/
 import { pyRound } from '~/market/options/pyRound'
 import type { OptionChain } from '~/market/options/schemas'
 import { type RouteDeps, type RouteOptions, routeError } from './deps'
-import { PAIR_REQUIRED_COPY } from './query'
+import { PAIR_REQUIRED_COPY, PyInt } from './query'
 import { quoteExchange } from './reference'
 import { nearestStrike, optionSymbol } from './series'
 
@@ -32,11 +32,6 @@ const MIN_STRIKES = 5
 const MAX_STRIKES = 40
 /** Fewer common strikes than this and the grid is the first expiry's (:163-165). */
 const MIN_COMMON = 3
-
-/** int(v): an int, a float cut toward 0, a bool or a string of digits; anything else raises. */
-const PyInt = z
-  .union([z.number(), z.boolean(), z.string().regex(/^\s*[+-]?\d+\s*$/)])
-  .transform((v) => (typeof v === 'string' ? Number.parseInt(v, 10) : Math.trunc(Number(v))))
 
 /**
  * The route's reading of the body (vol_surface.py:40-58): `.strip()` of the underlying and the
