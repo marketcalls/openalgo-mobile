@@ -1019,7 +1019,12 @@ Users install from GitHub, so the app checks the GitHub Releases API for this re
   - The 5% growth rule per PR and the milestone rebaselines are unchanged.
 - **Strategy Builder gets its own tool DOM limit** (2026-11-27, M5). Its payoff chart (Plotly) and strategy chart (openalgo-charts) cannot fit 1,900,000 bytes, split or not.
   - Its limit is the M5 measurement plus 5%, at most 4,000,000 bytes.
-  - Strategy Portfolio gets its own entry under 1,900,000. Every other tool DOM entry keeps 1,900,000.
+  - Strategy Portfolio gets its own entry under 1,900,000. Every other tool DOM entry keeps 1,900,000, except the Plotly entries below.
   - Section 12's open time (≤ 2.5 s) is the real gate. If Strategy Builder misses it on the owner's phone, it gets the post-0.2.0 native rewrite.
+- **Tool DOM entries that load Plotly get their own limit of 2,200,000 bytes** (2026-11-27, M4).
+  - Plotly's core is about 1.02 MB. With React DOM, axios, sonner and Expo's DOM runtime, one Plotly page measures at least 1,855,816 B tree-shaken, so 1,900,000 fits only a one-page entry with about 40 KB of room. A six-way split of the option family would add about 8.9 MB of JavaScript to the APK.
+  - The option family stays one entry (OptionToolsDom) and drops the router and query providers its pages never use: 367,518 B less, 1,924,812 B in all.
+  - The Plotly entries (OptionToolsDom; in M5 SeriesToolsDom and VolSurfaceDom) each have a 2,200,000-byte limit, under the chart DOM's 2,330,000. Strategy Builder keeps its own limit; every other entry keeps 1,900,000.
+  - The 5% growth rule per PR and the milestone rebaselines are unchanged. Section 12's open time is the real gate, measured at the 0.2.0 device test.
 - **react-native-gesture-handler and react-native-reanimated are allowed** for the sheet and for gestures.
 - **The M0 device gate is replaced by the 0.2.0 device test.** The owner chose to proceed without a separate spike measurement. If a DOM page misses the section 12 bars on the owner's phone, that page gets a native rewrite after 0.2.0.
