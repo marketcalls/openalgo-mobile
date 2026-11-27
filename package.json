@@ -20,6 +20,8 @@
     "gen:frontend:check": "node scripts/gen-frontend.mjs --check",
     "sync-openalgo": "node scripts/sync-openalgo.mjs",
     "mock": "node dev/mock-server/main.mjs",
+    "record-fixtures": "node scripts/record-fixtures.mjs",
+    "gen-golden": "node scripts/gen-golden.mjs",
     "real-server-check": "jest -c jest.real.config.js --runInBand"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
-# Quality gates and builds for the app at the repo root.
-# Golden regeneration is added in M4 and TestFlight in M6.
+# Quality gates and builds for the app at the repo root, and the golden regeneration when
+# openalgo.ref changes. TestFlight is added in M6.
 name: CI
 
 on:
@@ -122,6 +122,79 @@ jobs:
       - name: Key scan (exported bundles)
         # gitleaks' key rule needs "apikey" and a separator; Hermes stores strings back to back.
         run: node scripts/check-bundle-keys.mjs dist-export
+
+  golden:
+    name: Golden regeneration
+    # design 9.3: a pull request that moves openalgo.ref regenerates test/golden/expected from
+    # the committed inputs with the server's own Python, and must commit the result. A manual
+    # run always regenerates. The upload is the regenerated set, to review or commit.
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Did openalgo.ref change?
+        id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ] || git diff --name-only "origin/$BASE...HEAD" | grep -qx 'openalgo.ref'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "openalgo.ref is unchanged: the committed goldens stand"
+          fi
+
+      - name: Read the pinned openalgo commit
+        id: ref
+        if: steps.changed.outputs.run == 'true'
+        run: echo "sha=$(tr -d '[:space:]' < openalgo.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out openalgo (the whole server)
+        if: steps.changed.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: marketcalls/openalgo
+          ref: ${{ steps.ref.outputs.sha }}
+          path: openalgo-server
+          persist-credentials: false
+
+      - name: Set up Node
+        if: steps.changed.outputs.run == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install uv
+        if: steps.changed.outputs.run == 'true'
+        run: pipx install uv==0.11.3
+
+      - name: Regenerate the goldens
+        # uv syncs the server's own uv.lock and runs scripts/golden/harness.py on CPython 3.12
+        if: steps.changed.outputs.run == 'true'
+        run: node scripts/gen-golden.mjs --server openalgo-server
+
+      - name: The committed goldens match the pinned server
+        if: steps.changed.outputs.run == 'true'
+        run: |
+          # a new expected file counts as a change too
+          git add --intent-to-add test/golden/expected
+          git diff --exit-code test/golden/expected
+
+      - name: Upload the regenerated goldens
+        if: ${{ !cancelled() && steps.changed.outputs.run == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: golden-expected
+          path: test/golden/expected
+          if-no-files-found: error
+          retention-days: 14
 
   android:
     name: Android APK

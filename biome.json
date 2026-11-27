@@ -10,6 +10,7 @@
       "!assets/brand/openalgo-logo.svg",
       "!spike",
       "!test/fixtures",
+      "!test/golden",
       "!openalgo",
       "!.superpowers",
       "!docs",

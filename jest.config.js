@@ -44,6 +44,9 @@ module.exports = {
       resolver: 'react-native-reanimated/jest/resolver',
       setupFiles: ['<rootDir>/jest.setup.ts'],
       moduleNameMapper,
+      // Scratch space: the golden pipeline's server and its Python environment, whose
+      // package.json files collide in the haste map (scripts/gen-golden.mjs).
+      modulePathIgnorePatterns: ['<rootDir>/.cache/'],
       testPathIgnorePatterns: [
         '/node_modules/',
         '<rootDir>/openalgo/',
