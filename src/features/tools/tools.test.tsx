@@ -39,7 +39,7 @@ import type {
 import { CANCELLED_COPY } from '~/dom/gateway/heldWrites'
 import { MAX_DOM_INFLIGHT } from '~/dom/gateway/requests'
 import { brokerCaps } from '~/market/brokers/seed'
-import { CHECKING } from '~/market/orders/outcome'
+import { CHECKING, NOT_CHECKED } from '~/market/orders/outcome'
 import { holdOrder, otherOrderOut } from '~/market/orders/pending'
 import { LIVE_SURPRISE } from '~/market/orders/submit'
 import { HOLD_COPY } from '~/market/orders/useHoldSheet'
@@ -264,7 +264,10 @@ let delivered: NativeToDom[] = []
 let insets = { top: 0, bottom: 0, left: 0, right: 0 }
 
 /** The real container over a scripted server; `caps` replaces the stored capabilities. */
-async function setup(routes: Record<string, Route> = {}, o: { caps?: Capabilities } = {}) {
+async function setup(
+  routes: Record<string, Route> = {},
+  o: { caps?: Capabilities; appLock?: boolean } = {},
+) {
   fetchFake = scriptedFetch({ ...BASE_ROUTES, ...routes })
   signals = []
   const fetchSpy = ((input: RequestInfo | URL, init?: RequestInit) => {
@@ -286,7 +289,8 @@ async function setup(routes: Record<string, Route> = {}, o: { caps?: Capabilitie
     uuid: () => 'u',
     allowDevHosts: false,
     lock: {
-      settings: () => ({ enabled: false, lockAfterMs: 60_000 }),
+      // with appLock, every return from the background locks
+      settings: () => ({ enabled: o.appLock ?? false, lockAfterMs: o.appLock ? 0 : 60_000 }),
       authenticate: async () => true,
       available: async () => true,
       confirm: async () => 'ok',
@@ -1440,6 +1444,35 @@ describe('held order review', () => {
     expect(r.reply?.status).toBe(200)
   })
 
+  test('on Android the review hides while the app is locked and comes back as it was; a back on the cover cancels nothing', async () => {
+    // an Android Modal is a window above the lock cover: its Place button would sit over "locked"
+    jest.replaceProperty(Platform, 'OS', 'android')
+    const s = await setup({}, { appLock: true })
+    await openReady()
+    const r = await placeorder()
+    await pass(200)
+    expect(screen.getByTestId('tool-held-sheet')).toBeTruthy()
+    await act(async () => {
+      s.lock.handleAppState('background')
+      s.lock.handleAppState('active')
+    })
+    await pass(20)
+    expect(s.lock.isLocked()).toBe(true)
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    expect(screen.queryByTestId('tool-held-confirm')).toBeNull()
+    expect(await hardwareBack()).toBe(true)
+    expect(r.reply).toBeNull()
+    await act(async () => {
+      await s.lock.unlock()
+    })
+    await pass(200)
+    expect(screen.getByTestId('tool-held-sheet')).toBeTruthy()
+    expect(r.reply).toBeNull()
+    await press('tool-held-confirm')
+    await pass(50)
+    expect(requests('placeorder')).toHaveLength(1)
+  })
+
   test('held placeorder in LIVE with confirmLiveWrites asks biometrics; declined answers cancelled', async () => {
     usePrefs.setState({ confirmLiveWrites: true })
     auth.getEnrolledLevelAsync.mockResolvedValue(3)
@@ -1552,6 +1585,56 @@ describe('held order review', () => {
     expect(screen.queryByTestId('tool-held-confirm')).toBeNull()
     await press('tool-held-orderbook')
     expect(mockRouter.dismissTo).toHaveBeenCalledWith('/orders?segment=all')
+  })
+
+  test('a throw while a sent order is handled still answers the page and frees the sheet; nothing is sent again', async () => {
+    await setup({
+      'POST /api/v1/placeorder': () => new Promise<ScriptedReply>(() => {}),
+      'POST /api/v1/orderbook': () => book([]),
+    })
+    // a bug on the unknown-outcome path, after the send began and before the page was answered
+    jest.spyOn(haptics, 'notifyWarning').mockImplementationOnce(() => {
+      throw new Error('boom')
+    })
+    const warned = expectLog('warn', /\[tool\] held order: boom$/)
+    await openReady()
+    const r = await placeorder()
+    await pass(200)
+    await press('tool-held-confirm')
+    await pass(15_100)
+    expect(warned).toHaveLength(1)
+    // it may have gone: the page hears so, and the sheet says to check the order book
+    expect(r.reply).toEqual({ status: 502, body: { status: 'error', message: CHECKING } })
+    expect(text('tool-held-result')).toBe(NOT_CHECKED)
+    expect(screen.getByTestId('tool-held-orderbook')).toBeTruthy()
+    await press('tool-held-done')
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    await pass(130_000)
+    expect(requests('placeorder')).toHaveLength(1)
+  })
+
+  test('a throw after the page was answered frees the sheet and never answers twice', async () => {
+    const place = gate()
+    await setup({ 'POST /api/v1/placeorder': place.route })
+    jest.spyOn(haptics, 'notifySuccess').mockImplementationOnce(() => {
+      throw new Error('boom')
+    })
+    const warned = expectLog('warn', /\[tool\] held order: boom$/)
+    await openReady()
+    const r = await placeorder()
+    await pass(200)
+    await press('tool-held-confirm')
+    await act(async () => place.open(PLACED))
+    await pass(50)
+    expect(warned).toHaveLength(1)
+    expect(r.reply).toEqual({
+      status: 200,
+      body: { status: 'success', orderid: '250408000989443' },
+    })
+    expect(disabled('tool-held-done')).toBe(false)
+    await press('tool-held-done')
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    expect(requests('placeorder')).toHaveLength(1)
   })
 
   test('liveSurprise shows LIVE_SURPRISE; semi_auto_blocked answers 403 with its message', async () => {

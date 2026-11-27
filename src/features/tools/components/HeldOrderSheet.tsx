@@ -12,11 +12,20 @@
 // - The page's next orders wait in the gateway, first in, first out; the sheet says how many
 //   (`tool-held-queue`) and shows the next once this one is done with, each with its own review.
 import { type Href, useRouter } from 'expo-router'
-import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BackHandler, ScrollView, StyleSheet, View } from 'react-native'
+import {
+  type JSX,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
+import { BackHandler, Platform, ScrollView, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useStore } from 'zustand'
 import { ApiError } from '~/core/http/errors'
+import { log } from '~/core/log/logger'
 import { notifyError, notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { qk } from '~/core/query/keys'
 import { useServices } from '~/core/services/services'
@@ -32,7 +41,7 @@ import { useInstrument } from '~/market/instruments/useInstrument'
 import { ordersHref } from '~/market/links'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
 import { confirmLiveOrder } from '~/market/orders/confirmLive'
-import { CHECKING, modeChanged, orderTerms } from '~/market/orders/outcome'
+import { CHECKING, modeChanged, NOT_CHECKED, orderTerms } from '~/market/orders/outcome'
 import {
   placementOutcome,
   type Reconcile,
@@ -79,6 +88,9 @@ type Step =
   | { kind: 'surprise' }
   /** It may have gone: the order book is being read (`check` null) or has been. */
   | { kind: 'maybe'; check: Reconcile | null; waitSec?: number }
+
+/** The order book was never read for it: "Couldn't check the order book" (reconcileText). */
+const UNCHECKED: Reconcile = { kind: 'single', checked: false, status: null, earlier: false }
 
 const orderIds = (b: Orderbook | undefined): string[] => b?.orders.map((o) => o.orderid) ?? []
 
@@ -180,6 +192,13 @@ function HeldReview({
   const [step, setStep] = useState<Step>({ kind: 'review', mode: null })
   const stillHeld = useRef(live)
   stillHeld.current = live
+  // Android draws a Modal in a window of its own, above the app's lock cover (LockOverlay.tsx;
+  // iOS puts the cover above every window): while the app is locked the review is not shown, and
+  // it comes back as it was once unlocked. A confirm never goes while locked, on any platform.
+  const locked = useSyncExternalStore(s.lock.subscribe, s.lock.isLocked)
+  const hidden = locked && Platform.OS === 'android'
+  const hiddenRef = useRef(hidden)
+  hiddenRef.current = hidden
 
   const readFresh = useFreshBook()
   const pid = s.profile.get().id
@@ -220,7 +239,12 @@ function HeldReview({
     if (!live && step.kind === 'review') onDone()
   }, [live, step.kind, onDone])
 
-  const answer = (reply: DomReply) => held.settle(write.id, reply)
+  /** Whether this write has been answered: an unexpected throw never answers it twice. */
+  const answered = useRef(false)
+  const answer = (reply: DomReply) => {
+    answered.current = true
+    held.settle(write.id, reply)
+  }
 
   /** Backdrop, Android back and Cancel: a review is cancelled; an outcome on show is put away. */
   const close = () => {
@@ -234,7 +258,8 @@ function HeldReview({
   // its way the sheet's hold takes it (useHoldSheet).
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      closeRef.current()
+      // a back on the lock cover never cancels a review nobody can see
+      if (!hiddenRef.current) closeRef.current()
       return true
     })
     return () => sub.remove()
@@ -245,138 +270,164 @@ function HeldReview({
     router.dismissTo(ordersHref({ segment: 'all' }) as Href)
   }
 
+  /**
+   * Something threw while the order was handled (a bug, never an outcome): the page is answered
+   * and the sheet can go, so neither waits for ever. Before the send began nothing went; after,
+   * it may have, so the page hears that, nothing is sent again, and the order book tells.
+   */
+  const afterThrow = (begun: boolean, e: unknown) => {
+    log.warn('tool', `held order: ${e instanceof Error ? e.message : String(e)}`)
+    notifyError()
+    if (!begun) {
+      if (!answered.current) answer(CANCELLED)
+      shell.onSheet(onDone, NOT_SENT)
+      return
+    }
+    if (!answered.current) answer({ status: 502, body: { status: 'error', message: CHECKING } })
+    shell.onSheet(() => setStep({ kind: 'maybe', check: UNCHECKED }), NOT_CHECKED)
+  }
+
   const confirm = (shownMode: AnalyzerMode) =>
     shell.confirm(
-      () => stillHeld.current,
+      () => stillHeld.current && !s.lock.isLocked(),
       async () => {
-        setStep({ kind: 'sending', mode: shownMode })
-        // `send` takes the snapshot just before the request; until then nothing is known.
-        const sent: Sent = { at: Date.now(), knownIds: new Set(), complete: false }
-        const send = () => {
-          if (!held.begin(write.id)) throw NOT_HELD
-          Object.assign(sent, book.snapshot(), { at: Date.now() })
-          return s.api.call('placeorder', order, PlaceReplySchema)
-        }
-        const out = await submitOrderAction({
-          kind: 'place',
-          shownMode,
-          send,
-          gate: trading.analyzer,
-          confirmLive: confirmLiveOrder,
-          books: s.books,
-        })
-        if (out.kind === 'error' && out.error === NOT_HELD) {
-          // the page was answered "cancelled" when it gave up
-          shell.onSheet(() => {
-            toast(WITHDRAWN)
-            onDone()
-          }, WITHDRAWN)
-          return
-        }
-        if (
-          out.kind === 'error' &&
-          !(out.error.kind === 'Server' && out.error.endpoint === 'placeorder')
-        ) {
-          // refused, or the mode could not be read: its status and the app's words for it
-          notifyError()
-          const reply = fromApiError(out.error)
-          answer(reply)
-          shell.onSheet(onDone, String((reply.body as { message: string }).message))
-          return
-        }
-        const r = placementOutcome(out, {
-          plan: planOf(order),
-          sent,
-          // Each check read goes out after the order, never joined to one sent before it.
-          fetchOrders: () => trading.orders.orderbook({ fresh: true }),
-        })
-        switch (r.kind) {
-          case 'result': {
-            const res = r.result
-            if (res.kind === 'queued') {
-              // the server's own queued reply (order_router_service.py queue_order)
-              const pendingId =
-                out.kind === 'done' && out.reply.kind === 'queued' ? out.reply.pendingId : ''
-              notifySuccess()
-              answer({
-                status: 200,
-                body: {
-                  status: 'success',
-                  mode: 'semi_auto',
-                  pending_order_id: pendingId,
-                  message: QUEUED_COPY,
-                },
-              })
-              shell.onSheet(onDone, resultLine(res))
-              return
-            }
-            // a placeorder reply is never a split's (PlaceReplySchema)
-            if (res.kind !== 'placed') return
-            answer({ status: 200, body: { status: 'success', orderid: res.orderid } })
-            // Ruling 12 and T11: the app's own order, so its event should follow.
-            if (isEvented()) trading.eventWatch.expect(res.orderid)
-            if (res.liveSurprise) {
-              // The review showed ANALYZE, but the server placed it LIVE: never a success.
-              notifyError()
-              shell.onSheet(() => setStep({ kind: 'surprise' }), resultLine(res))
-              return
-            }
-            notifySuccess()
-            shell.onSheet(onDone, resultLine(res))
-            return
-          }
-          case 'unknown':
-            // It may have gone: the order book says what happened. Nothing is sent again. The
-            // check runs to its end even when the sheet has closed, and then shows as a toast.
-            notifyWarning()
-            answer({ status: 502, body: { status: 'error', message: CHECKING } })
-            shell.checking()
-            shell.onSheet(
-              () => setStep({ kind: 'maybe', check: null, waitSec: r.waitSec }),
-              CHECKING,
-            )
-            {
-              const check = await r.check()
-              shell.onSheet(
-                () => setStep({ kind: 'maybe', check }),
-                resultLine({ kind: 'maybe', check }),
-              )
-            }
-            return
-          case 'semi_auto_blocked':
-            notifyError()
-            answer({ status: 403, body: { status: 'error', message: r.message } })
-            shell.onSheet(onDone, r.message)
-            return
-          case 'mode_changed':
-            // Nothing went: the review shows again in the new mode, and reads its book.
-            shell.modeChanged(
-              r.now,
-              () => setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) }),
-              NOT_SENT,
-            )
-            return
-          case 'cancelled':
-            if (r.message !== undefined) {
-              // the live check failed rather than the trader: the review stays, to try again
-              shell.onSheet(
-                () => setStep({ kind: 'review', mode: shownMode, notice: r.message }),
-                NOT_SENT,
-              )
-              return
-            }
-            answer(CANCELLED)
-            shell.onSheet(onDone, NOT_SENT)
-            return
-          case 'refused':
-            // a refusal placementOutcome made of an error; errors are answered above
-            notifyError()
-            answer({ status: 400, body: { status: 'error', message: r.message } })
-            shell.onSheet(onDone, r.message)
-            return
+        let begun = false
+        try {
+          await sendHeld(shownMode, () => {
+            begun = true
+          })
+        } catch (e) {
+          afterThrow(begun, e)
         }
       },
     )
+
+  const sendHeld = async (shownMode: AnalyzerMode, onBegun: () => void) => {
+    setStep({ kind: 'sending', mode: shownMode })
+    // `send` takes the snapshot just before the request; until then nothing is known.
+    const sent: Sent = { at: Date.now(), knownIds: new Set(), complete: false }
+    const send = () => {
+      if (!held.begin(write.id)) throw NOT_HELD
+      onBegun()
+      Object.assign(sent, book.snapshot(), { at: Date.now() })
+      return s.api.call('placeorder', order, PlaceReplySchema)
+    }
+    const out = await submitOrderAction({
+      kind: 'place',
+      shownMode,
+      send,
+      gate: trading.analyzer,
+      confirmLive: confirmLiveOrder,
+      books: s.books,
+    })
+    if (out.kind === 'error' && out.error === NOT_HELD) {
+      // the page was answered "cancelled" when it gave up
+      shell.onSheet(() => {
+        toast(WITHDRAWN)
+        onDone()
+      }, WITHDRAWN)
+      return
+    }
+    if (
+      out.kind === 'error' &&
+      !(out.error.kind === 'Server' && out.error.endpoint === 'placeorder')
+    ) {
+      // refused, or the mode could not be read: its status and the app's words for it
+      notifyError()
+      const reply = fromApiError(out.error)
+      answer(reply)
+      shell.onSheet(onDone, String((reply.body as { message: string }).message))
+      return
+    }
+    const r = placementOutcome(out, {
+      plan: planOf(order),
+      sent,
+      // Each check read goes out after the order, never joined to one sent before it.
+      fetchOrders: () => trading.orders.orderbook({ fresh: true }),
+    })
+    switch (r.kind) {
+      case 'result': {
+        const res = r.result
+        if (res.kind === 'queued') {
+          // the server's own queued reply (order_router_service.py queue_order)
+          const pendingId =
+            out.kind === 'done' && out.reply.kind === 'queued' ? out.reply.pendingId : ''
+          notifySuccess()
+          answer({
+            status: 200,
+            body: {
+              status: 'success',
+              mode: 'semi_auto',
+              pending_order_id: pendingId,
+              message: QUEUED_COPY,
+            },
+          })
+          shell.onSheet(onDone, resultLine(res))
+          return
+        }
+        // a placeorder reply is never a split's (PlaceReplySchema): afterThrow, if it were
+        if (res.kind !== 'placed') throw new Error(`a placeorder outcome of kind ${res.kind}`)
+        answer({ status: 200, body: { status: 'success', orderid: res.orderid } })
+        // Ruling 12 and T11: the app's own order, so its event should follow.
+        if (isEvented()) trading.eventWatch.expect(res.orderid)
+        if (res.liveSurprise) {
+          // The review showed ANALYZE, but the server placed it LIVE: never a success.
+          notifyError()
+          shell.onSheet(() => setStep({ kind: 'surprise' }), resultLine(res))
+          return
+        }
+        notifySuccess()
+        shell.onSheet(onDone, resultLine(res))
+        return
+      }
+      case 'unknown':
+        // It may have gone: the order book says what happened. Nothing is sent again. The
+        // check runs to its end even when the sheet has closed, and then shows as a toast.
+        notifyWarning()
+        answer({ status: 502, body: { status: 'error', message: CHECKING } })
+        shell.checking()
+        shell.onSheet(() => setStep({ kind: 'maybe', check: null, waitSec: r.waitSec }), CHECKING)
+        {
+          const check = await r.check()
+          shell.onSheet(
+            () => setStep({ kind: 'maybe', check }),
+            resultLine({ kind: 'maybe', check }),
+          )
+        }
+        return
+      case 'semi_auto_blocked':
+        notifyError()
+        answer({ status: 403, body: { status: 'error', message: r.message } })
+        shell.onSheet(onDone, r.message)
+        return
+      case 'mode_changed':
+        // Nothing went: the review shows again in the new mode, and reads its book.
+        shell.modeChanged(
+          r.now,
+          () => setStep({ kind: 'review', mode: r.now, notice: modeChanged(r.now) }),
+          NOT_SENT,
+        )
+        return
+      case 'cancelled':
+        if (r.message !== undefined) {
+          // the live check failed rather than the trader: the review stays, to try again
+          shell.onSheet(
+            () => setStep({ kind: 'review', mode: shownMode, notice: r.message }),
+            NOT_SENT,
+          )
+          return
+        }
+        answer(CANCELLED)
+        shell.onSheet(onDone, NOT_SENT)
+        return
+      case 'refused':
+        // a refusal placementOutcome made of an error; errors are answered above
+        notifyError()
+        answer({ status: 400, body: { status: 'error', message: r.message } })
+        shell.onSheet(onDone, r.message)
+        return
+    }
+  }
 
   const title = toolOf(write.page)?.title ?? write.page
   const sideColor = order.action === 'BUY' ? trade.buy : trade.sell
@@ -412,7 +463,7 @@ function HeldReview({
   )
 
   return (
-    <Sheet visible onClose={close} dismissible={!sending}>
+    <Sheet visible={!hidden} onClose={close} dismissible={!sending}>
       <View testID="tool-held-sheet" style={styles.sheet}>
         <ScrollView testID="tool-held-scroll" contentContainerStyle={styles.body}>
           {reviewing ? (
