@@ -16,7 +16,7 @@ import type { CustomStraddleResponse, PnLDataPoint, TradeEntry } from '@/api/cus
 import { toDdmmmyy } from '~/market/options/expiry'
 import { pyRound } from '~/market/options/pyRound'
 import { type RouteDeps, type RouteOptions, routeError } from './deps'
-import { PyInt, ToolQuerySchema } from './query'
+import { PresentQuerySchema, PyInt } from './query'
 import { istDay } from './series'
 import {
   type AtmData,
@@ -38,11 +38,12 @@ const SIMULATE_COPY: StraddleCopy = {
 const LOT_REQUIRED_COPY = 'underlying and exchange required'
 
 /**
- * The simulation's body (custom_straddle.py:44-62): the tool query, the interval and days (1 when
- * none is sent), and int() of adjustment_points (50), lot_size (65) and lots (1); then, after the
- * required fields, adjustment_points must be 1 or more, and so must lot_size and lots.
+ * The simulation's body (custom_straddle.py:44-62): the three fields read for presence only (no
+ * pattern, so M&M and BAJAJ-AUTO are simulated), the interval and days (1 when none is sent), and
+ * int() of adjustment_points (50), lot_size (65) and lots (1); then, after the required fields,
+ * adjustment_points must be 1 or more, and so must lot_size and lots.
  */
-export const SimulateQuery = ToolQuerySchema.and(
+export const SimulateQuery = PresentQuerySchema.and(
   z
     .object({
       ...seriesFields(1),

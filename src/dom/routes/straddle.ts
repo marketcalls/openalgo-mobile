@@ -22,7 +22,7 @@ import { fetchHistoryBatch, type HistoryRequest, type HistoryResult } from '~/ma
 import { expiryInstantMs, optionsExchangeOf } from '~/market/options/expiry'
 import { pyRound } from '~/market/options/pyRound'
 import { type RouteDeps, type RouteOptions, routeError } from './deps'
-import { PyInt, type ToolQuery, ToolQuerySchema } from './query'
+import { PresentQuerySchema, PyInt, type ToolQuery } from './query'
 import { quoteExchange, resolveReference } from './reference'
 import {
   capLastNDates,
@@ -55,8 +55,11 @@ export const seriesFields = (defaultDays: number) => ({
   days: PyInt.default(defaultDays).transform((n) => Math.min(Math.max(n, MIN_DAYS), MAX_DAYS)),
 })
 
-/** The chart's body: the tool query, the interval and days (5 when none is sent). */
-export const StraddleQuery = ToolQuerySchema.and(z.object(seriesFields(5)))
+/**
+ * The chart's body: the three fields read for presence only (no pattern, so M&M and BAJAJ-AUTO
+ * are charted), the interval and days (5 when none is sent).
+ */
+export const StraddleQuery = PresentQuerySchema.and(z.object(seriesFields(5)))
 
 export type StraddleQueryOut = z.output<typeof StraddleQuery>
 

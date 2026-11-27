@@ -12,7 +12,7 @@ import { chainReply } from '../../../test/helpers/chains'
 import { keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type RouteDepsOverrides, testRouteDeps } from '../../../test/helpers/routeDeps'
 import { createDeviceRoutes } from './index'
-import { FAILED_COPY } from './query'
+import { FAILED_COPY, REQUIRED_COPY } from './query'
 import { daysToExpiry, strikeLadder } from './straddle'
 
 const IST_OFFSET_MS = 330 * 60_000
@@ -42,12 +42,13 @@ const rowsOf = (candles: readonly Candle[]) =>
  * A fake server: the reference's candles, each option's (by symbol; none for any other), the
  * reference's quote, and the broker's intervals; `ref` an ApiError to fail the reference read, or
  * 'nan' for candles whose close is not a number (no schema lets one through: the fake hands them
- * over unparsed).
+ * over unparsed). `refSymbol` is the reference's symbol (NIFTY, or any future).
  */
 function server(o: {
   ref: readonly Candle[] | ApiError | 'nan'
   legs?: Record<string, readonly Candle[]>
   ltp?: number | ApiError
+  refSymbol?: string
 }) {
   const sent: { id: string; body: Body }[] = []
   const api: Pick<Api, 'call'> = {
@@ -62,7 +63,7 @@ function server(o: {
       }
       if (id === 'history') {
         const symbol = String(body.symbol)
-        if (symbol === 'NIFTY' || symbol.endsWith('FUT')) {
+        if (symbol === (o.refSymbol ?? 'NIFTY') || symbol.endsWith('FUT')) {
           if (o.ref instanceof ApiError) throw o.ref
           if (o.ref === 'nan') {
             const close = Number.NaN
@@ -649,6 +650,32 @@ describe('no strikes, or an empty reference history, give the server messages an
     expect(s.sent.map((x) => x.id)).toEqual(['intervals', 'intervals'])
   })
 
+  test('the bodies are read for presence only: trimmed, never cut, matched or held to DDMMMYY', async () => {
+    // straddle_chart.py:42-51 and custom_straddle.py:44-56: `.strip()`, then the three required
+    const s = server({ ref: REF })
+    const strikes = jest.fn(async () => [] as number[])
+    const body = {
+      underlying: ' bajaj-auto ',
+      exchange: 'nfo',
+      expiry_date: ' 01-Dec-2026 ',
+      interval: '1m',
+    }
+    expect(await both(s, { master: { strikes } }, body)).toEqual([
+      error(404, 'No strikes found for BAJAJ-AUTO 01-Dec-2026 on NFO'),
+      error(404, 'No strikes found for BAJAJ-AUTO 01-Dec-2026 on NFO'),
+    ])
+    expect(strikes.mock.calls).toEqual([
+      ['NFO', 'BAJAJ-AUTO', '01-DEC-2026', 'CE'],
+      ['NFO', 'BAJAJ-AUTO', '01-DEC-2026', 'CE'],
+    ])
+    // a field of spaces only is missing
+    expect(await both(s, {}, { ...QUERY, underlying: '   ' })).toEqual([
+      error(400, REQUIRED_COPY),
+      error(400, REQUIRED_COPY),
+    ])
+    expect(s.history()).toEqual([])
+  })
+
   test('days: 5 for the chart and 1 for the simulation when none is sent, kept within 1 to 30', async () => {
     const starts = async (path: string, body: Body) => {
       const s = server({ ref: [] })
@@ -661,6 +688,99 @@ describe('no strikes, or an empty reference history, give the server messages an
     expect(await starts(CHART, { ...QUERY, days: 99 })).toBe('2026-08-27')
     expect(await starts(SIMULATE, { ...QUERY, days: '0' })).toBe('2026-11-22')
   })
+})
+
+test('a stock whose F&O symbols keep & (M&M) is charted and simulated, as the server answers it', async () => {
+  // the routes check presence only (straddle_chart.py:42-51, custom_straddle.py:44-56), and the
+  // options are M&M01DEC26…CE as construct_option_symbol builds them
+  const fri = (m: number) => istSec('2026-11-27', `09:${15 + m}`)
+  const s = server({
+    refSymbol: 'M&M',
+    ref: [
+      [fri(0), 3_040],
+      [fri(1), 3_060],
+    ],
+    legs: {
+      [`M&M${EXPIRY}3050CE`]: [
+        [fri(0), 40],
+        [fri(1), 35],
+      ],
+      [`M&M${EXPIRY}3050PE`]: [
+        [fri(0), 30],
+        [fri(1), 28],
+      ],
+    },
+  })
+  const strikes = jest.fn(async () => [3_000, 3_050, 3_100])
+  const r = routes(s.api, { master: { strikes } })
+  const body = { underlying: 'M&M', exchange: 'NFO', expiry_date: EXPIRY, interval: '1m', days: 1 }
+  /** Each history read as symbol@exchange: the reference's first, then the options' sorted. */
+  const reads = () =>
+    readSymbols(s.history().map((h) => ({ ...h, symbol: `${h.symbol}@${h.exchange}` })))
+  const expectedReads = ['M&M@NSE', `M&M${EXPIRY}3050CE@NFO`, `M&M${EXPIRY}3050PE@NFO`]
+
+  expect(await r.post(CHART, body)).toEqual({
+    status: 200,
+    body: {
+      status: 'success',
+      data: {
+        underlying: 'M&M',
+        underlying_ltp: LTP,
+        expiry_date: EXPIRY,
+        interval: '1m',
+        days_to_expiry: 3,
+        series: [
+          {
+            time: fri(0),
+            spot: 3_040,
+            atm_strike: 3_050,
+            ce_price: 40,
+            pe_price: 30,
+            straddle: 70,
+            synthetic_future: 3_060,
+          },
+          {
+            time: fri(1),
+            spot: 3_060,
+            atm_strike: 3_050,
+            ce_price: 35,
+            pe_price: 28,
+            straddle: 63,
+            synthetic_future: 3_057,
+          },
+        ],
+      },
+    },
+  })
+  expect(reads()).toEqual(expectedReads)
+
+  s.sent.length = 0
+  expect(await r.post(SIMULATE, { ...body, lot_size: 700 })).toMatchObject({
+    status: 200,
+    body: {
+      status: 'success',
+      data: {
+        underlying: 'M&M',
+        expiry_date: EXPIRY,
+        quantity: 700,
+        trades: [
+          { time: fri(0), type: 'ENTRY', strike: 3_050, straddle: 70 },
+          // ((40 - 35) + (30 - 28)) × 700
+          { time: fri(1), type: 'EXIT', strike: 3_050, straddle: 63, leg_pnl: 4_900 },
+        ],
+        summary: { total_pnl: 4_900, total_adjustments: 0 },
+      },
+    },
+  })
+  expect(reads()).toEqual(expectedReads)
+  // the master's M&M calls for each route, and the stock's quote on NSE
+  expect(strikes.mock.calls).toEqual([
+    ['NFO', 'M&M', EXPIRY, 'CE'],
+    ['NFO', 'M&M', EXPIRY, 'CE'],
+  ])
+  expect(s.sent.filter((x) => x.id === 'quotes').map((x) => x.body)).toEqual([
+    { symbol: 'M&M', exchange: 'NSE' },
+  ])
 })
 
 test('a page that aborts while the strikes are read gets no reply and no older date is read', async () => {

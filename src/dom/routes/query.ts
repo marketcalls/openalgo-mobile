@@ -49,6 +49,27 @@ export const ToolQuerySchema = z
 
 export type ToolQuery = z.output<typeof ToolQuerySchema>
 
+/** `data.get(name, "").strip()`, uncut. */
+const trimmed = () =>
+  z
+    .string()
+    .default('')
+    .transform((s) => s.trim())
+
+/**
+ * A tool query read for presence only, as the straddle routes read it (straddle_chart.py:42-51,
+ * custom_straddle.py:44-56 at c8b2896): each field trimmed, none cut, matched or held to DDMMMYY,
+ * so a stock whose F&O symbols keep & or - (M&M, BAJAJ-AUTO) is answered as the server answers
+ * it. The one refusal is REQUIRED_COPY; a field that is not a string fails as a type.
+ */
+export const PresentQuerySchema = z
+  .object({ underlying: trimmed(), exchange: trimmed(), expiry_date: trimmed() })
+  .superRefine((q, ctx) => {
+    if (!q.underlying || !q.exchange || !q.expiry_date) {
+      ctx.addIssue({ code: 'custom', message: REQUIRED_COPY })
+    }
+  })
+
 /**
  * The page's body read by `schema`, or the web route's refusal: 400 with the message of the
  * check it failed (a custom issue), or 500 for a value the route's own reading raises on (any
