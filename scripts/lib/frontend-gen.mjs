@@ -61,10 +61,10 @@ export function parseExchanges(src) {
   return { underlyings, fallback }
 }
 
-// broker/<name>/plugin.json for each broker folder (python package files are skipped).
+// broker/<name>/plugin.json for each broker folder (python package files, __pycache__ and dot folders are skipped; underscores are kept: dhan_sandbox).
 export function parseBrokers(names, readPlugin) {
   const out = {}
-  for (const name of names.filter((n) => /^[a-z][a-z0-9]*$/.test(n))) {
+  for (const name of names.filter((n) => /^[a-z][a-z0-9_]*$/.test(n))) {
     const j = JSON.parse(readPlugin(name))
     if (!Array.isArray(j.supported_exchanges) || j.supported_exchanges.length === 0) {
       throw new Error(`broker/${name}/plugin.json: supported_exchanges is missing`)

@@ -76,6 +76,24 @@ test('zerodha lists NSE … GLOBAL_INDEX and is IN_stock', () => {
   assert.equal(brokers.zerodha.exchanges.at(-1), 'GLOBAL_INDEX')
   assert.ok(Object.values(brokers).some((b) => b.type === 'crypto'))
   assert.equal(brokers.__init__, undefined)
+  assert.equal(brokers.__pycache__, undefined)
+  assert.ok(brokers.dhan_sandbox, 'dhan_sandbox (underscore folder) is a real broker')
+})
+
+test('every broker folder with a plugin.json at the ref is in BROKERS', () => {
+  const names = listOpenalgoDir('broker', { repoRoot: root })
+  const brokers = parseBrokers(names, (n) => read(`broker/${n}/plugin.json`))
+  const withPlugin = names.filter((n) => {
+    if (n === '__pycache__') return false
+    try {
+      read(`broker/${n}/plugin.json`)
+      return true
+    } catch {
+      return false
+    }
+  })
+  assert.ok(withPlugin.length > 0)
+  assert.deepEqual(Object.keys(brokers).sort(), withPlugin.sort())
 })
 
 test('a plugin.json without exchanges fails loudly', () => {

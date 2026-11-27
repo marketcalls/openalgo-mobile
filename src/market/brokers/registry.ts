@@ -37,6 +37,11 @@ export const BROKERS: Readonly<
     exchanges: ['NSE', 'BSE', 'NFO', 'BFO', 'CDS', 'BCD', 'MCX', 'NSE_INDEX', 'BSE_INDEX'],
     leverage: false,
   },
+  dhan_sandbox: {
+    type: 'IN_stock',
+    exchanges: ['NSE', 'BSE', 'NFO', 'BFO', 'CDS', 'BCD', 'MCX', 'NSE_INDEX', 'BSE_INDEX'],
+    leverage: false,
+  },
   firstock: {
     type: 'IN_stock',
     exchanges: ['NSE', 'BSE', 'NFO', 'BFO', 'NSE_INDEX'],
