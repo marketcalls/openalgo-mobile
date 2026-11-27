@@ -3,9 +3,9 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-
 import { Alert, type AlertButton, Linking } from 'react-native'
 import type { Capabilities } from '~/core/capabilities/gates'
 import { usePrefs } from '~/core/config/prefs'
-import * as haptics from '~/core/platform/haptics'
 import { createProfileRepo, type ServerProfile } from '~/core/config/profile'
 import { ENDPOINTS } from '~/core/http/endpoints'
+import * as haptics from '~/core/platform/haptics'
 import { useConnection } from '~/core/services/connection'
 import {
   type AppDeps,
@@ -15,11 +15,11 @@ import {
   ServicesProvider,
 } from '~/core/services/services'
 import type { ChartIntent, ChartMeta, Inst } from '~/dom/bridge/protocol'
+import { CLOSE_OUT } from '~/features/portfolio'
 import { LiveSurpriseNotice } from '~/market/components/LiveSurpriseNotice'
 import { OutcomeLine } from '~/market/components/OutcomeLine'
 import { SemiAutoBanner, SemiAutoBlockedBanner } from '~/market/components/SessionBanners'
 import type { InstrumentMeta } from '~/market/instruments/meta'
-import { CLOSE_OUT } from '~/features/portfolio'
 import {
   ALL_POSITIONS,
   holdOrder,
