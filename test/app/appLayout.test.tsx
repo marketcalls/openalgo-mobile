@@ -39,7 +39,14 @@ jest.mock('expo-local-authentication', () => ({
   getEnrolledLevelAsync: jest.fn(async () => 3),
 }))
 
+// SQLite is native: the shell's symbol master lives in memory here.
+jest.mock('~/market/master/sqlite', () => {
+  const { createMemoryMasterDb } = jest.requireActual('~/market/master/memoryDb')
+  return { openMasterDb: jest.fn(async () => createMemoryMasterDb()) }
+})
+
 const secure: { deleteItemAsync: jest.Mock } = jest.requireMock('expo-secure-store')
+const sqlite: { openMasterDb: jest.Mock } = jest.requireMock('~/market/master/sqlite')
 
 const PID = 'p0123456789ab'
 const PROFILES = JSON.stringify({
@@ -180,7 +187,7 @@ test('sign-out and a server change each give the app a new trading container: no
   second.t.depthDowngrades.getState().add('dhan:NSE')
 
   // sign out, then sign in again (onboarding saves the key, then the session is ready)
-  await act(() => signOut(second.s, { deleteUserContent: false }))
+  await act(() => signOut(second.s, second.t, { deleteUserContent: false }))
   expect(await screen.findByText('onboarding home')).toBeOnTheScreen()
   await AsyncStorage.setItem(`oa.${PID}.hasKey`, '1')
   await act(async () => useSession.getState().set({ status: 'ready', profileId: PID }))
@@ -188,4 +195,14 @@ test('sign-out and a server change each give the app a new trading container: no
   const third = shells[2] as (typeof shells)[number]
   expect(third.t).not.toBe(second.t)
   expect(third.t.depthDowngrades.getState().keys.size).toBe(0)
+})
+
+test("the shell opens the symbol master's database once and never waits for it", async () => {
+  shells.length = 0
+  // SQLite still opening: the app is up all the same
+  sqlite.openMasterDb.mockImplementationOnce(() => new Promise(() => {}))
+  await renderRouter({ ...routes, '(app)/index': Home }, { initialUrl: '/' })
+  await screen.findByText('app home', { includeHiddenElements: true })
+  expect(shells).toHaveLength(1)
+  expect(sqlite.openMasterDb).toHaveBeenCalledTimes(1)
 })

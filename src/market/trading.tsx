@@ -11,6 +11,10 @@ import { createEventWatch, type EventWatch } from './books/eventWatch'
 import { createGttApi, type GttApi, type GttSeen } from './gtt/api'
 import { gttFeatureKey } from './gtt/support'
 import { createInstrumentCache, type InstrumentCache, UNKNOWN_TTL_MS } from './instruments/cache'
+import type { MasterDb } from './master/db'
+import { createSymbolMaster, type SymbolMaster } from './master/master'
+import { createMemoryMasterDb } from './master/memoryDb'
+import { createOptionsData, type OptionsData } from './options/data'
 import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
 import { createOrderApi, type OrderApi } from './orders/api'
 import { currentBroker } from './session'
@@ -164,6 +168,10 @@ export type Trading = {
    * missing), so the ticket's margin preview is hidden until the next session (design 7.10).
    */
   flags: { marginOff: boolean }
+  /** Each F&O exchange's instruments, downloaded at most once per IST day (design 7.8). */
+  master: SymbolMaster
+  /** Expiries, futures prices and chains, on the server clock. */
+  options: OptionsData
 }
 
 /**
@@ -181,14 +189,12 @@ function gttSeen(s: Pick<Services, 'caps' | 'realtime' | 'profile'>): GttSeen {
 }
 
 export function createTrading(
-  s: Pick<Services, 'api' | 'storage' | 'queryClient' | 'profile' | 'caps' | 'realtime'>,
-  o: { now: () => number },
+  s: Pick<Services, 'api' | 'storage' | 'queryClient' | 'profile' | 'caps' | 'realtime' | 'clock'>,
+  /** `masterDb`: where the symbol master lives; in memory when absent. */
+  o: { now: () => number; masterDb?: Promise<MasterDb> },
 ): Trading {
-  const analyzer = createAnalyzerGate({
-    queryClient: s.queryClient,
-    pid: s.profile.get().id,
-    api: s.api,
-  })
+  const pid = s.profile.get().id
+  const analyzer = createAnalyzerGate({ queryClient: s.queryClient, pid, api: s.api })
   return {
     instruments: createInstrumentCache({ api: s.api, storage: s.storage, now: o.now }),
     watchlists: createWatchlistsStore(s.storage),
@@ -200,6 +206,13 @@ export function createTrading(
     analyzer,
     eventWatch: createEventWatch({ now: o.now }),
     flags: { marginOff: false },
+    master: createSymbolMaster({
+      api: s.api,
+      db: o.masterDb ?? Promise.resolve(createMemoryMasterDb()),
+      pid,
+      now: o.now,
+    }),
+    options: createOptionsData({ api: s.api, queryClient: s.queryClient, pid, clock: s.clock }),
   }
 }
 
@@ -214,16 +227,22 @@ function watchOrderEvents(s: Pick<Services, 'orderEvents'>, watch: EventWatch): 
 
 const TradingContext = createContext<Trading | null>(null)
 
-/** Inside `ServicesProvider`: one `Trading` per services container. */
+/**
+ * Inside `ServicesProvider`: one `Trading` per services container. `masterDb` is the symbol
+ * master's database, given as the promise of one so mounting never waits for it; in memory when
+ * absent.
+ */
 export function TradingProvider({
   now = Date.now,
+  masterDb,
   children,
 }: {
   now?: () => number
+  masterDb?: Promise<MasterDb>
   children: ReactNode
 }) {
   const s = useServices()
-  const trading = useMemo(() => createTrading(s, { now }), [s, now])
+  const trading = useMemo(() => createTrading(s, { now, masterDb }), [s, now, masterDb])
   useEffect(() => forgetRefusals(trading.unknown, trading.instruments), [trading])
   useEffect(() => watchOrderEvents(s, trading.eventWatch), [s, trading])
   return <TradingContext.Provider value={trading}>{children}</TradingContext.Provider>

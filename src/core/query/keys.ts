@@ -24,6 +24,18 @@ export const qk = {
   intervals: (pid: string) => [...root(pid), 'intervals'] as const,
   calendar: (pid: string, istDay: string) => [...root(pid), 'calendar', istDay] as const,
   gttbook: (pid: string) => [...root(pid), 'gttbook'] as const,
+  /** An underlying's expiries of one kind, read once per IST day (OptionsData.expiries). */
+  expiry: (pid: string, ex: string, u: string, type: 'options' | 'futures') =>
+    [...root(pid), 'expiry', ex, u, type] as const,
+  /** One chain read; a chain with Greeks is not the same entry as one without (preflight 19). */
+  optionchain: (
+    pid: string,
+    ex: string,
+    u: string,
+    expiry: string,
+    count: number,
+    withGreeks: boolean,
+  ) => [...root(pid), 'optionchain', ex, u, expiry, count, withGreeks] as const,
   /**
    * The one GTT support read for a server, broker and mode, until a probe (`probedAt`) resets
    * what was seen. Not a book: pokes and mode flips leave it alone.

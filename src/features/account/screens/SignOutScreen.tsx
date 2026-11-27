@@ -23,7 +23,7 @@ export function SignOutScreen() {
   const s = useServices()
   const { c } = useTheme()
   const [deleteUserContent, setDelete] = useState(false)
-  const watchlists = useTrading().watchlists
+  const trading = useTrading()
   const [busy, setBusy] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +33,7 @@ export function SignOutScreen() {
     setBusy(true)
     setError(null)
     try {
-      await signOut(s, { deleteUserContent })
+      await signOut(s, trading, { deleteUserContent })
     } catch (e) {
       log.warn('account', 'sign-out failed', e)
       setError(SIGN_OUT_COPY.failed)
@@ -46,7 +46,7 @@ export function SignOutScreen() {
     setError(null)
     setNote(null)
     try {
-      const r = await backupNow(watchlists, s.storage)
+      const r = await backupNow(trading.watchlists, s.storage)
       setNote(droppedNotice(r.dropped))
     } catch (e) {
       log.warn('account', 'backup before sign-out failed', e)

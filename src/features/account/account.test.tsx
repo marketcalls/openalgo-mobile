@@ -33,7 +33,8 @@ import {
   useSession,
 } from '~/core/services/services'
 import { COPY, wsHostDiffers } from '~/features/onboarding'
-import { TradingProvider } from '~/market/trading'
+import { createMemoryMasterDb } from '~/market/master/memoryDb'
+import { createTrading, TradingProvider } from '~/market/trading'
 import { type Route, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { AUTH_OK, fakeSockets, PONG } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
@@ -564,10 +565,14 @@ describe('account screen', () => {
   })
 })
 
+/** A trading container over its own memory master, as the app shell builds one. */
+const tradingOf = (s: Services, db = createMemoryMasterDb()) =>
+  createTrading(s, { now: () => T0, masterDb: Promise.resolve(db) })
+
 describe('sign out', () => {
   test('keeps watchlists unless asked; deletes the key and marker; keeps the profile id', async () => {
     const s = await setup()
-    await signOut(s, { deleteUserContent: false })
+    await signOut(s, tradingOf(s), { deleteUserContent: false })
     expect(secureKV.data.has(`oa.${PID}.apikey`)).toBe(false)
     expect(kv.data.has(`oa.${PID}.hasKey`)).toBe(false)
     expect(kv.data.has(`oa.${PID}.watchlists`)).toBe(true)
@@ -577,9 +582,34 @@ describe('sign out', () => {
 
   test('deletes the watchlists when asked', async () => {
     const s = await setup()
-    await signOut(s, { deleteUserContent: true })
+    await signOut(s, tradingOf(s), { deleteUserContent: true })
     expect(kv.data.has(`oa.${PID}.watchlists`)).toBe(false)
     expect((await createProfileRepo(kv).load())?.restOrigin).toBe(ORIGIN)
+  })
+
+  test('sign-out clears the master', async () => {
+    const s = await setup()
+    const db = createMemoryMasterDb()
+    const row = {
+      symbol: 'NIFTY30DEC2624000CE',
+      name: 'NIFTY',
+      exchange: 'NFO',
+      expiry: '30-DEC-26',
+      strike: 24000,
+      lotsize: 65,
+      tick: 0.05,
+      itype: 'CE',
+      underlying: 'NIFTY',
+    }
+    await db.write(PID, 'NFO', '2026-11-24', async (add) => {
+      await add([row])
+      return 1
+    })
+    const trading = tradingOf(s, db)
+    expect(await trading.master.hasOptions('NFO', 'NIFTY')).toBe(true)
+    await signOut(s, trading, { deleteUserContent: false })
+    expect(await db.loaded(PID, 'NFO')).toBeNull()
+    expect(await trading.master.hasOptions('NFO', 'NIFTY')).toBeNull()
   })
 
   test('the screen says what stays and signs out with the switch off by default', async () => {

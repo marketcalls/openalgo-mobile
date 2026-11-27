@@ -27,6 +27,8 @@ describe('qk', () => {
     qk.intervals(pid),
     qk.calendar(pid, '2026-11-27'),
     qk.gttdetect(pid, 'https://algo.example.com', 'zerodha', 'live', 1),
+    qk.expiry(pid, 'NFO', 'NIFTY', 'options'),
+    qk.optionchain(pid, 'NFO', 'NIFTY', '30DEC26', 10, false),
   ]
 
   it('starts every key with [p, pid]', () => {
@@ -42,6 +44,27 @@ describe('qk', () => {
     const k = qk.gttdetect(A, 'https://algo.example.com', 'zerodha', 'analyze', 7)
     expect(k).toEqual(['p', A, 'gttdetect', 'https://algo.example.com', 'zerodha', 'analyze', 7])
     expect(k.slice(0, 3)).not.toEqual(qk.gttbook(A))
+  })
+
+  it('expiries are per exchange, underlying and kind', () => {
+    expect(qk.expiry(A, 'NFO', 'NIFTY', 'futures')).toEqual([
+      'p',
+      A,
+      'expiry',
+      'NFO',
+      'NIFTY',
+      'futures',
+    ])
+    expect(qk.expiry(A, 'NFO', 'NIFTY', 'options')).not.toEqual(
+      qk.expiry(A, 'NFO', 'NIFTY', 'futures'),
+    )
+  })
+
+  it('a chain with Greeks is its own entry beside the same chain without (preflight 19)', () => {
+    const plain = qk.optionchain(A, 'NFO', 'NIFTY', '30DEC26', 25, false)
+    expect(plain).toEqual(['p', A, 'optionchain', 'NFO', 'NIFTY', '30DEC26', 25, false])
+    expect(qk.optionchain(A, 'NFO', 'NIFTY', '30DEC26', 25, true)).not.toEqual(plain)
+    expect(qk.optionchain(A, 'NFO', 'NIFTY', '30DEC26', 20, false)).not.toEqual(plain)
   })
 
   it('contains no 64-hex string', () => {

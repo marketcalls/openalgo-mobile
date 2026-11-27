@@ -15,6 +15,8 @@ import orderbookFixture from '../../test/fixtures/openalgo-docs/orderbook.json'
 import { memoryKV } from '../../test/helpers/memoryKV'
 import { SymbolSchema } from './instruments/meta'
 import { useInstrument } from './instruments/useInstrument'
+import type { MasterDb } from './master/db'
+import { createMemoryMasterDb } from './master/memoryDb'
 import {
   createTrading,
   TENTATIVE_TTL_MS,
@@ -89,17 +91,33 @@ const Probe = ({ ex, sym }: { ex: string; sym: string }) => {
   )
 }
 
-const mount = async (ui: React.ReactElement, s: Services) => {
+const NOW_FN = () => NOW
+
+const mount = async (ui: React.ReactElement, s: Services, masterDb?: Promise<MasterDb>) => {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
   })
   return await render(
     <ServicesProvider value={s}>
       <QueryClientProvider client={qc}>
-        <TradingProvider now={() => NOW}>{ui}</TradingProvider>
+        <TradingProvider now={NOW_FN} masterDb={masterDb}>
+          {ui}
+        </TradingProvider>
       </QueryClientProvider>
     </ServicesProvider>,
   )
+}
+
+const NIFTY_CE = {
+  symbol: 'NIFTY30DEC2624000CE',
+  name: 'NIFTY',
+  exchange: 'NFO',
+  expiry: '30-DEC-26',
+  strike: 24000,
+  lotsize: 65,
+  tick: 0.05,
+  itype: 'CE',
+  underlying: 'NIFTY',
 }
 
 const Bad = () => {
@@ -150,6 +168,20 @@ describe('Trading', () => {
     setFeedBroker('dhan')
     await t.gtt.book()
     expect(s.caps.get()?.features).toEqual({ 'gtt:dhan:analyze': true })
+  })
+
+  test('createTrading holds the symbol master on the given database, and the options data', async () => {
+    const { s } = fakeServices()
+    const db = createMemoryMasterDb()
+    await db.write('p1', 'NFO', '2026-11-24', async (add) => {
+      await add([NIFTY_CE])
+      return 1
+    })
+    const t = createTrading(s, { now: () => NOW, masterDb: Promise.resolve(db) })
+    expect(await t.master.hasOptions('NFO', 'NIFTY')).toBe(true)
+    expect(typeof t.options.chain).toBe('function')
+    // without one, the master lives in memory: nothing is stored yet
+    expect(await createTrading(s, { now: () => NOW }).master.hasOptions('NFO', 'NIFTY')).toBeNull()
   })
 
   test('useTrading outside the provider throws', async () => {
@@ -316,6 +348,27 @@ const GrabTrading = () => {
   trading = useTrading()
   return null
 }
+
+describe('Trading.master', () => {
+  test('the provider builds one container for its database, which mounting never waits for', async () => {
+    const { s } = fakeServices()
+    const opening = new Promise<MasterDb>(() => {})
+    const view = await mount(<GrabTrading />, s, opening)
+    const first = trading
+    expect(first).toBeDefined()
+    await view.rerender(
+      <ServicesProvider value={s}>
+        <QueryClientProvider client={new QueryClient()}>
+          <TradingProvider now={NOW_FN} masterDb={opening}>
+            <GrabTrading />
+          </TradingProvider>
+        </QueryClientProvider>
+      </ServicesProvider>,
+    )
+    expect(trading).toBe(first)
+    trading = undefined
+  })
+})
 
 describe('Trading.eventWatch', () => {
   beforeEach(() => jest.useFakeTimers({ now: NOW }))

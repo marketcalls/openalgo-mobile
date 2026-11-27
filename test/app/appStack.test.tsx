@@ -35,6 +35,12 @@ jest.mock('expo-local-authentication', () => ({
   getEnrolledLevelAsync: jest.fn(async () => 3),
 }))
 
+// SQLite is native: the shell's symbol master lives in memory here.
+jest.mock('~/market/master/sqlite', () => {
+  const { createMemoryMasterDb } = jest.requireActual('~/market/master/memoryDb')
+  return { openMasterDb: async () => createMemoryMasterDb() }
+})
+
 const PID = 'p0123456789ab'
 const PROFILES = JSON.stringify({
   activeId: PID,

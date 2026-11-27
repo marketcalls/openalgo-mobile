@@ -17,6 +17,7 @@ import {
   ServicesProvider,
   useSession,
 } from '~/core/services/services'
+import { openMasterDb } from '~/market/master/sqlite'
 import { TradingProvider } from '~/market/trading'
 import { Button } from '~/ui/Button'
 import { EmptyState } from '~/ui/EmptyState'
@@ -113,6 +114,8 @@ function AppShell({ s }: { s: Services }) {
   const { c } = useTheme()
   const locked = useSyncExternalStore(s.lock.subscribe, s.lock.isLocked)
   const live = { realtime: s.realtime, polling: s.polling, store: s.store }
+  // Asked for once per shell and handed over as a promise: the shell never waits for SQLite.
+  const [masterDb] = useState(openMasterDb)
 
   // The overlay starts the first unlock on mount; the splash stays up until it settles, so the
   // locked screen never flashes before the prompt (ruling 5).
@@ -122,7 +125,7 @@ function AppShell({ s }: { s: Services }) {
 
   return (
     <ServicesProvider value={s}>
-      <TradingProvider now={defaultDeps.now}>
+      <TradingProvider now={defaultDeps.now} masterDb={masterDb}>
         <QueryClientProvider client={s.queryClient}>
           <TickStoreContext.Provider value={s.store}>
             <LiveContext.Provider value={live}>
