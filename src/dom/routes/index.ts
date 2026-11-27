@@ -17,6 +17,8 @@ import { maxPain, oiData } from './oiTracker'
 import { expiries, underlyings } from './pickers'
 import { parseBody, parseToolQuery, type ToolQuery } from './query'
 import { chartinkSearch, siteSearch } from './search'
+import { StraddleQuery, straddleData } from './straddle'
+import { lotSize, SimulateQuery, straddleSimulate } from './straddlePnl'
 import { StrikeProfileQuery, strikeProfile } from './strikeProfile'
 import { VolSurfaceQuery, volSurface } from './volSurface'
 
@@ -37,6 +39,21 @@ export { maxPain, oiData } from './oiTracker'
 export { expiries, underlyings } from './pickers'
 export { parseToolQuery, type ToolQuery, ToolQuerySchema } from './query'
 export { type ChartinkHit, chartinkSearch, type SiteSearchHit, siteSearch } from './search'
+export {
+  type AtmAsk,
+  type AtmData,
+  atmHistories,
+  StraddleQuery,
+  type StraddleQueryOut,
+  straddleData,
+  strikeLadder,
+} from './straddle'
+export {
+  lotSize,
+  SimulateQuery,
+  type SimulateQueryOut,
+  straddleSimulate,
+} from './straddlePnl'
 export {
   type FlipLeg,
   findGammaFlip,
@@ -112,6 +129,31 @@ const TABLE: readonly { method: 'GET' | 'POST'; path: string; answer: Answer }[]
     method: 'GET',
     path: '/oiprofile/api/intervals',
     answer: (_r, d) => intervalsReply('oiprofile', d),
+  },
+  {
+    method: 'POST',
+    path: '/straddle/api/straddle-data',
+    answer: (r, d, o) => straddleData(parseBody(StraddleQuery, r.body), d, o),
+  },
+  {
+    method: 'GET',
+    path: '/straddle/api/intervals',
+    answer: (_r, d) => intervalsReply('raw', d),
+  },
+  {
+    method: 'POST',
+    path: '/straddlepnl/api/simulate',
+    answer: (r, d, o) => straddleSimulate(parseBody(SimulateQuery, r.body), d, o),
+  },
+  {
+    method: 'GET',
+    path: '/straddlepnl/api/lotsize',
+    answer: (r, d, o) => lotSize(arg(r, 'underlying'), arg(r, 'exchange'), d, o),
+  },
+  {
+    method: 'GET',
+    path: '/straddlepnl/api/intervals',
+    answer: (_r, d) => intervalsReply('raw', d),
   },
 ]
 
