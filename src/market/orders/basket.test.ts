@@ -281,6 +281,51 @@ describe('matchBasketResults', () => {
     ).toEqual([{ leg: 0, state: 'missing' }])
     expect(matchBasketResults(spec(leg()), [])).toEqual([{ leg: 0, state: 'missing' }])
   })
+
+  test("a leg sent but never answered (the server's unanswered text in a 200) is unclear, never failed", () => {
+    // utils/httpx_client.py UNANSWERED_ORDER_MESSAGE at c8b2896, verbatim; place_single_order puts
+    // it on a leg whose broker call was sent and whose reply was lost
+    const unanswered =
+      'The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.'
+    const body = {
+      status: 'success',
+      results: [
+        { symbol: PE, exchange: 'NFO', product: 'NRML', status: 'success', orderid: 'P1' },
+        { symbol: CE, status: 'error', message: unanswered },
+        { symbol: 'NIFTY01DEC2624600CE', status: 'error', message: 'Insufficient funds' },
+      ],
+    }
+    const reply = BasketReplySchema.parse(body)
+    expect(reply).toEqual({
+      kind: 'basket',
+      results: [
+        { symbol: PE, exchange: 'NFO', ok: true, orderid: 'P1' },
+        { symbol: CE, ok: false, maybe: true, message: unanswered },
+        { symbol: 'NIFTY01DEC2624600CE', ok: false, message: 'Insufficient funds' },
+      ],
+      analyze: false,
+      raw: body,
+    })
+    if (reply.kind !== 'basket') throw new Error('not a basket')
+    const s = spec(leg(), leg({ symbol: PE }), leg({ symbol: 'NIFTY01DEC2624600CE' }))
+    // the leg may be working at the broker: the book is checked, it is never offered again
+    expect(matchBasketResults(s, reply.results)).toEqual([
+      { leg: 0, state: 'unclear' },
+      { leg: 1, state: 'placed', orderid: 'P1' },
+      { leg: 2, state: 'failed', message: 'Insufficient funds' },
+    ])
+    // two legs on one symbol, both unanswered, or one unanswered and one failed: both unclear
+    const two = spec(leg({ action: 'BUY' }), leg({ action: 'SELL' }))
+    const maybe: LegResult = { symbol: CE, ok: false, maybe: true, message: unanswered }
+    expect(matchBasketResults(two, [maybe, maybe])).toEqual([
+      { leg: 0, state: 'unclear' },
+      { leg: 1, state: 'unclear' },
+    ])
+    expect(matchBasketResults(two, [failed(CE, 'RMS'), maybe])).toEqual([
+      { leg: 0, state: 'unclear' },
+      { leg: 1, state: 'unclear' },
+    ])
+  })
 })
 
 describe('BasketReplySchema', () => {

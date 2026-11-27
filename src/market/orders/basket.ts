@@ -105,15 +105,26 @@ export function basketBody(s: BasketSpec): Record<string, JSONValue> {
 // --- The reply ---------------------------------------------------------------------------
 
 /**
+ * The stock server's text for a leg whose broker call was sent but never answered
+ * (utils/httpx_client.py:28 at c8b2896, verbatim). place_single_order puts it on that leg's error
+ * inside a 200 (basket_order_service.py:161-162, 180-181), where a placeorder gets a 502.
+ */
+const UNANSWERED_ORDER_MESSAGE =
+  'The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.'
+
+/**
  * One leg's result. The stock server sends `{symbol, exchange, product, status: 'success',
  * orderid}` or `{symbol, status: 'error', message}`: no action, and no exchange on a failure
- * (basket_order_service.py:144-185, 266-307). `ok` is that status.
+ * (basket_order_service.py:144-185, 266-307). `ok` is that status. `maybe` marks an error whose
+ * message is the server's unanswered text: the leg may be working at the broker, so it is never
+ * read as failed.
  */
 export type LegResult = {
   symbol?: string
   exchange?: string
   action?: Side
   ok: boolean
+  maybe?: true
   orderid?: string
   message?: string
 }
@@ -128,7 +139,10 @@ const LegResultSchema = z
     orderid: orderId.optional().catch(undefined),
     message: z.string().optional().catch(undefined),
   })
-  .transform(({ status, ...r }): LegResult => ({ ...r, ok: status === 'success' }))
+  .transform(({ status, ...r }): LegResult => {
+    const maybe = status === 'error' && r.message?.trim() === UNANSWERED_ORDER_MESSAGE
+    return { ...r, ok: status === 'success', ...(maybe ? { maybe: true as const } : {}) }
+  })
 
 const BasketShape = z.object({
   status: z.literal('success'),
@@ -177,8 +191,12 @@ export type LegOutcome = {
   message?: string
 }
 
-/** A success without an id may have placed the order, so it is unclear, as no_id is. */
-const stateOf = (r: LegResult) => (!r.ok ? 'failed' : r.orderid ? 'placed' : 'unclear')
+/**
+ * A success without an id may have placed the order, so it is unclear, as no_id is; so is an error
+ * the server says may have been placed (`maybe`), which a placeorder would get as MaybePlaced.
+ */
+const stateOf = (r: LegResult): LegOutcome['state'] =>
+  r.ok ? (r.orderid ? 'placed' : 'unclear') : r.maybe ? 'unclear' : 'failed'
 
 /** A result could be this leg's: its symbol, and its exchange and action when it names them. */
 const fits = (leg: BasketLeg, r: LegResult) =>
