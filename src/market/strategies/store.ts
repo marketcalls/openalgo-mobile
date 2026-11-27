@@ -117,7 +117,10 @@ export function createStrategyStore(storage: ProfileStorage, now: () => number):
         const old = doc.items.find((e) => e.id === id)
         if (!old) return null
         const entry: PortfolioEntry = { ...old, ...fields, updated_at: t }
-        await write({ ...doc, items: doc.items.map((e) => (e.id === id ? entry : e)) })
+        await write({
+          ...doc,
+          items: doc.items.map((e) => (e.id === id ? entry : e)),
+        })
         return entry
       })
     },
@@ -141,7 +144,15 @@ export function createStrategyStore(storage: ProfileStorage, now: () => number):
         for (const e of entries) {
           if (items.some((x) => sameStrategy(x, e))) continue
           if (items.length >= MAX_STRATEGIES) break
-          items.push({ ...e, legs: stripKeys(e.legs), id: next++ })
+          const entry = { ...e, legs: stripKeys(e.legs), id: next }
+          // The byte limit stops the loop like the count limit: a restore never fails over it,
+          // so the watchlists in the same backup are still applied.
+          if (
+            utf8Length(JSON.stringify({ next: next + 1, items: [...items, entry] })) > MAX_DOM_TOTAL
+          )
+            break
+          items.push(entry)
+          next++
           added++
         }
         if (added > 0) await write({ next, items })

@@ -42,7 +42,12 @@ test('create, list newest-updated first, filter by watchlist, update, delete', a
   expect(await store.get(2)).toEqual(b)
 
   const up = await store.save(save('A2', { notes: 'n' }), 1)
-  expect(up).toMatchObject({ id: 1, name: 'A2', notes: 'n', created_at: a?.created_at })
+  expect(up).toMatchObject({
+    id: 1,
+    name: 'A2',
+    notes: 'n',
+    created_at: a?.created_at,
+  })
   expect(up?.updated_at).not.toBe(a?.updated_at)
   expect((await store.list()).map((e) => e.name)).toEqual(['A2', 'B'])
   expect(await store.save(save('x'), 99)).toBeNull()
@@ -85,7 +90,10 @@ test('a leg with an extra field is stored and read back with it; a key named api
   }
   await store.save(save('A', { legs: [odd] }))
   const [e] = await store.all()
-  expect(e?.legs[0]).toMatchObject({ note: 'x', nested: { ok: 1, deep: [{ z: 2 }] } })
+  expect(e?.legs[0]).toMatchObject({
+    note: 'x',
+    nested: { ok: 1, deep: [{ z: 2 }] },
+  })
   expect(JSON.stringify(kv.data.get('oa.p1.strategyPortfolio'))).not.toMatch(/SECRET|S2/)
 })
 
@@ -115,6 +123,19 @@ test('the 501st strategy is refused and a list over its byte bound is full', asy
   for (let i = 0; i < 3; i++) await big.save(save(`F${i}`, { legs: [fat] }))
   await expect(big.save(save('F3', { legs: [fat] }))).rejects.toThrow(FULL_COPY)
   expect(await big.all()).toHaveLength(3)
+})
+
+test('merge stops at the byte limit like the count limit instead of throwing', async () => {
+  const src = make().store
+  const fat = { ...leg, blob: 'x'.repeat(400_000) }
+  for (let i = 0; i < 3; i++) await src.save(save(`F${i}`, { legs: [fat] }))
+  const incoming = await src.all()
+  const { store } = make()
+  await store.save(save('Z', { legs: [fat] }))
+  await store.save(save('Y', { legs: [fat] }))
+  expect(await store.merge(incoming)).toBe(1)
+  expect(await store.all()).toHaveLength(3)
+  expect(await store.merge(incoming)).toBe(0)
 })
 
 test('merge adds those not present under new ids and skips the same name, list and creation time', async () => {
