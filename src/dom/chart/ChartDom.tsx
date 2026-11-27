@@ -36,7 +36,7 @@ import { savedInterval, widgetOptions } from './widgetOptions'
 
 type Scheme = ChartDomProps['scheme']
 
-// The widget injects its own styles; the page adds none.
+// The widget injects its own styles; the page adds one rule, NO_ALERTS.
 const ROOT_STYLE: CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -47,6 +47,13 @@ const ROOT_STYLE: CSSProperties = {
 
 /** The bridge's cap on an event message (MAX_MESSAGE in dom/bridge/schemas.ts, native only). */
 const MAX_MESSAGE = 500
+/**
+ * The widget's own alerts are left out (design 7.9): they fire only while this page is open and in
+ * front, as a toast on the chart, so the trader would miss one with the app closed. Its Alerts
+ * button (the topbar's) and row (the phone's More sheet) are hidden; the price menu that offers
+ * one more is the long press's, which is native's.
+ */
+const NO_ALERTS = '.oac-topbar__alerts,[data-mobile-action=alerts]{display:none!important}'
 /** At most one page error a second reaches native: a throw on every frame would flood it. */
 const ERROR_EVERY_MS = 1_000
 /** Chromium's harmless "ResizeObserver loop completed with undelivered notifications". */
@@ -269,5 +276,10 @@ export default function ChartDom({
     pageRef.current?.setScheme(scheme)
   }, [scheme])
 
-  return <div ref={rootRef} style={ROOT_STYLE} />
+  return (
+    <>
+      <style>{NO_ALERTS}</style>
+      <div ref={rootRef} style={ROOT_STYLE} />
+    </>
+  )
 }

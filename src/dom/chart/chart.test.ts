@@ -548,8 +548,39 @@ describe('ChartDom', () => {
       createElement(ChartDom, { scheme: 'dark', bridge: jest.fn() }),
     )
     expect(html).toBe(
-      '<div style="position:fixed;inset:0;overflow:hidden;touch-action:none;user-select:none"></div>',
+      '<style>.oac-topbar__alerts,[data-mobile-action=alerts]{display:none!important}</style>' +
+        '<div style="position:fixed;inset:0;overflow:hidden;touch-action:none;user-select:none"></div>',
     )
+  })
+
+  test("the widget's own Alerts button and the phone's Alerts row are hidden (design 7.9)", async () => {
+    const page = await mountChart()
+    page.push(CHART_TOPICS.init, INIT)
+    await waitFor(page.ready)
+    // jsdom's cascade ignores !important, which a browser's honours: the page's rule itself, then
+    const rules = Array.from(document.styleSheets).flatMap((sheet) =>
+      Array.from(sheet.cssRules).flatMap((r) =>
+        r instanceof CSSStyleRule &&
+        r.style.display === 'none' &&
+        r.style.getPropertyPriority('display') === 'important'
+          ? [r.selectorText]
+          : [],
+      ),
+    )
+    const hidden = (el: Element | null) => el !== null && rules.some((sel) => el.matches(sel))
+    const alerts = page.container.querySelector('.oac-topbar__alerts')
+    expect(alerts?.textContent).toBe('Alerts')
+    expect(hidden(alerts)).toBe(true)
+    expect(hidden(page.container.querySelector('.oac-topbar__theme'))).toBe(false)
+    // the phone's More sheet builds its rows when it opens: a row as it makes them
+    const row = document.createElement('button')
+    row.className = 'oac-mobile__action'
+    row.dataset.mobileAction = 'alerts'
+    const capture = row.cloneNode() as HTMLElement
+    capture.dataset.mobileAction = 'capture'
+    page.container.append(row, capture)
+    expect(hidden(row)).toBe(true)
+    expect(hidden(capture)).toBe(false)
   })
 
   test('the page posts loaded after its handle registers, and marks its bundle', async () => {
