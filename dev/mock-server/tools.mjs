@@ -1,7 +1,10 @@
 // The tool endpoints' answers: the GET-only routes' lists, the tearsheet and the empty-series
 // replies of the backtest, holdings and sector rotation routes (restx_api/{portfolio,sip,
-// sector_rotation}.py and their services at c8b2896). The pages read these fields first; the
-// series are empty because the mock computes no analytics.
+// sector_rotation}.py and their services at c8b2896). By default the POSTs answer the full report
+// fixtures of toolReports.mjs (every tab of the backtest, the SIP report, holdings, two sectors on
+// the rotation map). While the control `thinToolReplies` is set they answer the thin replies
+// below instead: the pages' first fields with empty series, the E-SH-8 error case.
+import { backtestReport, holdingsReport, rotationInstruments, sipReport } from './toolReports.mjs'
 
 // services/portfolio_service.py list_benchmarks: index rows of the master, by exchange, symbol.
 export const BENCHMARKS = [
@@ -70,10 +73,15 @@ export const TEARSHEET_HTML =
 const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10)
 
 /**
- * The success body of a tool POST for its request body: `status`, `meta` or `request`, and
- * empty series. `id` is the endpoint id under /api/v1.
+ * The success body of a tool POST for its request body. `id` is the endpoint id under /api/v1.
+ * `thin` serves the empty-series reply (`status`, `meta` or `request`, no analytics).
  */
-export function toolReply(id, body) {
+export function toolReply(id, body, { thin = false } = {}) {
+  if (!thin) {
+    if (id === 'portfolio/backtest') return backtestReport(body)
+    if (id === 'sip/backtest') return sipReport(body)
+    if (id === 'portfolio/holdings') return holdingsReport(body)
+  }
   if (id === 'portfolio/backtest') {
     const holdings = Array.isArray(body.holdings) ? body.holdings : []
     return {
@@ -123,6 +131,7 @@ export function toolReply(id, body) {
   }
   if (id === 'sectorrotation') {
     const benchmark = body.benchmark ?? 'NIFTY'
+    const timeframe = body.timeframe ?? 'daily'
     return {
       status: 'success',
       data: {
@@ -130,11 +139,11 @@ export function toolReply(id, body) {
         benchmark_exchange: 'NSE_INDEX',
         benchmark_label:
           ROTATION_OPTIONS.benchmarks.find((b) => b.symbol === benchmark)?.label ?? benchmark,
-        timeframe: body.timeframe ?? 'daily',
+        timeframe,
         source: body.source ?? 'db',
-        as_of: null,
+        as_of: thin ? null : '2026-11-22',
         max_tail: ROTATION_OPTIONS.max_tail,
-        instruments: [],
+        instruments: thin ? [] : rotationInstruments(timeframe),
         unavailable: [],
       },
     }

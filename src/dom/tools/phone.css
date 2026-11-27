@@ -97,7 +97,7 @@ body {
   /* A picker opens as a bottom sheet: the popper's geometry is inline, hence !important. dvh
      shrinks with the keyboard and --oa-vh does not, so a search field at the top stays on
      screen (T11-11). */
-  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester sector-rotation */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
   html[data-oa-tool] [data-radix-popper-content-wrapper]:has(> [data-slot="popover-content"]) {
     /* biome-ignore lint/complexity/noImportantStyles: the popper's inline position */
     position: fixed !important;
@@ -108,7 +108,7 @@ body {
     /* biome-ignore lint/complexity/noImportantStyles: the popper's inline max-content */
     min-width: 0 !important;
   }
-  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester sector-rotation */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
   html[data-oa-tool] [data-radix-popper-content-wrapper] > [data-slot="popover-content"] {
     width: 100%;
     max-height: min(calc(var(--oa-vh, 7.8px) * 70), calc(100dvh - 24px));
@@ -119,7 +119,7 @@ body {
   }
   /* The tap that closes the sheet never lands on a page control. Popovers only: a tooltip must
      never freeze the page. */
-  /* @pages oitracker oirange maxpain ivsmile gex gammadensity portfolio-backtester sip-backtester sector-rotation */
+  /* @pages oitracker oirange maxpain ivsmile gex gammadensity */
   body:has([data-radix-popper-content-wrapper] > [data-slot="popover-content"][data-state="open"])
     #oa-tool {
     pointer-events: none;

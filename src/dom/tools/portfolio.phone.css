@@ -46,14 +46,14 @@ html:is(
   }
 
   /* Report stats two across, values at 20 px (T11-10). */
-  /* @pages portfolio-backtester sip-backtester */
+  /* @pages portfolio-backtester */
   html:is([data-oa-tool="portfolio-backtester"], [data-oa-tool="sip-backtester"])
     #oa-tool
     .grid:has(> [data-slot="card"] > [data-slot="card-content"].p-4 > .text-2xl) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px;
   }
-  /* @pages portfolio-backtester sip-backtester */
+  /* @pages portfolio-backtester */
   html:is([data-oa-tool="portfolio-backtester"], [data-oa-tool="sip-backtester"])
     #oa-tool
     [data-slot="card-content"].p-4

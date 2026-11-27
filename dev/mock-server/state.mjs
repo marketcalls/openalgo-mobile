@@ -28,6 +28,7 @@ const initial = (profile, broker) => ({
   splitFailFrom: null,
   marginUnsupported: false,
   timingsSkewMs: 0,
+  thinToolReplies: false,
 })
 
 const oneOf = (values) => (v) => values.includes(v) || `must be one of ${JSON.stringify(values)}`
@@ -72,6 +73,8 @@ const STORED = {
   marginUnsupported: isBool,
   // The server's time zone behind market/timings: 19_800_000 emulates a server on UTC.
   timingsSkewMs: (v) => Number.isInteger(v) || 'must be an integer',
+  // The tool POSTs answer their thin replies (tools.mjs) instead of the full report fixtures.
+  thinToolReplies: isBool,
 }
 // One-shot actions: the feed, the order engine or the GTT engine carries them out, and they are
 // not stored.

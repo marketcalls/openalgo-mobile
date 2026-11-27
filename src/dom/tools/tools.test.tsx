@@ -56,28 +56,6 @@ window.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver
 Element.prototype.scrollIntoView ??= () => {}
 
-// The report page builds every one of its 15 tabs' content from the reply as it renders, so it
-// needs a full reply (T15-02 brings one). Tests of the shell's routing read the same store through
-// a stand-in; the thin-reply tests set `mockReport.real` and render the real page.
-const mockReport = { real: false }
-jest.mock('@/pages/PortfolioBacktesterResults', () => {
-  const { createElement: h } = require('react') as typeof import('react')
-  const Real = jest.requireActual('@/pages/PortfolioBacktesterResults').default
-  const { usePortfolioBacktestStore } = require('@/stores/portfolioBacktestStore') as {
-    usePortfolioBacktestStore: () => { result: { meta: { start: string; end: string } } }
-  }
-  const StandIn = () => {
-    const { result } = usePortfolioBacktestStore()
-    return h(
-      'div',
-      { className: 'container mx-auto space-y-4 p-4' },
-      h('h1', null, 'Backtest Report'),
-      h('p', null, `${result.meta.start} to ${result.meta.end}`),
-    )
-  }
-  return { __esModule: true, default: () => h(mockReport.real ? Real : StandIn) }
-})
-
 // Before any frontend store loads: this WebView's web build last ran in analyzer mode, light, with
 // a colour theme. The stores rehydrate from it as they load, as on the web (themeStore.ts:176-190).
 localStorage.setItem(
@@ -166,25 +144,23 @@ const THIN_BACKTEST = {
   benchmark_equity: [],
   metrics: {},
 }
-/** Enough of frontend api/portfolio.ts BacktestResponse for the report's Overview tab. */
-const BACKTEST = {
-  ...THIN_BACKTEST,
-  metrics: { cagr: 0.112, benchmark_cagr: 0.1, max_drawdown: -0.18, sharpe: 1.2 },
-  diversification: { effective_holdings: 1.9, holdings: 2 },
-  rebalancing: { cost_drag: 0, count: 0 },
-  costs: {
-    brokerage: 0,
-    stt: 100,
-    exchange_txn: 3,
-    gst: 1,
-    sebi: 0,
-    stamp_duty: 15,
-    slippage: 0,
-    total: 119,
-    turnover: 1,
-    drag: 0.001,
-  },
+/**
+ * The full BacktestResponse the mock serves (dev/mock-server/toolReports.mjs, T15-02): every tab of
+ * the real report renders from it, so the shell's routing tests run the real page.
+ */
+const { backtestReport } = require('../../../dev/mock-server/toolReports.mjs') as {
+  backtestReport(body: object): typeof THIN_BACKTEST
 }
+const BACKTEST = backtestReport({
+  holdings: [
+    { symbol: 'NIFTYBEES', exchange: 'NSE', weight: 60 },
+    { symbol: 'GOLDBEES', exchange: 'NSE', weight: 40 },
+  ],
+  start_date: '2021-11-27',
+  end_date: '2026-11-27',
+  benchmark: 'NIFTY',
+  source: 'api',
+})
 
 /** frontend api/sector-rotation.ts RotationOptions and RotationResult, one sector on the map. */
 const ROTATION_OPTIONS = {
@@ -487,7 +463,6 @@ beforeEach(() => {
   window.scrollTo = jest.fn() as unknown as typeof window.scrollTo
 })
 afterEach(async () => {
-  mockReport.real = false
   for (const unmount of mounted.splice(0)) await unmount()
   jest.restoreAllMocks()
   delete win.ReactNativeWebView
@@ -833,7 +808,6 @@ describe('the shell (ux-bar T11)', () => {
   test('a report the reply cannot fill shows the fallback, posts pageError and keeps the builder (T11-15)', async () => {
     // React reports the error the boundary caught; the page goes on.
     const logged = jest.spyOn(console, 'error').mockImplementation(() => {})
-    mockReport.real = true
     const page = await mountTool(PortfolioToolsDom, {
       page: 'portfolio-backtester',
       answer: (m) => (isReq(m, '/api/v1/portfolio/backtest') ? ok(THIN_BACKTEST) : undefined),

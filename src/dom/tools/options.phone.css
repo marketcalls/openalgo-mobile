@@ -42,7 +42,7 @@
     box-shadow: none;
     background: transparent;
   }
-  /* @pages oirange gex gammadensity */
+  /* @pages gex gammadensity */
   #oa-tool [data-slot="card"] + [data-slot="card"] {
     border-top: 1px solid var(--border);
   }

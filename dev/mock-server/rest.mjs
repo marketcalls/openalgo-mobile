@@ -331,6 +331,8 @@ const FUNDS = {
   utiliseddebits: '679.34',
 }
 
+/** The tools' reply style: thin while the control `thinToolReplies` is set. */
+const thinOf = (state) => ({ thin: state.current.thinToolReplies === true })
 const ok = (data) => [200, { status: 'success', data }]
 const analyzerData = (on) => ({ mode: on ? 'analyze' : 'live', analyze_mode: on, total_logs: 0 })
 const fixed2 = (o) =>
@@ -485,7 +487,7 @@ const HANDLERS = {
       { status: 'success', data, summary: { total: data.length, success: 0, failed: data.length } },
     ]
   },
-  'portfolio/backtest': (b) => [200, toolReply('portfolio/backtest', b)],
+  'portfolio/backtest': (b, { state }) => [200, toolReply('portfolio/backtest', b, thinOf(state))],
   // restx_api/portfolio.py:259-288: a self-contained report, served as an attachment.
   'portfolio/tearsheet': () => ({
     status: 200,
@@ -493,9 +495,9 @@ const HANDLERS = {
     headers: { 'Content-Disposition': 'attachment; filename="portfolio-tearsheet.html"' },
     body: TEARSHEET_HTML,
   }),
-  'portfolio/holdings': (b) => [200, toolReply('portfolio/holdings', b)],
-  'sip/backtest': (b) => [200, toolReply('sip/backtest', b)],
-  sectorrotation: (b) => [200, toolReply('sectorrotation', b)],
+  'portfolio/holdings': (b, { state }) => [200, toolReply('portfolio/holdings', b, thinOf(state))],
+  'sip/backtest': (b, { state }) => [200, toolReply('sip/backtest', b, thinOf(state))],
+  sectorrotation: (b, { state }) => [200, toolReply('sectorrotation', b, thinOf(state))],
 }
 
 // --- GET-only routes (design 7.2) -------------------------------------------------

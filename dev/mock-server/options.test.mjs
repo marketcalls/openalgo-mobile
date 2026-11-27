@@ -390,6 +390,8 @@ test('the POST tool endpoints: tearsheet as an HTML attachment, holdings and the
   assert.match(sheet.headers.get('content-disposition'), /portfolio-tearsheet\.html/)
   assert.equal(await sheet.text(), TEARSHEET_HTML)
 
+  // the thin replies (the E-SH-8 case); tools.test.mjs holds the default full reports
+  await call(m, 'POST', '/__mock/control', { thinToolReplies: true })
   const holdings = await post(m, 'portfolio/holdings', {})
   assert.equal(holdings.status, 200)
   assert.equal(holdings.json.status, 'success')
