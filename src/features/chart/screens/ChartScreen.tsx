@@ -131,13 +131,21 @@ function Unknown({ inst }: { inst: Inst }) {
   )
 }
 
+/**
+ * The screen inside the safe area. The WebView reports no inset to the page (its viewport has no
+ * viewport-fit=cover), so the widget's phone footer (Draw, Indicators, Objects, More) would sit
+ * under Android's navigation bar or the home indicator without the bottom one.
+ */
 function Frame({ children }: { children: ReactNode }) {
   const { c } = useTheme()
   const insets = useSafeAreaInsets()
   return (
     <View
       testID="chart-screen"
-      style={[styles.fill, { backgroundColor: c.background, paddingTop: insets.top }]}
+      style={[
+        styles.fill,
+        { backgroundColor: c.background, paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
     >
       {children}
     </View>

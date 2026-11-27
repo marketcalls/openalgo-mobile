@@ -312,8 +312,10 @@ async function setup(
   return s
 }
 
+/** The device's safe area: none unless a test sets it. */
+let insets = { top: 0, bottom: 0, left: 0, right: 0 }
 const tree = (s: Services, node: ReactElement | null) => (
-  <SafeAreaInsetsContext.Provider value={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+  <SafeAreaInsetsContext.Provider value={insets}>
     <ServicesProvider value={s}>
       <TradingProvider now={Date.now}>
         <QueryClientProvider client={s.queryClient}>
@@ -864,6 +866,17 @@ describe('loading', () => {
       type: 'auth',
       status: 'success',
     })
+  })
+
+  test('the chart keeps clear of the status bar and of the navigation bar or home indicator', async () => {
+    insets = { top: 24, bottom: 48, left: 0, right: 0 }
+    try {
+      await setup()
+      await open()
+      expect(screen.getByTestId('chart-screen')).toHaveStyle({ paddingTop: 24, paddingBottom: 48 })
+    } finally {
+      insets = { top: 0, bottom: 0, left: 0, right: 0 }
+    }
   })
 
   test('an unknown instrument shows Expired or unknown and mounts no DOM', async () => {
