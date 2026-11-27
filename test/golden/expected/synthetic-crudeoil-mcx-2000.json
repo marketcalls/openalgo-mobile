@@ -1,0 +1,5908 @@
+{
+  "case": "crudeoil-mcx-2000",
+  "source": "synthetic",
+  "serverNowMs": 1797431400000,
+  "underlying": "CRUDEOIL",
+  "exchange": "MCX",
+  "expiry": "16DEC26",
+  "routes": {
+    "get_oi_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "CRUDEOIL",
+        "spot_price": 6006.3,
+        "futures_price": 6016.1,
+        "lot_size": 100,
+        "pcr_oi": 0.95,
+        "pcr_volume": 0.93,
+        "total_ce_oi": 32136650,
+        "total_pe_oi": 30629235,
+        "atm_strike": 6000,
+        "expiry_date": "16DEC26",
+        "chain": [
+          {
+            "strike": 4850,
+            "ce_oi": 663975,
+            "pe_oi": 262860
+          },
+          {
+            "strike": 4900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450
+          },
+          {
+            "strike": 4950,
+            "ce_oi": 992680,
+            "pe_oi": 776035
+          },
+          {
+            "strike": 5000,
+            "ce_oi": 744835,
+            "pe_oi": 1271400
+          },
+          {
+            "strike": 5050,
+            "ce_oi": 32370,
+            "pe_oi": 484185
+          },
+          {
+            "strike": 5100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515
+          },
+          {
+            "strike": 5150,
+            "ce_oi": 148785,
+            "pe_oi": 996970
+          },
+          {
+            "strike": 5200,
+            "ce_oi": 703365,
+            "pe_oi": 914030
+          },
+          {
+            "strike": 5250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415
+          },
+          {
+            "strike": 5300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705
+          },
+          {
+            "strike": 5350,
+            "ce_oi": 1110395,
+            "pe_oi": 1019200
+          },
+          {
+            "strike": 5400,
+            "ce_oi": 252655,
+            "pe_oi": 161460
+          },
+          {
+            "strike": 5450,
+            "ce_oi": 585910,
+            "pe_oi": 851565
+          },
+          {
+            "strike": 5500,
+            "ce_oi": 594620,
+            "pe_oi": 377975
+          },
+          {
+            "strike": 5550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590
+          },
+          {
+            "strike": 5600,
+            "ce_oi": 81185,
+            "pe_oi": 105690
+          },
+          {
+            "strike": 5650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755
+          },
+          {
+            "strike": 5700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245
+          },
+          {
+            "strike": 5750,
+            "ce_oi": 170495,
+            "pe_oi": 387140
+          },
+          {
+            "strike": 5800,
+            "ce_oi": 523835,
+            "pe_oi": 432640
+          },
+          {
+            "strike": 5850,
+            "ce_oi": 92170,
+            "pe_oi": 749905
+          },
+          {
+            "strike": 5900,
+            "ce_oi": 572520,
+            "pe_oi": 45955
+          },
+          {
+            "strike": 5950,
+            "ce_oi": 133705,
+            "pe_oi": 158210
+          },
+          {
+            "strike": 6000,
+            "ce_oi": 365820,
+            "pe_oi": 149175
+          },
+          {
+            "strike": 6050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790
+          },
+          {
+            "strike": 6100,
+            "ce_oi": 849615,
+            "pe_oi": 758420
+          },
+          {
+            "strike": 6150,
+            "ce_oi": 357110,
+            "pe_oi": 148525
+          },
+          {
+            "strike": 6200,
+            "ce_oi": 274950,
+            "pe_oi": 848445
+          },
+          {
+            "strike": 6250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100
+          },
+          {
+            "strike": 6300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890
+          },
+          {
+            "strike": 6350,
+            "ce_oi": 721760,
+            "pe_oi": 338715
+          },
+          {
+            "strike": 6400,
+            "ce_oi": 315120,
+            "pe_oi": 98475
+          },
+          {
+            "strike": 6450,
+            "ce_oi": 745745,
+            "pe_oi": 293930
+          },
+          {
+            "strike": 6500,
+            "ce_oi": 41795,
+            "pe_oi": 1042600
+          },
+          {
+            "strike": 6550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145
+          },
+          {
+            "strike": 6600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665
+          },
+          {
+            "strike": 6650,
+            "ce_oi": 881595,
+            "pe_oi": 790400
+          },
+          {
+            "strike": 6700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230
+          },
+          {
+            "strike": 6750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615
+          },
+          {
+            "strike": 6800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415
+          },
+          {
+            "strike": 6850,
+            "ce_oi": 509405,
+            "pe_oi": 100230
+          },
+          {
+            "strike": 6900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500
+          },
+          {
+            "strike": 6950,
+            "ce_oi": 826670,
+            "pe_oi": 925925
+          },
+          {
+            "strike": 7000,
+            "ce_oi": 787345,
+            "pe_oi": 129610
+          },
+          {
+            "strike": 7050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835
+          },
+          {
+            "strike": 7100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445
+          },
+          {
+            "strike": 7150,
+            "ce_oi": 429455,
+            "pe_oi": 338260
+          }
+        ]
+      }
+    },
+    "calculate_max_pain": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "CRUDEOIL",
+        "spot_price": 6006.3,
+        "futures_price": 6016.1,
+        "atm_strike": 6000,
+        "max_pain_strike": 6050,
+        "lot_size": 100,
+        "pcr_oi": 0.95,
+        "pcr_volume": 0.93,
+        "expiry_date": "16DEC26",
+        "pain_data": [
+          {
+            "strike": 4850,
+            "ce_pain": 0,
+            "pe_pain": 34002361250,
+            "total_pain": 34002361250,
+            "total_pain_cr": 3400.24
+          },
+          {
+            "strike": 4900,
+            "ce_pain": 33198750,
+            "pe_pain": 32484042500,
+            "total_pain": 32517241250,
+            "total_pain_cr": 3251.72
+          },
+          {
+            "strike": 4950,
+            "ce_pain": 70690750,
+            "pe_pain": 31020746250,
+            "total_pain": 31091437000,
+            "total_pain_cr": 3109.14
+          },
+          {
+            "strike": 5000,
+            "ce_pain": 157816750,
+            "pe_pain": 29596251750,
+            "total_pain": 29754068500,
+            "total_pain_cr": 2975.41
+          },
+          {
+            "strike": 5050,
+            "ce_pain": 282184500,
+            "pe_pain": 28235327250,
+            "total_pain": 28517511750,
+            "total_pain_cr": 2851.75
+          },
+          {
+            "strike": 5100,
+            "ce_pain": 408170750,
+            "pe_pain": 26898612000,
+            "total_pain": 27306782750,
+            "total_pain_cr": 2730.68
+          },
+          {
+            "strike": 5150,
+            "ce_pain": 585065000,
+            "pe_pain": 25601972500,
+            "total_pain": 26187037500,
+            "total_pain_cr": 2618.7
+          },
+          {
+            "strike": 5200,
+            "ce_pain": 769398500,
+            "pe_pain": 24355181500,
+            "total_pain": 25124580000,
+            "total_pain_cr": 2512.46
+          },
+          {
+            "strike": 5250,
+            "ce_pain": 988900250,
+            "pe_pain": 23154092000,
+            "total_pain": 24142992250,
+            "total_pain_cr": 2414.3
+          },
+          {
+            "strike": 5300,
+            "ce_pain": 1273805000,
+            "pe_pain": 22007573250,
+            "total_pain": 23281378250,
+            "total_pain_cr": 2328.14
+          },
+          {
+            "strike": 5350,
+            "ce_pain": 1616358250,
+            "pe_pain": 20886589750,
+            "total_pain": 22502948000,
+            "total_pain_cr": 2250.29
+          },
+          {
+            "strike": 5400,
+            "ce_pain": 2014431250,
+            "pe_pain": 19816566250,
+            "total_pain": 21830997500,
+            "total_pain_cr": 2183.1
+          },
+          {
+            "strike": 5450,
+            "ce_pain": 2425137000,
+            "pe_pain": 18754615750,
+            "total_pain": 21179752750,
+            "total_pain_cr": 2117.98
+          },
+          {
+            "strike": 5500,
+            "ce_pain": 2865138250,
+            "pe_pain": 17735243500,
+            "total_pain": 20600381750,
+            "total_pain_cr": 2060.04
+          },
+          {
+            "strike": 5550,
+            "ce_pain": 3334870500,
+            "pe_pain": 16734770000,
+            "total_pain": 20069640500,
+            "total_pain_cr": 2006.96
+          },
+          {
+            "strike": 5600,
+            "ce_pain": 3869099000,
+            "pe_pain": 15744326000,
+            "total_pain": 19613425000,
+            "total_pain_cr": 1961.34
+          },
+          {
+            "strike": 5650,
+            "ce_pain": 4407386750,
+            "pe_pain": 14759166500,
+            "total_pain": 19166553250,
+            "total_pain_cr": 1916.66
+          },
+          {
+            "strike": 5700,
+            "ce_pain": 4993202500,
+            "pe_pain": 13826094750,
+            "total_pain": 18819297250,
+            "total_pain_cr": 1881.93
+          },
+          {
+            "strike": 5750,
+            "ce_pain": 5627917750,
+            "pe_pain": 12946885250,
+            "total_pain": 18574803000,
+            "total_pain_cr": 1857.48
+          },
+          {
+            "strike": 5800,
+            "ce_pain": 6271157750,
+            "pe_pain": 12087032750,
+            "total_pain": 18358190500,
+            "total_pain_cr": 1835.82
+          },
+          {
+            "strike": 5850,
+            "ce_pain": 6940589500,
+            "pe_pain": 11248812250,
+            "total_pain": 18189401750,
+            "total_pain_cr": 1818.94
+          },
+          {
+            "strike": 5900,
+            "ce_pain": 7614629750,
+            "pe_pain": 10448087000,
+            "total_pain": 18062716750,
+            "total_pain_cr": 1806.27
+          },
+          {
+            "strike": 5950,
+            "ce_pain": 8317296000,
+            "pe_pain": 9649659500,
+            "total_pain": 17966955500,
+            "total_pain_cr": 1796.7
+          },
+          {
+            "strike": 6000,
+            "ce_pain": 9026647500,
+            "pe_pain": 8859142500,
+            "total_pain": 17885790000,
+            "total_pain_cr": 1788.58
+          },
+          {
+            "strike": 6050,
+            "ce_pain": 9754290000,
+            "pe_pain": 8076084250,
+            "total_pain": 17830374250,
+            "total_pain_cr": 1783.04
+          },
+          {
+            "strike": 6100,
+            "ce_pain": 10534988750,
+            "pe_pain": 7356615500,
+            "total_pain": 17891604250,
+            "total_pain_cr": 1789.16
+          },
+          {
+            "strike": 6150,
+            "ce_pain": 11358168250,
+            "pe_pain": 6675067750,
+            "total_pain": 18033236000,
+            "total_pain_cr": 1803.32
+          },
+          {
+            "strike": 6200,
+            "ce_pain": 12199203250,
+            "pe_pain": 6000946250,
+            "total_pain": 18200149500,
+            "total_pain_cr": 1820.01
+          },
+          {
+            "strike": 6250,
+            "ce_pain": 13053985750,
+            "pe_pain": 5369247000,
+            "total_pain": 18423232750,
+            "total_pain_cr": 1842.32
+          },
+          {
+            "strike": 6300,
+            "ce_pain": 13970853000,
+            "pe_pain": 4786752750,
+            "total_pain": 18757605750,
+            "total_pain_cr": 1875.76
+          },
+          {
+            "strike": 6350,
+            "ce_pain": 14945339500,
+            "pe_pain": 4263103000,
+            "total_pain": 19208442500,
+            "total_pain_cr": 1920.84
+          },
+          {
+            "strike": 6400,
+            "ce_pain": 15955914000,
+            "pe_pain": 3756389000,
+            "total_pain": 19712303000,
+            "total_pain_cr": 1971.23
+          },
+          {
+            "strike": 6450,
+            "ce_pain": 16982244500,
+            "pe_pain": 3254598750,
+            "total_pain": 20236843250,
+            "total_pain_cr": 2023.68
+          },
+          {
+            "strike": 6500,
+            "ce_pain": 18045862250,
+            "pe_pain": 2767505000,
+            "total_pain": 20813367250,
+            "total_pain_cr": 2081.34
+          },
+          {
+            "strike": 6550,
+            "ce_pain": 19111569750,
+            "pe_pain": 2332541250,
+            "total_pain": 21444111000,
+            "total_pain_cr": 2144.41
+          },
+          {
+            "strike": 6600,
+            "ce_pain": 20208743750,
+            "pe_pain": 1951634750,
+            "total_pain": 22160378500,
+            "total_pain_cr": 2216.04
+          },
+          {
+            "strike": 6650,
+            "ce_pain": 21328414250,
+            "pe_pain": 1626111500,
+            "total_pain": 22954525750,
+            "total_pain_cr": 2295.45
+          },
+          {
+            "strike": 6700,
+            "ce_pain": 22492164500,
+            "pe_pain": 1340108250,
+            "total_pain": 23832272750,
+            "total_pain_cr": 2383.23
+          },
+          {
+            "strike": 6750,
+            "ce_pain": 23720931000,
+            "pe_pain": 1088366500,
+            "total_pain": 24809297500,
+            "total_pain_cr": 2480.93
+          },
+          {
+            "strike": 6800,
+            "ce_pain": 25003660500,
+            "pe_pain": 879755500,
+            "total_pain": 25883416000,
+            "total_pain_cr": 2588.34
+          },
+          {
+            "strike": 6850,
+            "ce_pain": 26348751000,
+            "pe_pain": 673065250,
+            "total_pain": 27021816250,
+            "total_pain_cr": 2702.18
+          },
+          {
+            "strike": 6900,
+            "ce_pain": 27719311750,
+            "pe_pain": 471386500,
+            "total_pain": 28190698250,
+            "total_pain_cr": 2819.07
+          },
+          {
+            "strike": 6950,
+            "ce_pain": 29154999250,
+            "pe_pain": 304482750,
+            "total_pain": 29459482000,
+            "total_pain_cr": 2945.95
+          },
+          {
+            "strike": 7000,
+            "ce_pain": 30632020250,
+            "pe_pain": 183875250,
+            "total_pain": 30815895500,
+            "total_pain_cr": 3081.59
+          },
+          {
+            "strike": 7050,
+            "ce_pain": 32148408500,
+            "pe_pain": 69748250,
+            "total_pain": 32218156750,
+            "total_pain_cr": 3221.82
+          },
+          {
+            "strike": 7100,
+            "ce_pain": 33671920750,
+            "pe_pain": 16913000,
+            "total_pain": 33688833750,
+            "total_pain_cr": 3368.88
+          },
+          {
+            "strike": 7150,
+            "ce_pain": 35257280500,
+            "pe_pain": 0,
+            "total_pain": 35257280500,
+            "total_pain_cr": 3525.73
+          }
+        ]
+      }
+    },
+    "get_iv_smile_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "CRUDEOIL",
+        "spot_price": 6006.3,
+        "atm_strike": 6000,
+        "atm_iv": 259.79,
+        "skew": -10.43,
+        "expiry_date": "16DEC26",
+        "chain": [
+          {
+            "strike": 4750,
+            "ce_iv": 500.0,
+            "pe_iv": 356.66
+          },
+          {
+            "strike": 4800,
+            "ce_iv": 500.0,
+            "pe_iv": 341.77
+          },
+          {
+            "strike": 4850,
+            "ce_iv": 500.0,
+            "pe_iv": 327.0
+          },
+          {
+            "strike": 4900,
+            "ce_iv": 500.0,
+            "pe_iv": 312.35
+          },
+          {
+            "strike": 4950,
+            "ce_iv": 500.0,
+            "pe_iv": 297.8
+          },
+          {
+            "strike": 5000,
+            "ce_iv": 500.0,
+            "pe_iv": 283.37
+          },
+          {
+            "strike": 5050,
+            "ce_iv": 500.0,
+            "pe_iv": 269.03
+          },
+          {
+            "strike": 5100,
+            "ce_iv": 500.0,
+            "pe_iv": 269.48
+          },
+          {
+            "strike": 5150,
+            "ce_iv": 500.0,
+            "pe_iv": 270.92
+          },
+          {
+            "strike": 5200,
+            "ce_iv": 499.18,
+            "pe_iv": 269.89
+          },
+          {
+            "strike": 5250,
+            "ce_iv": 474.72,
+            "pe_iv": 266.39
+          },
+          {
+            "strike": 5300,
+            "ce_iv": 450.73,
+            "pe_iv": 266.37
+          },
+          {
+            "strike": 5350,
+            "ce_iv": 427.93,
+            "pe_iv": 264.2
+          },
+          {
+            "strike": 5400,
+            "ce_iv": 406.09,
+            "pe_iv": 263.32
+          },
+          {
+            "strike": 5450,
+            "ce_iv": 385.9,
+            "pe_iv": 261.87
+          },
+          {
+            "strike": 5500,
+            "ce_iv": 367.57,
+            "pe_iv": 260.59
+          },
+          {
+            "strike": 5550,
+            "ce_iv": 351.09,
+            "pe_iv": 259.01
+          },
+          {
+            "strike": 5600,
+            "ce_iv": 336.83,
+            "pe_iv": 257.38
+          },
+          {
+            "strike": 5650,
+            "ce_iv": 324.5,
+            "pe_iv": 255.83
+          },
+          {
+            "strike": 5700,
+            "ce_iv": 314.0,
+            "pe_iv": 254.29
+          },
+          {
+            "strike": 5750,
+            "ce_iv": 305.24,
+            "pe_iv": 252.51
+          },
+          {
+            "strike": 5800,
+            "ce_iv": 297.94,
+            "pe_iv": 250.61
+          },
+          {
+            "strike": 5850,
+            "ce_iv": 291.86,
+            "pe_iv": 248.55
+          },
+          {
+            "strike": 5900,
+            "ce_iv": 286.73,
+            "pe_iv": 246.26
+          },
+          {
+            "strike": 5950,
+            "ce_iv": 282.45,
+            "pe_iv": 243.75
+          },
+          {
+            "strike": 6000,
+            "ce_iv": 278.76,
+            "pe_iv": 240.82
+          },
+          {
+            "strike": 6050,
+            "ce_iv": 275.68,
+            "pe_iv": 237.43
+          },
+          {
+            "strike": 6100,
+            "ce_iv": 272.95,
+            "pe_iv": 233.52
+          },
+          {
+            "strike": 6150,
+            "ce_iv": 270.55,
+            "pe_iv": 228.49
+          },
+          {
+            "strike": 6200,
+            "ce_iv": 268.36,
+            "pe_iv": 222.28
+          },
+          {
+            "strike": 6250,
+            "ce_iv": 266.5,
+            "pe_iv": 213.96
+          },
+          {
+            "strike": 6300,
+            "ce_iv": 264.72,
+            "pe_iv": 201.82
+          },
+          {
+            "strike": 6350,
+            "ce_iv": 263.14,
+            "pe_iv": 181.33
+          },
+          {
+            "strike": 6400,
+            "ce_iv": 261.76,
+            "pe_iv": null
+          },
+          {
+            "strike": 6450,
+            "ce_iv": 260.38,
+            "pe_iv": null
+          },
+          {
+            "strike": 6500,
+            "ce_iv": 259.11,
+            "pe_iv": null
+          },
+          {
+            "strike": 6550,
+            "ce_iv": 257.97,
+            "pe_iv": null
+          },
+          {
+            "strike": 6600,
+            "ce_iv": 256.72,
+            "pe_iv": null
+          },
+          {
+            "strike": 6650,
+            "ce_iv": 255.67,
+            "pe_iv": null
+          },
+          {
+            "strike": 6700,
+            "ce_iv": 255.03,
+            "pe_iv": null
+          },
+          {
+            "strike": 6750,
+            "ce_iv": 254.38,
+            "pe_iv": null
+          },
+          {
+            "strike": 6800,
+            "ce_iv": 253.18,
+            "pe_iv": null
+          },
+          {
+            "strike": 6850,
+            "ce_iv": 251.47,
+            "pe_iv": null
+          },
+          {
+            "strike": 6900,
+            "ce_iv": 253.03,
+            "pe_iv": null
+          },
+          {
+            "strike": 6950,
+            "ce_iv": 248.15,
+            "pe_iv": null
+          },
+          {
+            "strike": 7000,
+            "ce_iv": 250.28,
+            "pe_iv": null
+          },
+          {
+            "strike": 7050,
+            "ce_iv": 246.9,
+            "pe_iv": null
+          },
+          {
+            "strike": 7100,
+            "ce_iv": 256.88,
+            "pe_iv": null
+          },
+          {
+            "strike": 7150,
+            "ce_iv": 266.76,
+            "pe_iv": null
+          },
+          {
+            "strike": 7200,
+            "ce_iv": 276.54,
+            "pe_iv": null
+          },
+          {
+            "strike": 7250,
+            "ce_iv": 286.22,
+            "pe_iv": null
+          }
+        ]
+      }
+    },
+    "get_gex_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "CRUDEOIL",
+        "spot_price": 6006.3,
+        "futures_price": 6016.1,
+        "lot_size": 100,
+        "atm_strike": 6000,
+        "expiry_date": "16DEC26",
+        "pcr_oi": 1.03,
+        "total_ce_oi": 53041170,
+        "total_pe_oi": 54530905,
+        "total_ce_gex": 1334728.42,
+        "total_pe_gex": 1049229.16,
+        "total_net_gex": 285499.25,
+        "chain": [
+          {
+            "strike": 4000,
+            "ce_oi": 1018550,
+            "pe_oi": 809965,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 4050,
+            "ce_oi": 425295,
+            "pe_oi": 334100,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 4100,
+            "ce_oi": 681265,
+            "pe_oi": 229450,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 4150,
+            "ce_oi": 36400,
+            "pe_oi": 1119755,
+            "ce_gamma": 1e-06,
+            "pe_gamma": 1e-06,
+            "ce_gex": 3.64,
+            "pe_gex": 111.98,
+            "net_gex": -108.34
+          },
+          {
+            "strike": 4200,
+            "ce_oi": 622700,
+            "pe_oi": 713895,
+            "ce_gamma": 1e-06,
+            "pe_gamma": 1e-06,
+            "ce_gex": 62.27,
+            "pe_gex": 71.39,
+            "net_gex": -9.12
+          },
+          {
+            "strike": 4250,
+            "ce_oi": 590005,
+            "pe_oi": 1108510,
+            "ce_gamma": 1e-06,
+            "pe_gamma": 1e-06,
+            "ce_gex": 59.0,
+            "pe_gex": 110.85,
+            "net_gex": -51.85
+          },
+          {
+            "strike": 4300,
+            "ce_oi": 357695,
+            "pe_oi": 574340,
+            "ce_gamma": 2e-06,
+            "pe_gamma": 2e-06,
+            "ce_gex": 71.54,
+            "pe_gex": 114.87,
+            "net_gex": -43.33
+          },
+          {
+            "strike": 4350,
+            "ce_oi": 950950,
+            "pe_oi": 740285,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 2e-06,
+            "ce_gex": 285.29,
+            "pe_gex": 148.06,
+            "net_gex": 137.23
+          },
+          {
+            "strike": 4400,
+            "ce_oi": 995930,
+            "pe_oi": 971425,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 2e-06,
+            "ce_gex": 398.37,
+            "pe_gex": 194.28,
+            "net_gex": 204.09
+          },
+          {
+            "strike": 4450,
+            "ce_oi": 622635,
+            "pe_oi": 839280,
+            "ce_gamma": 6e-06,
+            "pe_gamma": 2e-06,
+            "ce_gex": 373.58,
+            "pe_gex": 167.86,
+            "net_gex": 205.73
+          },
+          {
+            "strike": 4500,
+            "ce_oi": 1303445,
+            "pe_oi": 521950,
+            "ce_gamma": 9e-06,
+            "pe_gamma": 3e-06,
+            "ce_gex": 1173.1,
+            "pe_gex": 156.59,
+            "net_gex": 1016.52
+          },
+          {
+            "strike": 4550,
+            "ce_oi": 36140,
+            "pe_oi": 127335,
+            "ce_gamma": 1.2e-05,
+            "pe_gamma": 3e-06,
+            "ce_gex": 43.37,
+            "pe_gex": 38.2,
+            "net_gex": 5.17
+          },
+          {
+            "strike": 4600,
+            "ce_oi": 289120,
+            "pe_oi": 1206075,
+            "ce_gamma": 1.6e-05,
+            "pe_gamma": 3e-06,
+            "ce_gex": 462.59,
+            "pe_gex": 361.82,
+            "net_gex": 100.77
+          },
+          {
+            "strike": 4650,
+            "ce_oi": 933985,
+            "pe_oi": 958490,
+            "ce_gamma": 2.2e-05,
+            "pe_gamma": 3e-06,
+            "ce_gex": 2054.77,
+            "pe_gex": 287.55,
+            "net_gex": 1767.22
+          },
+          {
+            "strike": 4700,
+            "ce_oi": 24115,
+            "pe_oi": 448760,
+            "ce_gamma": 2.9e-05,
+            "pe_gamma": 3e-06,
+            "ce_gex": 69.93,
+            "pe_gex": 134.63,
+            "net_gex": -64.69
+          },
+          {
+            "strike": 4750,
+            "ce_oi": 370370,
+            "pe_oi": 345865,
+            "ce_gamma": 3.7e-05,
+            "pe_gamma": 4e-06,
+            "ce_gex": 1370.37,
+            "pe_gex": 138.35,
+            "net_gex": 1232.02
+          },
+          {
+            "strike": 4800,
+            "ce_oi": 188110,
+            "pe_oi": 287365,
+            "ce_gamma": 4.8e-05,
+            "pe_gamma": 4e-06,
+            "ce_gex": 902.93,
+            "pe_gex": 114.95,
+            "net_gex": 787.98
+          },
+          {
+            "strike": 4850,
+            "ce_oi": 663975,
+            "pe_oi": 262860,
+            "ce_gamma": 6e-05,
+            "pe_gamma": 4e-06,
+            "ce_gex": 3983.85,
+            "pe_gex": 105.14,
+            "net_gex": 3878.71
+          },
+          {
+            "strike": 4900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450,
+            "ce_gamma": 7.5e-05,
+            "pe_gamma": 5e-06,
+            "ce_gex": 643.99,
+            "pe_gex": 550.23,
+            "net_gex": 93.76
+          },
+          {
+            "strike": 4950,
+            "ce_oi": 992680,
+            "pe_oi": 776035,
+            "ce_gamma": 9.3e-05,
+            "pe_gamma": 5e-06,
+            "ce_gex": 9231.92,
+            "pe_gex": 388.02,
+            "net_gex": 8843.91
+          },
+          {
+            "strike": 5000,
+            "ce_oi": 744835,
+            "pe_oi": 1271400,
+            "ce_gamma": 0.000113,
+            "pe_gamma": 6e-06,
+            "ce_gex": 8416.64,
+            "pe_gex": 762.84,
+            "net_gex": 7653.8
+          },
+          {
+            "strike": 5050,
+            "ce_oi": 32370,
+            "pe_oi": 484185,
+            "ce_gamma": 0.000135,
+            "pe_gamma": 6e-06,
+            "ce_gex": 437.0,
+            "pe_gex": 290.51,
+            "net_gex": 146.48
+          },
+          {
+            "strike": 5100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515,
+            "ce_gamma": 0.00016,
+            "pe_gamma": 1.1e-05,
+            "ce_gex": 16290.56,
+            "pe_gex": 881.67,
+            "net_gex": 15408.89
+          },
+          {
+            "strike": 5150,
+            "ce_oi": 148785,
+            "pe_oi": 996970,
+            "ce_gamma": 0.000188,
+            "pe_gamma": 2e-05,
+            "ce_gex": 2797.16,
+            "pe_gex": 1993.94,
+            "net_gex": 803.22
+          },
+          {
+            "strike": 5200,
+            "ce_oi": 703365,
+            "pe_oi": 914030,
+            "ce_gamma": 0.000218,
+            "pe_gamma": 3.2e-05,
+            "ce_gex": 15333.36,
+            "pe_gex": 2924.9,
+            "net_gex": 12408.46
+          },
+          {
+            "strike": 5250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415,
+            "ce_gamma": 0.000239,
+            "pe_gamma": 4.8e-05,
+            "ce_gex": 31262.63,
+            "pe_gex": 5238.79,
+            "net_gex": 26023.84
+          },
+          {
+            "strike": 5300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705,
+            "ce_gamma": 0.000264,
+            "pe_gamma": 7.4e-05,
+            "ce_gex": 30438.41,
+            "pe_gex": 3779.22,
+            "net_gex": 26659.19
+          },
+          {
+            "strike": 5350,
+            "ce_oi": 1110395,
+            "pe_oi": 1019200,
+            "ce_gamma": 0.000293,
+            "pe_gamma": 0.000108,
+            "ce_gex": 32534.57,
+            "pe_gex": 11007.36,
+            "net_gex": 21527.21
+          },
+          {
+            "strike": 5400,
+            "ce_oi": 252655,
+            "pe_oi": 161460,
+            "ce_gamma": 0.000328,
+            "pe_gamma": 0.000155,
+            "ce_gex": 8287.08,
+            "pe_gex": 2502.63,
+            "net_gex": 5784.45
+          },
+          {
+            "strike": 5450,
+            "ce_oi": 585910,
+            "pe_oi": 851565,
+            "ce_gamma": 0.000371,
+            "pe_gamma": 0.000216,
+            "ce_gex": 21737.26,
+            "pe_gex": 18393.8,
+            "net_gex": 3343.46
+          },
+          {
+            "strike": 5500,
+            "ce_oi": 594620,
+            "pe_oi": 377975,
+            "ce_gamma": 0.000422,
+            "pe_gamma": 0.000292,
+            "ce_gex": 25092.96,
+            "pe_gex": 11036.87,
+            "net_gex": 14056.09
+          },
+          {
+            "strike": 5550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590,
+            "ce_gamma": 0.000482,
+            "pe_gamma": 0.000385,
+            "ce_gex": 62174.38,
+            "pe_gex": 7722.71,
+            "net_gex": 54451.67
+          },
+          {
+            "strike": 5600,
+            "ce_oi": 81185,
+            "pe_oi": 105690,
+            "ce_gamma": 0.000554,
+            "pe_gamma": 0.000493,
+            "ce_gex": 4497.65,
+            "pe_gex": 5210.52,
+            "net_gex": -712.87
+          },
+          {
+            "strike": 5650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755,
+            "ce_gamma": 0.000636,
+            "pe_gamma": 0.000616,
+            "ce_gex": 60455.62,
+            "pe_gex": 64172.11,
+            "net_gex": -3716.49
+          },
+          {
+            "strike": 5700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245,
+            "ce_gamma": 0.000728,
+            "pe_gamma": 0.000749,
+            "ce_gex": 71197.67,
+            "pe_gex": 80685.65,
+            "net_gex": -9487.98
+          },
+          {
+            "strike": 5750,
+            "ce_oi": 170495,
+            "pe_oi": 387140,
+            "ce_gamma": 0.000825,
+            "pe_gamma": 0.000886,
+            "ce_gex": 14065.84,
+            "pe_gex": 34300.6,
+            "net_gex": -20234.77
+          },
+          {
+            "strike": 5800,
+            "ce_oi": 523835,
+            "pe_oi": 432640,
+            "ce_gamma": 0.000922,
+            "pe_gamma": 0.001021,
+            "ce_gex": 48297.59,
+            "pe_gex": 44172.54,
+            "net_gex": 4125.04
+          },
+          {
+            "strike": 5850,
+            "ce_oi": 92170,
+            "pe_oi": 749905,
+            "ce_gamma": 0.001014,
+            "pe_gamma": 0.001146,
+            "ce_gex": 9346.04,
+            "pe_gex": 85939.11,
+            "net_gex": -76593.08
+          },
+          {
+            "strike": 5900,
+            "ce_oi": 572520,
+            "pe_oi": 45955,
+            "ce_gamma": 0.001094,
+            "pe_gamma": 0.001252,
+            "ce_gex": 62633.69,
+            "pe_gex": 5753.57,
+            "net_gex": 56880.12
+          },
+          {
+            "strike": 5950,
+            "ce_oi": 133705,
+            "pe_oi": 158210,
+            "ce_gamma": 0.001154,
+            "pe_gamma": 0.001331,
+            "ce_gex": 15429.56,
+            "pe_gex": 21057.75,
+            "net_gex": -5628.19
+          },
+          {
+            "strike": 6000,
+            "ce_oi": 365820,
+            "pe_oi": 149175,
+            "ce_gamma": 0.001191,
+            "pe_gamma": 0.001378,
+            "ce_gex": 43569.16,
+            "pe_gex": 20556.32,
+            "net_gex": 23012.85
+          },
+          {
+            "strike": 6050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790,
+            "ce_gamma": 0.001199,
+            "pe_gamma": 0.001388,
+            "ce_gex": 127228.89,
+            "pe_gex": 176524.45,
+            "net_gex": -49295.56
+          },
+          {
+            "strike": 6100,
+            "ce_oi": 849615,
+            "pe_oi": 758420,
+            "ce_gamma": 0.001178,
+            "pe_gamma": 0.001357,
+            "ce_gex": 100084.65,
+            "pe_gex": 102917.59,
+            "net_gex": -2832.95
+          },
+          {
+            "strike": 6150,
+            "ce_oi": 357110,
+            "pe_oi": 148525,
+            "ce_gamma": 0.001129,
+            "pe_gamma": 0.001287,
+            "ce_gex": 40317.72,
+            "pe_gex": 19115.17,
+            "net_gex": 21202.55
+          },
+          {
+            "strike": 6200,
+            "ce_oi": 274950,
+            "pe_oi": 848445,
+            "ce_gamma": 0.001056,
+            "pe_gamma": 0.001176,
+            "ce_gex": 29034.72,
+            "pe_gex": 99777.13,
+            "net_gex": -70742.41
+          },
+          {
+            "strike": 6250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100,
+            "ce_gamma": 0.000962,
+            "pe_gamma": 0.001028,
+            "ce_gex": 119451.06,
+            "pe_gex": 101165.48,
+            "net_gex": 18285.58
+          },
+          {
+            "strike": 6300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890,
+            "ce_gamma": 0.000855,
+            "pe_gamma": 0.000837,
+            "ce_gex": 98528.92,
+            "pe_gex": 98505.69,
+            "net_gex": 23.22
+          },
+          {
+            "strike": 6350,
+            "ce_oi": 721760,
+            "pe_oi": 338715,
+            "ce_gamma": 0.000742,
+            "pe_gamma": 0.00058,
+            "ce_gex": 53554.59,
+            "pe_gex": 19645.47,
+            "net_gex": 33909.12
+          },
+          {
+            "strike": 6400,
+            "ce_oi": 315120,
+            "pe_oi": 98475,
+            "ce_gamma": 0.000627,
+            "pe_gamma": 0,
+            "ce_gex": 19758.02,
+            "pe_gex": 0,
+            "net_gex": 19758.02
+          },
+          {
+            "strike": 6450,
+            "ce_oi": 745745,
+            "pe_oi": 293930,
+            "ce_gamma": 0.000518,
+            "pe_gamma": 0,
+            "ce_gex": 38629.59,
+            "pe_gex": 0,
+            "net_gex": 38629.59
+          },
+          {
+            "strike": 6500,
+            "ce_oi": 41795,
+            "pe_oi": 1042600,
+            "ce_gamma": 0.000417,
+            "pe_gamma": 0,
+            "ce_gex": 1742.85,
+            "pe_gex": 0,
+            "net_gex": 1742.85
+          },
+          {
+            "strike": 6550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145,
+            "ce_gamma": 0.000328,
+            "pe_gamma": 0,
+            "ce_gex": 20642.02,
+            "pe_gex": 0,
+            "net_gex": 20642.02
+          },
+          {
+            "strike": 6600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665,
+            "ce_gamma": 0.000251,
+            "pe_gamma": 0,
+            "ce_gex": 11293.24,
+            "pe_gex": 0,
+            "net_gex": 11293.24
+          },
+          {
+            "strike": 6650,
+            "ce_oi": 881595,
+            "pe_oi": 790400,
+            "ce_gamma": 0.000188,
+            "pe_gamma": 0,
+            "ce_gex": 16573.99,
+            "pe_gex": 0,
+            "net_gex": 16573.99
+          },
+          {
+            "strike": 6700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230,
+            "ce_gamma": 0.000138,
+            "pe_gamma": 0,
+            "ce_gex": 17944.49,
+            "pe_gex": 0,
+            "net_gex": 17944.49
+          },
+          {
+            "strike": 6750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615,
+            "ce_gamma": 9.9e-05,
+            "pe_gamma": 0,
+            "ce_gex": 10684.67,
+            "pe_gex": 0,
+            "net_gex": 10684.67
+          },
+          {
+            "strike": 6800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415,
+            "ce_gamma": 6.9e-05,
+            "pe_gamma": 0,
+            "ce_gex": 8605.82,
+            "pe_gex": 0,
+            "net_gex": 8605.82
+          },
+          {
+            "strike": 6850,
+            "ce_oi": 509405,
+            "pe_oi": 100230,
+            "ce_gamma": 4.6e-05,
+            "pe_gamma": 0,
+            "ce_gex": 2343.26,
+            "pe_gex": 0,
+            "net_gex": 2343.26
+          },
+          {
+            "strike": 6900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500,
+            "ce_gamma": 3.3e-05,
+            "pe_gamma": 0,
+            "ce_gex": 4298.37,
+            "pe_gex": 0,
+            "net_gex": 4298.37
+          },
+          {
+            "strike": 6950,
+            "ce_oi": 826670,
+            "pe_oi": 925925,
+            "ce_gamma": 1.9e-05,
+            "pe_gamma": 0,
+            "ce_gex": 1570.67,
+            "pe_gex": 0,
+            "net_gex": 1570.67
+          },
+          {
+            "strike": 7000,
+            "ce_oi": 787345,
+            "pe_oi": 129610,
+            "ce_gamma": 1.3e-05,
+            "pe_gamma": 0,
+            "ce_gex": 1023.55,
+            "pe_gex": 0,
+            "net_gex": 1023.55
+          },
+          {
+            "strike": 7050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835,
+            "ce_gamma": 7e-06,
+            "pe_gamma": 0,
+            "ce_gex": 99.74,
+            "pe_gex": 0,
+            "net_gex": 99.74
+          },
+          {
+            "strike": 7100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445,
+            "ce_gamma": 7e-06,
+            "pe_gamma": 0,
+            "ce_gex": 865.87,
+            "pe_gex": 0,
+            "net_gex": 865.87
+          },
+          {
+            "strike": 7150,
+            "ce_oi": 429455,
+            "pe_oi": 338260,
+            "ce_gamma": 6e-06,
+            "pe_gamma": 0,
+            "ce_gex": 257.67,
+            "pe_gex": 0,
+            "net_gex": 257.67
+          },
+          {
+            "strike": 7200,
+            "ce_oi": 809055,
+            "pe_oi": 1025700,
+            "ce_gamma": 6e-06,
+            "pe_gamma": 0,
+            "ce_gex": 485.43,
+            "pe_gex": 0,
+            "net_gex": 485.43
+          },
+          {
+            "strike": 7250,
+            "ce_oi": 102310,
+            "pe_oi": 201565,
+            "ce_gamma": 6e-06,
+            "pe_gamma": 0,
+            "ce_gex": 61.39,
+            "pe_gex": 0,
+            "net_gex": 61.39
+          },
+          {
+            "strike": 7300,
+            "ce_oi": 1279980,
+            "pe_oi": 587015,
+            "ce_gamma": 5e-06,
+            "pe_gamma": 0,
+            "ce_gex": 639.99,
+            "pe_gex": 0,
+            "net_gex": 639.99
+          },
+          {
+            "strike": 7350,
+            "ce_oi": 1006005,
+            "pe_oi": 224510,
+            "ce_gamma": 5e-06,
+            "pe_gamma": 0,
+            "ce_gex": 503.0,
+            "pe_gex": 0,
+            "net_gex": 503.0
+          },
+          {
+            "strike": 7400,
+            "ce_oi": 419445,
+            "pe_oi": 937950,
+            "ce_gamma": 5e-06,
+            "pe_gamma": 0,
+            "ce_gex": 209.72,
+            "pe_gex": 0,
+            "net_gex": 209.72
+          },
+          {
+            "strike": 7450,
+            "ce_oi": 693420,
+            "pe_oi": 1300455,
+            "ce_gamma": 5e-06,
+            "pe_gamma": 0,
+            "ce_gex": 346.71,
+            "pe_gex": 0,
+            "net_gex": 346.71
+          },
+          {
+            "strike": 7500,
+            "ce_oi": 869050,
+            "pe_oi": 534625,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 347.62,
+            "pe_gex": 0,
+            "net_gex": 347.62
+          },
+          {
+            "strike": 7550,
+            "ce_oi": 612235,
+            "pe_oi": 828880,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 244.89,
+            "pe_gex": 0,
+            "net_gex": 244.89
+          },
+          {
+            "strike": 7600,
+            "ce_oi": 806195,
+            "pe_oi": 715000,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 322.48,
+            "pe_gex": 0,
+            "net_gex": 322.48
+          },
+          {
+            "strike": 7650,
+            "ce_oi": 374530,
+            "pe_oi": 1134185,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 149.81,
+            "pe_gex": 0,
+            "net_gex": 149.81
+          },
+          {
+            "strike": 7700,
+            "ce_oi": 520000,
+            "pe_oi": 1127035,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 208.0,
+            "pe_gex": 0,
+            "net_gex": 208.0
+          },
+          {
+            "strike": 7750,
+            "ce_oi": 407745,
+            "pe_oi": 948090,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 122.32,
+            "pe_gex": 0,
+            "net_gex": 122.32
+          },
+          {
+            "strike": 7800,
+            "ce_oi": 352105,
+            "pe_oi": 376610,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 105.63,
+            "pe_gex": 0,
+            "net_gex": 105.63
+          },
+          {
+            "strike": 7850,
+            "ce_oi": 1211080,
+            "pe_oi": 478595,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 363.32,
+            "pe_gex": 0,
+            "net_gex": 363.32
+          },
+          {
+            "strike": 7900,
+            "ce_oi": 934830,
+            "pe_oi": 724165,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 280.45,
+            "pe_gex": 0,
+            "net_gex": 280.45
+          },
+          {
+            "strike": 7950,
+            "ce_oi": 770055,
+            "pe_oi": 678860,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 231.02,
+            "pe_gex": 0,
+            "net_gex": 231.02
+          },
+          {
+            "strike": 8000,
+            "ce_oi": 289770,
+            "pe_oi": 741585,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 86.93,
+            "pe_gex": 0,
+            "net_gex": 86.93
+          }
+        ]
+      }
+    },
+    "calculate_gamma_density": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "CRUDEOIL",
+        "exchange": "MCX",
+        "expiry_date": "16DEC26",
+        "spot_price": 6006.3,
+        "forward_price": 6024.45,
+        "atm_strike": 6000,
+        "atm_iv": 258.65,
+        "dte_days": 0.15,
+        "interest_rate": 0,
+        "peak_intraday_strike": 6050,
+        "peak_expiry_strike": 6050,
+        "sigma_move": 813.16,
+        "one_sigma_low": 5193.14,
+        "one_sigma_high": 6819.46,
+        "two_sigma_low": 4379.99,
+        "two_sigma_high": 7632.61,
+        "intraday_band": {
+          "sigma_move": 813.16,
+          "one_sigma_low": 5193.14,
+          "one_sigma_high": 6819.46,
+          "two_sigma_low": 4379.99,
+          "two_sigma_high": 7632.61
+        },
+        "expiry_band": {
+          "sigma_move": 310.53,
+          "one_sigma_low": 5695.77,
+          "one_sigma_high": 6316.83,
+          "two_sigma_low": 5385.24,
+          "two_sigma_high": 6627.36
+        },
+        "chain": [
+          {
+            "strike": 4850,
+            "ce_oi": 663975,
+            "pe_oi": 262860,
+            "iv": 247.52,
+            "density_intraday": 1.1043098472590327,
+            "density_expiry": 1.1043098472590327
+          },
+          {
+            "strike": 4900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450,
+            "iv": 236.79,
+            "density_intraday": 5.033760199274076,
+            "density_expiry": 5.033760199274076
+          },
+          {
+            "strike": 4950,
+            "ce_oi": 992680,
+            "pe_oi": 776035,
+            "iv": 302.06,
+            "density_intraday": 8.838033251416784,
+            "density_expiry": 8.838033251416784
+          },
+          {
+            "strike": 5000,
+            "ce_oi": 744835,
+            "pe_oi": 1271400,
+            "iv": 287.64,
+            "density_intraday": 11.045164030364509,
+            "density_expiry": 11.045164030364509
+          },
+          {
+            "strike": 5050,
+            "ce_oi": 32370,
+            "pe_oi": 484185,
+            "iv": 273.32,
+            "density_intraday": 3.114561776961983,
+            "density_expiry": 3.114561776961983
+          },
+          {
+            "strike": 5100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515,
+            "iv": 273.99,
+            "density_intraday": 19.817774703407196,
+            "density_expiry": 19.817774703407196
+          },
+          {
+            "strike": 5150,
+            "ce_oi": 148785,
+            "pe_oi": 996970,
+            "iv": 275.69,
+            "density_intraday": 22.178969516993444,
+            "density_expiry": 22.178969516993444
+          },
+          {
+            "strike": 5200,
+            "ce_oi": 703365,
+            "pe_oi": 914030,
+            "iv": 274.91,
+            "density_intraday": 50.14287729849978,
+            "density_expiry": 50.14287729849978
+          },
+          {
+            "strike": 5250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415,
+            "iv": 272.98,
+            "density_intraday": 113.33080814221333,
+            "density_expiry": 113.33080814221333
+          },
+          {
+            "strike": 5300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705,
+            "iv": 271.93,
+            "density_intraday": 118.15041586932242,
+            "density_expiry": 118.15041586932242
+          },
+          {
+            "strike": 5350,
+            "ce_oi": 1110395,
+            "pe_oi": 1019200,
+            "iv": 270.69,
+            "density_intraday": 221.12159787566836,
+            "density_expiry": 221.12159787566836
+          },
+          {
+            "strike": 5400,
+            "ce_oi": 252655,
+            "pe_oi": 161460,
+            "iv": 269.55,
+            "density_intraday": 61.24722266149861,
+            "density_expiry": 61.24722266149861
+          },
+          {
+            "strike": 5450,
+            "ce_oi": 585910,
+            "pe_oi": 851565,
+            "iv": 268.51,
+            "density_intraday": 295.0692124115266,
+            "density_expiry": 295.0692124115266
+          },
+          {
+            "strike": 5500,
+            "ce_oi": 594620,
+            "pe_oi": 377975,
+            "iv": 267.67,
+            "density_intraday": 270.0111382572228,
+            "density_expiry": 270.0111382572228
+          },
+          {
+            "strike": 5550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590,
+            "iv": 266.6,
+            "density_intraday": 543.5135557977948,
+            "density_expiry": 543.5135557977948
+          },
+          {
+            "strike": 5600,
+            "ce_oi": 81185,
+            "pe_oi": 105690,
+            "iv": 265.68,
+            "density_intraday": 87.17003985669432,
+            "density_expiry": 87.17003985669432
+          },
+          {
+            "strike": 5650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755,
+            "iv": 264.75,
+            "density_intraday": 1157.0439119637558,
+            "density_expiry": 1157.0439119637558
+          },
+          {
+            "strike": 5700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245,
+            "iv": 263.86,
+            "density_intraday": 1446.387133764441,
+            "density_expiry": 1446.387133764441
+          },
+          {
+            "strike": 5750,
+            "ce_oi": 170495,
+            "pe_oi": 387140,
+            "iv": 262.94,
+            "density_intraday": 462.94511712419154,
+            "density_expiry": 462.94511712419154
+          },
+          {
+            "strike": 5800,
+            "ce_oi": 523835,
+            "pe_oi": 432640,
+            "iv": 262.06,
+            "density_intraday": 912.0282171270649,
+            "density_expiry": 912.0282171270649
+          },
+          {
+            "strike": 5850,
+            "ce_oi": 92170,
+            "pe_oi": 749905,
+            "iv": 261.19,
+            "density_intraday": 898.0190378373778,
+            "density_expiry": 898.0190378373778
+          },
+          {
+            "strike": 5900,
+            "ce_oi": 572520,
+            "pe_oi": 45955,
+            "iv": 260.31,
+            "density_intraday": 718.4702675755361,
+            "density_expiry": 718.4702675755361
+          },
+          {
+            "strike": 5950,
+            "ce_oi": 133705,
+            "pe_oi": 158210,
+            "iv": 259.5,
+            "density_intraday": 359.7480944071689,
+            "density_expiry": 359.7480944071689
+          },
+          {
+            "strike": 6000,
+            "ce_oi": 365820,
+            "pe_oi": 149175,
+            "iv": 258.65,
+            "density_intraday": 656.0368839286956,
+            "density_expiry": 656.0368839286956
+          },
+          {
+            "strike": 6050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790,
+            "iv": 257.87,
+            "density_intraday": 2992.4454360236705,
+            "density_expiry": 2992.4454360236705
+          },
+          {
+            "strike": 6100,
+            "ce_oi": 849615,
+            "pe_oi": 758420,
+            "iv": 257.13,
+            "density_intraday": 2023.682926813294,
+            "density_expiry": 2023.682926813294
+          },
+          {
+            "strike": 6150,
+            "ce_oi": 357110,
+            "pe_oi": 148525,
+            "iv": 256.32,
+            "density_intraday": 608.6714909082025,
+            "density_expiry": 608.6714909082025
+          },
+          {
+            "strike": 6200,
+            "ce_oi": 274950,
+            "pe_oi": 848445,
+            "iv": 255.55,
+            "density_intraday": 1260.9584979969093,
+            "density_expiry": 1260.9584979969093
+          },
+          {
+            "strike": 6250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100,
+            "iv": 254.86,
+            "density_intraday": 2270.909746723854,
+            "density_expiry": 2270.909746723854
+          },
+          {
+            "strike": 6300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890,
+            "iv": 254.08,
+            "density_intraday": 2106.8823020085874,
+            "density_expiry": 2106.8823020085874
+          },
+          {
+            "strike": 6350,
+            "ce_oi": 721760,
+            "pe_oi": 338715,
+            "iv": 253.36,
+            "density_intraday": 829.3791734590807,
+            "density_expiry": 829.3791734590807
+          },
+          {
+            "strike": 6400,
+            "ce_oi": 315120,
+            "pe_oi": 98475,
+            "iv": 252.73,
+            "density_intraday": 272.87244368121,
+            "density_expiry": 272.87244368121
+          },
+          {
+            "strike": 6450,
+            "ce_oi": 745745,
+            "pe_oi": 293930,
+            "iv": 252.0,
+            "density_intraday": 564.5379306671203,
+            "density_expiry": 564.5379306671203
+          },
+          {
+            "strike": 6500,
+            "ce_oi": 41795,
+            "pe_oi": 1042600,
+            "iv": 251.3,
+            "density_intraday": 472.9227141879116,
+            "density_expiry": 472.9227141879116
+          },
+          {
+            "strike": 6550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145,
+            "iv": 250.67,
+            "density_intraday": 585.0394225066159,
+            "density_expiry": 585.0394225066159
+          },
+          {
+            "strike": 6600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665,
+            "iv": 249.87,
+            "density_intraday": 407.3100944243431,
+            "density_expiry": 407.3100944243431
+          },
+          {
+            "strike": 6650,
+            "ce_oi": 881595,
+            "pe_oi": 790400,
+            "iv": 249.22,
+            "density_intraday": 326.72718407661034,
+            "density_expiry": 326.72718407661034
+          },
+          {
+            "strike": 6700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230,
+            "iv": 248.93,
+            "density_intraday": 284.61330040415595,
+            "density_expiry": 284.61330040415595
+          },
+          {
+            "strike": 6750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615,
+            "iv": 247.92,
+            "density_intraday": 197.61187516434717,
+            "density_expiry": 197.61187516434717
+          },
+          {
+            "strike": 6800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415,
+            "iv": 247.7,
+            "density_intraday": 91.74050534555899,
+            "density_expiry": 91.74050534555899
+          },
+          {
+            "strike": 6850,
+            "ce_oi": 509405,
+            "pe_oi": 100230,
+            "iv": 246.27,
+            "density_intraday": 29.090190726500587,
+            "density_expiry": 29.090190726500587
+          },
+          {
+            "strike": 6900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500,
+            "iv": 245.83,
+            "density_intraday": 64.81998172422654,
+            "density_expiry": 64.81998172422654
+          },
+          {
+            "strike": 6950,
+            "ce_oi": 826670,
+            "pe_oi": 925925,
+            "iv": 243.44,
+            "density_intraday": 34.29757626947189,
+            "density_expiry": 34.29757626947189
+          },
+          {
+            "strike": 7000,
+            "ce_oi": 787345,
+            "pe_oi": 129610,
+            "iv": 245.73,
+            "density_intraday": 12.506517603750044,
+            "density_expiry": 12.506517603750044
+          },
+          {
+            "strike": 7050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835,
+            "iv": 242.57,
+            "density_intraday": 10.542394905307303,
+            "density_expiry": 10.542394905307303
+          },
+          {
+            "strike": 7100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445,
+            "iv": 252.56,
+            "density_intraday": 15.258820341714593,
+            "density_expiry": 15.258820341714593
+          },
+          {
+            "strike": 7150,
+            "ce_oi": 429455,
+            "pe_oi": 338260,
+            "iv": 262.45,
+            "density_intraday": 4.810436103168797,
+            "density_expiry": 4.810436103168797
+          }
+        ]
+      }
+    }
+  },
+  "legs": [
+    {
+      "symbol": "CRUDEOIL16DEC264750CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1274.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264750CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4750.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1274.45,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9918,
+          "gamma": 3.7e-05,
+          "theta": -46.3175,
+          "vega": 0.027,
+          "rho": -0.005026
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264750PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264750PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4750.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 356.66,
+        "greeks": {
+          "delta": -0.0004,
+          "gamma": 4e-06,
+          "theta": -2.3104,
+          "vega": 0.0019,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264800CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1224.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264800CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4800.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1224.45,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9891,
+          "gamma": 4.8e-05,
+          "theta": -59.2207,
+          "vega": 0.0345,
+          "rho": -0.004829
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264800PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264800PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4800.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 341.77,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 4e-06,
+          "theta": -2.2991,
+          "vega": 0.002,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264850CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1174.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264850CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4850.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1174.45,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9857,
+          "gamma": 6e-05,
+          "theta": -74.7141,
+          "vega": 0.0436,
+          "rho": -0.004632
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264850PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264850PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4850.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 327.0,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 4e-06,
+          "theta": -2.2872,
+          "vega": 0.002,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264900CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1124.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264900CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4900.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1124.45,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9816,
+          "gamma": 7.5e-05,
+          "theta": -93.0463,
+          "vega": 0.0543,
+          "rho": -0.004437
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264900PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264900PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4900.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 312.35,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -2.2749,
+          "vega": 0.0021,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264950CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1074.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264950CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4950.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1074.5,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9764,
+          "gamma": 9.3e-05,
+          "theta": -114.4257,
+          "vega": 0.0667,
+          "rho": -0.004242
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC264950PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC264950PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 4950.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 297.8,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -2.262,
+          "vega": 0.0022,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265000CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1024.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265000CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5000.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1024.5,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9703,
+          "gamma": 0.000113,
+          "theta": -139.0052,
+          "vega": 0.0811,
+          "rho": -0.004049
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265000PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265000PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5000.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 283.37,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 6e-06,
+          "theta": -2.2484,
+          "vega": 0.0023,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265050CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 974.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265050CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5050.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 974.5,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9629,
+          "gamma": 0.000135,
+          "theta": -166.8673,
+          "vega": 0.0973,
+          "rho": -0.003858
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265050PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265050PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5050.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 269.03,
+        "greeks": {
+          "delta": -0.0006,
+          "gamma": 6e-06,
+          "theta": -2.2342,
+          "vega": 0.0024,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265100CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 924.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265100CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5100.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 924.55,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.9542,
+          "gamma": 0.00016,
+          "theta": -198.0107,
+          "vega": 0.1155,
+          "rho": -0.003668
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265100PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265100PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5100.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.1,
+        "interest_rate": 0,
+        "implied_volatility": 269.48,
+        "greeks": {
+          "delta": -0.0011,
+          "gamma": 1.1e-05,
+          "theta": -4.054,
+          "vega": 0.0044,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265150CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 874.65,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265150CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5150.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 874.65,
+        "interest_rate": 0,
+        "implied_volatility": 500.0,
+        "greeks": {
+          "delta": 0.944,
+          "gamma": 0.000188,
+          "theta": -232.3389,
+          "vega": 0.1355,
+          "rho": -0.003481
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265150PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265150PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5150.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.2,
+        "interest_rate": 0,
+        "implied_volatility": 270.92,
+        "greeks": {
+          "delta": -0.0021,
+          "gamma": 2e-05,
+          "theta": -7.2925,
+          "vega": 0.0079,
+          "rho": -1e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265200CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 824.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265200CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5200.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 824.8,
+        "interest_rate": 0,
+        "implied_volatility": 499.18,
+        "greeks": {
+          "delta": 0.9325,
+          "gamma": 0.000218,
+          "theta": -268.2968,
+          "vega": 0.1568,
+          "rho": -0.003295
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265200PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265200PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5200.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.35,
+        "interest_rate": 0,
+        "implied_volatility": 269.89,
+        "greeks": {
+          "delta": -0.0035,
+          "gamma": 3.2e-05,
+          "theta": -11.6082,
+          "vega": 0.0125,
+          "rho": -1e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265250CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 775.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265250CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5250.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 775.05,
+        "interest_rate": 0,
+        "implied_volatility": 474.72,
+        "greeks": {
+          "delta": 0.9286,
+          "gamma": 0.000239,
+          "theta": -266.2808,
+          "vega": 0.1636,
+          "rho": -0.003097
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265250PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265250PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5250.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.55,
+        "interest_rate": 0,
+        "implied_volatility": 266.39,
+        "greeks": {
+          "delta": -0.0053,
+          "gamma": 4.8e-05,
+          "theta": -16.7641,
+          "vega": 0.0184,
+          "rho": -2e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265300CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 725.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265300CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5300.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 725.4,
+        "interest_rate": 0,
+        "implied_volatility": 450.73,
+        "greeks": {
+          "delta": 0.9242,
+          "gamma": 0.000264,
+          "theta": -264.8733,
+          "vega": 0.1714,
+          "rho": -0.002898
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265300PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265300PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5300.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.95,
+        "interest_rate": 0,
+        "implied_volatility": 266.37,
+        "greeks": {
+          "delta": -0.0087,
+          "gamma": 7.4e-05,
+          "theta": -25.9897,
+          "vega": 0.0285,
+          "rho": -4e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265350CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 676,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265350CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5350.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 676,
+        "interest_rate": 0,
+        "implied_volatility": 427.93,
+        "greeks": {
+          "delta": 0.9186,
+          "gamma": 0.000293,
+          "theta": -265.3976,
+          "vega": 0.1809,
+          "rho": -0.002701
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265350PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265350PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5350.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1.5,
+        "interest_rate": 0,
+        "implied_volatility": 264.2,
+        "greeks": {
+          "delta": -0.0133,
+          "gamma": 0.000108,
+          "theta": -37.1155,
+          "vega": 0.041,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265400CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 626.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265400CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5400.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 626.85,
+        "interest_rate": 0,
+        "implied_volatility": 406.09,
+        "greeks": {
+          "delta": 0.9117,
+          "gamma": 0.000328,
+          "theta": -267.5386,
+          "vega": 0.1922,
+          "rho": -0.002505
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265400PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 2.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265400PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5400.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 2.4,
+        "interest_rate": 0,
+        "implied_volatility": 263.32,
+        "greeks": {
+          "delta": -0.0203,
+          "gamma": 0.000155,
+          "theta": -53.0963,
+          "vega": 0.0588,
+          "rho": -1e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265450CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 578.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265450CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5450.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 578.15,
+        "interest_rate": 0,
+        "implied_volatility": 385.9,
+        "greeks": {
+          "delta": 0.903,
+          "gamma": 0.000371,
+          "theta": -272.7043,
+          "vega": 0.2061,
+          "rho": -0.00231
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265450PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 3.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265450PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5450.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 3.7,
+        "interest_rate": 0,
+        "implied_volatility": 261.87,
+        "greeks": {
+          "delta": -0.0299,
+          "gamma": 0.000216,
+          "theta": -73.0446,
+          "vega": 0.0814,
+          "rho": -1.5e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265500CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 530.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265500CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5500.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 530.05,
+        "interest_rate": 0,
+        "implied_volatility": 367.57,
+        "greeks": {
+          "delta": 0.8916,
+          "gamma": 0.000422,
+          "theta": -281.4416,
+          "vega": 0.2233,
+          "rho": -0.002118
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265500PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 5.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265500PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5500.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 5.6,
+        "interest_rate": 0,
+        "implied_volatility": 260.59,
+        "greeks": {
+          "delta": -0.043,
+          "gamma": 0.000292,
+          "theta": -98.0508,
+          "vega": 0.1097,
+          "rho": -2.2e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265550CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 482.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265550CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5550.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 482.7,
+        "interest_rate": 0,
+        "implied_volatility": 351.09,
+        "greeks": {
+          "delta": 0.8772,
+          "gamma": 0.000482,
+          "theta": -293.8699,
+          "vega": 0.2441,
+          "rho": -0.001929
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265550PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 8.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265550PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5550.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 8.25,
+        "interest_rate": 0,
+        "implied_volatility": 259.01,
+        "greeks": {
+          "delta": -0.0603,
+          "gamma": 0.000385,
+          "theta": -127.554,
+          "vega": 0.1436,
+          "rho": -3.3e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265600CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 436.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265600CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5600.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 436.4,
+        "interest_rate": 0,
+        "implied_volatility": 336.83,
+        "greeks": {
+          "delta": 0.8586,
+          "gamma": 0.000554,
+          "theta": -310.7157,
+          "vega": 0.2691,
+          "rho": -0.001744
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265600PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 11.9,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265600PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5600.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 11.9,
+        "interest_rate": 0,
+        "implied_volatility": 257.38,
+        "greeks": {
+          "delta": -0.0827,
+          "gamma": 0.000493,
+          "theta": -161.4832,
+          "vega": 0.183,
+          "rho": -4.8e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265650CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 391.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265650CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5650.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 391.35,
+        "interest_rate": 0,
+        "implied_volatility": 324.5,
+        "greeks": {
+          "delta": 0.8353,
+          "gamma": 0.000636,
+          "theta": -331.2036,
+          "vega": 0.2977,
+          "rho": -0.001564
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265650PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 16.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265650PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5650.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 16.85,
+        "interest_rate": 0,
+        "implied_volatility": 255.83,
+        "greeks": {
+          "delta": -0.111,
+          "gamma": 0.000616,
+          "theta": -199.2431,
+          "vega": 0.2272,
+          "rho": -6.7e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265700CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 347.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265700CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5700.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 347.85,
+        "interest_rate": 0,
+        "implied_volatility": 314.0,
+        "greeks": {
+          "delta": 0.8066,
+          "gamma": 0.000728,
+          "theta": -354.5906,
+          "vega": 0.3294,
+          "rho": -0.00139
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265700PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 23.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265700PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5700.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 23.4,
+        "interest_rate": 0,
+        "implied_volatility": 254.29,
+        "greeks": {
+          "delta": -0.1457,
+          "gamma": 0.000749,
+          "theta": -239.3092,
+          "vega": 0.2745,
+          "rho": -9.3e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265750CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 306.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265750CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5750.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 306.25,
+        "interest_rate": 0,
+        "implied_volatility": 305.24,
+        "greeks": {
+          "delta": 0.7719,
+          "gamma": 0.000825,
+          "theta": -379.707,
+          "vega": 0.3628,
+          "rho": -0.001224
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265750PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 31.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265750PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5750.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 31.8,
+        "interest_rate": 0,
+        "implied_volatility": 252.51,
+        "greeks": {
+          "delta": -0.1869,
+          "gamma": 0.000886,
+          "theta": -279.2399,
+          "vega": 0.3225,
+          "rho": -0.000127
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265800CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 266.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265800CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5800.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 266.85,
+        "interest_rate": 0,
+        "implied_volatility": 297.94,
+        "greeks": {
+          "delta": 0.7313,
+          "gamma": 0.000922,
+          "theta": -404.5482,
+          "vega": 0.396,
+          "rho": -0.001066
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265800PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 42.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265800PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5800.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 42.4,
+        "interest_rate": 0,
+        "implied_volatility": 250.61,
+        "greeks": {
+          "delta": -0.2349,
+          "gamma": 0.001021,
+          "theta": -316.9375,
+          "vega": 0.3689,
+          "rho": -0.000169
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265850CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 229.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265850CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5850.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 229.95,
+        "interest_rate": 0,
+        "implied_volatility": 291.86,
+        "greeks": {
+          "delta": 0.6848,
+          "gamma": 0.001014,
+          "theta": -426.8891,
+          "vega": 0.4266,
+          "rho": -0.000919
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265850PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 55.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265850PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5850.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 55.5,
+        "interest_rate": 0,
+        "implied_volatility": 248.55,
+        "greeks": {
+          "delta": -0.2893,
+          "gamma": 0.001146,
+          "theta": -349.7948,
+          "vega": 0.4105,
+          "rho": -0.000222
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265900CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 195.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265900CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5900.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 195.8,
+        "interest_rate": 0,
+        "implied_volatility": 286.73,
+        "greeks": {
+          "delta": 0.6332,
+          "gamma": 0.001094,
+          "theta": -444.3807,
+          "vega": 0.452,
+          "rho": -0.000782
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265900PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 71.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265900PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5900.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 71.35,
+        "interest_rate": 0,
+        "implied_volatility": 246.26,
+        "greeks": {
+          "delta": -0.3492,
+          "gamma": 0.001252,
+          "theta": -375.1663,
+          "vega": 0.4443,
+          "rho": -0.000285
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265950CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 164.65,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265950CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5950.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 164.65,
+        "interest_rate": 0,
+        "implied_volatility": 282.45,
+        "greeks": {
+          "delta": 0.5773,
+          "gamma": 0.001154,
+          "theta": -455.0913,
+          "vega": 0.4699,
+          "rho": -0.000658
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC265950PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 90.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC265950PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 5950.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 90.2,
+        "interest_rate": 0,
+        "implied_volatility": 243.75,
+        "greeks": {
+          "delta": -0.4138,
+          "gamma": 0.001331,
+          "theta": -390.8996,
+          "vega": 0.4677,
+          "rho": -0.00036
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266000CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 136.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266000CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6000.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 136.6,
+        "interest_rate": 0,
+        "implied_volatility": 278.76,
+        "greeks": {
+          "delta": 0.5186,
+          "gamma": 0.001191,
+          "theta": -457.2622,
+          "vega": 0.4784,
+          "rho": -0.000546
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266000PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 112.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266000PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6000.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 112.15,
+        "interest_rate": 0,
+        "implied_volatility": 240.82,
+        "greeks": {
+          "delta": -0.4817,
+          "gamma": 0.001378,
+          "theta": -395.0501,
+          "vega": 0.4785,
+          "rho": -0.000448
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266050CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 111.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266050CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6050.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 111.8,
+        "interest_rate": 0,
+        "implied_volatility": 275.68,
+        "greeks": {
+          "delta": 0.4586,
+          "gamma": 0.001199,
+          "theta": -450.2729,
+          "vega": 0.4764,
+          "rho": -0.000447
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266050PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 137.3,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266050PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6050.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 137.3,
+        "interest_rate": 0,
+        "implied_volatility": 237.43,
+        "greeks": {
+          "delta": -0.5513,
+          "gamma": 0.001388,
+          "theta": -386.6601,
+          "vega": 0.475,
+          "rho": -0.000549
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266100CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 90.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266100CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6100.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 90.15,
+        "interest_rate": 0,
+        "implied_volatility": 272.95,
+        "greeks": {
+          "delta": 0.3988,
+          "gamma": 0.001178,
+          "theta": -433.7207,
+          "vega": 0.4635,
+          "rho": -0.00036
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266100PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 165.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266100PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6100.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 165.7,
+        "interest_rate": 0,
+        "implied_volatility": 233.52,
+        "greeks": {
+          "delta": -0.6211,
+          "gamma": 0.001357,
+          "theta": -365.6789,
+          "vega": 0.4567,
+          "rho": -0.000662
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266150CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 71.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266150CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6150.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 71.6,
+        "interest_rate": 0,
+        "implied_volatility": 270.55,
+        "greeks": {
+          "delta": 0.3408,
+          "gamma": 0.001129,
+          "theta": -408.4494,
+          "vega": 0.4403,
+          "rho": -0.000286
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266150PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 197.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266150PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6150.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 197.1,
+        "interest_rate": 0,
+        "implied_volatility": 228.49,
+        "greeks": {
+          "delta": -0.6896,
+          "gamma": 0.001287,
+          "theta": -331.9812,
+          "vega": 0.4238,
+          "rho": -0.000788
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266200CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 55.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266200CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6200.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 55.95,
+        "interest_rate": 0,
+        "implied_volatility": 268.36,
+        "greeks": {
+          "delta": 0.2861,
+          "gamma": 0.001056,
+          "theta": -375.6961,
+          "vega": 0.4083,
+          "rho": -0.000224
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266200PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 231.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266200PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6200.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 231.5,
+        "interest_rate": 0,
+        "implied_volatility": 222.28,
+        "greeks": {
+          "delta": -0.7556,
+          "gamma": 0.001176,
+          "theta": -287.2664,
+          "vega": 0.3769,
+          "rho": -0.000925
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266250CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 43.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266250CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6250.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 43.05,
+        "interest_rate": 0,
+        "implied_volatility": 266.5,
+        "greeks": {
+          "delta": 0.2358,
+          "gamma": 0.000962,
+          "theta": -337.7017,
+          "vega": 0.3696,
+          "rho": -0.000172
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266250PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 268.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266250PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6250.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 268.6,
+        "interest_rate": 0,
+        "implied_volatility": 213.96,
+        "greeks": {
+          "delta": -0.8182,
+          "gamma": 0.001028,
+          "theta": -232.5423,
+          "vega": 0.317,
+          "rho": -0.001073
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266300CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 32.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266300CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6300.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 32.55,
+        "interest_rate": 0,
+        "implied_volatility": 264.72,
+        "greeks": {
+          "delta": 0.1906,
+          "gamma": 0.000855,
+          "theta": -296.2504,
+          "vega": 0.3264,
+          "rho": -0.00013
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266300PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 308.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266300PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6300.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 308.1,
+        "interest_rate": 0,
+        "implied_volatility": 201.82,
+        "greeks": {
+          "delta": -0.8776,
+          "gamma": 0.000837,
+          "theta": -168.4775,
+          "vega": 0.2435,
+          "rho": -0.001231
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266350CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 24.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266350CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6350.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 24.2,
+        "interest_rate": 0,
+        "implied_volatility": 263.14,
+        "greeks": {
+          "delta": 0.1511,
+          "gamma": 0.000742,
+          "theta": -253.7904,
+          "vega": 0.2813,
+          "rho": -9.7e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266350PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 349.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266350PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6350.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 349.75,
+        "interest_rate": 0,
+        "implied_volatility": 181.33,
+        "greeks": {
+          "delta": -0.9354,
+          "gamma": 0.00058,
+          "theta": -94.2071,
+          "vega": 0.1515,
+          "rho": -0.001397
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266400CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 17.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266400CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6400.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 17.7,
+        "interest_rate": 0,
+        "implied_volatility": 261.76,
+        "greeks": {
+          "delta": 0.1176,
+          "gamma": 0.000627,
+          "theta": -212.4353,
+          "vega": 0.2367,
+          "rho": -7.1e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266400PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 393.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266400PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6400.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 393.25,
+        "intrinsic_value": 393.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266450CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 12.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266450CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6450.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 12.7,
+        "interest_rate": 0,
+        "implied_volatility": 260.38,
+        "greeks": {
+          "delta": 0.0896,
+          "gamma": 0.000518,
+          "theta": -173.4461,
+          "vega": 0.1943,
+          "rho": -5.1e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266450PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 438.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266450PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6450.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 438.25,
+        "intrinsic_value": 443.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266500CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 8.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266500CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6500.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 8.95,
+        "interest_rate": 0,
+        "implied_volatility": 259.11,
+        "greeks": {
+          "delta": 0.0669,
+          "gamma": 0.000417,
+          "theta": -138.2802,
+          "vega": 0.1557,
+          "rho": -3.6e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266500PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 484.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266500PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6500.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 484.5,
+        "intrinsic_value": 493.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266550CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 6.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266550CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6550.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 6.2,
+        "interest_rate": 0,
+        "implied_volatility": 257.97,
+        "greeks": {
+          "delta": 0.049,
+          "gamma": 0.000328,
+          "theta": -107.7479,
+          "vega": 0.1218,
+          "rho": -2.5e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266550PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 531.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266550PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6550.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 531.75,
+        "intrinsic_value": 543.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266600CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 4.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266600CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6600.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 4.2,
+        "interest_rate": 0,
+        "implied_volatility": 256.72,
+        "greeks": {
+          "delta": 0.0351,
+          "gamma": 0.000251,
+          "theta": -81.7553,
+          "vega": 0.0929,
+          "rho": -1.7e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266600PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 579.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266600PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6600.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 579.75,
+        "intrinsic_value": 593.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266650CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 2.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266650CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6650.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 2.8,
+        "interest_rate": 0,
+        "implied_volatility": 255.67,
+        "greeks": {
+          "delta": 0.0246,
+          "gamma": 0.000188,
+          "theta": -60.7147,
+          "vega": 0.0693,
+          "rho": -1.1e-05
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266650PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 628.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266650PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6650.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 628.35,
+        "intrinsic_value": 643.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266700CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266700CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6700.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1.85,
+        "interest_rate": 0,
+        "implied_volatility": 255.03,
+        "greeks": {
+          "delta": 0.0171,
+          "gamma": 0.000138,
+          "theta": -44.3971,
+          "vega": 0.0508,
+          "rho": -7e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266700PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 677.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266700PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6700.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 677.4,
+        "intrinsic_value": 693.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266750CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266750CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6750.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1.2,
+        "interest_rate": 0,
+        "implied_volatility": 254.38,
+        "greeks": {
+          "delta": 0.0116,
+          "gamma": 9.9e-05,
+          "theta": -31.7424,
+          "vega": 0.0364,
+          "rho": -5e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266750PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 726.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266750PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6750.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 726.7,
+        "intrinsic_value": 743.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266800CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266800CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6800.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.75,
+        "interest_rate": 0,
+        "implied_volatility": 253.18,
+        "greeks": {
+          "delta": 0.0076,
+          "gamma": 6.9e-05,
+          "theta": -21.8549,
+          "vega": 0.0252,
+          "rho": -3e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266800PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 776.3,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266800PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6800.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 776.3,
+        "intrinsic_value": 793.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266850CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266850CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6850.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.45,
+        "interest_rate": 0,
+        "implied_volatility": 251.47,
+        "greeks": {
+          "delta": 0.0048,
+          "gamma": 4.6e-05,
+          "theta": -14.4397,
+          "vega": 0.0167,
+          "rho": -2e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266850PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 826,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266850PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6850.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 826,
+        "intrinsic_value": 843.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266900CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.3,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266900CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6900.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.3,
+        "interest_rate": 0,
+        "implied_volatility": 253.03,
+        "greeks": {
+          "delta": 0.0033,
+          "gamma": 3.3e-05,
+          "theta": -10.3577,
+          "vega": 0.0119,
+          "rho": -1e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266900PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 875.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266900PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6900.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 875.8,
+        "intrinsic_value": 893.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266950CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266950CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6950.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.15,
+        "interest_rate": 0,
+        "implied_volatility": 248.15,
+        "greeks": {
+          "delta": 0.0018,
+          "gamma": 1.9e-05,
+          "theta": -5.7818,
+          "vega": 0.0068,
+          "rho": -1e-06
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC266950PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 925.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC266950PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 6950.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 925.7,
+        "intrinsic_value": 943.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267000CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267000CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7000.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.1,
+        "interest_rate": 0,
+        "implied_volatility": 250.28,
+        "greeks": {
+          "delta": 0.0012,
+          "gamma": 1.3e-05,
+          "theta": -4.1048,
+          "vega": 0.0048,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267000PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 975.65,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267000PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7000.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 975.65,
+        "intrinsic_value": 993.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267050CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267050CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7050.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 246.9,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 7e-06,
+          "theta": -2.2588,
+          "vega": 0.0027,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267050PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1025.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267050PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7050.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1025.6,
+        "intrinsic_value": 1043.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267100CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267100CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7100.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 256.88,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 7e-06,
+          "theta": -2.2719,
+          "vega": 0.0026,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267100PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1075.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267100PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7100.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1075.55,
+        "intrinsic_value": 1093.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267150CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267150CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7150.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 266.76,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -2.2844,
+          "vega": 0.0025,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267150PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1125.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267150PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7150.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1125.55,
+        "intrinsic_value": 1143.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267200CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267200CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7200.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 276.54,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -2.2964,
+          "vega": 0.0024,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267200PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1175.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267200PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7200.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1175.55,
+        "intrinsic_value": 1193.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267250CE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267250CE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7250.0,
+        "option_type": "CE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 286.22,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -2.3079,
+          "vega": 0.0024,
+          "rho": -0.0
+        }
+      }
+    },
+    {
+      "symbol": "CRUDEOIL16DEC267250PE",
+      "exchange": "MCX",
+      "spot": 6006.3,
+      "price": 1225.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "CRUDEOIL16DEC267250PE",
+        "exchange": "MCX",
+        "underlying": "CRUDEOIL",
+        "strike": 7250.0,
+        "option_type": "PE",
+        "expiry_date": "16-Dec-2026",
+        "days_to_expiry": 0.1458,
+        "spot_price": 6006.3,
+        "option_price": 1225.55,
+        "intrinsic_value": 1243.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    }
+  ],
+  "withGreeks": {
+    "forward": 6024.45,
+    "years": 0.0003995433789954338,
+    "days": 0.14583333333333334,
+    "rows": [
+      {
+        "strike": 4750,
+        "ce": {
+          "iv": 0,
+          "delta": 1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        },
+        "pe": {
+          "iv": 360.86,
+          "delta": -0.0004,
+          "gamma": 4e-06,
+          "theta": -2.3144,
+          "vega": 0.0019
+        }
+      },
+      {
+        "strike": 4800,
+        "ce": {
+          "iv": 0,
+          "delta": 1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        },
+        "pe": {
+          "iv": 345.99,
+          "delta": -0.0005,
+          "gamma": 4e-06,
+          "theta": -2.3032,
+          "vega": 0.0019
+        }
+      },
+      {
+        "strike": 4850,
+        "ce": {
+          "iv": 0,
+          "delta": 1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        },
+        "pe": {
+          "iv": 331.23,
+          "delta": -0.0005,
+          "gamma": 4e-06,
+          "theta": -2.2916,
+          "vega": 0.002
+        }
+      },
+      {
+        "strike": 4900,
+        "ce": {
+          "iv": 0,
+          "delta": 1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        },
+        "pe": {
+          "iv": 316.59,
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -2.2794,
+          "vega": 0.0021
+        }
+      },
+      {
+        "strike": 4950,
+        "ce": {
+          "iv": 302.06,
+          "delta": 0.9995,
+          "gamma": 5e-06,
+          "theta": -2.2667,
+          "vega": 0.0022
+        },
+        "pe": {
+          "iv": 302.06,
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -2.2667,
+          "vega": 0.0022
+        }
+      },
+      {
+        "strike": 5000,
+        "ce": {
+          "iv": 287.64,
+          "delta": 0.9995,
+          "gamma": 5e-06,
+          "theta": -2.2534,
+          "vega": 0.0023
+        },
+        "pe": {
+          "iv": 287.64,
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -2.2534,
+          "vega": 0.0023
+        }
+      },
+      {
+        "strike": 5050,
+        "ce": {
+          "iv": 273.32,
+          "delta": 0.9994,
+          "gamma": 6e-06,
+          "theta": -2.2394,
+          "vega": 0.0024
+        },
+        "pe": {
+          "iv": 273.32,
+          "delta": -0.0006,
+          "gamma": 6e-06,
+          "theta": -2.2394,
+          "vega": 0.0024
+        }
+      },
+      {
+        "strike": 5100,
+        "ce": {
+          "iv": 273.99,
+          "delta": 0.9989,
+          "gamma": 1.1e-05,
+          "theta": -4.0648,
+          "vega": 0.0043
+        },
+        "pe": {
+          "iv": 273.99,
+          "delta": -0.0011,
+          "gamma": 1.1e-05,
+          "theta": -4.0648,
+          "vega": 0.0043
+        }
+      },
+      {
+        "strike": 5150,
+        "ce": {
+          "iv": 275.69,
+          "delta": 0.998,
+          "gamma": 1.9e-05,
+          "theta": -7.315,
+          "vega": 0.0077
+        },
+        "pe": {
+          "iv": 275.69,
+          "delta": -0.002,
+          "gamma": 1.9e-05,
+          "theta": -7.315,
+          "vega": 0.0077
+        }
+      },
+      {
+        "strike": 5200,
+        "ce": {
+          "iv": 274.91,
+          "delta": 0.9966,
+          "gamma": 3.1e-05,
+          "theta": -11.6491,
+          "vega": 0.0124
+        },
+        "pe": {
+          "iv": 274.91,
+          "delta": -0.0034,
+          "gamma": 3.1e-05,
+          "theta": -11.6491,
+          "vega": 0.0124
+        }
+      },
+      {
+        "strike": 5250,
+        "ce": {
+          "iv": 274.32,
+          "delta": 0.9944,
+          "gamma": 4.8e-05,
+          "theta": -18.0925,
+          "vega": 0.0192
+        },
+        "pe": {
+          "iv": 271.64,
+          "delta": -0.0052,
+          "gamma": 4.6e-05,
+          "theta": -16.8312,
+          "vega": 0.0181
+        }
+      },
+      {
+        "strike": 5300,
+        "ce": {
+          "iv": 271.93,
+          "delta": 0.9914,
+          "gamma": 7.1e-05,
+          "theta": -26.1101,
+          "vega": 0.028
+        },
+        "pe": {
+          "iv": 271.93,
+          "delta": -0.0086,
+          "gamma": 7.1e-05,
+          "theta": -26.1101,
+          "vega": 0.028
+        }
+      },
+      {
+        "strike": 5350,
+        "ce": {
+          "iv": 271.3,
+          "delta": 0.9867,
+          "gamma": 0.000105,
+          "theta": -38.3107,
+          "vega": 0.0412
+        },
+        "pe": {
+          "iv": 270.07,
+          "delta": -0.013,
+          "gamma": 0.000103,
+          "theta": -37.314,
+          "vega": 0.0403
+        }
+      },
+      {
+        "strike": 5400,
+        "ce": {
+          "iv": 269.55,
+          "delta": 0.9802,
+          "gamma": 0.000148,
+          "theta": -53.4275,
+          "vega": 0.0578
+        },
+        "pe": {
+          "iv": 269.55,
+          "delta": -0.0198,
+          "gamma": 0.000148,
+          "theta": -53.4275,
+          "vega": 0.0578
+        }
+      },
+      {
+        "strike": 5450,
+        "ce": {
+          "iv": 268.51,
+          "delta": 0.9709,
+          "gamma": 0.000205,
+          "theta": -73.5783,
+          "vega": 0.0799
+        },
+        "pe": {
+          "iv": 268.51,
+          "delta": -0.0291,
+          "gamma": 0.000205,
+          "theta": -73.5783,
+          "vega": 0.0799
+        }
+      },
+      {
+        "strike": 5500,
+        "ce": {
+          "iv": 267.67,
+          "delta": 0.9581,
+          "gamma": 0.000278,
+          "theta": -98.8956,
+          "vega": 0.1078
+        },
+        "pe": {
+          "iv": 267.67,
+          "delta": -0.0419,
+          "gamma": 0.000278,
+          "theta": -98.8956,
+          "vega": 0.1078
+        }
+      },
+      {
+        "strike": 5550,
+        "ce": {
+          "iv": 266.6,
+          "delta": 0.9413,
+          "gamma": 0.000365,
+          "theta": -128.8581,
+          "vega": 0.141
+        },
+        "pe": {
+          "iv": 266.6,
+          "delta": -0.0587,
+          "gamma": 0.000365,
+          "theta": -128.8581,
+          "vega": 0.141
+        }
+      },
+      {
+        "strike": 5600,
+        "ce": {
+          "iv": 265.82,
+          "delta": 0.9195,
+          "gamma": 0.000467,
+          "theta": -163.9526,
+          "vega": 0.1799
+        },
+        "pe": {
+          "iv": 265.54,
+          "delta": -0.0803,
+          "gamma": 0.000466,
+          "theta": -163.4569,
+          "vega": 0.1795
+        }
+      },
+      {
+        "strike": 5650,
+        "ce": {
+          "iv": 264.86,
+          "delta": 0.8922,
+          "gamma": 0.000581,
+          "theta": -202.6015,
+          "vega": 0.2231
+        },
+        "pe": {
+          "iv": 264.64,
+          "delta": -0.1076,
+          "gamma": 0.000581,
+          "theta": -202.1781,
+          "vega": 0.2228
+        }
+      },
+      {
+        "strike": 5700,
+        "ce": {
+          "iv": 263.86,
+          "delta": 0.859,
+          "gamma": 0.000704,
+          "theta": -243.5942,
+          "vega": 0.2693
+        },
+        "pe": {
+          "iv": 263.86,
+          "delta": -0.141,
+          "gamma": 0.000704,
+          "theta": -243.5942,
+          "vega": 0.2693
+        }
+      },
+      {
+        "strike": 5750,
+        "ce": {
+          "iv": 262.94,
+          "delta": 0.8195,
+          "gamma": 0.00083,
+          "theta": -285.3725,
+          "vega": 0.3165
+        },
+        "pe": {
+          "iv": 262.94,
+          "delta": -0.1805,
+          "gamma": 0.00083,
+          "theta": -285.3725,
+          "vega": 0.3165
+        }
+      },
+      {
+        "strike": 5800,
+        "ce": {
+          "iv": 262.06,
+          "delta": 0.7737,
+          "gamma": 0.000954,
+          "theta": -325.5605,
+          "vega": 0.3623
+        },
+        "pe": {
+          "iv": 262.06,
+          "delta": -0.2263,
+          "gamma": 0.000954,
+          "theta": -325.5605,
+          "vega": 0.3623
+        }
+      },
+      {
+        "strike": 5850,
+        "ce": {
+          "iv": 261.19,
+          "delta": 0.722,
+          "gamma": 0.001066,
+          "theta": -361.7151,
+          "vega": 0.4039
+        },
+        "pe": {
+          "iv": 261.19,
+          "delta": -0.278,
+          "gamma": 0.001066,
+          "theta": -361.7151,
+          "vega": 0.4039
+        }
+      },
+      {
+        "strike": 5900,
+        "ce": {
+          "iv": 260.31,
+          "delta": 0.6654,
+          "gamma": 0.001162,
+          "theta": -391.3769,
+          "vega": 0.4385
+        },
+        "pe": {
+          "iv": 260.31,
+          "delta": -0.3346,
+          "gamma": 0.001162,
+          "theta": -391.3769,
+          "vega": 0.4385
+        }
+      },
+      {
+        "strike": 5950,
+        "ce": {
+          "iv": 259.5,
+          "delta": 0.6048,
+          "gamma": 0.001232,
+          "theta": -412.6101,
+          "vega": 0.4637
+        },
+        "pe": {
+          "iv": 259.5,
+          "delta": -0.3952,
+          "gamma": 0.001232,
+          "theta": -412.6101,
+          "vega": 0.4637
+        }
+      },
+      {
+        "strike": 6000,
+        "ce": {
+          "iv": 258.65,
+          "delta": 0.5416,
+          "gamma": 0.001274,
+          "theta": -423.706,
+          "vega": 0.4778
+        },
+        "pe": {
+          "iv": 258.65,
+          "delta": -0.4584,
+          "gamma": 0.001274,
+          "theta": -423.706,
+          "vega": 0.4778
+        }
+      },
+      {
+        "strike": 6050,
+        "ce": {
+          "iv": 257.92,
+          "delta": 0.4775,
+          "gamma": 0.001282,
+          "theta": -424.1545,
+          "vega": 0.4796
+        },
+        "pe": {
+          "iv": 257.82,
+          "delta": -0.5225,
+          "gamma": 0.001283,
+          "theta": -423.982,
+          "vega": 0.4796
+        }
+      },
+      {
+        "strike": 6100,
+        "ce": {
+          "iv": 257.13,
+          "delta": 0.4142,
+          "gamma": 0.001258,
+          "theta": -413.6929,
+          "vega": 0.4693
+        },
+        "pe": {
+          "iv": 257.13,
+          "delta": -0.5858,
+          "gamma": 0.001258,
+          "theta": -413.6929,
+          "vega": 0.4693
+        }
+      },
+      {
+        "strike": 6150,
+        "ce": {
+          "iv": 256.37,
+          "delta": 0.3531,
+          "gamma": 0.001204,
+          "theta": -393.3234,
+          "vega": 0.4475
+        },
+        "pe": {
+          "iv": 256.26,
+          "delta": -0.6469,
+          "gamma": 0.001204,
+          "theta": -393.1243,
+          "vega": 0.4474
+        }
+      },
+      {
+        "strike": 6200,
+        "ce": {
+          "iv": 255.55,
+          "delta": 0.2957,
+          "gamma": 0.001122,
+          "theta": -364.4509,
+          "vega": 0.416
+        },
+        "pe": {
+          "iv": 255.55,
+          "delta": -0.7043,
+          "gamma": 0.001122,
+          "theta": -364.4509,
+          "vega": 0.416
+        }
+      },
+      {
+        "strike": 6250,
+        "ce": {
+          "iv": 254.86,
+          "delta": 0.2432,
+          "gamma": 0.00102,
+          "theta": -329.4688,
+          "vega": 0.3771
+        },
+        "pe": {
+          "iv": 254.86,
+          "delta": -0.7568,
+          "gamma": 0.00102,
+          "theta": -329.4688,
+          "vega": 0.3771
+        }
+      },
+      {
+        "strike": 6300,
+        "ce": {
+          "iv": 254.08,
+          "delta": 0.1962,
+          "gamma": 0.000905,
+          "theta": -290.322,
+          "vega": 0.3333
+        },
+        "pe": {
+          "iv": 254.08,
+          "delta": -0.8038,
+          "gamma": 0.000905,
+          "theta": -290.322,
+          "vega": 0.3333
+        }
+      },
+      {
+        "strike": 6350,
+        "ce": {
+          "iv": 253.36,
+          "delta": 0.1553,
+          "gamma": 0.000782,
+          "theta": -249.5901,
+          "vega": 0.2873
+        },
+        "pe": {
+          "iv": 253.36,
+          "delta": -0.8447,
+          "gamma": 0.000782,
+          "theta": -249.5901,
+          "vega": 0.2873
+        }
+      },
+      {
+        "strike": 6400,
+        "ce": {
+          "iv": 252.73,
+          "delta": 0.1206,
+          "gamma": 0.00066,
+          "theta": -209.5056,
+          "vega": 0.2418
+        },
+        "pe": {
+          "iv": 252.73,
+          "delta": -0.8794,
+          "gamma": 0.00066,
+          "theta": -209.5056,
+          "vega": 0.2418
+        }
+      },
+      {
+        "strike": 6450,
+        "ce": {
+          "iv": 252.0,
+          "delta": 0.0918,
+          "gamma": 0.000543,
+          "theta": -171.4392,
+          "vega": 0.1984
+        },
+        "pe": {
+          "iv": 252.0,
+          "delta": -0.9082,
+          "gamma": 0.000543,
+          "theta": -171.4392,
+          "vega": 0.1984
+        }
+      },
+      {
+        "strike": 6500,
+        "ce": {
+          "iv": 251.3,
+          "delta": 0.0685,
+          "gamma": 0.000436,
+          "theta": -136.9286,
+          "vega": 0.1589
+        },
+        "pe": {
+          "iv": 251.3,
+          "delta": -0.9315,
+          "gamma": 0.000436,
+          "theta": -136.9286,
+          "vega": 0.1589
+        }
+      },
+      {
+        "strike": 6550,
+        "ce": {
+          "iv": 250.67,
+          "delta": 0.0501,
+          "gamma": 0.000342,
+          "theta": -106.8524,
+          "vega": 0.1243
+        },
+        "pe": {
+          "iv": 250.67,
+          "delta": -0.9499,
+          "gamma": 0.000342,
+          "theta": -106.8524,
+          "vega": 0.1243
+        }
+      },
+      {
+        "strike": 6600,
+        "ce": {
+          "iv": 249.87,
+          "delta": 0.0358,
+          "gamma": 0.000261,
+          "theta": -81.1742,
+          "vega": 0.0948
+        },
+        "pe": {
+          "iv": 249.87,
+          "delta": -0.9642,
+          "gamma": 0.000261,
+          "theta": -81.1742,
+          "vega": 0.0948
+        }
+      },
+      {
+        "strike": 6650,
+        "ce": {
+          "iv": 249.22,
+          "delta": 0.0251,
+          "gamma": 0.000195,
+          "theta": -60.3434,
+          "vega": 0.0706
+        },
+        "pe": {
+          "iv": 249.22,
+          "delta": -0.9749,
+          "gamma": 0.000195,
+          "theta": -60.3434,
+          "vega": 0.0706
+        }
+      },
+      {
+        "strike": 6700,
+        "ce": {
+          "iv": 248.93,
+          "delta": 0.0174,
+          "gamma": 0.000143,
+          "theta": -44.1618,
+          "vega": 0.0517
+        },
+        "pe": {
+          "iv": 248.93,
+          "delta": -0.9826,
+          "gamma": 0.000143,
+          "theta": -44.1618,
+          "vega": 0.0517
+        }
+      },
+      {
+        "strike": 6750,
+        "ce": {
+          "iv": 248.6,
+          "delta": 0.0118,
+          "gamma": 0.000103,
+          "theta": -31.5959,
+          "vega": 0.0371
+        },
+        "pe": {
+          "iv": 247.24,
+          "delta": -0.9886,
+          "gamma": 0.0001,
+          "theta": -30.5219,
+          "vega": 0.036
+        }
+      },
+      {
+        "strike": 6800,
+        "ce": {
+          "iv": 247.7,
+          "delta": 0.0077,
+          "gamma": 7.1e-05,
+          "theta": -21.7669,
+          "vega": 0.0256
+        },
+        "pe": {
+          "iv": 247.7,
+          "delta": -0.9923,
+          "gamma": 7.1e-05,
+          "theta": -21.7669,
+          "vega": 0.0256
+        }
+      },
+      {
+        "strike": 6850,
+        "ce": {
+          "iv": 246.27,
+          "delta": 0.0049,
+          "gamma": 4.8e-05,
+          "theta": -14.3888,
+          "vega": 0.017
+        },
+        "pe": {
+          "iv": 246.27,
+          "delta": -0.9951,
+          "gamma": 4.8e-05,
+          "theta": -14.3888,
+          "vega": 0.017
+        }
+      },
+      {
+        "strike": 6900,
+        "ce": {
+          "iv": 248.03,
+          "delta": 0.0033,
+          "gamma": 3.4e-05,
+          "theta": -10.3251,
+          "vega": 0.0121
+        },
+        "pe": {
+          "iv": 243.63,
+          "delta": -0.9971,
+          "gamma": 3e-05,
+          "theta": -8.8469,
+          "vega": 0.0106
+        }
+      },
+      {
+        "strike": 6950,
+        "ce": {
+          "iv": 243.44,
+          "delta": 0.0018,
+          "gamma": 2e-05,
+          "theta": -5.766,
+          "vega": 0.0069
+        },
+        "pe": {
+          "iv": 243.44,
+          "delta": -0.9982,
+          "gamma": 2e-05,
+          "theta": -5.766,
+          "vega": 0.0069
+        }
+      },
+      {
+        "strike": 7000,
+        "ce": {
+          "iv": 245.73,
+          "delta": 0.0012,
+          "gamma": 1.4e-05,
+          "theta": -4.0946,
+          "vega": 0.0049
+        },
+        "pe": {
+          "iv": 245.73,
+          "delta": -0.9988,
+          "gamma": 1.4e-05,
+          "theta": -4.0946,
+          "vega": 0.0049
+        }
+      },
+      {
+        "strike": 7050,
+        "ce": {
+          "iv": 242.57,
+          "delta": 0.0006,
+          "gamma": 8e-06,
+          "theta": -2.2539,
+          "vega": 0.0027
+        },
+        "pe": {
+          "iv": 242.57,
+          "delta": -0.9994,
+          "gamma": 8e-06,
+          "theta": -2.2539,
+          "vega": 0.0027
+        }
+      },
+      {
+        "strike": 7100,
+        "ce": {
+          "iv": 252.56,
+          "delta": 0.0006,
+          "gamma": 7e-06,
+          "theta": -2.2672,
+          "vega": 0.0026
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 7150,
+        "ce": {
+          "iv": 262.45,
+          "delta": 0.0006,
+          "gamma": 7e-06,
+          "theta": -2.2799,
+          "vega": 0.0025
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 7200,
+        "ce": {
+          "iv": 272.24,
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -2.2921,
+          "vega": 0.0025
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 7250,
+        "ce": {
+          "iv": 281.94,
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -2.3038,
+          "vega": 0.0024
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      }
+    ]
+  }
+}

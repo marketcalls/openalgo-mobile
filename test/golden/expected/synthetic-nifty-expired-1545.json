@@ -1,0 +1,3508 @@
+{
+  "case": "nifty-expired-1545",
+  "source": "synthetic",
+  "serverNowMs": 1796120100000,
+  "underlying": "NIFTY",
+  "exchange": "NFO",
+  "expiry": "01DEC26",
+  "routes": {
+    "get_oi_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "futures_price": 24016.1,
+        "lot_size": 65,
+        "pcr_oi": 0.95,
+        "pcr_volume": 0.93,
+        "total_ce_oi": 32136650,
+        "total_pe_oi": 30629235,
+        "atm_strike": 24000,
+        "expiry_date": "01DEC26",
+        "chain": [
+          {
+            "strike": 22850,
+            "ce_oi": 663975,
+            "pe_oi": 262860
+          },
+          {
+            "strike": 22900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450
+          },
+          {
+            "strike": 22950,
+            "ce_oi": 992680,
+            "pe_oi": 776035
+          },
+          {
+            "strike": 23000,
+            "ce_oi": 744835,
+            "pe_oi": 1271400
+          },
+          {
+            "strike": 23050,
+            "ce_oi": 32370,
+            "pe_oi": 484185
+          },
+          {
+            "strike": 23100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515
+          },
+          {
+            "strike": 23150,
+            "ce_oi": 148785,
+            "pe_oi": 996970
+          },
+          {
+            "strike": 23200,
+            "ce_oi": 703365,
+            "pe_oi": 914030
+          },
+          {
+            "strike": 23250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415
+          },
+          {
+            "strike": 23300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705
+          },
+          {
+            "strike": 23350,
+            "ce_oi": 1110395,
+            "pe_oi": 1019200
+          },
+          {
+            "strike": 23400,
+            "ce_oi": 252655,
+            "pe_oi": 161460
+          },
+          {
+            "strike": 23450,
+            "ce_oi": 585910,
+            "pe_oi": 851565
+          },
+          {
+            "strike": 23500,
+            "ce_oi": 594620,
+            "pe_oi": 377975
+          },
+          {
+            "strike": 23550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590
+          },
+          {
+            "strike": 23600,
+            "ce_oi": 81185,
+            "pe_oi": 105690
+          },
+          {
+            "strike": 23650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755
+          },
+          {
+            "strike": 23700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245
+          },
+          {
+            "strike": 23750,
+            "ce_oi": 170495,
+            "pe_oi": 387140
+          },
+          {
+            "strike": 23800,
+            "ce_oi": 523835,
+            "pe_oi": 432640
+          },
+          {
+            "strike": 23850,
+            "ce_oi": 92170,
+            "pe_oi": 749905
+          },
+          {
+            "strike": 23900,
+            "ce_oi": 572520,
+            "pe_oi": 45955
+          },
+          {
+            "strike": 23950,
+            "ce_oi": 133705,
+            "pe_oi": 158210
+          },
+          {
+            "strike": 24000,
+            "ce_oi": 365820,
+            "pe_oi": 149175
+          },
+          {
+            "strike": 24050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790
+          },
+          {
+            "strike": 24100,
+            "ce_oi": 849615,
+            "pe_oi": 758420
+          },
+          {
+            "strike": 24150,
+            "ce_oi": 357110,
+            "pe_oi": 148525
+          },
+          {
+            "strike": 24200,
+            "ce_oi": 274950,
+            "pe_oi": 848445
+          },
+          {
+            "strike": 24250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100
+          },
+          {
+            "strike": 24300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890
+          },
+          {
+            "strike": 24350,
+            "ce_oi": 721760,
+            "pe_oi": 338715
+          },
+          {
+            "strike": 24400,
+            "ce_oi": 315120,
+            "pe_oi": 98475
+          },
+          {
+            "strike": 24450,
+            "ce_oi": 745745,
+            "pe_oi": 293930
+          },
+          {
+            "strike": 24500,
+            "ce_oi": 41795,
+            "pe_oi": 1042600
+          },
+          {
+            "strike": 24550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145
+          },
+          {
+            "strike": 24600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665
+          },
+          {
+            "strike": 24650,
+            "ce_oi": 881595,
+            "pe_oi": 790400
+          },
+          {
+            "strike": 24700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230
+          },
+          {
+            "strike": 24750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615
+          },
+          {
+            "strike": 24800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415
+          },
+          {
+            "strike": 24850,
+            "ce_oi": 509405,
+            "pe_oi": 100230
+          },
+          {
+            "strike": 24900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500
+          },
+          {
+            "strike": 24950,
+            "ce_oi": 826670,
+            "pe_oi": 925925
+          },
+          {
+            "strike": 25000,
+            "ce_oi": 787345,
+            "pe_oi": 129610
+          },
+          {
+            "strike": 25050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835
+          },
+          {
+            "strike": 25100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445
+          },
+          {
+            "strike": 25150,
+            "ce_oi": 429455,
+            "pe_oi": 338260
+          }
+        ]
+      }
+    },
+    "calculate_max_pain": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "futures_price": 24016.1,
+        "atm_strike": 24000,
+        "max_pain_strike": 24050,
+        "lot_size": 65,
+        "pcr_oi": 0.95,
+        "pcr_volume": 0.93,
+        "expiry_date": "01DEC26",
+        "pain_data": [
+          {
+            "strike": 22850,
+            "ce_pain": 0,
+            "pe_pain": 34002361250,
+            "total_pain": 34002361250,
+            "total_pain_cr": 3400.24
+          },
+          {
+            "strike": 22900,
+            "ce_pain": 33198750,
+            "pe_pain": 32484042500,
+            "total_pain": 32517241250,
+            "total_pain_cr": 3251.72
+          },
+          {
+            "strike": 22950,
+            "ce_pain": 70690750,
+            "pe_pain": 31020746250,
+            "total_pain": 31091437000,
+            "total_pain_cr": 3109.14
+          },
+          {
+            "strike": 23000,
+            "ce_pain": 157816750,
+            "pe_pain": 29596251750,
+            "total_pain": 29754068500,
+            "total_pain_cr": 2975.41
+          },
+          {
+            "strike": 23050,
+            "ce_pain": 282184500,
+            "pe_pain": 28235327250,
+            "total_pain": 28517511750,
+            "total_pain_cr": 2851.75
+          },
+          {
+            "strike": 23100,
+            "ce_pain": 408170750,
+            "pe_pain": 26898612000,
+            "total_pain": 27306782750,
+            "total_pain_cr": 2730.68
+          },
+          {
+            "strike": 23150,
+            "ce_pain": 585065000,
+            "pe_pain": 25601972500,
+            "total_pain": 26187037500,
+            "total_pain_cr": 2618.7
+          },
+          {
+            "strike": 23200,
+            "ce_pain": 769398500,
+            "pe_pain": 24355181500,
+            "total_pain": 25124580000,
+            "total_pain_cr": 2512.46
+          },
+          {
+            "strike": 23250,
+            "ce_pain": 988900250,
+            "pe_pain": 23154092000,
+            "total_pain": 24142992250,
+            "total_pain_cr": 2414.3
+          },
+          {
+            "strike": 23300,
+            "ce_pain": 1273805000,
+            "pe_pain": 22007573250,
+            "total_pain": 23281378250,
+            "total_pain_cr": 2328.14
+          },
+          {
+            "strike": 23350,
+            "ce_pain": 1616358250,
+            "pe_pain": 20886589750,
+            "total_pain": 22502948000,
+            "total_pain_cr": 2250.29
+          },
+          {
+            "strike": 23400,
+            "ce_pain": 2014431250,
+            "pe_pain": 19816566250,
+            "total_pain": 21830997500,
+            "total_pain_cr": 2183.1
+          },
+          {
+            "strike": 23450,
+            "ce_pain": 2425137000,
+            "pe_pain": 18754615750,
+            "total_pain": 21179752750,
+            "total_pain_cr": 2117.98
+          },
+          {
+            "strike": 23500,
+            "ce_pain": 2865138250,
+            "pe_pain": 17735243500,
+            "total_pain": 20600381750,
+            "total_pain_cr": 2060.04
+          },
+          {
+            "strike": 23550,
+            "ce_pain": 3334870500,
+            "pe_pain": 16734770000,
+            "total_pain": 20069640500,
+            "total_pain_cr": 2006.96
+          },
+          {
+            "strike": 23600,
+            "ce_pain": 3869099000,
+            "pe_pain": 15744326000,
+            "total_pain": 19613425000,
+            "total_pain_cr": 1961.34
+          },
+          {
+            "strike": 23650,
+            "ce_pain": 4407386750,
+            "pe_pain": 14759166500,
+            "total_pain": 19166553250,
+            "total_pain_cr": 1916.66
+          },
+          {
+            "strike": 23700,
+            "ce_pain": 4993202500,
+            "pe_pain": 13826094750,
+            "total_pain": 18819297250,
+            "total_pain_cr": 1881.93
+          },
+          {
+            "strike": 23750,
+            "ce_pain": 5627917750,
+            "pe_pain": 12946885250,
+            "total_pain": 18574803000,
+            "total_pain_cr": 1857.48
+          },
+          {
+            "strike": 23800,
+            "ce_pain": 6271157750,
+            "pe_pain": 12087032750,
+            "total_pain": 18358190500,
+            "total_pain_cr": 1835.82
+          },
+          {
+            "strike": 23850,
+            "ce_pain": 6940589500,
+            "pe_pain": 11248812250,
+            "total_pain": 18189401750,
+            "total_pain_cr": 1818.94
+          },
+          {
+            "strike": 23900,
+            "ce_pain": 7614629750,
+            "pe_pain": 10448087000,
+            "total_pain": 18062716750,
+            "total_pain_cr": 1806.27
+          },
+          {
+            "strike": 23950,
+            "ce_pain": 8317296000,
+            "pe_pain": 9649659500,
+            "total_pain": 17966955500,
+            "total_pain_cr": 1796.7
+          },
+          {
+            "strike": 24000,
+            "ce_pain": 9026647500,
+            "pe_pain": 8859142500,
+            "total_pain": 17885790000,
+            "total_pain_cr": 1788.58
+          },
+          {
+            "strike": 24050,
+            "ce_pain": 9754290000,
+            "pe_pain": 8076084250,
+            "total_pain": 17830374250,
+            "total_pain_cr": 1783.04
+          },
+          {
+            "strike": 24100,
+            "ce_pain": 10534988750,
+            "pe_pain": 7356615500,
+            "total_pain": 17891604250,
+            "total_pain_cr": 1789.16
+          },
+          {
+            "strike": 24150,
+            "ce_pain": 11358168250,
+            "pe_pain": 6675067750,
+            "total_pain": 18033236000,
+            "total_pain_cr": 1803.32
+          },
+          {
+            "strike": 24200,
+            "ce_pain": 12199203250,
+            "pe_pain": 6000946250,
+            "total_pain": 18200149500,
+            "total_pain_cr": 1820.01
+          },
+          {
+            "strike": 24250,
+            "ce_pain": 13053985750,
+            "pe_pain": 5369247000,
+            "total_pain": 18423232750,
+            "total_pain_cr": 1842.32
+          },
+          {
+            "strike": 24300,
+            "ce_pain": 13970853000,
+            "pe_pain": 4786752750,
+            "total_pain": 18757605750,
+            "total_pain_cr": 1875.76
+          },
+          {
+            "strike": 24350,
+            "ce_pain": 14945339500,
+            "pe_pain": 4263103000,
+            "total_pain": 19208442500,
+            "total_pain_cr": 1920.84
+          },
+          {
+            "strike": 24400,
+            "ce_pain": 15955914000,
+            "pe_pain": 3756389000,
+            "total_pain": 19712303000,
+            "total_pain_cr": 1971.23
+          },
+          {
+            "strike": 24450,
+            "ce_pain": 16982244500,
+            "pe_pain": 3254598750,
+            "total_pain": 20236843250,
+            "total_pain_cr": 2023.68
+          },
+          {
+            "strike": 24500,
+            "ce_pain": 18045862250,
+            "pe_pain": 2767505000,
+            "total_pain": 20813367250,
+            "total_pain_cr": 2081.34
+          },
+          {
+            "strike": 24550,
+            "ce_pain": 19111569750,
+            "pe_pain": 2332541250,
+            "total_pain": 21444111000,
+            "total_pain_cr": 2144.41
+          },
+          {
+            "strike": 24600,
+            "ce_pain": 20208743750,
+            "pe_pain": 1951634750,
+            "total_pain": 22160378500,
+            "total_pain_cr": 2216.04
+          },
+          {
+            "strike": 24650,
+            "ce_pain": 21328414250,
+            "pe_pain": 1626111500,
+            "total_pain": 22954525750,
+            "total_pain_cr": 2295.45
+          },
+          {
+            "strike": 24700,
+            "ce_pain": 22492164500,
+            "pe_pain": 1340108250,
+            "total_pain": 23832272750,
+            "total_pain_cr": 2383.23
+          },
+          {
+            "strike": 24750,
+            "ce_pain": 23720931000,
+            "pe_pain": 1088366500,
+            "total_pain": 24809297500,
+            "total_pain_cr": 2480.93
+          },
+          {
+            "strike": 24800,
+            "ce_pain": 25003660500,
+            "pe_pain": 879755500,
+            "total_pain": 25883416000,
+            "total_pain_cr": 2588.34
+          },
+          {
+            "strike": 24850,
+            "ce_pain": 26348751000,
+            "pe_pain": 673065250,
+            "total_pain": 27021816250,
+            "total_pain_cr": 2702.18
+          },
+          {
+            "strike": 24900,
+            "ce_pain": 27719311750,
+            "pe_pain": 471386500,
+            "total_pain": 28190698250,
+            "total_pain_cr": 2819.07
+          },
+          {
+            "strike": 24950,
+            "ce_pain": 29154999250,
+            "pe_pain": 304482750,
+            "total_pain": 29459482000,
+            "total_pain_cr": 2945.95
+          },
+          {
+            "strike": 25000,
+            "ce_pain": 30632020250,
+            "pe_pain": 183875250,
+            "total_pain": 30815895500,
+            "total_pain_cr": 3081.59
+          },
+          {
+            "strike": 25050,
+            "ce_pain": 32148408500,
+            "pe_pain": 69748250,
+            "total_pain": 32218156750,
+            "total_pain_cr": 3221.82
+          },
+          {
+            "strike": 25100,
+            "ce_pain": 33671920750,
+            "pe_pain": 16913000,
+            "total_pain": 33688833750,
+            "total_pain_cr": 3368.88
+          },
+          {
+            "strike": 25150,
+            "ce_pain": 35257280500,
+            "pe_pain": 0,
+            "total_pain": 35257280500,
+            "total_pain_cr": 3525.73
+          }
+        ]
+      }
+    },
+    "get_iv_smile_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "atm_strike": 24000,
+        "atm_iv": null,
+        "skew": null,
+        "expiry_date": "01DEC26",
+        "chain": [
+          {
+            "strike": 22750,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 22800,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 22850,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 22900,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 22950,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23000,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23050,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23100,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23150,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23200,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23250,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23300,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23350,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23400,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23450,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23500,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23550,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23600,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23650,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23700,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23750,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23800,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23850,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23900,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 23950,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24000,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24050,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24100,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24150,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24200,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24250,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24300,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24350,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24400,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24450,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24500,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24550,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24600,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24650,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24700,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24750,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24800,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24850,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24900,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 24950,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 25000,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 25050,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 25100,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 25150,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 25200,
+            "ce_iv": null,
+            "pe_iv": null
+          },
+          {
+            "strike": 25250,
+            "ce_iv": null,
+            "pe_iv": null
+          }
+        ]
+      }
+    },
+    "get_gex_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "futures_price": 24016.1,
+        "lot_size": 65,
+        "atm_strike": 24000,
+        "expiry_date": "01DEC26",
+        "pcr_oi": 1.03,
+        "total_ce_oi": 53041170,
+        "total_pe_oi": 54530905,
+        "total_ce_gex": 0,
+        "total_pe_gex": 0,
+        "total_net_gex": 0,
+        "chain": [
+          {
+            "strike": 22000,
+            "ce_oi": 1018550,
+            "pe_oi": 809965,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22050,
+            "ce_oi": 425295,
+            "pe_oi": 334100,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22100,
+            "ce_oi": 681265,
+            "pe_oi": 229450,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22150,
+            "ce_oi": 36400,
+            "pe_oi": 1119755,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22200,
+            "ce_oi": 622700,
+            "pe_oi": 713895,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22250,
+            "ce_oi": 590005,
+            "pe_oi": 1108510,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22300,
+            "ce_oi": 357695,
+            "pe_oi": 574340,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22350,
+            "ce_oi": 950950,
+            "pe_oi": 740285,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22400,
+            "ce_oi": 995930,
+            "pe_oi": 971425,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22450,
+            "ce_oi": 622635,
+            "pe_oi": 839280,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22500,
+            "ce_oi": 1303445,
+            "pe_oi": 521950,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22550,
+            "ce_oi": 36140,
+            "pe_oi": 127335,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22600,
+            "ce_oi": 289120,
+            "pe_oi": 1206075,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22650,
+            "ce_oi": 933985,
+            "pe_oi": 958490,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22700,
+            "ce_oi": 24115,
+            "pe_oi": 448760,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22750,
+            "ce_oi": 370370,
+            "pe_oi": 345865,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22800,
+            "ce_oi": 188110,
+            "pe_oi": 287365,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22850,
+            "ce_oi": 663975,
+            "pe_oi": 262860,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22950,
+            "ce_oi": 992680,
+            "pe_oi": 776035,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23000,
+            "ce_oi": 744835,
+            "pe_oi": 1271400,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23050,
+            "ce_oi": 32370,
+            "pe_oi": 484185,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23150,
+            "ce_oi": 148785,
+            "pe_oi": 996970,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23200,
+            "ce_oi": 703365,
+            "pe_oi": 914030,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23350,
+            "ce_oi": 1110395,
+            "pe_oi": 1019200,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23400,
+            "ce_oi": 252655,
+            "pe_oi": 161460,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23450,
+            "ce_oi": 585910,
+            "pe_oi": 851565,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23500,
+            "ce_oi": 594620,
+            "pe_oi": 377975,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23600,
+            "ce_oi": 81185,
+            "pe_oi": 105690,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23750,
+            "ce_oi": 170495,
+            "pe_oi": 387140,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23800,
+            "ce_oi": 523835,
+            "pe_oi": 432640,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23850,
+            "ce_oi": 92170,
+            "pe_oi": 749905,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23900,
+            "ce_oi": 572520,
+            "pe_oi": 45955,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23950,
+            "ce_oi": 133705,
+            "pe_oi": 158210,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24000,
+            "ce_oi": 365820,
+            "pe_oi": 149175,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24100,
+            "ce_oi": 849615,
+            "pe_oi": 758420,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24150,
+            "ce_oi": 357110,
+            "pe_oi": 148525,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24200,
+            "ce_oi": 274950,
+            "pe_oi": 848445,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24350,
+            "ce_oi": 721760,
+            "pe_oi": 338715,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24400,
+            "ce_oi": 315120,
+            "pe_oi": 98475,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24450,
+            "ce_oi": 745745,
+            "pe_oi": 293930,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24500,
+            "ce_oi": 41795,
+            "pe_oi": 1042600,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24650,
+            "ce_oi": 881595,
+            "pe_oi": 790400,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24850,
+            "ce_oi": 509405,
+            "pe_oi": 100230,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24950,
+            "ce_oi": 826670,
+            "pe_oi": 925925,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25000,
+            "ce_oi": 787345,
+            "pe_oi": 129610,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25150,
+            "ce_oi": 429455,
+            "pe_oi": 338260,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25200,
+            "ce_oi": 809055,
+            "pe_oi": 1025700,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25250,
+            "ce_oi": 102310,
+            "pe_oi": 201565,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25300,
+            "ce_oi": 1279980,
+            "pe_oi": 587015,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25350,
+            "ce_oi": 1006005,
+            "pe_oi": 224510,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25400,
+            "ce_oi": 419445,
+            "pe_oi": 937950,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25450,
+            "ce_oi": 693420,
+            "pe_oi": 1300455,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25500,
+            "ce_oi": 869050,
+            "pe_oi": 534625,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25550,
+            "ce_oi": 612235,
+            "pe_oi": 828880,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25600,
+            "ce_oi": 806195,
+            "pe_oi": 715000,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25650,
+            "ce_oi": 374530,
+            "pe_oi": 1134185,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25700,
+            "ce_oi": 520000,
+            "pe_oi": 1127035,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25750,
+            "ce_oi": 407745,
+            "pe_oi": 948090,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25800,
+            "ce_oi": 352105,
+            "pe_oi": 376610,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25850,
+            "ce_oi": 1211080,
+            "pe_oi": 478595,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25900,
+            "ce_oi": 934830,
+            "pe_oi": 724165,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25950,
+            "ce_oi": 770055,
+            "pe_oi": 678860,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 26000,
+            "ce_oi": 289770,
+            "pe_oi": 741585,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          }
+        ]
+      }
+    },
+    "calculate_gamma_density": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "exchange": "NFO",
+        "expiry_date": "01DEC26",
+        "spot_price": 24006.3,
+        "forward_price": 24024.45,
+        "atm_strike": 24000,
+        "atm_iv": 15.0,
+        "dte_days": 0.0,
+        "interest_rate": 0,
+        "peak_intraday_strike": 24050,
+        "peak_expiry_strike": null,
+        "sigma_move": 188.48,
+        "one_sigma_low": 23817.82,
+        "one_sigma_high": 24194.78,
+        "two_sigma_low": 23629.34,
+        "two_sigma_high": 24383.26,
+        "intraday_band": {
+          "sigma_move": 188.48,
+          "one_sigma_low": 23817.82,
+          "one_sigma_high": 24194.78,
+          "two_sigma_low": 23629.34,
+          "two_sigma_high": 24383.26
+        },
+        "expiry_band": {
+          "sigma_move": 0.11,
+          "one_sigma_low": 24006.19,
+          "one_sigma_high": 24006.41,
+          "two_sigma_low": 24006.07,
+          "two_sigma_high": 24006.53
+        },
+        "chain": [
+          {
+            "strike": 22850,
+            "ce_oi": 663975,
+            "pe_oi": 262860,
+            "iv": null,
+            "density_intraday": 2.7054823255920027e-06,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 22900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450,
+            "iv": null,
+            "density_intraday": 1.972056429757027e-05,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 22950,
+            "ce_oi": 992680,
+            "pe_oi": 776035,
+            "iv": null,
+            "density_intraday": 0.00015440332239929268,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23000,
+            "ce_oi": 744835,
+            "pe_oi": 1271400,
+            "iv": null,
+            "density_intraday": 0.0008528015021977347,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23050,
+            "ce_oi": 32370,
+            "pe_oi": 484185,
+            "iv": null,
+            "density_intraday": 0.0009772019068978273,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515,
+            "iv": null,
+            "density_intraday": 0.01421994673607346,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23150,
+            "ce_oi": 148785,
+            "pe_oi": 996970,
+            "iv": null,
+            "density_intraday": 0.034176580001699715,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23200,
+            "ce_oi": 703365,
+            "pe_oi": 914030,
+            "iv": null,
+            "density_intraday": 0.1702554448275845,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415,
+            "iv": null,
+            "density_intraday": 0.8244834645641155,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705,
+            "iv": null,
+            "density_intraday": 1.7268849640603652,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23350,
+            "ce_oi": 1110395,
+            "pe_oi": 1019200,
+            "iv": null,
+            "density_intraday": 6.182775699579182,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23400,
+            "ce_oi": 252655,
+            "pe_oi": 161460,
+            "iv": null,
+            "density_intraday": 3.115111856938369,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23450,
+            "ce_oi": 585910,
+            "pe_oi": 851565,
+            "iv": null,
+            "density_intraday": 25.96596663266652,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23500,
+            "ce_oi": 594620,
+            "pe_oi": 377975,
+            "iv": null,
+            "density_intraday": 39.118486202085556,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590,
+            "iv": null,
+            "density_intraday": 123.83227630180909,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23600,
+            "ce_oi": 81185,
+            "pe_oi": 105690,
+            "iv": null,
+            "density_intraday": 29.764847844969943,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755,
+            "iv": null,
+            "density_intraday": 564.9071374346296,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245,
+            "iv": null,
+            "density_intraday": 963.743331420699,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23750,
+            "ce_oi": 170495,
+            "pe_oi": 387140,
+            "iv": null,
+            "density_intraday": 401.9259565666871,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23800,
+            "ce_oi": 523835,
+            "pe_oi": 432640,
+            "iv": null,
+            "density_intraday": 985.3274225265969,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23850,
+            "ce_oi": 92170,
+            "pe_oi": 749905,
+            "iv": null,
+            "density_intraday": 1153.4038299483307,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23900,
+            "ce_oi": 572520,
+            "pe_oi": 45955,
+            "iv": null,
+            "density_intraday": 1048.3001120154597,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23950,
+            "ce_oi": 133705,
+            "pe_oi": 158210,
+            "iv": null,
+            "density_intraday": 570.1076994828213,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24000,
+            "ce_oi": 365820,
+            "pe_oi": 149175,
+            "iv": null,
+            "density_intraday": 1079.5384590136514,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790,
+            "iv": null,
+            "density_intraday": 4891.681981165474,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24100,
+            "ce_oi": 849615,
+            "pe_oi": 758420,
+            "iv": null,
+            "density_intraday": 3144.5542498682944,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24150,
+            "ce_oi": 357110,
+            "pe_oi": 148525,
+            "iv": null,
+            "density_intraday": 860.1499987433128,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24200,
+            "ce_oi": 274950,
+            "pe_oi": 848445,
+            "iv": null,
+            "density_intraday": 1551.3144499735272,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100,
+            "iv": null,
+            "density_intraday": 2329.302195384171,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890,
+            "iv": null,
+            "density_intraday": 1725.2920090041157,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24350,
+            "ce_oi": 721760,
+            "pe_oi": 338715,
+            "iv": null,
+            "density_intraday": 519.4631222357029,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24400,
+            "ce_oi": 315120,
+            "pe_oi": 98475,
+            "iv": null,
+            "density_intraday": 125.23776745297799,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24450,
+            "ce_oi": 745745,
+            "pe_oi": 293930,
+            "iv": null,
+            "density_intraday": 181.98574444031289,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24500,
+            "ce_oi": 41795,
+            "pe_oi": 1042600,
+            "iv": null,
+            "density_intraday": 102.65031913625823,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145,
+            "iv": null,
+            "density_intraday": 81.95091926674718,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665,
+            "iv": null,
+            "density_intraday": 35.364201830237384,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24650,
+            "ce_oi": 881595,
+            "pe_oi": 790400,
+            "iv": null,
+            "density_intraday": 16.84999402700593,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230,
+            "iv": null,
+            "density_intraday": 8.322607693106441,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615,
+            "iv": null,
+            "density_intraday": 3.1735218270575714,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415,
+            "iv": null,
+            "density_intraday": 0.7682137233692576,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24850,
+            "ce_oi": 509405,
+            "pe_oi": 100230,
+            "iv": null,
+            "density_intraday": 0.12495396321382565,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500,
+            "iv": null,
+            "density_intraday": 0.13183767481772837,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24950,
+            "ce_oi": 826670,
+            "pe_oi": 925925,
+            "iv": null,
+            "density_intraday": 0.03495284367583783,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 25000,
+            "ce_oi": 787345,
+            "pe_oi": 129610,
+            "iv": null,
+            "density_intraday": 0.005191443241741839,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 25050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835,
+            "iv": null,
+            "density_intraday": 0.0020663560939192817,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 25100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445,
+            "iv": null,
+            "density_intraday": 0.0007403488659554945,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 25150,
+            "ce_oi": 429455,
+            "pe_oi": 338260,
+            "iv": null,
+            "density_intraday": 6.852537526618182e-05,
+            "density_expiry": 0.0
+          }
+        ]
+      }
+    }
+  },
+  "legs": [
+    {
+      "symbol": "NIFTY01DEC2622750CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1274.45,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622750PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622800CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1224.45,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622800PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622850CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1174.45,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622850PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622900CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1124.45,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622900PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622950CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1074.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622950PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623000CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1024.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623000PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623050CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 974.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623050PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623100CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 924.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623100PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.1,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623150CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 874.65,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623150PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.2,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623200CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 824.8,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623200PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.35,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623250CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 775.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623250PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623300CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 725.4,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623300PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.95,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623350CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 676,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623350PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623400CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 626.85,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623400PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 2.4,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623450CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 578.15,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623450PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 3.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623500CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 530.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623500PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 5.6,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623550CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 482.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623550PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 8.25,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623600CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 436.4,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623600PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 11.9,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623650CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 391.35,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623650PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 16.85,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623700CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 347.85,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623700PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 23.4,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623750CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 306.25,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623750PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 31.8,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623800CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 266.85,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623800PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 42.4,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623850CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 229.95,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623850PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 55.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623900CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 195.8,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623900PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 71.35,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623950CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 164.65,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623950PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 90.2,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624000CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 136.6,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624000PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 112.15,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624050CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 111.8,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624050PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 137.3,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624100CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 90.15,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624100PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 165.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624150CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 71.6,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624150PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 197.1,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624200CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 55.95,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624200PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 231.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624250CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 43.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624250PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 268.6,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624300CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 32.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624300PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 308.1,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624350CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 24.2,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624350PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 349.75,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624400CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 17.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624400PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 393.25,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624450CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 12.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624450PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 438.25,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624500CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 8.95,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624500PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 484.5,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624550CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 6.2,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624550PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 531.75,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624600CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 4.2,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624600PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 579.75,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624650CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 2.8,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624650PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 628.35,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624700CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1.85,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624700PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 677.4,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624750CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1.2,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624750PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 726.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624800CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.75,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624800PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 776.3,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624850CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.45,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624850PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 826,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624900CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.3,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624900PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 875.8,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624950CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.15,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624950PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 925.7,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625000CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.1,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625000PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 975.65,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625050CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625050PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1025.6,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625100CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625100PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1075.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625150CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625150PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1125.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625200CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625200PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1175.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625250CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625250PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1225.55,
+      "status": 400,
+      "body": {
+        "status": "error",
+        "message": "Option has expired on 01-Dec-2026"
+      }
+    }
+  ],
+  "withGreeks": {
+    "forward": 24024.45,
+    "years": 0.0,
+    "days": 0.0,
+    "rows": [
+      {
+        "strike": 22750,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 22800,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 22850,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 22900,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 22950,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23000,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23050,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23100,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23150,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23200,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23250,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23300,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23350,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23400,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23450,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23500,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23550,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23600,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23650,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23700,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23750,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23800,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23850,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23900,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 23950,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24000,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24050,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24100,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24150,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24200,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24250,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24300,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24350,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24400,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24450,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24500,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24550,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24600,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24650,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24700,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24750,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24800,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24850,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24900,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 24950,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 25000,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 25050,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 25100,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 25150,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 25200,
+        "ce": null,
+        "pe": null
+      },
+      {
+        "strike": 25250,
+        "ce": null,
+        "pe": null
+      }
+    ]
+  }
+}

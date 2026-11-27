@@ -371,6 +371,26 @@ test('gen-golden --dry-run names uv sync --frozen and the harness', async (t) =>
   assert.ok(!existsSync(dir))
 })
 
+test('the synthetic inputs are what synthetic.mjs builds from the mock NIFTY recording', async () => {
+  const r = await run(join(root, 'scripts/golden/synthetic.mjs'), ['--check'])
+  assert.equal(r.code, 0, r.stdout + r.stderr)
+  const inputs = readdirSync(INPUTS).filter((f) => f.startsWith('synthetic-'))
+  assert.deepEqual(inputs.sort(), [
+    'synthetic-crudeoil-mcx-2000.json',
+    'synthetic-nifty-expired-1545.json',
+    'synthetic-nifty-expiry-1500.json',
+    'synthetic-nifty-gaps.json',
+    'synthetic-nifty-unpriced-1545.json',
+  ])
+  // the edges they hold, as the server's Python saw them
+  const out = (f) => JSON.parse(readFileSync(join(EXPECTED, f), 'utf8'))
+  assert.equal(out('synthetic-nifty-expired-1545.json').withGreeks.years, 0)
+  assert.ok(out('synthetic-nifty-expiry-1500.json').withGreeks.years > 0)
+  assert.deepEqual(out('synthetic-nifty-unpriced-1545.json').legs, [])
+  // MCX trades to 23:30: at 20:00 on its expiry day the option has not expired
+  assert.ok(out('synthetic-crudeoil-mcx-2000.json').withGreeks.years > 0)
+})
+
 test('every input has its expected file and every expected route has status 200 or the server error', () => {
   const inputs = readdirSync(INPUTS).filter((f) => f.endsWith('.json'))
   assert.deepEqual(inputs.filter((f) => f.startsWith('mock-')).sort(), [
@@ -394,7 +414,12 @@ test('every input has its expected file and every expected route has status 200 
         assert.equal(typeof body.message, 'string', `${f} ${name}`)
       }
     }
-    const c = CASES.find((x) => x.id === input.case)
+    // a synthetic case is not a recorded one: its own underlying and exchange
+    const c = CASES.find((x) => x.id === input.case) ?? {
+      id: input.case,
+      underlying: input.underlying,
+      exchange: input.exchange,
+    }
     const chain25 = recordedCalls(c, input.expiry, input.fut)[3]
     const chain = input.responses[requestKey(chain25.endpoint, chain25.body)].chain
     const priced = chain.flatMap((row) => [row.ce, row.pe]).filter((leg) => leg?.ltp > 0)

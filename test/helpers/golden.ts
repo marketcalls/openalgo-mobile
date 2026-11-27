@@ -12,7 +12,8 @@ const GOLDEN = join(__dirname, '..', 'golden')
 /** A recorded case: `responses` maps a request key to the reply body the server sent. */
 export type GoldenInput = {
   case: string
-  source: 'mock' | 'real'
+  /** 'synthetic': built from the mock NIFTY recording by scripts/golden/synthetic.mjs. */
+  source: 'mock' | 'real' | 'synthetic'
   /** The server's clock for the whole case: chain 25's `server_ts` (preflight conflict 4). */
   serverNowMs: number
   underlying: string
@@ -50,7 +51,7 @@ export type GoldenRoute =
 
 export type GoldenExpected = {
   case: string
-  source: 'mock' | 'real'
+  source: 'mock' | 'real' | 'synthetic'
   serverNowMs: number
   underlying: string
   exchange: string

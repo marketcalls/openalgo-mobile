@@ -1,0 +1,5874 @@
+{
+  "case": "nifty-gaps",
+  "source": "synthetic",
+  "serverNowMs": 1795752206000,
+  "underlying": "NIFTY",
+  "exchange": "NFO",
+  "expiry": "01DEC26",
+  "routes": {
+    "get_oi_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "futures_price": 24016.1,
+        "lot_size": 65,
+        "pcr_oi": 1.39,
+        "pcr_volume": 0.93,
+        "total_ce_oi": 17694235,
+        "total_pe_oi": 24666590,
+        "atm_strike": 24000,
+        "expiry_date": "01DEC26",
+        "chain": [
+          {
+            "strike": 22850,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 22900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450
+          },
+          {
+            "strike": 22950,
+            "ce_oi": 992680,
+            "pe_oi": 776035
+          },
+          {
+            "strike": 23000,
+            "ce_oi": 0,
+            "pe_oi": 1271400
+          },
+          {
+            "strike": 23050,
+            "ce_oi": 32370,
+            "pe_oi": 484185
+          },
+          {
+            "strike": 23100,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 23150,
+            "ce_oi": 0,
+            "pe_oi": 996970
+          },
+          {
+            "strike": 23200,
+            "ce_oi": 703365,
+            "pe_oi": 914030
+          },
+          {
+            "strike": 23250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415
+          },
+          {
+            "strike": 23300,
+            "ce_oi": 0,
+            "pe_oi": 510705
+          },
+          {
+            "strike": 23350,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 23400,
+            "ce_oi": 252655,
+            "pe_oi": 161460
+          },
+          {
+            "strike": 23450,
+            "ce_oi": 0,
+            "pe_oi": 851565
+          },
+          {
+            "strike": 23500,
+            "ce_oi": 594620,
+            "pe_oi": 377975
+          },
+          {
+            "strike": 23550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590
+          },
+          {
+            "strike": 23600,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 23650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755
+          },
+          {
+            "strike": 23700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245
+          },
+          {
+            "strike": 23750,
+            "ce_oi": 0,
+            "pe_oi": 387140
+          },
+          {
+            "strike": 23800,
+            "ce_oi": 523835,
+            "pe_oi": 432640
+          },
+          {
+            "strike": 23850,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 23900,
+            "ce_oi": 0,
+            "pe_oi": 45955
+          },
+          {
+            "strike": 23950,
+            "ce_oi": 133705,
+            "pe_oi": 158210
+          },
+          {
+            "strike": 24000,
+            "ce_oi": 365820,
+            "pe_oi": 149175
+          },
+          {
+            "strike": 24050,
+            "ce_oi": 0,
+            "pe_oi": 1271790
+          },
+          {
+            "strike": 24100,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 24150,
+            "ce_oi": 357110,
+            "pe_oi": 148525
+          },
+          {
+            "strike": 24200,
+            "ce_oi": 0,
+            "pe_oi": 848445
+          },
+          {
+            "strike": 24250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100
+          },
+          {
+            "strike": 24300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890
+          },
+          {
+            "strike": 24350,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 24400,
+            "ce_oi": 315120,
+            "pe_oi": 98475
+          },
+          {
+            "strike": 24450,
+            "ce_oi": 745745,
+            "pe_oi": 293930
+          },
+          {
+            "strike": 24500,
+            "ce_oi": 0,
+            "pe_oi": 1042600
+          },
+          {
+            "strike": 24550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145
+          },
+          {
+            "strike": 24600,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 24650,
+            "ce_oi": 0,
+            "pe_oi": 790400
+          },
+          {
+            "strike": 24700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230
+          },
+          {
+            "strike": 24750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615
+          },
+          {
+            "strike": 24800,
+            "ce_oi": 0,
+            "pe_oi": 38415
+          },
+          {
+            "strike": 24850,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 24900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500
+          },
+          {
+            "strike": 24950,
+            "ce_oi": 0,
+            "pe_oi": 925925
+          },
+          {
+            "strike": 25000,
+            "ce_oi": 787345,
+            "pe_oi": 129610
+          },
+          {
+            "strike": 25050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835
+          },
+          {
+            "strike": 25100,
+            "ce_oi": 0,
+            "pe_oi": 0
+          },
+          {
+            "strike": 25150,
+            "ce_oi": 429455,
+            "pe_oi": 338260
+          }
+        ]
+      }
+    },
+    "calculate_max_pain": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "futures_price": 24016.1,
+        "atm_strike": 24000,
+        "max_pain_strike": 24250,
+        "lot_size": 65,
+        "pcr_oi": 1.39,
+        "pcr_volume": 0.93,
+        "expiry_date": "01DEC26",
+        "pain_data": [
+          {
+            "strike": 22850,
+            "ce_pain": 0,
+            "pe_pain": 27251737500,
+            "total_pain": 27251737500,
+            "total_pain_cr": 2725.17
+          },
+          {
+            "strike": 22900,
+            "ce_pain": 0,
+            "pe_pain": 26018408000,
+            "total_pain": 26018408000,
+            "total_pain_cr": 2601.84
+          },
+          {
+            "strike": 22950,
+            "ce_pain": 4293250,
+            "pe_pain": 24840101000,
+            "total_pain": 24844394250,
+            "total_pain_cr": 2484.44
+          },
+          {
+            "strike": 23000,
+            "ce_pain": 58220500,
+            "pe_pain": 23700595750,
+            "total_pain": 23758816250,
+            "total_pain_cr": 2375.88
+          },
+          {
+            "strike": 23050,
+            "ce_pain": 112147750,
+            "pe_pain": 22624660500,
+            "total_pain": 22736808250,
+            "total_pain_cr": 2273.68
+          },
+          {
+            "strike": 23100,
+            "ce_pain": 167693500,
+            "pe_pain": 21572934500,
+            "total_pain": 21740628000,
+            "total_pain_cr": 2174.06
+          },
+          {
+            "strike": 23150,
+            "ce_pain": 223239250,
+            "pe_pain": 20521208500,
+            "total_pain": 20744447750,
+            "total_pain_cr": 2074.44
+          },
+          {
+            "strike": 23200,
+            "ce_pain": 278785000,
+            "pe_pain": 19519331000,
+            "total_pain": 19798116000,
+            "total_pain_cr": 1979.81
+          },
+          {
+            "strike": 23250,
+            "ce_pain": 369499000,
+            "pe_pain": 18563155000,
+            "total_pain": 18932654000,
+            "total_pain_cr": 1893.27
+          },
+          {
+            "strike": 23300,
+            "ce_pain": 525616000,
+            "pe_pain": 17661549750,
+            "total_pain": 18187165750,
+            "total_pain_cr": 1818.72
+          },
+          {
+            "strike": 23350,
+            "ce_pain": 681733000,
+            "pe_pain": 16785479750,
+            "total_pain": 17467212750,
+            "total_pain_cr": 1746.72
+          },
+          {
+            "strike": 23400,
+            "ce_pain": 837850000,
+            "pe_pain": 15909409750,
+            "total_pain": 16747259750,
+            "total_pain_cr": 1674.73
+          },
+          {
+            "strike": 23450,
+            "ce_pain": 1006599750,
+            "pe_pain": 15041412750,
+            "total_pain": 16048012500,
+            "total_pain_cr": 1604.8
+          },
+          {
+            "strike": 23500,
+            "ce_pain": 1175349500,
+            "pe_pain": 14215994000,
+            "total_pain": 15391343500,
+            "total_pain_cr": 1539.13
+          },
+          {
+            "strike": 23550,
+            "ce_pain": 1373830250,
+            "pe_pain": 13409474000,
+            "total_pain": 14783304250,
+            "total_pain_cr": 1478.33
+          },
+          {
+            "strike": 23600,
+            "ce_pain": 1636807250,
+            "pe_pain": 12612983500,
+            "total_pain": 14249790750,
+            "total_pain_cr": 1424.98
+          },
+          {
+            "strike": 23650,
+            "ce_pain": 1899784250,
+            "pe_pain": 11816493000,
+            "total_pain": 13716277250,
+            "total_pain_cr": 1371.63
+          },
+          {
+            "strike": 23700,
+            "ce_pain": 2210289250,
+            "pe_pain": 11072090250,
+            "total_pain": 13282379500,
+            "total_pain_cr": 1328.24
+          },
+          {
+            "strike": 23750,
+            "ce_pain": 2569693750,
+            "pe_pain": 10381549750,
+            "total_pain": 12951243500,
+            "total_pain_cr": 1295.12
+          },
+          {
+            "strike": 23800,
+            "ce_pain": 2929098250,
+            "pe_pain": 9710366250,
+            "total_pain": 12639464500,
+            "total_pain_cr": 1263.95
+          },
+          {
+            "strike": 23850,
+            "ce_pain": 3314694500,
+            "pe_pain": 9060814750,
+            "total_pain": 12375509250,
+            "total_pain_cr": 1237.55
+          },
+          {
+            "strike": 23900,
+            "ce_pain": 3700290750,
+            "pe_pain": 8411263250,
+            "total_pain": 12111554000,
+            "total_pain_cr": 1211.16
+          },
+          {
+            "strike": 23950,
+            "ce_pain": 4085887000,
+            "pe_pain": 7764009500,
+            "total_pain": 11849896500,
+            "total_pain_cr": 1184.99
+          },
+          {
+            "strike": 24000,
+            "ce_pain": 4478168500,
+            "pe_pain": 7124666250,
+            "total_pain": 11602834750,
+            "total_pain_cr": 1160.28
+          },
+          {
+            "strike": 24050,
+            "ce_pain": 4888741000,
+            "pe_pain": 6492781750,
+            "total_pain": 11381522750,
+            "total_pain_cr": 1138.15
+          },
+          {
+            "strike": 24100,
+            "ce_pain": 5299313500,
+            "pe_pain": 5924486750,
+            "total_pain": 11223800250,
+            "total_pain_cr": 1122.38
+          },
+          {
+            "strike": 24150,
+            "ce_pain": 5709886000,
+            "pe_pain": 5356191750,
+            "total_pain": 11066077750,
+            "total_pain_cr": 1106.61
+          },
+          {
+            "strike": 24200,
+            "ce_pain": 6138314000,
+            "pe_pain": 4795323000,
+            "total_pain": 10933637000,
+            "total_pain_cr": 1093.36
+          },
+          {
+            "strike": 24250,
+            "ce_pain": 6566742000,
+            "pe_pain": 4276876500,
+            "total_pain": 10843618500,
+            "total_pain_cr": 1084.36
+          },
+          {
+            "strike": 24300,
+            "ce_pain": 7057254750,
+            "pe_pain": 3807635000,
+            "total_pain": 10864889750,
+            "total_pain_cr": 1086.49
+          },
+          {
+            "strike": 24350,
+            "ce_pain": 7605386750,
+            "pe_pain": 3397238000,
+            "total_pain": 11002624750,
+            "total_pain_cr": 1100.26
+          },
+          {
+            "strike": 24400,
+            "ce_pain": 8153518750,
+            "pe_pain": 2986841000,
+            "total_pain": 11140359750,
+            "total_pain_cr": 1114.04
+          },
+          {
+            "strike": 24450,
+            "ce_pain": 8717406750,
+            "pe_pain": 2581367750,
+            "total_pain": 11298774500,
+            "total_pain_cr": 1129.88
+          },
+          {
+            "strike": 24500,
+            "ce_pain": 9318582000,
+            "pe_pain": 2190591000,
+            "total_pain": 11509173000,
+            "total_pain_cr": 1150.92
+          },
+          {
+            "strike": 24550,
+            "ce_pain": 9919757250,
+            "pe_pain": 1851944250,
+            "total_pain": 11771701500,
+            "total_pain_cr": 1177.17
+          },
+          {
+            "strike": 24600,
+            "ce_pain": 10552399000,
+            "pe_pain": 1567354750,
+            "total_pain": 12119753750,
+            "total_pain_cr": 1211.98
+          },
+          {
+            "strike": 24650,
+            "ce_pain": 11185040750,
+            "pe_pain": 1282765250,
+            "total_pain": 12467806000,
+            "total_pain_cr": 1246.78
+          },
+          {
+            "strike": 24700,
+            "ce_pain": 11817682500,
+            "pe_pain": 1037695750,
+            "total_pain": 12855378250,
+            "total_pain_cr": 1285.54
+          },
+          {
+            "strike": 24750,
+            "ce_pain": 12515340500,
+            "pe_pain": 826887750,
+            "total_pain": 13342228250,
+            "total_pain_cr": 1334.22
+          },
+          {
+            "strike": 24800,
+            "ce_pain": 13266961500,
+            "pe_pain": 659210500,
+            "total_pain": 13926172000,
+            "total_pain_cr": 1392.62
+          },
+          {
+            "strike": 24850,
+            "ce_pain": 14018582500,
+            "pe_pain": 493454000,
+            "total_pain": 14512036500,
+            "total_pain_cr": 1451.2
+          },
+          {
+            "strike": 24900,
+            "ce_pain": 14770203500,
+            "pe_pain": 327697500,
+            "total_pain": 15097901000,
+            "total_pain_cr": 1509.79
+          },
+          {
+            "strike": 24950,
+            "ce_pain": 15586951250,
+            "pe_pain": 196716000,
+            "total_pain": 15783667250,
+            "total_pain_cr": 1578.37
+          },
+          {
+            "strike": 25000,
+            "ce_pain": 16403699000,
+            "pe_pain": 112030750,
+            "total_pain": 16515729750,
+            "total_pain_cr": 1651.57
+          },
+          {
+            "strike": 25050,
+            "ce_pain": 17259814000,
+            "pe_pain": 33826000,
+            "total_pain": 17293640000,
+            "total_pain_cr": 1729.36
+          },
+          {
+            "strike": 25100,
+            "ce_pain": 18123053000,
+            "pe_pain": 16913000,
+            "total_pain": 18139966000,
+            "total_pain_cr": 1814.0
+          },
+          {
+            "strike": 25150,
+            "ce_pain": 18986292000,
+            "pe_pain": 0,
+            "total_pain": 18986292000,
+            "total_pain_cr": 1898.63
+          }
+        ]
+      }
+    },
+    "get_iv_smile_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "atm_strike": 24000,
+        "atm_iv": 12.92,
+        "skew": 0.84,
+        "expiry_date": "01DEC26",
+        "chain": [
+          {
+            "strike": 22750,
+            "ce_iv": 31.11,
+            "pe_iv": 15.13
+          },
+          {
+            "strike": 22800,
+            "ce_iv": 30.09,
+            "pe_iv": 14.56
+          },
+          {
+            "strike": 22850,
+            "ce_iv": 29.07,
+            "pe_iv": 13.99
+          },
+          {
+            "strike": 22900,
+            "ce_iv": 28.05,
+            "pe_iv": 13.41
+          },
+          {
+            "strike": 22950,
+            "ce_iv": 27.04,
+            "pe_iv": 12.84
+          },
+          {
+            "strike": 23000,
+            "ce_iv": 26.01,
+            "pe_iv": 12.26
+          },
+          {
+            "strike": 23050,
+            "ce_iv": 24.97,
+            "pe_iv": 11.68
+          },
+          {
+            "strike": 23100,
+            "ce_iv": 23.95,
+            "pe_iv": 11.75
+          },
+          {
+            "strike": 23150,
+            "ce_iv": 22.93,
+            "pe_iv": 11.85
+          },
+          {
+            "strike": 23200,
+            "ce_iv": 21.91,
+            "pe_iv": 11.85
+          },
+          {
+            "strike": 23250,
+            "ce_iv": 20.92,
+            "pe_iv": 11.74
+          },
+          {
+            "strike": 23300,
+            "ce_iv": 19.93,
+            "pe_iv": 11.78
+          },
+          {
+            "strike": 23350,
+            "ce_iv": 18.99,
+            "pe_iv": 11.73
+          },
+          {
+            "strike": 23400,
+            "ce_iv": 18.08,
+            "pe_iv": 11.73
+          },
+          {
+            "strike": 23450,
+            "ce_iv": 17.24,
+            "pe_iv": 11.7
+          },
+          {
+            "strike": 23500,
+            "ce_iv": 16.48,
+            "pe_iv": 11.69
+          },
+          {
+            "strike": 23550,
+            "ce_iv": 15.8,
+            "pe_iv": 11.66
+          },
+          {
+            "strike": 23600,
+            "ce_iv": 15.21,
+            "pe_iv": 11.62
+          },
+          {
+            "strike": 23650,
+            "ce_iv": 14.7,
+            "pe_iv": 11.59
+          },
+          {
+            "strike": 23700,
+            "ce_iv": 14.27,
+            "pe_iv": 11.56
+          },
+          {
+            "strike": 23750,
+            "ce_iv": 13.92,
+            "pe_iv": 11.52
+          },
+          {
+            "strike": 23800,
+            "ce_iv": 13.63,
+            "pe_iv": 11.47
+          },
+          {
+            "strike": 23850,
+            "ce_iv": 13.4,
+            "pe_iv": 11.41
+          },
+          {
+            "strike": 23900,
+            "ce_iv": 13.2,
+            "pe_iv": 11.34
+          },
+          {
+            "strike": 23950,
+            "ce_iv": 13.05,
+            "pe_iv": 11.26
+          },
+          {
+            "strike": 24000,
+            "ce_iv": 12.92,
+            "pe_iv": null
+          },
+          {
+            "strike": 24050,
+            "ce_iv": 12.81,
+            "pe_iv": 11.04
+          },
+          {
+            "strike": 24100,
+            "ce_iv": 12.73,
+            "pe_iv": 10.89
+          },
+          {
+            "strike": 24150,
+            "ce_iv": 12.65,
+            "pe_iv": 10.69
+          },
+          {
+            "strike": 24200,
+            "ce_iv": 12.59,
+            "pe_iv": 10.43
+          },
+          {
+            "strike": 24250,
+            "ce_iv": 12.54,
+            "pe_iv": 10.07
+          },
+          {
+            "strike": 24300,
+            "ce_iv": 12.49,
+            "pe_iv": 9.52
+          },
+          {
+            "strike": 24350,
+            "ce_iv": 12.45,
+            "pe_iv": 8.58
+          },
+          {
+            "strike": 24400,
+            "ce_iv": 12.43,
+            "pe_iv": null
+          },
+          {
+            "strike": 24450,
+            "ce_iv": 12.4,
+            "pe_iv": null
+          },
+          {
+            "strike": 24500,
+            "ce_iv": 12.37,
+            "pe_iv": null
+          },
+          {
+            "strike": 24550,
+            "ce_iv": 12.35,
+            "pe_iv": null
+          },
+          {
+            "strike": 24600,
+            "ce_iv": 12.33,
+            "pe_iv": null
+          },
+          {
+            "strike": 24650,
+            "ce_iv": 12.31,
+            "pe_iv": null
+          },
+          {
+            "strike": 24700,
+            "ce_iv": 12.32,
+            "pe_iv": null
+          },
+          {
+            "strike": 24750,
+            "ce_iv": 12.32,
+            "pe_iv": null
+          },
+          {
+            "strike": 24800,
+            "ce_iv": 12.29,
+            "pe_iv": null
+          },
+          {
+            "strike": 24850,
+            "ce_iv": 12.24,
+            "pe_iv": null
+          },
+          {
+            "strike": 24900,
+            "ce_iv": 12.35,
+            "pe_iv": null
+          },
+          {
+            "strike": 24950,
+            "ce_iv": 12.15,
+            "pe_iv": null
+          },
+          {
+            "strike": 25000,
+            "ce_iv": 12.28,
+            "pe_iv": null
+          },
+          {
+            "strike": 25050,
+            "ce_iv": 12.15,
+            "pe_iv": null
+          },
+          {
+            "strike": 25100,
+            "ce_iv": 12.67,
+            "pe_iv": null
+          },
+          {
+            "strike": 25150,
+            "ce_iv": 13.2,
+            "pe_iv": null
+          },
+          {
+            "strike": 25200,
+            "ce_iv": 13.72,
+            "pe_iv": null
+          },
+          {
+            "strike": 25250,
+            "ce_iv": 14.23,
+            "pe_iv": null
+          }
+        ]
+      }
+    },
+    "get_gex_data": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "spot_price": 24006.3,
+        "futures_price": 24016.1,
+        "lot_size": 65,
+        "atm_strike": 24000,
+        "expiry_date": "01DEC26",
+        "pcr_oi": 1.48,
+        "total_ce_oi": 29162380,
+        "total_pe_oi": 43022720,
+        "total_ce_gex": 520154.96,
+        "total_pe_gex": 573232.66,
+        "total_net_gex": -53077.69,
+        "chain": [
+          {
+            "strike": 22000,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22050,
+            "ce_oi": 425295,
+            "pe_oi": 334100,
+            "ce_gamma": 7.1e-05,
+            "pe_gamma": 2e-06,
+            "ce_gex": 1962.74,
+            "pe_gex": 43.43,
+            "net_gex": 1919.3
+          },
+          {
+            "strike": 22100,
+            "ce_oi": 681265,
+            "pe_oi": 229450,
+            "ce_gamma": 7.4e-05,
+            "pe_gamma": 2e-06,
+            "ce_gex": 3276.88,
+            "pe_gex": 29.83,
+            "net_gex": 3247.06
+          },
+          {
+            "strike": 22150,
+            "ce_oi": 0,
+            "pe_oi": 1119755,
+            "ce_gamma": 0,
+            "pe_gamma": 2e-06,
+            "ce_gex": 0,
+            "pe_gex": 145.57,
+            "net_gex": -145.57
+          },
+          {
+            "strike": 22200,
+            "ce_oi": 622700,
+            "pe_oi": 713895,
+            "ce_gamma": 8e-05,
+            "pe_gamma": 2e-06,
+            "ce_gex": 3238.04,
+            "pe_gex": 92.81,
+            "net_gex": 3145.23
+          },
+          {
+            "strike": 22250,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22300,
+            "ce_oi": 0,
+            "pe_oi": 574340,
+            "ce_gamma": 0,
+            "pe_gamma": 3e-06,
+            "ce_gex": 0,
+            "pe_gex": 112.0,
+            "net_gex": -112.0
+          },
+          {
+            "strike": 22350,
+            "ce_oi": 950950,
+            "pe_oi": 740285,
+            "ce_gamma": 9e-05,
+            "pe_gamma": 3e-06,
+            "ce_gex": 5563.06,
+            "pe_gex": 144.36,
+            "net_gex": 5418.7
+          },
+          {
+            "strike": 22400,
+            "ce_oi": 995930,
+            "pe_oi": 971425,
+            "ce_gamma": 9.5e-05,
+            "pe_gamma": 3e-06,
+            "ce_gex": 6149.87,
+            "pe_gex": 189.43,
+            "net_gex": 5960.44
+          },
+          {
+            "strike": 22450,
+            "ce_oi": 0,
+            "pe_oi": 839280,
+            "ce_gamma": 0,
+            "pe_gamma": 3e-06,
+            "ce_gex": 0,
+            "pe_gex": 163.66,
+            "net_gex": -163.66
+          },
+          {
+            "strike": 22500,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22550,
+            "ce_oi": 36140,
+            "pe_oi": 127335,
+            "ce_gamma": 0.000109,
+            "pe_gamma": 3e-06,
+            "ce_gex": 256.05,
+            "pe_gex": 24.83,
+            "net_gex": 231.22
+          },
+          {
+            "strike": 22600,
+            "ce_oi": 0,
+            "pe_oi": 1206075,
+            "ce_gamma": 0,
+            "pe_gamma": 4e-06,
+            "ce_gex": 0,
+            "pe_gex": 313.58,
+            "net_gex": -313.58
+          },
+          {
+            "strike": 22650,
+            "ce_oi": 933985,
+            "pe_oi": 958490,
+            "ce_gamma": 0.00012,
+            "pe_gamma": 4e-06,
+            "ce_gex": 7285.08,
+            "pe_gex": 249.21,
+            "net_gex": 7035.88
+          },
+          {
+            "strike": 22700,
+            "ce_oi": 24115,
+            "pe_oi": 448760,
+            "ce_gamma": 0.000127,
+            "pe_gamma": 4e-06,
+            "ce_gex": 199.07,
+            "pe_gex": 116.68,
+            "net_gex": 82.39
+          },
+          {
+            "strike": 22750,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 22800,
+            "ce_oi": 188110,
+            "pe_oi": 287365,
+            "ce_gamma": 0.000141,
+            "pe_gamma": 5e-06,
+            "ce_gex": 1724.03,
+            "pe_gex": 93.39,
+            "net_gex": 1630.63
+          },
+          {
+            "strike": 22850,
+            "ce_oi": 663975,
+            "pe_oi": 262860,
+            "ce_gamma": 0.00015,
+            "pe_gamma": 5e-06,
+            "ce_gex": 6473.76,
+            "pe_gex": 85.43,
+            "net_gex": 6388.33
+          },
+          {
+            "strike": 22900,
+            "ce_oi": 0,
+            "pe_oi": 1100450,
+            "ce_gamma": 0,
+            "pe_gamma": 6e-06,
+            "ce_gex": 0,
+            "pe_gex": 429.18,
+            "net_gex": -429.18
+          },
+          {
+            "strike": 22950,
+            "ce_oi": 992680,
+            "pe_oi": 776035,
+            "ce_gamma": 0.000169,
+            "pe_gamma": 6e-06,
+            "ce_gex": 10904.59,
+            "pe_gex": 302.65,
+            "net_gex": 10601.94
+          },
+          {
+            "strike": 23000,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23050,
+            "ce_oi": 0,
+            "pe_oi": 484185,
+            "ce_gamma": 0,
+            "pe_gamma": 7e-06,
+            "ce_gex": 0,
+            "pe_gex": 220.3,
+            "net_gex": -220.3
+          },
+          {
+            "strike": 23100,
+            "ce_oi": 1018160,
+            "pe_oi": 801515,
+            "ce_gamma": 0.000208,
+            "pe_gamma": 1.3e-05,
+            "ce_gex": 13765.52,
+            "pe_gex": 677.28,
+            "net_gex": 13088.24
+          },
+          {
+            "strike": 23150,
+            "ce_oi": 148785,
+            "pe_oi": 996970,
+            "ce_gamma": 0.000224,
+            "pe_gamma": 2.3e-05,
+            "ce_gex": 2166.31,
+            "pe_gex": 1490.47,
+            "net_gex": 675.84
+          },
+          {
+            "strike": 23200,
+            "ce_oi": 0,
+            "pe_oi": 914030,
+            "ce_gamma": 0,
+            "pe_gamma": 3.6e-05,
+            "ce_gex": 0,
+            "pe_gex": 2138.83,
+            "net_gex": -2138.83
+          },
+          {
+            "strike": 23250,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23300,
+            "ce_oi": 1152970,
+            "pe_oi": 510705,
+            "ce_gamma": 0.00029,
+            "pe_gamma": 8.1e-05,
+            "ce_gex": 21733.48,
+            "pe_gex": 2688.86,
+            "net_gex": 19044.62
+          },
+          {
+            "strike": 23350,
+            "ce_oi": 0,
+            "pe_oi": 1019200,
+            "ce_gamma": 0,
+            "pe_gamma": 0.000117,
+            "ce_gex": 0,
+            "pe_gex": 7751.02,
+            "net_gex": -7751.02
+          },
+          {
+            "strike": 23400,
+            "ce_oi": 252655,
+            "pe_oi": 161460,
+            "ce_gamma": 0.000356,
+            "pe_gamma": 0.000168,
+            "ce_gex": 5846.44,
+            "pe_gex": 1763.14,
+            "net_gex": 4083.29
+          },
+          {
+            "strike": 23450,
+            "ce_oi": 585910,
+            "pe_oi": 851565,
+            "ce_gamma": 0.000399,
+            "pe_gamma": 0.000232,
+            "ce_gex": 15195.58,
+            "pe_gex": 12841.6,
+            "net_gex": 2353.98
+          },
+          {
+            "strike": 23500,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590,
+            "ce_gamma": 0.000512,
+            "pe_gamma": 0.000408,
+            "ce_gex": 42928.7,
+            "pe_gex": 5319.65,
+            "net_gex": 37609.06
+          },
+          {
+            "strike": 23600,
+            "ce_oi": 81185,
+            "pe_oi": 105690,
+            "ce_gamma": 0.000585,
+            "pe_gamma": 0.00052,
+            "ce_gex": 3087.06,
+            "pe_gex": 3572.32,
+            "net_gex": -485.26
+          },
+          {
+            "strike": 23650,
+            "ce_oi": 0,
+            "pe_oi": 1041755,
+            "ce_gamma": 0,
+            "pe_gamma": 0.000645,
+            "ce_gex": 0,
+            "pe_gex": 43675.58,
+            "net_gex": -43675.58
+          },
+          {
+            "strike": 23700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245,
+            "ce_gamma": 0.000757,
+            "pe_gamma": 0.000779,
+            "ce_gex": 48122.0,
+            "pe_gex": 54546.3,
+            "net_gex": -6424.3
+          },
+          {
+            "strike": 23750,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 23800,
+            "ce_oi": 0,
+            "pe_oi": 432640,
+            "ce_gamma": 0,
+            "pe_gamma": 0.001049,
+            "ce_gex": 0,
+            "pe_gex": 29499.56,
+            "net_gex": -29499.56
+          },
+          {
+            "strike": 23850,
+            "ce_oi": 92170,
+            "pe_oi": 749905,
+            "ce_gamma": 0.001035,
+            "pe_gamma": 0.001169,
+            "ce_gex": 6200.74,
+            "pe_gex": 56981.53,
+            "net_gex": -50780.79
+          },
+          {
+            "strike": 23900,
+            "ce_oi": 572520,
+            "pe_oi": 45955,
+            "ce_gamma": 0.001109,
+            "pe_gamma": 0.001269,
+            "ce_gex": 41270.1,
+            "pe_gex": 3790.6,
+            "net_gex": 37479.51
+          },
+          {
+            "strike": 23950,
+            "ce_oi": 0,
+            "pe_oi": 158210,
+            "ce_gamma": 0,
+            "pe_gamma": 0.001341,
+            "ce_gex": 0,
+            "pe_gex": 13790.37,
+            "net_gex": -13790.37
+          },
+          {
+            "strike": 24000,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24050,
+            "ce_oi": 1061125,
+            "pe_oi": 1271790,
+            "ce_gamma": 0.001193,
+            "pe_gamma": 0.001381,
+            "ce_gex": 82284.94,
+            "pe_gex": 114162.23,
+            "net_gex": -31877.29
+          },
+          {
+            "strike": 24100,
+            "ce_oi": 0,
+            "pe_oi": 758420,
+            "ce_gamma": 0,
+            "pe_gamma": 0.001342,
+            "ce_gex": 0,
+            "pe_gex": 66156.98,
+            "net_gex": -66156.98
+          },
+          {
+            "strike": 24150,
+            "ce_oi": 357110,
+            "pe_oi": 148525,
+            "ce_gamma": 0.00111,
+            "pe_gamma": 0.001265,
+            "ce_gex": 25765.49,
+            "pe_gex": 12212.47,
+            "net_gex": 13553.02
+          },
+          {
+            "strike": 24200,
+            "ce_oi": 274950,
+            "pe_oi": 848445,
+            "ce_gamma": 0.001031,
+            "pe_gamma": 0.001149,
+            "ce_gex": 18425.77,
+            "pe_gex": 63366.11,
+            "net_gex": -44940.34
+          },
+          {
+            "strike": 24250,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890,
+            "ce_gamma": 0.000826,
+            "pe_gamma": 0.000808,
+            "ce_gex": 61871.55,
+            "pe_gex": 61810.26,
+            "net_gex": 61.29
+          },
+          {
+            "strike": 24350,
+            "ce_oi": 721760,
+            "pe_oi": 338715,
+            "ce_gamma": 0.000712,
+            "pe_gamma": 0.000556,
+            "ce_gex": 33403.05,
+            "pe_gex": 12241.16,
+            "net_gex": 21161.89
+          },
+          {
+            "strike": 24400,
+            "ce_oi": 0,
+            "pe_oi": 98475,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24450,
+            "ce_oi": 745745,
+            "pe_oi": 293930,
+            "ce_gamma": 0.000491,
+            "pe_gamma": 0,
+            "ce_gex": 23800.45,
+            "pe_gex": 0,
+            "net_gex": 23800.45
+          },
+          {
+            "strike": 24500,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24550,
+            "ce_oi": 0,
+            "pe_oi": 1081145,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24600,
+            "ce_oi": 449930,
+            "pe_oi": 1107665,
+            "ce_gamma": 0.000234,
+            "pe_gamma": 0,
+            "ce_gex": 6843.44,
+            "pe_gex": 0,
+            "net_gex": 6843.44
+          },
+          {
+            "strike": 24650,
+            "ce_oi": 881595,
+            "pe_oi": 790400,
+            "ce_gamma": 0.000174,
+            "pe_gamma": 0,
+            "ce_gex": 9970.84,
+            "pe_gex": 0,
+            "net_gex": 9970.84
+          },
+          {
+            "strike": 24700,
+            "ce_oi": 0,
+            "pe_oi": 685230,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24750,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24800,
+            "ce_oi": 1247220,
+            "pe_oi": 38415,
+            "ce_gamma": 6.3e-05,
+            "pe_gamma": 0,
+            "ce_gex": 5107.37,
+            "pe_gex": 0,
+            "net_gex": 5107.37
+          },
+          {
+            "strike": 24850,
+            "ce_oi": 0,
+            "pe_oi": 100230,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 24900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500,
+            "ce_gamma": 3e-05,
+            "pe_gamma": 0,
+            "ce_gex": 2539.94,
+            "pe_gex": 0,
+            "net_gex": 2539.94
+          },
+          {
+            "strike": 24950,
+            "ce_oi": 826670,
+            "pe_oi": 925925,
+            "ce_gamma": 1.7e-05,
+            "pe_gamma": 0,
+            "ce_gex": 913.47,
+            "pe_gex": 0,
+            "net_gex": 913.47
+          },
+          {
+            "strike": 25000,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835,
+            "ce_gamma": 7e-06,
+            "pe_gamma": 0,
+            "ce_gex": 64.83,
+            "pe_gex": 0,
+            "net_gex": 64.83
+          },
+          {
+            "strike": 25100,
+            "ce_oi": 1236950,
+            "pe_oi": 718445,
+            "ce_gamma": 6e-06,
+            "pe_gamma": 0,
+            "ce_gex": 482.41,
+            "pe_gex": 0,
+            "net_gex": 482.41
+          },
+          {
+            "strike": 25150,
+            "ce_oi": 0,
+            "pe_oi": 338260,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25200,
+            "ce_oi": 809055,
+            "pe_oi": 1025700,
+            "ce_gamma": 5e-06,
+            "pe_gamma": 0,
+            "ce_gex": 262.94,
+            "pe_gex": 0,
+            "net_gex": 262.94
+          },
+          {
+            "strike": 25250,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25300,
+            "ce_oi": 0,
+            "pe_oi": 587015,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25350,
+            "ce_oi": 1006005,
+            "pe_oi": 224510,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 261.56,
+            "pe_gex": 0,
+            "net_gex": 261.56
+          },
+          {
+            "strike": 25400,
+            "ce_oi": 419445,
+            "pe_oi": 937950,
+            "ce_gamma": 4e-06,
+            "pe_gamma": 0,
+            "ce_gex": 109.06,
+            "pe_gex": 0,
+            "net_gex": 109.06
+          },
+          {
+            "strike": 25450,
+            "ce_oi": 0,
+            "pe_oi": 1300455,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25500,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25550,
+            "ce_oi": 612235,
+            "pe_oi": 828880,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 119.39,
+            "pe_gex": 0,
+            "net_gex": 119.39
+          },
+          {
+            "strike": 25600,
+            "ce_oi": 0,
+            "pe_oi": 715000,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25650,
+            "ce_oi": 374530,
+            "pe_oi": 1134185,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 73.03,
+            "pe_gex": 0,
+            "net_gex": 73.03
+          },
+          {
+            "strike": 25700,
+            "ce_oi": 520000,
+            "pe_oi": 1127035,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 101.4,
+            "pe_gex": 0,
+            "net_gex": 101.4
+          },
+          {
+            "strike": 25750,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25800,
+            "ce_oi": 352105,
+            "pe_oi": 376610,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 68.66,
+            "pe_gex": 0,
+            "net_gex": 68.66
+          },
+          {
+            "strike": 25850,
+            "ce_oi": 1211080,
+            "pe_oi": 478595,
+            "ce_gamma": 3e-06,
+            "pe_gamma": 0,
+            "ce_gex": 236.16,
+            "pe_gex": 0,
+            "net_gex": 236.16
+          },
+          {
+            "strike": 25900,
+            "ce_oi": 0,
+            "pe_oi": 724165,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          },
+          {
+            "strike": 25950,
+            "ce_oi": 770055,
+            "pe_oi": 678860,
+            "ce_gamma": 2e-06,
+            "pe_gamma": 0,
+            "ce_gex": 100.11,
+            "pe_gex": 0,
+            "net_gex": 100.11
+          },
+          {
+            "strike": 26000,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "ce_gamma": 0,
+            "pe_gamma": 0,
+            "ce_gex": 0,
+            "pe_gex": 0,
+            "net_gex": 0
+          }
+        ]
+      }
+    },
+    "calculate_gamma_density": {
+      "status": 200,
+      "body": {
+        "status": "success",
+        "underlying": "NIFTY",
+        "exchange": "NFO",
+        "expiry_date": "01DEC26",
+        "spot_price": 24006.3,
+        "forward_price": 24006.3,
+        "atm_strike": 24000,
+        "atm_iv": 12.92,
+        "dte_days": 4.25,
+        "interest_rate": 0,
+        "peak_intraday_strike": 24050,
+        "peak_expiry_strike": 24250,
+        "sigma_move": 162.3,
+        "one_sigma_low": 23844.0,
+        "one_sigma_high": 24168.6,
+        "two_sigma_low": 23681.7,
+        "two_sigma_high": 24330.9,
+        "intraday_band": {
+          "sigma_move": 162.3,
+          "one_sigma_low": 23844.0,
+          "one_sigma_high": 24168.6,
+          "two_sigma_low": 23681.7,
+          "two_sigma_high": 24330.9
+        },
+        "expiry_band": {
+          "sigma_move": 334.5,
+          "one_sigma_low": 23671.8,
+          "one_sigma_high": 24340.8,
+          "two_sigma_low": 23337.31,
+          "two_sigma_high": 24675.29
+        },
+        "chain": [
+          {
+            "strike": 22850,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 21.53,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 22900,
+            "ce_oi": 85865,
+            "pe_oi": 1100450,
+            "iv": 20.73,
+            "density_intraday": 0.5438160419155902,
+            "density_expiry": 19.71415056859209
+          },
+          {
+            "strike": 22950,
+            "ce_oi": 992680,
+            "pe_oi": 776035,
+            "iv": 19.94,
+            "density_intraday": 7.279892784578221,
+            "density_expiry": 172.88016075372164
+          },
+          {
+            "strike": 23000,
+            "ce_oi": 0,
+            "pe_oi": 1271400,
+            "iv": 19.14,
+            "density_intraday": 6.897042663556463e-07,
+            "density_expiry": 8.273259229069767
+          },
+          {
+            "strike": 23050,
+            "ce_oi": 32370,
+            "pe_oi": 484185,
+            "iv": 18.33,
+            "density_intraday": 0.3203721197826597,
+            "density_expiry": 9.714343047213784
+          },
+          {
+            "strike": 23100,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 17.85,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23150,
+            "ce_oi": 0,
+            "pe_oi": 996970,
+            "iv": 17.39,
+            "density_intraday": 9.460808802148385e-05,
+            "density_expiry": 22.511286092320066
+          },
+          {
+            "strike": 23200,
+            "ce_oi": 703365,
+            "pe_oi": 914030,
+            "iv": 16.88,
+            "density_intraday": 11.863843382568511,
+            "density_expiry": 203.91298300218136
+          },
+          {
+            "strike": 23250,
+            "ce_oi": 1308060,
+            "pe_oi": 1091415,
+            "iv": 16.33,
+            "density_intraday": 27.185611941027663,
+            "density_expiry": 404.2835317799098
+          },
+          {
+            "strike": 23300,
+            "ce_oi": 0,
+            "pe_oi": 510705,
+            "iv": 15.86,
+            "density_intraday": 0.01094338571915919,
+            "density_expiry": 41.60271110972182
+          },
+          {
+            "strike": 23350,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 15.36,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23400,
+            "ce_oi": 252655,
+            "pe_oi": 161460,
+            "iv": 14.91,
+            "density_intraday": 11.435537815061974,
+            "density_expiry": 117.05398174219145
+          },
+          {
+            "strike": 23450,
+            "ce_oi": 0,
+            "pe_oi": 851565,
+            "iv": 14.47,
+            "density_intraday": 1.5060090124376344,
+            "density_expiry": 197.52817175784259
+          },
+          {
+            "strike": 23500,
+            "ce_oi": 594620,
+            "pe_oi": 377975,
+            "iv": 14.08,
+            "density_intraday": 55.89028591291057,
+            "density_expiry": 386.04770137541897
+          },
+          {
+            "strike": 23550,
+            "ce_oi": 1289925,
+            "pe_oi": 200590,
+            "iv": 13.73,
+            "density_intraday": 177.59328871969598,
+            "density_expiry": 742.7629684762508
+          },
+          {
+            "strike": 23600,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 13.41,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23650,
+            "ce_oi": 950560,
+            "pe_oi": 1041755,
+            "iv": 13.14,
+            "density_intraday": 444.08306193036714,
+            "density_expiry": 1306.0143228611348
+          },
+          {
+            "strike": 23700,
+            "ce_oi": 977990,
+            "pe_oi": 1077245,
+            "iv": 12.91,
+            "density_intraday": 802.3559094916236,
+            "density_expiry": 1580.1110750719358
+          },
+          {
+            "strike": 23750,
+            "ce_oi": 0,
+            "pe_oi": 387140,
+            "iv": 12.72,
+            "density_intraday": 217.4268899133088,
+            "density_expiry": 354.6402245375663
+          },
+          {
+            "strike": 23800,
+            "ce_oi": 523835,
+            "pe_oi": 432640,
+            "iv": 12.55,
+            "density_intraday": 1008.5862082144702,
+            "density_expiry": 949.8898410000704
+          },
+          {
+            "strike": 23850,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 12.4,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 23900,
+            "ce_oi": 0,
+            "pe_oi": 45955,
+            "iv": 12.27,
+            "density_intraday": 97.07636370364756,
+            "density_expiry": 58.32497304348127
+          },
+          {
+            "strike": 23950,
+            "ce_oi": 133705,
+            "pe_oi": 158210,
+            "iv": 12.15,
+            "density_intraday": 717.9421563508275,
+            "density_expiry": 367.71071983389356
+          },
+          {
+            "strike": 24000,
+            "ce_oi": 365820,
+            "pe_oi": 149175,
+            "iv": 12.92,
+            "density_intraday": 1264.7566270958519,
+            "density_expiry": 614.011519757543
+          },
+          {
+            "strike": 24050,
+            "ce_oi": 0,
+            "pe_oi": 1271790,
+            "iv": 11.92,
+            "density_intraday": 3485.0030477280193,
+            "density_expiry": 1756.2334912521321
+          },
+          {
+            "strike": 24100,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 11.81,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24150,
+            "ce_oi": 357110,
+            "pe_oi": 148525,
+            "iv": 11.67,
+            "density_intraday": 849.3175656273331,
+            "density_expiry": 584.1292922340249
+          },
+          {
+            "strike": 24200,
+            "ce_oi": 0,
+            "pe_oi": 848445,
+            "iv": 11.51,
+            "density_intraday": 877.2951573313187,
+            "density_expiry": 975.0207143171407
+          },
+          {
+            "strike": 24250,
+            "ce_oi": 1241695,
+            "pe_oi": 984100,
+            "iv": 11.3,
+            "density_intraday": 1463.813408828703,
+            "density_expiry": 2142.2679189661885
+          },
+          {
+            "strike": 24300,
+            "ce_oi": 1152385,
+            "pe_oi": 1176890,
+            "iv": 11.01,
+            "density_intraday": 724.3446313894511,
+            "density_expiry": 1902.2544408415165
+          },
+          {
+            "strike": 24350,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 10.52,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24400,
+            "ce_oi": 315120,
+            "pe_oi": 98475,
+            "iv": 12.43,
+            "density_intraday": 49.06740726065013,
+            "density_expiry": 248.49853666525127
+          },
+          {
+            "strike": 24450,
+            "ce_oi": 745745,
+            "pe_oi": 293930,
+            "iv": 12.4,
+            "density_intraday": 54.49227133675326,
+            "density_expiry": 515.2858149394756
+          },
+          {
+            "strike": 24500,
+            "ce_oi": 0,
+            "pe_oi": 1042600,
+            "iv": 12.37,
+            "density_intraday": 27.822564530591187,
+            "density_expiry": 432.07115739682865
+          },
+          {
+            "strike": 24550,
+            "ce_oi": 629330,
+            "pe_oi": 1081145,
+            "iv": 12.35,
+            "density_intraday": 15.188852518338035,
+            "density_expiry": 551.6400651115432
+          },
+          {
+            "strike": 24600,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 12.33,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24650,
+            "ce_oi": 0,
+            "pe_oi": 790400,
+            "iv": 12.31,
+            "density_intraday": 0.9286438820178339,
+            "density_expiry": 157.39636532796501
+          },
+          {
+            "strike": 24700,
+            "ce_oi": 1300325,
+            "pe_oi": 685230,
+            "iv": 12.32,
+            "density_intraday": 0.43362407922694335,
+            "density_expiry": 268.1195968666679
+          },
+          {
+            "strike": 24750,
+            "ce_oi": 1079260,
+            "pe_oi": 862615,
+            "iv": 12.32,
+            "density_intraday": 0.1202478031390615,
+            "density_expiry": 193.244991227144
+          },
+          {
+            "strike": 24800,
+            "ce_oi": 0,
+            "pe_oi": 38415,
+            "iv": 12.29,
+            "density_intraday": 0.0009029764534623505,
+            "density_expiry": 3.0528645874919067
+          },
+          {
+            "strike": 24850,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 12.24,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 24900,
+            "ce_oi": 1302535,
+            "pe_oi": 695500,
+            "iv": 12.35,
+            "density_intraday": 0.0011752095860962286,
+            "density_expiry": 65.52447166296291
+          },
+          {
+            "strike": 24950,
+            "ce_oi": 0,
+            "pe_oi": 925925,
+            "iv": 12.15,
+            "density_intraday": 0.00020073142771911482,
+            "density_expiry": 24.471429998033553
+          },
+          {
+            "strike": 25000,
+            "ce_oi": 787345,
+            "pe_oi": 129610,
+            "iv": 12.28,
+            "density_intraday": 9.731017694806448e-06,
+            "density_expiry": 11.595647390335921
+          },
+          {
+            "strike": 25050,
+            "ce_oi": 142480,
+            "pe_oi": 1225835,
+            "iv": 12.15,
+            "density_intraday": 7.726017807722011e-06,
+            "density_expiry": 15.024499773523349
+          },
+          {
+            "strike": 25100,
+            "ce_oi": 0,
+            "pe_oi": 0,
+            "iv": 12.67,
+            "density_intraday": 0.0,
+            "density_expiry": 0.0
+          },
+          {
+            "strike": 25150,
+            "ce_oi": 429455,
+            "pe_oi": 338260,
+            "iv": 13.2,
+            "density_intraday": 1.9003894191969135e-07,
+            "density_expiry": 4.0105673136739615
+          }
+        ]
+      }
+    }
+  },
+  "legs": [
+    {
+      "symbol": "NIFTY01DEC2622750CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1274.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622750CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22750.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1274.45,
+        "interest_rate": 0,
+        "implied_volatility": 31.11,
+        "greeks": {
+          "delta": 0.9472,
+          "gamma": 0.000134,
+          "theta": -10.2095,
+          "vega": 2.7881,
+          "rho": -0.148312
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622750PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622750PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22750.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 15.13,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 4e-06,
+          "theta": -0.0794,
+          "vega": 0.0445,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622800CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1224.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622800CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22800.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1224.45,
+        "interest_rate": 0,
+        "implied_volatility": 30.09,
+        "greeks": {
+          "delta": 0.9457,
+          "gamma": 0.000141,
+          "theta": -10.1045,
+          "vega": 2.8525,
+          "rho": -0.142493
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622800PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622800PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22800.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 14.56,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -0.079,
+          "vega": 0.0461,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622850CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1174.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622850CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22850.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1174.45,
+        "interest_rate": 0,
+        "implied_volatility": 29.07,
+        "greeks": {
+          "delta": 0.944,
+          "gamma": 0.00015,
+          "theta": -9.9956,
+          "vega": 2.9206,
+          "rho": -0.136674
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622850PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622850PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22850.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 13.99,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -0.0786,
+          "vega": 0.0477,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622900CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1124.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622900CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22900.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1124.45,
+        "interest_rate": 0,
+        "implied_volatility": 28.05,
+        "greeks": {
+          "delta": 0.9423,
+          "gamma": 0.000159,
+          "theta": -9.8825,
+          "vega": 2.9928,
+          "rho": -0.130856
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622900PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622900PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22900.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 13.41,
+        "greeks": {
+          "delta": -0.0005,
+          "gamma": 6e-06,
+          "theta": -0.0781,
+          "vega": 0.0495,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622950CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1074.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622950CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22950.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1074.5,
+        "interest_rate": 0,
+        "implied_volatility": 27.04,
+        "greeks": {
+          "delta": 0.9403,
+          "gamma": 0.000169,
+          "theta": -9.7847,
+          "vega": 3.0738,
+          "rho": -0.125043
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2622950PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2622950PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 22950.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 12.84,
+        "greeks": {
+          "delta": -0.0006,
+          "gamma": 6e-06,
+          "theta": -0.0777,
+          "vega": 0.0514,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623000CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1024.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623000CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23000.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1024.5,
+        "interest_rate": 0,
+        "implied_volatility": 26.01,
+        "greeks": {
+          "delta": 0.9382,
+          "gamma": 0.000181,
+          "theta": -9.6617,
+          "vega": 3.1556,
+          "rho": -0.119224
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623000PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623000PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23000.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 12.26,
+        "greeks": {
+          "delta": -0.0006,
+          "gamma": 7e-06,
+          "theta": -0.0772,
+          "vega": 0.0535,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623050CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 974.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623050CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23050.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 974.5,
+        "interest_rate": 0,
+        "implied_volatility": 24.97,
+        "greeks": {
+          "delta": 0.936,
+          "gamma": 0.000194,
+          "theta": -9.5333,
+          "vega": 3.2428,
+          "rho": -0.113406
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623050PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623050PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23050.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 11.68,
+        "greeks": {
+          "delta": -0.0006,
+          "gamma": 7e-06,
+          "theta": -0.0767,
+          "vega": 0.0558,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623100CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 924.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623100CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23100.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 924.55,
+        "interest_rate": 0,
+        "implied_volatility": 23.95,
+        "greeks": {
+          "delta": 0.9335,
+          "gamma": 0.000208,
+          "theta": -9.4177,
+          "vega": 3.341,
+          "rho": -0.107593
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623100PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623100PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23100.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.1,
+        "interest_rate": 0,
+        "implied_volatility": 11.75,
+        "greeks": {
+          "delta": -0.0012,
+          "gamma": 1.3e-05,
+          "theta": -0.1392,
+          "vega": 0.1007,
+          "rho": -1.2e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623150CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 874.65,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623150CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23150.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 874.65,
+        "interest_rate": 0,
+        "implied_volatility": 22.93,
+        "greeks": {
+          "delta": 0.9307,
+          "gamma": 0.000224,
+          "theta": -9.3135,
+          "vega": 3.4509,
+          "rho": -0.101786
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623150PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623150PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23150.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.2,
+        "interest_rate": 0,
+        "implied_volatility": 11.85,
+        "greeks": {
+          "delta": -0.0022,
+          "gamma": 2.3e-05,
+          "theta": -0.2504,
+          "vega": 0.1795,
+          "rho": -2.3e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623200CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 824.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623200CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23200.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 824.8,
+        "interest_rate": 0,
+        "implied_volatility": 21.91,
+        "greeks": {
+          "delta": 0.9275,
+          "gamma": 0.000243,
+          "theta": -9.2186,
+          "vega": 3.5739,
+          "rho": -0.095984
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623200PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623200PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23200.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.35,
+        "interest_rate": 0,
+        "implied_volatility": 11.85,
+        "greeks": {
+          "delta": -0.0037,
+          "gamma": 3.6e-05,
+          "theta": -0.3986,
+          "vega": 0.2858,
+          "rho": -4.1e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623250CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 775.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623250CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23250.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 775.05,
+        "interest_rate": 0,
+        "implied_volatility": 20.92,
+        "greeks": {
+          "delta": 0.9237,
+          "gamma": 0.000265,
+          "theta": -9.1487,
+          "vega": 3.716,
+          "rho": -0.090195
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623250PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623250PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23250.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.55,
+        "interest_rate": 0,
+        "implied_volatility": 11.74,
+        "greeks": {
+          "delta": -0.0056,
+          "gamma": 5.3e-05,
+          "theta": -0.5757,
+          "vega": 0.4166,
+          "rho": -6.4e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623300CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 725.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623300CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23300.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 725.4,
+        "interest_rate": 0,
+        "implied_volatility": 19.93,
+        "greeks": {
+          "delta": 0.9192,
+          "gamma": 0.00029,
+          "theta": -9.0997,
+          "vega": 3.8788,
+          "rho": -0.084417
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623300PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623300PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23300.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.95,
+        "interest_rate": 0,
+        "implied_volatility": 11.78,
+        "greeks": {
+          "delta": -0.0092,
+          "gamma": 8.1e-05,
+          "theta": -0.8925,
+          "vega": 0.6436,
+          "rho": -0.000111
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623350CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 676,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623350CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23350.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 676,
+        "interest_rate": 0,
+        "implied_volatility": 18.99,
+        "greeks": {
+          "delta": 0.9136,
+          "gamma": 0.00032,
+          "theta": -9.1171,
+          "vega": 4.0787,
+          "rho": -0.078668
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623350PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623350PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23350.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1.5,
+        "interest_rate": 0,
+        "implied_volatility": 11.73,
+        "greeks": {
+          "delta": -0.014,
+          "gamma": 0.000117,
+          "theta": -1.2746,
+          "vega": 0.9234,
+          "rho": -0.000175
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623400CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 626.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623400CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23400.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 626.85,
+        "interest_rate": 0,
+        "implied_volatility": 18.08,
+        "greeks": {
+          "delta": 0.9068,
+          "gamma": 0.000356,
+          "theta": -9.1902,
+          "vega": 4.3173,
+          "rho": -0.072948
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623400PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 2.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623400PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23400.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 2.4,
+        "interest_rate": 0,
+        "implied_volatility": 11.73,
+        "greeks": {
+          "delta": -0.0213,
+          "gamma": 0.000168,
+          "theta": -1.8234,
+          "vega": 1.3208,
+          "rho": -0.000279
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623450CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 578.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623450CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23450.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 578.15,
+        "interest_rate": 0,
+        "implied_volatility": 17.24,
+        "greeks": {
+          "delta": 0.8979,
+          "gamma": 0.000399,
+          "theta": -9.3671,
+          "vega": 4.6145,
+          "rho": -0.067281
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623450PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 3.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623450PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23450.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 3.7,
+        "interest_rate": 0,
+        "implied_volatility": 11.7,
+        "greeks": {
+          "delta": -0.0312,
+          "gamma": 0.000232,
+          "theta": -2.5084,
+          "vega": 1.8207,
+          "rho": -0.000431
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623500CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 530.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623500CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23500.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 530.05,
+        "interest_rate": 0,
+        "implied_volatility": 16.48,
+        "greeks": {
+          "delta": 0.8864,
+          "gamma": 0.000451,
+          "theta": -9.6668,
+          "vega": 4.9824,
+          "rho": -0.061684
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623500PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 5.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623500PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23500.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 5.6,
+        "interest_rate": 0,
+        "implied_volatility": 11.69,
+        "greeks": {
+          "delta": -0.0448,
+          "gamma": 0.000312,
+          "theta": -3.3671,
+          "vega": 2.4476,
+          "rho": -0.000652
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623550CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 482.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623550CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23550.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 482.7,
+        "interest_rate": 0,
+        "implied_volatility": 15.8,
+        "greeks": {
+          "delta": 0.8717,
+          "gamma": 0.000512,
+          "theta": -10.0933,
+          "vega": 5.4278,
+          "rho": -0.056173
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623550PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 8.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623550PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23550.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 8.25,
+        "interest_rate": 0,
+        "implied_volatility": 11.66,
+        "greeks": {
+          "delta": -0.0627,
+          "gamma": 0.000408,
+          "theta": -4.3802,
+          "vega": 3.1926,
+          "rho": -0.00096
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623600CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 436.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623600CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23600.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 436.4,
+        "interest_rate": 0,
+        "implied_volatility": 15.21,
+        "greeks": {
+          "delta": 0.8528,
+          "gamma": 0.000585,
+          "theta": -10.6716,
+          "vega": 5.9614,
+          "rho": -0.050785
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623600PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 11.9,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623600PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23600.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 11.9,
+        "interest_rate": 0,
+        "implied_volatility": 11.62,
+        "greeks": {
+          "delta": -0.0857,
+          "gamma": 0.00052,
+          "theta": -5.5454,
+          "vega": 4.0538,
+          "rho": -0.001385
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623650CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 391.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623650CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23650.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 391.35,
+        "interest_rate": 0,
+        "implied_volatility": 14.7,
+        "greeks": {
+          "delta": 0.8292,
+          "gamma": 0.000667,
+          "theta": -11.375,
+          "vega": 6.5738,
+          "rho": -0.045543
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623650PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 16.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623650PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23650.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 16.85,
+        "interest_rate": 0,
+        "implied_volatility": 11.59,
+        "greeks": {
+          "delta": -0.1146,
+          "gamma": 0.000645,
+          "theta": -6.842,
+          "vega": 5.0152,
+          "rho": -0.001961
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623700CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 347.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623700CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23700.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 347.85,
+        "interest_rate": 0,
+        "implied_volatility": 14.27,
+        "greeks": {
+          "delta": 0.8,
+          "gamma": 0.000757,
+          "theta": -12.1779,
+          "vega": 7.2491,
+          "rho": -0.04048
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623700PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 23.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623700PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23700.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 23.4,
+        "interest_rate": 0,
+        "implied_volatility": 11.56,
+        "greeks": {
+          "delta": -0.1501,
+          "gamma": 0.000779,
+          "theta": -8.2179,
+          "vega": 6.0401,
+          "rho": -0.002723
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623750CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 306.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623750CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23750.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 306.25,
+        "interest_rate": 0,
+        "implied_volatility": 13.92,
+        "greeks": {
+          "delta": 0.765,
+          "gamma": 0.000853,
+          "theta": -13.0403,
+          "vega": 7.9589,
+          "rho": -0.035639
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623750PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 31.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623750PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23750.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 31.8,
+        "interest_rate": 0,
+        "implied_volatility": 11.52,
+        "greeks": {
+          "delta": -0.1921,
+          "gamma": 0.000916,
+          "theta": -9.5891,
+          "vega": 7.0744,
+          "rho": -0.003701
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623800CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 266.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623800CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23800.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 266.85,
+        "interest_rate": 0,
+        "implied_volatility": 13.63,
+        "greeks": {
+          "delta": 0.7238,
+          "gamma": 0.000947,
+          "theta": -13.8932,
+          "vega": 8.6589,
+          "rho": -0.031054
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623800PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 42.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623800PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23800.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 42.4,
+        "interest_rate": 0,
+        "implied_volatility": 11.47,
+        "greeks": {
+          "delta": -0.2407,
+          "gamma": 0.001049,
+          "theta": -10.8835,
+          "vega": 8.064,
+          "rho": -0.004934
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623850CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 229.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623850CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23850.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 229.95,
+        "interest_rate": 0,
+        "implied_volatility": 13.4,
+        "greeks": {
+          "delta": 0.677,
+          "gamma": 0.001035,
+          "theta": -14.6603,
+          "vega": 9.2974,
+          "rho": -0.02676
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623850PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 55.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623850PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23850.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 55.5,
+        "interest_rate": 0,
+        "implied_volatility": 11.41,
+        "greeks": {
+          "delta": -0.2957,
+          "gamma": 0.001169,
+          "theta": -12.0118,
+          "vega": 8.9446,
+          "rho": -0.006459
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623900CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 195.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623900CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23900.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 195.8,
+        "interest_rate": 0,
+        "implied_volatility": 13.2,
+        "greeks": {
+          "delta": 0.625,
+          "gamma": 0.001109,
+          "theta": -15.2608,
+          "vega": 9.8198,
+          "rho": -0.022786
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623900PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 71.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623900PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23900.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 71.35,
+        "interest_rate": 0,
+        "implied_volatility": 11.34,
+        "greeks": {
+          "delta": -0.3561,
+          "gamma": 0.001269,
+          "theta": -12.883,
+          "vega": 9.6518,
+          "rho": -0.008303
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623950CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 164.65,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623950CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23950.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 164.65,
+        "interest_rate": 0,
+        "implied_volatility": 13.05,
+        "greeks": {
+          "delta": 0.569,
+          "gamma": 0.001163,
+          "theta": -15.6285,
+          "vega": 10.1765,
+          "rho": -0.019161
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2623950PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 90.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2623950PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 23950.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 90.2,
+        "interest_rate": 0,
+        "implied_volatility": 11.26,
+        "greeks": {
+          "delta": -0.421,
+          "gamma": 0.001341,
+          "theta": -13.4232,
+          "vega": 10.1281,
+          "rho": -0.010497
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624000CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 136.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624000CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24000.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 136.6,
+        "interest_rate": 0,
+        "implied_volatility": 12.92,
+        "greeks": {
+          "delta": 0.5103,
+          "gamma": 0.001192,
+          "theta": -15.703,
+          "vega": 10.328,
+          "rho": -0.015897
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624050CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 111.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624050CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24050.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 111.8,
+        "interest_rate": 0,
+        "implied_volatility": 12.81,
+        "greeks": {
+          "delta": 0.4504,
+          "gamma": 0.001193,
+          "theta": -15.4629,
+          "vega": 10.2515,
+          "rho": -0.013011
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624050PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 137.3,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624050PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24050.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 137.3,
+        "interest_rate": 0,
+        "implied_volatility": 11.04,
+        "greeks": {
+          "delta": -0.5584,
+          "gamma": 0.001381,
+          "theta": -13.2775,
+          "vega": 10.2207,
+          "rho": -0.015978
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624100CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 90.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624100CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24100.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 90.15,
+        "interest_rate": 0,
+        "implied_volatility": 12.73,
+        "greeks": {
+          "delta": 0.3909,
+          "gamma": 0.001165,
+          "theta": -14.8944,
+          "vega": 9.9429,
+          "rho": -0.010491
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624100PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 165.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624100PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24100.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 165.7,
+        "interest_rate": 0,
+        "implied_volatility": 10.89,
+        "greeks": {
+          "delta": -0.6277,
+          "gamma": 0.001342,
+          "theta": -12.557,
+          "vega": 9.7975,
+          "rho": -0.019283
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624150CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 71.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624150CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24150.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 71.6,
+        "interest_rate": 0,
+        "implied_volatility": 12.65,
+        "greeks": {
+          "delta": 0.3334,
+          "gamma": 0.00111,
+          "theta": -14.0265,
+          "vega": 9.4175,
+          "rho": -0.008332
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624150PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 197.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624150PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24150.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 197.1,
+        "interest_rate": 0,
+        "implied_volatility": 10.69,
+        "greeks": {
+          "delta": -0.6957,
+          "gamma": 0.001265,
+          "theta": -11.3998,
+          "vega": 9.0625,
+          "rho": -0.022937
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624200CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 55.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624200CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24200.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 55.95,
+        "interest_rate": 0,
+        "implied_volatility": 12.59,
+        "greeks": {
+          "delta": 0.2793,
+          "gamma": 0.001031,
+          "theta": -12.9017,
+          "vega": 8.7066,
+          "rho": -0.006511
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624200PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 231.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624200PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24200.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 231.5,
+        "interest_rate": 0,
+        "implied_volatility": 10.43,
+        "greeks": {
+          "delta": -0.7608,
+          "gamma": 0.001149,
+          "theta": -9.8642,
+          "vega": 8.0365,
+          "rho": -0.02694
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624250CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 43.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624250CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24250.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 43.05,
+        "interest_rate": 0,
+        "implied_volatility": 12.54,
+        "greeks": {
+          "delta": 0.2297,
+          "gamma": 0.000934,
+          "theta": -11.5969,
+          "vega": 7.8572,
+          "rho": -0.00501
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624250PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 268.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624250PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24250.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 268.6,
+        "interest_rate": 0,
+        "implied_volatility": 10.07,
+        "greeks": {
+          "delta": -0.8224,
+          "gamma": 0.000998,
+          "theta": -7.985,
+          "vega": 6.738,
+          "rho": -0.031258
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624300CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 32.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624300CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24300.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 32.55,
+        "interest_rate": 0,
+        "implied_volatility": 12.49,
+        "greeks": {
+          "delta": 0.1852,
+          "gamma": 0.000826,
+          "theta": -10.1734,
+          "vega": 6.9182,
+          "rho": -0.003788
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624300PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 308.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624300PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24300.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 308.1,
+        "interest_rate": 0,
+        "implied_volatility": 9.52,
+        "greeks": {
+          "delta": -0.8807,
+          "gamma": 0.000808,
+          "theta": -5.7851,
+          "vega": 5.1599,
+          "rho": -0.035855
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624350CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 24.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624350CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24350.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 24.2,
+        "interest_rate": 0,
+        "implied_volatility": 12.45,
+        "greeks": {
+          "delta": 0.1465,
+          "gamma": 0.000712,
+          "theta": -8.7153,
+          "vega": 5.9448,
+          "rho": -0.002816
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624350PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 349.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624350PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24350.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 349.75,
+        "interest_rate": 0,
+        "implied_volatility": 8.58,
+        "greeks": {
+          "delta": -0.9371,
+          "gamma": 0.000556,
+          "theta": -3.2347,
+          "vega": 3.2017,
+          "rho": -0.040701
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624400CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 17.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624400CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24400.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 17.7,
+        "interest_rate": 0,
+        "implied_volatility": 12.43,
+        "greeks": {
+          "delta": 0.1137,
+          "gamma": 0.000599,
+          "theta": -7.2951,
+          "vega": 4.9876,
+          "rho": -0.00206
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624400PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 393.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624400PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24400.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 393.25,
+        "intrinsic_value": 393.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624450CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 12.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624450CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24450.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 12.7,
+        "interest_rate": 0,
+        "implied_volatility": 12.4,
+        "greeks": {
+          "delta": 0.0865,
+          "gamma": 0.000491,
+          "theta": -5.9562,
+          "vega": 4.0818,
+          "rho": -0.001478
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624450PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 438.25,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624450PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24450.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 438.25,
+        "intrinsic_value": 443.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624500CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 8.95,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624500CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24500.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 8.95,
+        "interest_rate": 0,
+        "implied_volatility": 12.37,
+        "greeks": {
+          "delta": 0.0644,
+          "gamma": 0.000393,
+          "theta": -4.7486,
+          "vega": 3.2608,
+          "rho": -0.001042
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624500PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 484.5,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624500PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24500.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 484.5,
+        "intrinsic_value": 493.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624550CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 6.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624550CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24550.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 6.2,
+        "interest_rate": 0,
+        "implied_volatility": 12.35,
+        "greeks": {
+          "delta": 0.0471,
+          "gamma": 0.000307,
+          "theta": -3.7001,
+          "vega": 2.5447,
+          "rho": -0.000722
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624550PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 531.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624550PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24550.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 531.75,
+        "intrinsic_value": 543.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624600CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 4.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624600CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24600.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 4.2,
+        "interest_rate": 0,
+        "implied_volatility": 12.33,
+        "greeks": {
+          "delta": 0.0336,
+          "gamma": 0.000234,
+          "theta": -2.8075,
+          "vega": 1.9347,
+          "rho": -0.000489
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624600PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 579.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624600PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24600.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 579.75,
+        "intrinsic_value": 593.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624650CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 2.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624650CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24650.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 2.8,
+        "interest_rate": 0,
+        "implied_volatility": 12.31,
+        "greeks": {
+          "delta": 0.0235,
+          "gamma": 0.000174,
+          "theta": -2.0849,
+          "vega": 1.4387,
+          "rho": -0.000326
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624650PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 628.35,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624650PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24650.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 628.35,
+        "intrinsic_value": 643.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624700CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1.85,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624700CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24700.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1.85,
+        "interest_rate": 0,
+        "implied_volatility": 12.32,
+        "greeks": {
+          "delta": 0.0163,
+          "gamma": 0.000127,
+          "theta": -1.5246,
+          "vega": 1.0517,
+          "rho": -0.000215
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624700PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 677.4,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624700PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24700.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 677.4,
+        "intrinsic_value": 693.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624750CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1.2,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624750CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24750.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1.2,
+        "interest_rate": 0,
+        "implied_volatility": 12.32,
+        "greeks": {
+          "delta": 0.011,
+          "gamma": 9.1e-05,
+          "theta": -1.09,
+          "vega": 0.7518,
+          "rho": -0.00014
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624750PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 726.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624750PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24750.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 726.7,
+        "intrinsic_value": 743.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624800CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.75,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624800CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24800.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.75,
+        "interest_rate": 0,
+        "implied_volatility": 12.29,
+        "greeks": {
+          "delta": 0.0072,
+          "gamma": 6.3e-05,
+          "theta": -0.7505,
+          "vega": 0.5186,
+          "rho": -8.7e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624800PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 776.3,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624800PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24800.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 776.3,
+        "intrinsic_value": 793.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624850CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.45,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624850CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24850.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.45,
+        "interest_rate": 0,
+        "implied_volatility": 12.24,
+        "greeks": {
+          "delta": 0.0045,
+          "gamma": 4.2e-05,
+          "theta": -0.4959,
+          "vega": 0.344,
+          "rho": -5.2e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624850PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 826,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624850PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24850.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 826,
+        "intrinsic_value": 843.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624900CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.3,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624900CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24900.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.3,
+        "interest_rate": 0,
+        "implied_volatility": 12.35,
+        "greeks": {
+          "delta": 0.0031,
+          "gamma": 3e-05,
+          "theta": -0.3557,
+          "vega": 0.2446,
+          "rho": -3.5e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624900PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 875.8,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624900PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24900.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 875.8,
+        "intrinsic_value": 893.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624950CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.15,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624950CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24950.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.15,
+        "interest_rate": 0,
+        "implied_volatility": 12.15,
+        "greeks": {
+          "delta": 0.0017,
+          "gamma": 1.7e-05,
+          "theta": -0.1985,
+          "vega": 0.1388,
+          "rho": -1.7e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2624950PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 925.7,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2624950PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 24950.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 925.7,
+        "intrinsic_value": 943.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625000CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.1,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625000CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25000.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.1,
+        "interest_rate": 0,
+        "implied_volatility": 12.28,
+        "greeks": {
+          "delta": 0.0011,
+          "gamma": 1.2e-05,
+          "theta": -0.141,
+          "vega": 0.0975,
+          "rho": -1.2e-05
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625000PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 975.65,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625000PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25000.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 975.65,
+        "intrinsic_value": 993.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625050CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625050CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25050.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 12.15,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 7e-06,
+          "theta": -0.0776,
+          "vega": 0.0542,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625050PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1025.6,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625050PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25050.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1025.6,
+        "intrinsic_value": 1043.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625100CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625100CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25100.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 12.67,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -0.078,
+          "vega": 0.0523,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625100PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1075.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625100PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25100.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1075.55,
+        "intrinsic_value": 1093.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625150CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625150CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25150.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 13.2,
+        "greeks": {
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -0.0784,
+          "vega": 0.0505,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625150PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1125.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625150PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25150.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1125.55,
+        "intrinsic_value": 1143.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625200CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625200CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25200.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 13.72,
+        "greeks": {
+          "delta": 0.0005,
+          "gamma": 5e-06,
+          "theta": -0.0789,
+          "vega": 0.0488,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625200PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1175.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625200PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25200.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1175.55,
+        "intrinsic_value": 1193.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625250CE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 0.05,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625250CE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25250.0,
+        "option_type": "CE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 0.05,
+        "interest_rate": 0,
+        "implied_volatility": 14.23,
+        "greeks": {
+          "delta": 0.0005,
+          "gamma": 5e-06,
+          "theta": -0.0793,
+          "vega": 0.0473,
+          "rho": -6e-06
+        }
+      }
+    },
+    {
+      "symbol": "NIFTY01DEC2625250PE",
+      "exchange": "NFO",
+      "spot": 24006.3,
+      "price": 1225.55,
+      "status": 200,
+      "body": {
+        "status": "success",
+        "symbol": "NIFTY01DEC2625250PE",
+        "exchange": "NFO",
+        "underlying": "NIFTY",
+        "strike": 25250.0,
+        "option_type": "PE",
+        "expiry_date": "01-Dec-2026",
+        "days_to_expiry": 4.2476,
+        "spot_price": 24006.3,
+        "option_price": 1225.55,
+        "intrinsic_value": 1243.7,
+        "time_value": 0,
+        "interest_rate": 0,
+        "implied_volatility": 0,
+        "greeks": {
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0,
+          "rho": 0
+        },
+        "note": "Deep ITM option with no time value - theoretical Greeks returned"
+      }
+    }
+  ],
+  "withGreeks": {
+    "forward": 24006.3,
+    "years": 0.0116373033992897,
+    "days": 4.24761574074074,
+    "rows": [
+      {
+        "strike": 22750,
+        "ce": {
+          "iv": 31.11,
+          "delta": 0.9472,
+          "gamma": 0.000134,
+          "theta": -10.2095,
+          "vega": 2.7881
+        },
+        "pe": {
+          "iv": 15.13,
+          "delta": -0.0005,
+          "gamma": 4e-06,
+          "theta": -0.0794,
+          "vega": 0.0445
+        }
+      },
+      {
+        "strike": 22800,
+        "ce": {
+          "iv": 30.09,
+          "delta": 0.9457,
+          "gamma": 0.000141,
+          "theta": -10.1045,
+          "vega": 2.8525
+        },
+        "pe": {
+          "iv": 14.56,
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -0.079,
+          "vega": 0.0461
+        }
+      },
+      {
+        "strike": 22850,
+        "ce": {
+          "iv": 29.07,
+          "delta": 0.944,
+          "gamma": 0.00015,
+          "theta": -9.9956,
+          "vega": 2.9206
+        },
+        "pe": {
+          "iv": 13.99,
+          "delta": -0.0005,
+          "gamma": 5e-06,
+          "theta": -0.0786,
+          "vega": 0.0477
+        }
+      },
+      {
+        "strike": 22900,
+        "ce": {
+          "iv": 28.05,
+          "delta": 0.9423,
+          "gamma": 0.000159,
+          "theta": -9.8825,
+          "vega": 2.9928
+        },
+        "pe": {
+          "iv": 13.41,
+          "delta": -0.0005,
+          "gamma": 6e-06,
+          "theta": -0.0781,
+          "vega": 0.0495
+        }
+      },
+      {
+        "strike": 22950,
+        "ce": {
+          "iv": 27.04,
+          "delta": 0.9403,
+          "gamma": 0.000169,
+          "theta": -9.7847,
+          "vega": 3.0738
+        },
+        "pe": {
+          "iv": 12.84,
+          "delta": -0.0006,
+          "gamma": 6e-06,
+          "theta": -0.0777,
+          "vega": 0.0514
+        }
+      },
+      {
+        "strike": 23000,
+        "ce": {
+          "iv": 26.01,
+          "delta": 0.9382,
+          "gamma": 0.000181,
+          "theta": -9.6617,
+          "vega": 3.1556
+        },
+        "pe": {
+          "iv": 12.26,
+          "delta": -0.0006,
+          "gamma": 7e-06,
+          "theta": -0.0772,
+          "vega": 0.0535
+        }
+      },
+      {
+        "strike": 23050,
+        "ce": {
+          "iv": 24.97,
+          "delta": 0.936,
+          "gamma": 0.000194,
+          "theta": -9.5333,
+          "vega": 3.2428
+        },
+        "pe": {
+          "iv": 11.68,
+          "delta": -0.0006,
+          "gamma": 7e-06,
+          "theta": -0.0767,
+          "vega": 0.0558
+        }
+      },
+      {
+        "strike": 23100,
+        "ce": {
+          "iv": 23.95,
+          "delta": 0.9335,
+          "gamma": 0.000208,
+          "theta": -9.4177,
+          "vega": 3.341
+        },
+        "pe": {
+          "iv": 11.75,
+          "delta": -0.0012,
+          "gamma": 1.3e-05,
+          "theta": -0.1392,
+          "vega": 0.1007
+        }
+      },
+      {
+        "strike": 23150,
+        "ce": {
+          "iv": 22.93,
+          "delta": 0.9307,
+          "gamma": 0.000224,
+          "theta": -9.3135,
+          "vega": 3.4509
+        },
+        "pe": {
+          "iv": 11.85,
+          "delta": -0.0022,
+          "gamma": 2.3e-05,
+          "theta": -0.2504,
+          "vega": 0.1795
+        }
+      },
+      {
+        "strike": 23200,
+        "ce": {
+          "iv": 21.91,
+          "delta": 0.9275,
+          "gamma": 0.000243,
+          "theta": -9.2186,
+          "vega": 3.5739
+        },
+        "pe": {
+          "iv": 11.85,
+          "delta": -0.0037,
+          "gamma": 3.6e-05,
+          "theta": -0.3986,
+          "vega": 0.2858
+        }
+      },
+      {
+        "strike": 23250,
+        "ce": {
+          "iv": 20.92,
+          "delta": 0.9237,
+          "gamma": 0.000265,
+          "theta": -9.1487,
+          "vega": 3.716
+        },
+        "pe": {
+          "iv": 11.74,
+          "delta": -0.0056,
+          "gamma": 5.3e-05,
+          "theta": -0.5757,
+          "vega": 0.4166
+        }
+      },
+      {
+        "strike": 23300,
+        "ce": {
+          "iv": 19.93,
+          "delta": 0.9192,
+          "gamma": 0.00029,
+          "theta": -9.0997,
+          "vega": 3.8788
+        },
+        "pe": {
+          "iv": 11.78,
+          "delta": -0.0092,
+          "gamma": 8.1e-05,
+          "theta": -0.8925,
+          "vega": 0.6436
+        }
+      },
+      {
+        "strike": 23350,
+        "ce": {
+          "iv": 18.99,
+          "delta": 0.9136,
+          "gamma": 0.00032,
+          "theta": -9.1171,
+          "vega": 4.0787
+        },
+        "pe": {
+          "iv": 11.73,
+          "delta": -0.014,
+          "gamma": 0.000117,
+          "theta": -1.2746,
+          "vega": 0.9234
+        }
+      },
+      {
+        "strike": 23400,
+        "ce": {
+          "iv": 18.08,
+          "delta": 0.9068,
+          "gamma": 0.000356,
+          "theta": -9.1902,
+          "vega": 4.3173
+        },
+        "pe": {
+          "iv": 11.73,
+          "delta": -0.0213,
+          "gamma": 0.000168,
+          "theta": -1.8234,
+          "vega": 1.3208
+        }
+      },
+      {
+        "strike": 23450,
+        "ce": {
+          "iv": 17.24,
+          "delta": 0.8979,
+          "gamma": 0.000399,
+          "theta": -9.3671,
+          "vega": 4.6145
+        },
+        "pe": {
+          "iv": 11.7,
+          "delta": -0.0312,
+          "gamma": 0.000232,
+          "theta": -2.5084,
+          "vega": 1.8207
+        }
+      },
+      {
+        "strike": 23500,
+        "ce": {
+          "iv": 16.48,
+          "delta": 0.8864,
+          "gamma": 0.000451,
+          "theta": -9.6668,
+          "vega": 4.9824
+        },
+        "pe": {
+          "iv": 11.69,
+          "delta": -0.0448,
+          "gamma": 0.000312,
+          "theta": -3.3671,
+          "vega": 2.4476
+        }
+      },
+      {
+        "strike": 23550,
+        "ce": {
+          "iv": 15.8,
+          "delta": 0.8717,
+          "gamma": 0.000512,
+          "theta": -10.0933,
+          "vega": 5.4278
+        },
+        "pe": {
+          "iv": 11.66,
+          "delta": -0.0627,
+          "gamma": 0.000408,
+          "theta": -4.3802,
+          "vega": 3.1926
+        }
+      },
+      {
+        "strike": 23600,
+        "ce": {
+          "iv": 15.21,
+          "delta": 0.8528,
+          "gamma": 0.000585,
+          "theta": -10.6716,
+          "vega": 5.9614
+        },
+        "pe": {
+          "iv": 11.62,
+          "delta": -0.0857,
+          "gamma": 0.00052,
+          "theta": -5.5454,
+          "vega": 4.0538
+        }
+      },
+      {
+        "strike": 23650,
+        "ce": {
+          "iv": 14.7,
+          "delta": 0.8292,
+          "gamma": 0.000667,
+          "theta": -11.375,
+          "vega": 6.5738
+        },
+        "pe": {
+          "iv": 11.59,
+          "delta": -0.1146,
+          "gamma": 0.000645,
+          "theta": -6.842,
+          "vega": 5.0152
+        }
+      },
+      {
+        "strike": 23700,
+        "ce": {
+          "iv": 14.27,
+          "delta": 0.8,
+          "gamma": 0.000757,
+          "theta": -12.1779,
+          "vega": 7.2491
+        },
+        "pe": {
+          "iv": 11.56,
+          "delta": -0.1501,
+          "gamma": 0.000779,
+          "theta": -8.2179,
+          "vega": 6.0401
+        }
+      },
+      {
+        "strike": 23750,
+        "ce": {
+          "iv": 13.92,
+          "delta": 0.765,
+          "gamma": 0.000853,
+          "theta": -13.0403,
+          "vega": 7.9589
+        },
+        "pe": {
+          "iv": 11.52,
+          "delta": -0.1921,
+          "gamma": 0.000916,
+          "theta": -9.5891,
+          "vega": 7.0744
+        }
+      },
+      {
+        "strike": 23800,
+        "ce": {
+          "iv": 13.63,
+          "delta": 0.7238,
+          "gamma": 0.000947,
+          "theta": -13.8932,
+          "vega": 8.6589
+        },
+        "pe": {
+          "iv": 11.47,
+          "delta": -0.2407,
+          "gamma": 0.001049,
+          "theta": -10.8835,
+          "vega": 8.064
+        }
+      },
+      {
+        "strike": 23850,
+        "ce": {
+          "iv": 13.4,
+          "delta": 0.677,
+          "gamma": 0.001035,
+          "theta": -14.6603,
+          "vega": 9.2974
+        },
+        "pe": {
+          "iv": 11.41,
+          "delta": -0.2957,
+          "gamma": 0.001169,
+          "theta": -12.0118,
+          "vega": 8.9446
+        }
+      },
+      {
+        "strike": 23900,
+        "ce": {
+          "iv": 13.2,
+          "delta": 0.625,
+          "gamma": 0.001109,
+          "theta": -15.2608,
+          "vega": 9.8198
+        },
+        "pe": {
+          "iv": 11.34,
+          "delta": -0.3561,
+          "gamma": 0.001269,
+          "theta": -12.883,
+          "vega": 9.6518
+        }
+      },
+      {
+        "strike": 23950,
+        "ce": {
+          "iv": 13.05,
+          "delta": 0.569,
+          "gamma": 0.001163,
+          "theta": -15.6285,
+          "vega": 10.1765
+        },
+        "pe": {
+          "iv": 11.26,
+          "delta": -0.421,
+          "gamma": 0.001341,
+          "theta": -13.4232,
+          "vega": 10.1281
+        }
+      },
+      {
+        "strike": 24000,
+        "ce": {
+          "iv": 12.92,
+          "delta": 0.5103,
+          "gamma": 0.001192,
+          "theta": -15.703,
+          "vega": 10.328
+        },
+        "pe": null
+      },
+      {
+        "strike": 24050,
+        "ce": {
+          "iv": 12.81,
+          "delta": 0.4504,
+          "gamma": 0.001193,
+          "theta": -15.4629,
+          "vega": 10.2515
+        },
+        "pe": {
+          "iv": 11.04,
+          "delta": -0.5584,
+          "gamma": 0.001381,
+          "theta": -13.2775,
+          "vega": 10.2207
+        }
+      },
+      {
+        "strike": 24100,
+        "ce": {
+          "iv": 12.73,
+          "delta": 0.3909,
+          "gamma": 0.001165,
+          "theta": -14.8944,
+          "vega": 9.9429
+        },
+        "pe": {
+          "iv": 10.89,
+          "delta": -0.6277,
+          "gamma": 0.001342,
+          "theta": -12.557,
+          "vega": 9.7975
+        }
+      },
+      {
+        "strike": 24150,
+        "ce": {
+          "iv": 12.65,
+          "delta": 0.3334,
+          "gamma": 0.00111,
+          "theta": -14.0265,
+          "vega": 9.4175
+        },
+        "pe": {
+          "iv": 10.69,
+          "delta": -0.6957,
+          "gamma": 0.001265,
+          "theta": -11.3998,
+          "vega": 9.0625
+        }
+      },
+      {
+        "strike": 24200,
+        "ce": {
+          "iv": 12.59,
+          "delta": 0.2793,
+          "gamma": 0.001031,
+          "theta": -12.9017,
+          "vega": 8.7066
+        },
+        "pe": {
+          "iv": 10.43,
+          "delta": -0.7608,
+          "gamma": 0.001149,
+          "theta": -9.8642,
+          "vega": 8.0365
+        }
+      },
+      {
+        "strike": 24250,
+        "ce": {
+          "iv": 12.54,
+          "delta": 0.2297,
+          "gamma": 0.000934,
+          "theta": -11.5969,
+          "vega": 7.8572
+        },
+        "pe": {
+          "iv": 10.07,
+          "delta": -0.8224,
+          "gamma": 0.000998,
+          "theta": -7.985,
+          "vega": 6.738
+        }
+      },
+      {
+        "strike": 24300,
+        "ce": {
+          "iv": 12.49,
+          "delta": 0.1852,
+          "gamma": 0.000826,
+          "theta": -10.1734,
+          "vega": 6.9182
+        },
+        "pe": {
+          "iv": 9.52,
+          "delta": -0.8807,
+          "gamma": 0.000808,
+          "theta": -5.7851,
+          "vega": 5.1599
+        }
+      },
+      {
+        "strike": 24350,
+        "ce": {
+          "iv": 12.45,
+          "delta": 0.1465,
+          "gamma": 0.000712,
+          "theta": -8.7153,
+          "vega": 5.9448
+        },
+        "pe": {
+          "iv": 8.58,
+          "delta": -0.9371,
+          "gamma": 0.000556,
+          "theta": -3.2347,
+          "vega": 3.2017
+        }
+      },
+      {
+        "strike": 24400,
+        "ce": {
+          "iv": 12.43,
+          "delta": 0.1137,
+          "gamma": 0.000599,
+          "theta": -7.2951,
+          "vega": 4.9876
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24450,
+        "ce": {
+          "iv": 12.4,
+          "delta": 0.0865,
+          "gamma": 0.000491,
+          "theta": -5.9562,
+          "vega": 4.0818
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24500,
+        "ce": {
+          "iv": 12.37,
+          "delta": 0.0644,
+          "gamma": 0.000393,
+          "theta": -4.7486,
+          "vega": 3.2608
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24550,
+        "ce": {
+          "iv": 12.35,
+          "delta": 0.0471,
+          "gamma": 0.000307,
+          "theta": -3.7001,
+          "vega": 2.5447
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24600,
+        "ce": {
+          "iv": 12.33,
+          "delta": 0.0336,
+          "gamma": 0.000234,
+          "theta": -2.8075,
+          "vega": 1.9347
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24650,
+        "ce": {
+          "iv": 12.31,
+          "delta": 0.0235,
+          "gamma": 0.000174,
+          "theta": -2.0849,
+          "vega": 1.4387
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24700,
+        "ce": {
+          "iv": 12.32,
+          "delta": 0.0163,
+          "gamma": 0.000127,
+          "theta": -1.5246,
+          "vega": 1.0517
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24750,
+        "ce": {
+          "iv": 12.32,
+          "delta": 0.011,
+          "gamma": 9.1e-05,
+          "theta": -1.09,
+          "vega": 0.7518
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24800,
+        "ce": {
+          "iv": 12.29,
+          "delta": 0.0072,
+          "gamma": 6.3e-05,
+          "theta": -0.7505,
+          "vega": 0.5186
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24850,
+        "ce": {
+          "iv": 12.24,
+          "delta": 0.0045,
+          "gamma": 4.2e-05,
+          "theta": -0.4959,
+          "vega": 0.344
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24900,
+        "ce": {
+          "iv": 12.35,
+          "delta": 0.0031,
+          "gamma": 3e-05,
+          "theta": -0.3557,
+          "vega": 0.2446
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 24950,
+        "ce": {
+          "iv": 12.15,
+          "delta": 0.0017,
+          "gamma": 1.7e-05,
+          "theta": -0.1985,
+          "vega": 0.1388
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 25000,
+        "ce": {
+          "iv": 12.28,
+          "delta": 0.0011,
+          "gamma": 1.2e-05,
+          "theta": -0.141,
+          "vega": 0.0975
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 25050,
+        "ce": {
+          "iv": 12.15,
+          "delta": 0.0006,
+          "gamma": 7e-06,
+          "theta": -0.0776,
+          "vega": 0.0542
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 25100,
+        "ce": {
+          "iv": 12.67,
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -0.078,
+          "vega": 0.0523
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 25150,
+        "ce": {
+          "iv": 13.2,
+          "delta": 0.0006,
+          "gamma": 6e-06,
+          "theta": -0.0784,
+          "vega": 0.0505
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 25200,
+        "ce": {
+          "iv": 13.72,
+          "delta": 0.0005,
+          "gamma": 5e-06,
+          "theta": -0.0789,
+          "vega": 0.0488
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      },
+      {
+        "strike": 25250,
+        "ce": {
+          "iv": 14.23,
+          "delta": 0.0005,
+          "gamma": 5e-06,
+          "theta": -0.0793,
+          "vega": 0.0473
+        },
+        "pe": {
+          "iv": 0,
+          "delta": -1.0,
+          "gamma": 0,
+          "theta": 0,
+          "vega": 0
+        }
+      }
+    ]
+  }
+}
