@@ -22,7 +22,8 @@
     "mock": "node dev/mock-server/main.mjs",
     "record-fixtures": "node scripts/record-fixtures.mjs",
     "gen-golden": "node scripts/gen-golden.mjs",
-    "real-server-check": "jest -c jest.real.config.js --runInBand"
+    "real-server-check": "jest -c jest.real.config.js --runInBand",
+    "preview:web": "bash dev/preview/preview.sh"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.17",

@@ -1,5 +1,5 @@
-import { NotYetAvailable } from '~/ui/NotYetAvailable'
+import { ToolsScreen } from '~/features/tools'
 
 export default function ToolsTab() {
-  return <NotYetAvailable what="Tools" />
+  return <ToolsScreen />
 }

@@ -1075,6 +1075,9 @@ describe('notices and modes', () => {
       usePrefs.setState({ chartOneTap: true })
     })
     expect(text('chart-mode')).toBe('LIVE')
+    // one mode badge on the screen: the header's, not the status row's too
+    expect(screen.getAllByText('LIVE')).toHaveLength(1)
+    expect(screen.queryByTestId('mode-badge')).toBeNull()
     // the product a one-tap order goes in here (the exchange's default)
     expect(text('chart-onetap')).toBe('One-tap · CNC')
     await press('chart-depth')

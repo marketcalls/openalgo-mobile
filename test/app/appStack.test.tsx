@@ -92,3 +92,12 @@ test('chart/[key] has no header and no back swipe', async () => {
   })
   await act(async () => view.unmount())
 })
+
+test('tools/[toolId] has no header', async () => {
+  const view = await render(<AppLayout />)
+  await waitFor(() => expect(mockScreens.some((s) => s.name === 'tools/[toolId]')).toBe(true))
+  const tool = mockScreens.filter((s) => s.name === 'tools/[toolId]').at(-1)
+  // the tool draws its own header; its swipe back follows the page's view (ToolScreen)
+  expect(tool?.options).toEqual({ headerShown: false })
+  await act(async () => view.unmount())
+})

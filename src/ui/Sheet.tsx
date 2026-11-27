@@ -2,22 +2,29 @@ import type { ReactNode } from 'react'
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native'
 import { useTheme } from './theme'
 
-/** A page sheet on iOS; on Android a card at the bottom over a dimmed backdrop. */
+/**
+ * A page sheet on iOS; on Android a card at the bottom over a dimmed backdrop. While it is not
+ * `dismissible` (a write on its way), the backdrop and Android's back do nothing; an iOS page
+ * sheet is never swiped away (the Modal's allowSwipeDismissal is off).
+ */
 export function Sheet({
   visible,
   onClose,
+  dismissible = true,
   children,
 }: {
   visible: boolean
   onClose: () => void
+  dismissible?: boolean
   children?: ReactNode
 }) {
   const { c } = useTheme()
   const ios = Platform.OS === 'ios'
+  const close = dismissible ? onClose : noop
   return (
     <Modal
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={close}
       animationType="slide"
       presentationStyle={ios ? 'pageSheet' : undefined}
       transparent={!ios}
@@ -31,7 +38,7 @@ export function Sheet({
             testID="sheet-backdrop"
             accessibilityLabel="Close"
             style={StyleSheet.absoluteFill}
-            onPress={onClose}
+            onPress={close}
           />
           <View style={[styles.card, { backgroundColor: c.card }]}>{children}</View>
         </View>
@@ -39,6 +46,8 @@ export function Sheet({
     </Modal>
   )
 }
+
+const noop = () => {}
 
 const styles = StyleSheet.create({
   page: { flex: 1, padding: 16 },

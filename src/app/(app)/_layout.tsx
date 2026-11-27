@@ -214,6 +214,8 @@ function AppShell({ s }: { s: Services }) {
                       animation: 'slide_from_right',
                     }}
                   />
+                  {/* A tool draws its own header; its swipe back follows the page's view. */}
+                  <Stack.Screen name="tools/[toolId]" options={{ headerShown: false }} />
                   <Stack.Screen
                     name="optionchain/[key]"
                     options={{

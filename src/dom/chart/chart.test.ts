@@ -550,7 +550,9 @@ describe('ChartDom', () => {
       createElement(ChartDom, { scheme: 'dark', bridge: jest.fn() }),
     )
     expect(html).toBe(
-      '<style>.oac-topbar__alerts,[data-mobile-action=alerts]{display:none!important}</style>' +
+      '<style>.oac-topbar__alerts,[data-mobile-action=alerts]{display:none!important}' +
+        '.oac-widget .oac-mobile__bar>.oac-mobile__action{white-space:nowrap;overflow:hidden;' +
+        'text-overflow:ellipsis;padding-inline:4px;font-size:clamp(12px,3.4vw,1em)}</style>' +
         '<div style="position:fixed;inset:0;overflow:hidden;touch-action:none;user-select:none"></div>',
     )
   })
@@ -583,6 +585,35 @@ describe('ChartDom', () => {
     page.container.append(row, capture)
     expect(hidden(row)).toBe(true)
     expect(hidden(capture)).toBe(false)
+  })
+
+  test("the phone footer's labels stay on one line, between 12 px and the widget's own size", async () => {
+    const page = await mountChart()
+    page.push(CHART_TOPICS.init, INIT)
+    await waitFor(page.ready)
+    const rules = Array.from(document.styleSheets).flatMap((sheet) =>
+      Array.from(sheet.cssRules).flatMap((r) =>
+        r instanceof CSSStyleRule && r.style.getPropertyValue('white-space') === 'nowrap'
+          ? [r]
+          : [],
+      ),
+    )
+    // the widget builds its phone footer only on a phone: a footer button as it makes them
+    const widget = page.container.querySelector('.oac-widget')
+    const bar = document.createElement('nav')
+    bar.className = 'oac-mobile__bar'
+    const button = document.createElement('button')
+    button.className = 'oac-mobile__action'
+    button.textContent = 'Indicators'
+    bar.append(button)
+    widget?.append(bar)
+    const rule = rules.find((r) => button.matches(r.selectorText))
+    expect(rule?.style.getPropertyValue('font-size')).toBe('clamp(12px,3.4vw,1em)')
+    expect(rule?.style.getPropertyValue('text-overflow')).toBe('ellipsis')
+    // a More sheet row of the same class keeps the widget's own layout
+    const row = button.cloneNode() as HTMLElement
+    widget?.append(row)
+    expect(rules.some((r) => row.matches(r.selectorText))).toBe(false)
   })
 
   test('the page posts loaded after its handle registers, and marks its bundle', async () => {

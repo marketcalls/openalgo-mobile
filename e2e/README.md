@@ -146,6 +146,21 @@ Chart
   `chart-price-sell-stop`, `chart-price-cancel` (the long press's price menu; the widget's own
   buttons are DOM, with no ids: the flow taps `Chart buy` by its accessibility label)
 
+Tools
+- the tab: `tools-grid`, `tool-tile-{ID}` (the tool's web id in upper case, such as `MAXPAIN` or
+  `PORTFOLIO-BACKTESTER`), `tool-tile-note-{ID}` (on a tool that does not open here: "Needs
+  OpenAlgo {version}" or "Not in this build yet")
+- the tool screen: `tool-screen`, `tool-back`, `tool-title` (a tap scrolls the page to its top),
+  `tool-mode`, `tool-subtitle` (the line under the header, with the status badges),
+  `tool-subtitle-text`, `tool-progress`, `tool-body`, `tool-dom`, `tool-skeleton`, `tool-reload`,
+  `tool-unavailable` (a later tool, Option Chain before its screen, or a broken link)
+- its probes, each a 1×1 text read by its label: `tool-ready` (`page {id}`), `tool-csp`
+  (`violations {n}`), `tool-layout` (`overflow {n}`, once the page has measured itself)
+- a held order's review: `tool-held-sheet`, `tool-held-scroll`, `tool-held-head`,
+  `tool-held-review`, `tool-held-mode`, `tool-held-summary`, `tool-held-notice`,
+  `tool-held-earlier`, `tool-held-wait`, `tool-held-footer`, `tool-held-confirm`,
+  `tool-held-cancel`, `tool-held-result`, `tool-held-orderbook`, `tool-held-done`
+
 Status
 - `badge-http`, `badge-polling` *, `badge-broker`, `mode-badge`
 - `banner-banned`, `banner-key`, `banner-broker`, `banner-polling`, `broker-banner-login`,

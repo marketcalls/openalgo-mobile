@@ -381,11 +381,13 @@ function Chart({ opening }: { opening: Inst }) {
         onDepth={() => openOrBack('depth/[key]', inst, depthHref(inst.exchange, inst.symbol))}
       />
       <View style={styles.badges}>
+        {/* the header shows the mode: one LIVE or ANALYZE badge on the screen */}
         <StatusBadges
           transport={conn.transport}
           feed={conn.feed}
           brokerSession={conn.brokerSession}
           analyzer={conn.analyzer}
+          mode={false}
         />
       </View>
       <BrokerBanner />

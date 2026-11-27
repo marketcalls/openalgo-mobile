@@ -36,7 +36,7 @@ import { savedInterval, widgetOptions } from './widgetOptions'
 
 type Scheme = ChartDomProps['scheme']
 
-// The widget injects its own styles; the page adds one rule, NO_ALERTS.
+// The widget injects its own styles; the page adds two rules, NO_ALERTS and BAR_LABELS.
 const ROOT_STYLE: CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -54,6 +54,15 @@ const MAX_MESSAGE = 500
  * one more is the long press's, which is native's.
  */
 const NO_ALERTS = '.oac-topbar__alerts,[data-mobile-action=alerts]{display:none!important}'
+/**
+ * The phone footer's labels (Draw, Indicators, Objects, More) on one line each: at 360 px a
+ * quarter of the bar is too narrow for "Indicators" at the widget's size, which then broke
+ * mid-word. The label shrinks with the width, never below 12 px nor above the widget's own size,
+ * and an ellipsis is the last resort. Above the widget's `.oac-widget .oac-mobile__action`.
+ */
+const BAR_LABELS =
+  '.oac-widget .oac-mobile__bar>.oac-mobile__action{white-space:nowrap;overflow:hidden;' +
+  'text-overflow:ellipsis;padding-inline:4px;font-size:clamp(12px,3.4vw,1em)}'
 /** At most one page error a second reaches native: a throw on every frame would flood it. */
 const ERROR_EVERY_MS = 1_000
 /** Chromium's harmless "ResizeObserver loop completed with undelivered notifications". */
@@ -278,7 +287,7 @@ export default function ChartDom({
 
   return (
     <>
-      <style>{NO_ALERTS}</style>
+      <style>{NO_ALERTS + BAR_LABELS}</style>
       <div ref={rootRef} style={ROOT_STYLE} />
     </>
   )

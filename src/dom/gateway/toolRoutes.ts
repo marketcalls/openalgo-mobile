@@ -21,9 +21,18 @@ export type SavedFile = { name: string; mime: string } & ({ text: string } | { b
 
 type ToolApi = Pick<KeyedApi, 'call' | 'get'>
 
-/** What a download saves as: the web's own file name (api/portfolio.ts downloadTearsheet). */
-const DOWNLOADS: Partial<Record<EndpointId, string>> = {
-  'portfolio/tearsheet': 'portfolio-tearsheet.html',
+const DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * What a download saves as: the tearsheet named by its period, so a second one never replaces
+ * the first in the share sheet's target; without both dates, the web's own name
+ * (api/portfolio.ts downloadTearsheet).
+ */
+const DOWNLOADS: Partial<Record<EndpointId, (body: Record<string, unknown>) => string>> = {
+  'portfolio/tearsheet': ({ start_date: from, end_date: to }) =>
+    typeof from === 'string' && typeof to === 'string' && DAY.test(from) && DAY.test(to)
+      ? `OpenAlgo-tearsheet-${from}-to-${to}.html`
+      : 'portfolio-tearsheet.html',
 }
 
 /** The /api/v1 endpoint a row names, by its path and the method its kind sends. */
@@ -78,7 +87,7 @@ function downloadRoute(api: ToolApi, id: EndpointId, save: (f: SavedFile) => Pro
       const body = pageBody(r.body)
       if (body === null) return refused()
       const text = await api.call(id, body, z.string(), { signal })
-      await save({ name, mime: 'text/html', text })
+      await save({ name: name(body), mime: 'text/html', text })
       // the page's own save of this body is dropped (dom/web/downloads.ts)
       return { status: 200, body: OPENED_IN_APP }
     },

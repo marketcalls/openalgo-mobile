@@ -134,6 +134,23 @@ describe('StatusBadges', () => {
     expect(order).toEqual(ids)
   })
 
+  test('mode={false} leaves the mode to a header that shows it: the other badges stay', async () => {
+    await render(
+      <StatusBadges
+        transport="http"
+        feed="polling"
+        brokerSession="logged_out"
+        analyzer="live"
+        mode={false}
+      />,
+    )
+    expect(screen.queryByTestId('mode-badge')).toBeNull()
+    expect(screen.queryByText('LIVE')).toBeNull()
+    for (const id of ['badge-http', 'badge-polling', 'badge-broker']) {
+      expect(screen.getByTestId(id)).toBeTruthy()
+    }
+  })
+
   test('https, live, active and live shows only LIVE', async () => {
     await render(
       <StatusBadges transport="https" feed="live" brokerSession="active" analyzer="live" />,

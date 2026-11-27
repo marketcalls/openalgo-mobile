@@ -3,7 +3,6 @@
 // readers and Maestro cannot drag: the handle is a button and the backdrop closes (RF 5).
 import { type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import {
-  AccessibilityInfo,
   type LayoutChangeEvent,
   Pressable,
   ScrollView,
@@ -27,6 +26,7 @@ import { type EdgeInsets, SafeAreaInsetsContext } from 'react-native-safe-area-c
 import { scheduleOnRN } from 'react-native-worklets'
 import { SHEET_CLOSE_MS, sheetOffsets, snapIndexFor } from './sheetMath'
 import { useTheme } from './theme'
+import { useReduceMotionRef } from './useReduceMotion'
 
 const NO_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 }
 const HALF_AND_FULL = [0.5, 1] as const
@@ -71,7 +71,7 @@ export function BottomSheet({
   const start = useSharedValue(0)
   const closing = useRef(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const reduceMotion = useReduceMotion()
+  const reduceMotion = useReduceMotionRef()
 
   useEffect(() => () => clearTimeout(closeTimer.current), [])
 
@@ -171,25 +171,6 @@ export function BottomSheet({
       </Animated.View>
     </GestureHandlerRootView>
   )
-}
-
-/** The system's reduce-motion setting, for handlers: a change re-renders nothing. */
-function useReduceMotion() {
-  const on = useRef(false)
-  useEffect(() => {
-    let live = true
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
-      if (live) on.current = v
-    })
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
-      on.current = v
-    })
-    return () => {
-      live = false
-      sub.remove()
-    }
-  }, [])
-  return on
 }
 
 const styles = StyleSheet.create({

@@ -1,5 +1,8 @@
 // The review before every order (design 7.10): the order as it will be sent, how it splits, and
-// the mode the server is in now, LIVE or ANALYZE. Confirm sends it, in the side's colour.
+// the mode the server is in now, LIVE or ANALYZE. Confirm sends it, in the side's colour. The
+// ticket shows it as it is; a sheet with its own head and a fixed footer (a tool's held order)
+// gives it its title, its own ids and a footer of its own.
+import type { ReactNode } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { ModeBadge } from '~/market/components/ModeBadge'
 import type { AnalyzerMode } from '~/market/orders/analyzerGate'
@@ -14,6 +17,31 @@ export const OTHER_OUT =
 
 /** The outcome of an earlier order whose sheet had gone, which only a toast carried. */
 export const earlierOutcome = (line: string) => `Your earlier order: ${line}`
+
+/** The review's test ids; the ticket's by default. */
+export type ReviewIds = {
+  step: string
+  mode: string
+  summary: string
+  split: string
+  notice: string
+  earlier: string
+  wait: string
+  confirm: string
+  back: string
+}
+
+const TICKET_IDS: ReviewIds = {
+  step: 'ticket-review-step',
+  mode: 'review-mode-badge',
+  summary: 'review-summary',
+  split: 'review-split',
+  notice: 'review-notice',
+  earlier: 'review-earlier',
+  wait: 'review-wait',
+  confirm: 'ticket-confirm',
+  back: 'ticket-back',
+}
 
 export function ReviewStep(p: {
   /** `ticketSummary`'s one line. */
@@ -42,21 +70,31 @@ export function ReviewStep(p: {
   blocked: boolean
   onConfirm: () => void
   onBack: () => void
+  /** Ids in place of the ticket's, by name. */
+  ids?: Partial<ReviewIds>
+  /** In place of the "Review" heading; the mode badge stays beside it. */
+  title?: ReactNode
+  /**
+   * In place of the Confirm and Back buttons: a sheet that keeps them in a fixed footer of its
+   * own passes null.
+   */
+  footer?: ReactNode
 }) {
+  const ids = { ...TICKET_IDS, ...p.ids }
   return (
-    <View style={styles.wrap} testID="ticket-review-step">
+    <View style={styles.wrap} testID={ids.step}>
       <View style={styles.modeRow}>
-        <Text variant="heading">Review</Text>
-        {p.mode ? <ModeBadge mode={p.mode} testID="review-mode-badge" /> : null}
+        {p.title ?? <Text variant="heading">Review</Text>}
+        {p.mode ? <ModeBadge mode={p.mode} testID={ids.mode} /> : null}
       </View>
-      <Text variant="mono" testID="review-summary">
+      <Text variant="mono" testID={ids.summary}>
         {p.summary}
       </Text>
       {p.split ? (
-        <Text testID="review-split">{`Sent as ${p.split.orders} orders: ${p.split.breakdown}`}</Text>
+        <Text testID={ids.split}>{`Sent as ${p.split.orders} orders: ${p.split.breakdown}`}</Text>
       ) : null}
       {p.notice ? (
-        <Text testID="review-notice" tone="loss">
+        <Text testID={ids.notice} tone="loss">
           {p.notice}
         </Text>
       ) : null}
@@ -65,9 +103,9 @@ export function ReviewStep(p: {
       ) : p.mode === null || p.bookPending ? (
         <Skeleton rows={1} />
       ) : null}
-      {p.earlier !== null ? <Text testID="review-earlier">{earlierOutcome(p.earlier)}</Text> : null}
+      {p.earlier !== null ? <Text testID={ids.earlier}>{earlierOutcome(p.earlier)}</Text> : null}
       {p.otherOut ? (
-        <Text testID="review-wait" tone="muted">
+        <Text testID={ids.wait} tone="muted">
           {OTHER_OUT}
         </Text>
       ) : null}
@@ -76,24 +114,38 @@ export function ReviewStep(p: {
           {`A split order can take up to ${p.splitWaitSec} s.`}
         </Text>
       ) : null}
-      <Button
-        testID="ticket-confirm"
-        title={`Place ${p.side} order`}
-        variant={p.side === 'BUY' ? 'buy' : 'sell'}
-        loading={p.sending}
-        disabled={p.mode === null || p.bookPending || p.otherOut || p.blocked}
-        onPress={p.onConfirm}
-      />
-      <Button
-        testID="ticket-back"
-        title="Back"
-        variant="secondary"
-        disabled={p.sending}
-        onPress={p.onBack}
-      />
+      {p.footer !== undefined ? (
+        p.footer
+      ) : (
+        <>
+          <Button
+            testID={ids.confirm}
+            title={`Place ${p.side} order`}
+            variant={p.side === 'BUY' ? 'buy' : 'sell'}
+            loading={p.sending}
+            disabled={!canConfirm(p)}
+            onPress={p.onConfirm}
+          />
+          <Button
+            testID={ids.back}
+            title="Back"
+            variant="secondary"
+            disabled={p.sending}
+            onPress={p.onBack}
+          />
+        </>
+      )}
     </View>
   )
 }
+
+/** Confirm waits for the mode and the book, for another order's outcome, and while blocked. */
+export const canConfirm = (p: {
+  mode: AnalyzerMode | null
+  bookPending: boolean
+  otherOut: boolean
+  blocked: boolean
+}) => p.mode !== null && !p.bookPending && !p.otherOut && !p.blocked
 
 const styles = StyleSheet.create({
   wrap: { gap: 14 },

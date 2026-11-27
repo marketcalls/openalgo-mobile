@@ -21,7 +21,6 @@ import { memoryKV } from '../../../test/helpers/memoryKV'
 import ChartRoute from '../../app/(app)/chart/[key]'
 import InstrumentRoute from '../../app/(app)/instrument/[key]'
 import OptionChainRoute from '../../app/(app)/optionchain/[key]'
-import ToolRoute from '../../app/(app)/tools/[toolId]'
 import { InstrumentSheet } from './screens/InstrumentSheet'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
@@ -436,13 +435,5 @@ describe('placeholder routes', () => {
     expect(screen.getByText("Option chains aren't in this build yet.")).toBeTruthy()
   })
 
-  test('the tools route names option chains, or tools', async () => {
-    mockParams = { toolId: 'optionchain' }
-    const a = await render(<ToolRoute />)
-    expect(screen.getByText("Option chains aren't in this build yet.")).toBeTruthy()
-    await a.unmount()
-    mockParams = { toolId: 'greeks' }
-    await render(<ToolRoute />)
-    expect(screen.getByText("Tools aren't in this build yet.")).toBeTruthy()
-  })
+  // the tools route is the Tools feature's now: features/tools/tools.test.tsx
 })

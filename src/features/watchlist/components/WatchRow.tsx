@@ -8,7 +8,6 @@ import { type Href, useRouter } from 'expo-router'
 import { memo, type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   type AccessibilityActionEvent,
-  AccessibilityInfo,
   Animated,
   PanResponder,
   type PanResponderGestureState,
@@ -38,21 +37,6 @@ export const SWIPE_REMOVE_PX = 80
 /** Horizontal travel before a drag counts as a swipe, not a tap or a scroll. */
 const SWIPE_SLOP = 10
 const BRIEFCASE: IconName = { ios: 'briefcase.fill', android: 'work' }
-
-/** The system's reduce-motion setting, read once per screen. */
-export function useReduceMotion(): boolean {
-  const [on, setOn] = useState(false)
-  useEffect(() => {
-    let live = true
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => live && setOn(v))
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setOn)
-    return () => {
-      live = false
-      sub.remove()
-    }
-  }, [])
-  return on
-}
 
 type Props = {
   exchange: string
