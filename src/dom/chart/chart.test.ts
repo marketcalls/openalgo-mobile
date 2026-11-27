@@ -13,7 +13,7 @@ import {
   registeredSeriesTransforms,
   SessionCalendar,
 } from 'openalgo-charts'
-import { type AsyncStorageLike, createWidget } from 'openalgo-charts/widget'
+import { type AsyncStorageLike, createWidget, type Widget } from 'openalgo-charts/widget'
 import { act, createElement, type ReactElement } from 'react'
 import {
   type CalendarSpecJson,
@@ -29,6 +29,7 @@ import {
 } from '~/dom/bridge/protocol'
 import { createDomClient } from '~/dom/web/client'
 import { tokens } from '~/ui/tokens'
+import { WIDGET_KEYS } from '../../../test/fixtures/chartKeys'
 import ChartDom from './ChartDom'
 import { sessionCalendarOf } from './calendars'
 import { createChartFeeds } from './feeds'
@@ -36,6 +37,7 @@ import { ensureInterval, pickInterval, widgetIntervals } from './intervals'
 import { DOM_BUNDLE } from './marker'
 import { stubCanvas } from './testCanvas'
 import { chartTheme, keepAppPalette } from './theme'
+import * as glue from './trading/glue'
 import { LOADING, savedInterval, widgetOptions } from './widgetOptions'
 
 const NSE: CalendarSpecJson = {
@@ -813,6 +815,72 @@ describe('ChartDom', () => {
     raise('Script error.', new Error('later'))
     expect(page.errors()).toEqual(['frame 0', 'later'])
     expect(page.loadErrors()).toEqual([])
+  })
+
+  // Design 7.9.5: drawings and preferences live in native storage, so a new page (Reload, a
+  // killed WebView, the next open) puts them back. The keys are the ones the 2.7.3 widget writes;
+  // gateway/chartStorage.test.ts maps the same WIDGET_KEYS to native's drawings and prefs areas.
+  test("a drawing and the interval are saved under the widget's keys and a new page puts them back, the drawing for that instrument only", async () => {
+    const built = jest.spyOn(glue, 'attachTrading')
+    const widgetOf = (n: number) => built.mock.calls[n]?.[0] as Widget
+    /** Native's store: what the page set, by key. */
+    const store = new Map<string, string>()
+    const native: Answer = (m) => {
+      if (m.kind !== 'storage') return undefined
+      if (m.op === 'set') store.set(m.key, m.value)
+      if (m.op === 'remove') store.delete(m.key)
+      if (m.op === 'get') return { status: 200, body: store.get(m.key) ?? null }
+      if (m.op === 'entries') {
+        const rows = [...store].filter(([k]) => k.startsWith(m.prefix))
+        return { status: 200, body: rows }
+      }
+      return { status: 204, body: null }
+    }
+    // the page's own journal is wiped with the WebView's data: only native's copy counts
+    localStorage.clear()
+    const first = await mountChart({ answer: native })
+    first.push(CHART_TOPICS.init, INIT)
+    await waitFor(first.ready)
+    const at = Math.floor(Date.now() / 300_000) * 300 - 600
+    const line = widgetOf(0).draw.add({
+      tool: 'horizontal-line',
+      points: [{ time: at, price: 101.5 }],
+      style: { color: '#2962ff' },
+      paneIndex: 0,
+    })
+    await act(async () => widgetOf(0).setInterval('15m'))
+    const sets = () =>
+      first.sent.flatMap((m) => (m.kind === 'storage' && m.op === 'set' ? [m] : []))
+    const wrote = (key: string, part: string) =>
+      sets().some((m) => m.key === key && m.value.includes(part))
+    await waitFor(
+      () => wrote(WIDGET_KEYS.drawings, line.id) && wrote(WIDGET_KEYS.state, '"interval":"15m"'),
+    )
+    // and no key the fixture does not name
+    expect(new Set(sets().map((m) => m.key))).toEqual(
+      new Set([WIDGET_KEYS.drawings, WIDGET_KEYS.state]),
+    )
+    await first.unmount()
+
+    localStorage.clear()
+    const again = await mountChart({ answer: native })
+    again.push(CHART_TOPICS.init, INIT)
+    await waitFor(again.ready)
+    await waitFor(() => widgetOf(1).draw.drawings().length > 0)
+    expect(widgetOf(1).draw.drawings()).toEqual([
+      expect.objectContaining({ id: line.id, tool: 'horizontal-line' }),
+    ])
+    expect(widgetOf(1).interval()).toBe('15m')
+    await again.unmount()
+
+    // another instrument's chart opens without it
+    localStorage.clear()
+    const other = await mountChart({ answer: native })
+    other.push(CHART_TOPICS.init, { ...INIT, inst: { exchange: 'NSE', symbol: 'TCS' } })
+    await waitFor(other.ready)
+    await act(() => new Promise((r) => setTimeout(r, 100)))
+    expect(widgetOf(2).symbol()).toBe('TCS')
+    expect(widgetOf(2).draw.drawings()).toEqual([])
   })
 
   test("a push that throws out of deliver, inside expo's injected script, is reported", async () => {

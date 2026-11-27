@@ -1,7 +1,9 @@
 import { profileStorage } from '~/core/config/storage'
 import type { DomStorageMsg } from '~/dom/bridge/protocol'
+import { WIDGET_KEYS } from '../../../test/fixtures/chartKeys'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import {
+  chartRecordStorable,
   chartStoreName,
   createChartStorageHandler,
   readChartRecords,
@@ -16,6 +18,13 @@ type StorageOp = DomStorageMsg extends infer M
     : never
   : never
 const msg = (m: StorageOp) => ({ v: 1, kind: 'storage', ...m }) as DomStorageMsg
+
+test("the widget's own keys (as the chart page's test sees it write them) land in their areas", () => {
+  expect(chartStoreName(WIDGET_KEYS.drawings)).toBe('chartDrawings:NSE:INFY')
+  expect(chartStoreName(WIDGET_KEYS.state)).toBe(`chartPrefs:${WIDGET_KEYS.state}`)
+  expect(chartRecordStorable('drawings', WIDGET_KEYS.drawings)).toBe(true)
+  expect(chartRecordStorable('prefs', WIDGET_KEYS.state)).toBe(true)
+})
 
 test('chartStoreName splits drawings by instrument from everything else', () => {
   expect(chartStoreName(DRAW)).toBe('chartDrawings:NSE:INFY')
