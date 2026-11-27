@@ -1,12 +1,13 @@
-// The tool DOM pages (design 7.7, 7.8): three 'use dom' entries on one provider shell. The "dom"
-// project runs the real web pages in jsdom over a fake bridge, as the WebView runs them over
-// DomHost; only Plotly's drawing (`@/lib/Plot2D`) and openalgo-charts' canvas are stubbed. The
-// page is on jsdom's http origin, not file://, only because jsdom gives a file:// page no
-// localStorage; every request resolves against DOM_ORIGIN either way (dom/web/request.ts).
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+// The tool DOM pages (design 7.7, 7.8): three 'use dom' entries on one provider shell, the option
+// entry on its bare option (no router, no query client; ruling 12a). The "dom" project runs the
+// real web pages in jsdom over a fake bridge, as the WebView runs them over DomHost; only Plotly's
+// drawing (`@/lib/Plot2D`) and openalgo-charts' canvas are stubbed. The page is on jsdom's http
+// origin, not file://, only because jsdom gives a file:// page no localStorage; every request
+// resolves against DOM_ORIGIN either way (dom/web/request.ts).
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { TextDecoder, TextEncoder } from 'node:util'
-import { act, createElement, type ReactElement } from 'react'
+import { act, createElement, type ReactElement, type ReactNode } from 'react'
 import {
   type BrokerCapsJson,
   type DomEvent,
@@ -35,7 +36,8 @@ jest.mock('@/lib/Plot2D', () => {
   const { createElement: h } = require('react') as typeof import('react')
   return {
     __esModule: true,
-    default: (p: { style?: object }) => h('div', { 'data-testid': 'plot', style: p.style }),
+    default: (p: { style?: object; data?: unknown[] }) =>
+      h('div', { 'data-testid': 'plot', 'data-traces': p.data?.length ?? 0, style: p.style }),
   }
 })
 // openalgo-charts needs a canvas; the report's line chart is a plain holder here.
@@ -343,6 +345,129 @@ function violation(blockedURI: string, effectiveDirective = 'img-src') {
 /** A root page that throws as it renders. */
 function BrokenPage(): never {
   throw new Error(`boom ${'x'.repeat(300)}`)
+}
+/** Root pages that call the hooks only ToolShell's providers serve. */
+function RouterHookPage() {
+  ;(require('react-router') as typeof import('react-router')).useNavigate()
+  return 'hooked'
+}
+function QueryHookPage() {
+  ;(require('@tanstack/react-query') as typeof import('@tanstack/react-query')).useQueryClient()
+  return 'hooked'
+}
+
+/** The default shell and its bare option. */
+const SHELLS = ['ToolShell', 'BareToolShell'] as const
+const shellOf = (name: (typeof SHELLS)[number]) =>
+  name === 'ToolShell'
+    ? (require('./shell') as typeof import('./shell')).ToolShell
+    : (require('./shellCore') as typeof import('./shellCore')).BareToolShell
+
+/** A shell with one root page at /oitracker and a recording host. */
+async function mountShell(name: (typeof SHELLS)[number], Page: () => ReactNode) {
+  const sent: DomEvent[] = []
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  await act(async () =>
+    root.render(
+      createElement(shellOf(name), {
+        page: 'oitracker',
+        pages: { oitracker: { '/oitracker': Page } },
+        seed: initFor('oitracker').seed,
+        scheme: 'dark',
+        host: { send: (e: DomEvent) => sent.push(e), onPush: () => () => {} },
+      }),
+    ),
+  )
+  let gone = false
+  const unmount = async () => {
+    if (gone) return
+    gone = true
+    await act(async () => root.unmount())
+    container.remove()
+  }
+  mounted.push(unmount)
+  return { sent, container, unmount }
+}
+
+/**
+ * The packages a 'use dom' entry's bundle can hold: every import, re-export and require that its
+ * app and frontend sources reach (`./`, `~/`, `@/`), followed as Metro follows them. A type-only
+ * import is erased, so it is not followed. Packages are not walked into.
+ */
+function packagesReached(entryFile: string): Set<string> {
+  const ts = require('typescript') as typeof import('typescript')
+  const SRC = join(__dirname, '../..')
+  const FRONTEND = join(__dirname, '../../../openalgo/frontend/src')
+  const seen = new Set<string>()
+  const packages = new Set<string>()
+  const resolve = (from: string, spec: string): string => {
+    const base = spec.startsWith('~/')
+      ? join(SRC, spec.slice(2))
+      : spec.startsWith('@/')
+        ? join(FRONTEND, spec.slice(2))
+        : join(dirname(from), spec)
+    const file = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js']
+      .map((ext) => base + ext)
+      .find((f) => existsSync(f) && statSync(f).isFile())
+    if (file === undefined) throw new Error(`${spec} (from ${from}) does not resolve`)
+    return file
+  }
+  const specifiers = (file: string): string[] => {
+    const src = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+    const out: string[] = []
+    const walk = (node: import('typescript').Node) => {
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+        const c = node.importClause
+        const named = c?.namedBindings
+        const typeOnly =
+          c !== undefined &&
+          (c.isTypeOnly ||
+            (c.name === undefined &&
+              named !== undefined &&
+              ts.isNamedImports(named) &&
+              named.elements.length > 0 &&
+              named.elements.every((e) => e.isTypeOnly)))
+        if (!typeOnly) out.push(node.moduleSpecifier.text)
+      } else if (
+        ts.isExportDeclaration(node) &&
+        !node.isTypeOnly &&
+        node.moduleSpecifier !== undefined &&
+        ts.isStringLiteral(node.moduleSpecifier)
+      ) {
+        out.push(node.moduleSpecifier.text)
+      } else if (
+        ts.isCallExpression(node) &&
+        ((ts.isIdentifier(node.expression) && node.expression.text === 'require') ||
+          node.expression.kind === ts.SyntaxKind.ImportKeyword)
+      ) {
+        const [arg] = node.arguments
+        if (node.arguments.length === 1 && arg !== undefined && ts.isStringLiteral(arg))
+          out.push(arg.text)
+      }
+      ts.forEachChild(node, walk)
+    }
+    walk(src)
+    return out
+  }
+  const visit = (file: string) => {
+    if (seen.has(file)) return
+    seen.add(file)
+    if (!/\.[jt]sx?$/.test(file)) return // a stylesheet or an asset
+    for (const spec of specifiers(file)) {
+      if (/^(\.|~\/|@\/)/.test(spec)) visit(resolve(file, spec))
+      else
+        packages.add(
+          spec
+            .split('/')
+            .slice(0, spec.startsWith('@') ? 2 : 1)
+            .join('/'),
+        )
+    }
+  }
+  visit(entryFile)
+  return packages
 }
 
 beforeAll(() => {
@@ -756,31 +881,153 @@ describe('the shell (ux-bar T11)', () => {
     expect(q('[data-oa-route="root"]')).not.toBeNull()
   })
 
-  test('a root page that throws offers Reload tool, which asks native to load again', async () => {
-    jest.spyOn(console, 'error').mockImplementation(() => {})
-    const { ToolShell } = require('./shell') as typeof import('./shell')
-    const sent: DomEvent[] = []
-    const container = document.createElement('div')
-    document.body.append(container)
-    const root = createRoot(container)
-    await act(async () =>
-      root.render(
-        createElement(ToolShell, {
-          page: 'oitracker',
-          pages: { oitracker: { '/oitracker': BrokenPage } },
-          seed: initFor('oitracker').seed,
-          scheme: 'dark',
-          host: { send: (e: DomEvent) => sent.push(e), onPush: () => () => {} },
-        }),
-      ),
-    )
-    expect(container.textContent).toContain("This report couldn't be shown.")
-    const pageError = sent.find((e) => e.name === 'pageError') as { message: string }
-    expect(pageError.message).toHaveLength(200)
-    await click(button('Reload tool'))
-    expect(sent.filter((e) => e.name === 'reload')).toHaveLength(1)
-    await act(async () => root.unmount())
-    container.remove()
+  test.each(SHELLS)(
+    'a root page that throws offers Reload tool, which asks native to load again (%s)',
+    async (name) => {
+      jest.spyOn(console, 'error').mockImplementation(() => {})
+      const { sent, container } = await mountShell(name, BrokenPage)
+      expect(container.textContent).toContain("This report couldn't be shown.")
+      const pageError = sent.find((e) => e.name === 'pageError') as { message: string }
+      expect(pageError.message).toHaveLength(200)
+      await click(button('Reload tool'))
+      expect(sent.filter((e) => e.name === 'reload')).toHaveLength(1)
+    },
+  )
+})
+
+describe('the bare shell (ruling 12a): the six option pages with no MemoryRouter and no QueryClientProvider', () => {
+  /** The server's own replies to each page's route for SENSEX on BFO (T5's mock-sensex golden). */
+  const GOLDEN = JSON.parse(
+    readFileSync(join(__dirname, '../../../test/golden/expected/mock-sensex.json'), 'utf8'),
+  ) as { routes: Record<string, { status: number; body: JSONValue }> }
+  const OPTION_PAGES: { page: ToolPageId; title: string; route: string; golden: string }[] = [
+    {
+      page: 'oitracker',
+      title: 'OI Tracker',
+      route: '/oitracker/api/oi-data',
+      golden: 'get_oi_data',
+    },
+    { page: 'oirange', title: 'OI Range', route: '/oitracker/api/oi-data', golden: 'get_oi_data' },
+    {
+      page: 'maxpain',
+      title: 'Max Pain',
+      route: '/oitracker/api/maxpain',
+      golden: 'calculate_max_pain',
+    },
+    {
+      page: 'ivsmile',
+      title: 'IV Smile',
+      route: '/ivsmile/api/iv-smile-data',
+      golden: 'get_iv_smile_data',
+    },
+    { page: 'gex', title: 'GEX Dashboard', route: '/gex/api/gex-data', golden: 'get_gex_data' },
+    {
+      page: 'gammadensity',
+      title: 'Gamma Density',
+      route: '/gammadensity/api/gamma-data',
+      golden: 'calculate_gamma_density',
+    },
+  ]
+
+  test.each(OPTION_PAGES)(
+    '$page renders at its root, seeded and themed, draws the reply, and the layout probe reports',
+    async ({ page: id, title, route, golden }) => {
+      const reply = GOLDEN.routes[golden] as DomReply
+      expect(reply.status).toBe(200)
+      const page = await mountTool(OptionToolsDom, {
+        page: id,
+        answer: (m) => (isReq(m, route) ? reply : undefined),
+      })
+      await page.init()
+      await waitFor(() => q('[data-testid="plot"]'))
+
+      // the page, at its root path, kept alive in the shell's main
+      expect(q('#oa-tool')?.hasAttribute('data-oa-main')).toBe(true)
+      expect(q('#oa-tool > [data-oa-route="root"] h1')?.textContent).toBe(title)
+      expect(q('[data-oa-route="extra"]')).toBeNull()
+      expect(page.named('route').map((e) => e.path)).toEqual([`/${id}`])
+      // the stores the page reads: the placeholder key, the broker's exchanges, dark and live
+      expect(useAuthStore.getState().apiKey).toBe(NATIVE_KEY)
+      expect(useBrokerStore.getState()).toEqual(
+        expect.objectContaining({ capabilities: CAPS, isLoaded: true }),
+      )
+      expect(useThemeStore.getState()).toEqual(
+        expect.objectContaining({ mode: 'dark', appMode: 'live' }),
+      )
+      expect([...document.documentElement.classList]).toEqual(['dark'])
+      expect(document.documentElement.dataset.oaTool).toBe(id)
+      // it works: the picks reach its route once, and the reply becomes its chart's traces
+      expect(page.requests(route).map((r) => r.body)).toEqual([
+        expect.objectContaining({ underlying: 'SENSEX', exchange: 'BFO', expiry_date: '04DEC26' }),
+      ])
+      for (const plot of Array.from(document.querySelectorAll('[data-testid="plot"]')))
+        expect(Number(plot.getAttribute('data-traces'))).toBeGreaterThan(0)
+      // ready, then the layout probe's first measure (jsdom lays nothing out, so 0)
+      await waitFor(() => page.named('layout').length > 0)
+      expect(page.named('toolReady').map((e) => e.info)).toEqual([
+        { page: id, csp: true, webgl: true },
+      ])
+      expect(page.named('layout')).toEqual([{ v: 1, kind: 'event', name: 'layout', overflow: 0 }])
+      expect(page.named('error')).toEqual([])
+    },
+  )
+
+  test.each(OPTION_PAGES)(
+    "$page's error reply is the alert store's toast",
+    async ({ page: id, title, route }) => {
+      const message = `${title}: the chain is not ready`
+      const page = await mountTool(OptionToolsDom, {
+        page: id,
+        answer: (m) => (isReq(m, route) ? ok({ status: 'error', message }) : undefined),
+      })
+      await page.init()
+      const toast = () =>
+        [...document.querySelectorAll('[data-sonner-toast]')].find((t) =>
+          t.textContent?.includes(message),
+        )
+      await waitFor(toast)
+      expect(toast()?.getAttribute('data-type')).toBe('error')
+      // where the seeded alert store puts it: top centre
+      const toaster = toast()?.closest('[data-sonner-toaster]')
+      expect(toaster?.getAttribute('data-y-position')).toBe('top')
+      expect(toaster?.getAttribute('data-x-position')).toBe('center')
+      // the page is still there
+      expect(q('#oa-tool [data-oa-route="root"] h1')?.textContent).toBe(title)
+      expect(page.named('pageError')).toEqual([])
+    },
+  )
+
+  test.each([
+    ['a router hook', 'useNavigate() may be used only in the context of a <Router> component'],
+    ['a query hook', 'No QueryClient set, use QueryClientProvider to set one'],
+  ])(
+    'a page that calls %s renders on ToolShell; on BareToolShell it gets the fallback',
+    async (what, thrown) => {
+      jest.spyOn(console, 'error').mockImplementation(() => {})
+      const Hooked = what === 'a router hook' ? RouterHookPage : QueryHookPage
+      const full = await mountShell('ToolShell', Hooked)
+      expect(full.container.textContent).toBe('hooked')
+      expect(full.sent.filter((e) => e.name === 'pageError')).toEqual([])
+      await full.unmount()
+
+      const bare = await mountShell('BareToolShell', Hooked)
+      expect(bare.container.textContent).toContain("This report couldn't be shown.")
+      const pageError = bare.sent.find((e) => e.name === 'pageError') as { message: string }
+      expect(pageError.message).toContain(thrown)
+    },
+  )
+
+  test("the option entry's bundle reaches neither react-router nor @tanstack; the other two keep both", () => {
+    const reached = (entry: string) => packagesReached(join(__dirname, `${entry}.tsx`))
+    const providers = (pkgs: Set<string>) =>
+      [...pkgs].filter((p) => p === 'react-router' || p.startsWith('@tanstack/')).sort()
+    const option = reached('OptionToolsDom')
+    // the walk does reach the pages' own packages
+    for (const pkg of ['sonner', 'lucide-react', 'axios', 'zustand', 'plotly.js'])
+      expect({ pkg, reached: option.has(pkg) }).toEqual({ pkg, reached: true })
+    expect(providers(option)).toEqual([])
+    for (const entry of ['PortfolioToolsDom', 'SectorRotationDom'])
+      expect(providers(reached(entry))).toEqual(['@tanstack/react-query', 'react-router'])
   })
 })
 

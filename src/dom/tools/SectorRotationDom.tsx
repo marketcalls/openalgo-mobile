@@ -10,6 +10,7 @@ import './rotation.phone.css'
 import type { DomEntryProps, ToolDomProps } from '~/dom/bridge/protocol'
 import { ToolEntry } from './entry'
 import { type PageSet, pageOf } from './pages'
+import { ToolShell } from './shell'
 
 const ENTRY = 'oa-entry:src/dom/tools/SectorRotationDom.tsx'
 
@@ -18,5 +19,5 @@ const PAGES: PageSet = {
 }
 
 export default function SectorRotationDom(p: ToolDomProps & DomEntryProps) {
-  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} />
+  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} shell={ToolShell} />
 }

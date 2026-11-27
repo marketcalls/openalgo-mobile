@@ -1,9 +1,11 @@
 // What every tool entry does (design 7.7, 7.8), shared by the three 'use dom' files: the bridge
 // client and its imperative handle, the network shims, link guard and download hand-off in place
 // before any page code runs, CSP violations reported, then 'loaded'. On tool.init the stores are
-// seeded and the shell renders; two frames after that first commit the page is ready.
+// seeded and the entry's shell renders; two frames after that first commit the page is ready.
+// The entry picks its shell (ToolShell, or its bare option BareToolShell), so this module imports
+// neither: a bare entry's bundle never holds the router or the query client (ruling 12a).
 import { useDOMImperativeHandle } from 'expo/dom'
-import { type JSX, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, type JSX, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type DomEntryProps,
   type DomEvent,
@@ -23,7 +25,7 @@ import { createLayoutProbe, type LayoutProbe } from './layoutProbe'
 import { TOOL_MARKER } from './marker'
 import type { PageSet } from './pages'
 import { seedStores } from './seed'
-import { type ShellHost, ToolShell } from './shell'
+import type { ShellHost, ToolShellProps } from './shellCore'
 
 /** A page's life reports at most this many CSP violations. */
 const MAX_VIOLATIONS = 20
@@ -39,6 +41,8 @@ export type ToolEntryProps = ToolDomProps &
     pages: PageSet
     /** `oa-entry:<path>`, the literal the preview manifest finds the entry's page by. */
     entry: string
+    /** ToolShell, or BareToolShell when none of the entry's pages uses a router or query hook. */
+    shell: ComponentType<ToolShellProps>
   }
 
 const isObj = (x: unknown): x is Record<string, unknown> =>
@@ -89,6 +93,7 @@ export function ToolEntry({
   ref,
   pages,
   entry,
+  shell: Shell,
 }: ToolEntryProps): JSX.Element | null {
   const bridgeRef = useRef(bridge)
   bridgeRef.current = bridge
@@ -175,7 +180,7 @@ export function ToolEntry({
 
   if (init === null) return null
   return (
-    <ToolShell
+    <Shell
       page={init.page}
       pages={pages}
       seed={init.seed}

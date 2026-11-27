@@ -12,6 +12,7 @@ import './portfolio.phone.css'
 import type { DomEntryProps, ToolDomProps } from '~/dom/bridge/protocol'
 import { ToolEntry } from './entry'
 import { type PageSet, pageOf } from './pages'
+import { ToolShell } from './shell'
 
 const ENTRY = 'oa-entry:src/dom/tools/PortfolioToolsDom.tsx'
 
@@ -28,5 +29,5 @@ const PAGES: PageSet = {
 }
 
 export default function PortfolioToolsDom(p: ToolDomProps & DomEntryProps) {
-  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} />
+  return <ToolEntry {...p} pages={PAGES} entry={ENTRY} shell={ToolShell} />
 }
