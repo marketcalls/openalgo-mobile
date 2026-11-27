@@ -72,10 +72,14 @@ function setup(reply: Reply = (_id, b) => chainFor(b), o: { greeksOnServer?: boo
     greeksOnServer: () => o.greeksOnServer ?? true,
   })
   const routes = createDeviceRoutes(deps)
-  const post = (path: string, body: JSONValue): Promise<DomReply> => {
+  const post = (
+    path: string,
+    body: JSONValue,
+    signal = new AbortController().signal,
+  ): Promise<DomReply> => {
     const route = routes.find((r) => r.method === 'POST' && r.path === path)
     if (!route) throw new Error(`no route ${path}`)
-    return route.handle(request(path, body), new AbortController().signal)
+    return route.handle(request(path, body), signal)
   }
   return { calls, post, mostInFlight: () => mostInFlight, deps }
 }
@@ -153,6 +157,19 @@ describe('Strike Profile', () => {
     // every strike's put holds 5,000 more OI at the call's gamma: GEX is short everywhere
     expect(p.flip).toBeNull()
     expect([p.call_wall, p.put_wall]).toEqual([24000, 24000])
+  })
+
+  test('a page that aborts after the last chain read gets no flip search: the route rejects', async () => {
+    const page = new AbortController()
+    const h = setup((_id, b) => {
+      // the tool closes as the last chain comes in; the fake read answers it anyway
+      if (b.expiry_date === EXPIRIES[EXPIRIES.length - 1]) page.abort()
+      return chainFor(b)
+    })
+    await expect(h.post(PROFILE, { ...QUERY, range_pct: 5 }, page.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(asked(h.calls)).toHaveLength(7)
   })
 
   test('range null asks 40 strikes a side', async () => {
@@ -376,17 +393,17 @@ describe('findGammaFlip', () => {
     p *
     p
 
-  test('findGammaFlip interpolates the crossing nearest spot; no sign change → null', () => {
+  test('findGammaFlip interpolates the crossing nearest spot; no sign change → null', async () => {
     // a call wall at 100 and a put wall at 120 cross where both legs' d1 meet:
     // p² = 100·120·e^(−σ²t), with every forward at the spot
     const two = [leg(100, 1), leg(120, -1)]
     const exact = Math.sqrt(12_000) * Math.exp((-SIGMA * SIGMA * T) / 2)
-    expect(findGammaFlip(two, 110, 90, 130)).toBeCloseTo(exact, 2)
+    expect(await findGammaFlip(two, 110, 90, 130)).toBeCloseTo(exact, 2)
 
     // two points are the two ends, and the crossing is the straight line between them
     const a = total(two, 110, 100)
     const b = total(two, 110, 120)
-    expect(findGammaFlip(two, 110, 100, 120, 2)).toBe(100 + ((120 - 100) * -a) / (b - a))
+    expect(await findGammaFlip(two, 110, 100, 120, 2)).toBe(100 + ((120 - 100) * -a) / (b - a))
 
     // put, call, put: GEX crosses below and above 110, and the crossing nearer the spot wins
     const three = (spot: number) => [
@@ -394,8 +411,8 @@ describe('findGammaFlip', () => {
       leg(110, 1, 2000, spot),
       leg(120, -1, 1000, spot),
     ]
-    const low = findGammaFlip(three(100), 100, 90, 130)
-    const high = findGammaFlip(three(120), 120, 90, 130)
+    const low = await findGammaFlip(three(100), 100, 90, 130)
+    const high = await findGammaFlip(three(120), 120, 90, 130)
     if (low === null || high === null) throw new Error('two crossings')
     expect(low).toBeLessThan(110)
     expect(high).toBeGreaterThan(110)
@@ -406,10 +423,94 @@ describe('findGammaFlip', () => {
     }
 
     // only calls: GEX never changes sign
-    expect(findGammaFlip([leg(100, 1), leg(120, 1)], 110, 90, 130)).toBeNull()
-    expect(findGammaFlip([], 110, 90, 130)).toBeNull()
-    expect(findGammaFlip(two, 110, 130, 90)).toBeNull()
-    expect(findGammaFlip(two, 0, 90, 130)).toBeNull()
+    expect(await findGammaFlip([leg(100, 1), leg(120, 1)], 110, 90, 130)).toBeNull()
+    expect(await findGammaFlip([], 110, 90, 130)).toBeNull()
+    expect(await findGammaFlip(two, 110, 130, 90)).toBeNull()
+    expect(await findGammaFlip(two, 0, 90, 130)).toBeNull()
+  })
+
+  /** n legs over strikes 95 to 125: calls within 5 of the spot, puts outside, OI and IV varied. */
+  const many = (n: number): FlipLeg[] =>
+    Array.from({ length: n }, (_, i) => {
+      const strike = 95 + (i % 61) * 0.5
+      const sign = Math.abs(strike - 110) <= 5 ? 1 : -1
+      return { ...leg(strike, sign, 500 + ((i * 37) % 1000)), sigma: 0.15 + (i % 7) * 0.01 }
+    })
+  /** `legs`, counting the grid rows priced: each row reads the first leg's forward once. */
+  const counted = (legs: FlipLeg[]) => {
+    const seen = { rows: 0 }
+    const first = legs[0] as FlipLeg
+    const watched = Object.defineProperty({ ...first }, 'forward', {
+      get: () => {
+        seen.rows += 1
+        return first.forward
+      },
+    })
+    return { legs: [watched, ...legs.slice(1)], seen }
+  }
+  /** find_gamma_flip in one pass, as the server runs it: every row's total, then the crossing
+   *  nearest the spot. */
+  const onePass = (legs: FlipLeg[], spot: number, low: number, high: number, points = 241) => {
+    const step = (high - low) / (points - 1)
+    const grid = Array.from({ length: points }, (_, i) =>
+      i === points - 1 ? high : low + i * step,
+    )
+    const totals = grid.map((p) => total(legs, spot, p))
+    let best: number | null = null
+    for (let i = 0; i < points - 1; i++) {
+      const a = totals[i] as number
+      const b = totals[i + 1] as number
+      const g0 = grid[i] as number
+      const g1 = grid[i + 1] as number
+      const crossing =
+        a === 0 ? g0 : a < 0 !== b < 0 && b !== 0 ? g0 + ((g1 - g0) * -a) / (b - a) : null
+      if (crossing === null) continue
+      if (best === null || Math.abs(crossing - spot) < Math.abs(best - spot)) best = crossing
+    }
+    return best
+  }
+
+  test('the search hands the JS thread back every few rows, and finds the one-pass flip exactly', async () => {
+    const { legs, seen } = counted(many(1000))
+    // the rows priced at each turn of the event loop while the search runs
+    const marks: number[] = []
+    let searching = true
+    const turn = () => {
+      if (!searching) return
+      marks.push(seen.rows)
+      setTimeout(turn, 0)
+    }
+    setTimeout(turn, 0)
+    const flip = await findGammaFlip(legs, 110, 90, 130)
+    searching = false
+    marks.push(seen.rows)
+
+    expect(seen.rows).toBe(241)
+    expect(flip).not.toBeNull()
+    expect(flip).toBe(onePass(legs, 110, 90, 130))
+    // never more than 3 rows (3,000 gammas) between two turns: taps and ticks wait a few ms
+    const runs = marks.map((m, i) => m - (marks[i - 1] ?? 0))
+    expect(marks.length).toBeGreaterThan(60)
+    expect(Math.max(...runs)).toBeLessThanOrEqual(3)
+  })
+
+  test('a page that aborts stops the search: before its first row, or at the next yield', async () => {
+    const before = counted(many(1000))
+    const gone = new AbortController()
+    gone.abort()
+    await expect(
+      findGammaFlip(before.legs, 110, 90, 130, 241, { signal: gone.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(before.seen.rows).toBe(0)
+
+    const during = counted(many(1000))
+    const closing = new AbortController()
+    setTimeout(() => closing.abort(), 0)
+    await expect(
+      findGammaFlip(during.legs, 110, 90, 130, 241, { signal: closing.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(during.seen.rows).toBeGreaterThan(0)
+    expect(during.seen.rows).toBeLessThanOrEqual(3)
   })
 })
 

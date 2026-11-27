@@ -38,6 +38,13 @@ const DEFAULT_RANGE = 5
 const PROBE_STRIKES = 20
 const MAX_STRIKES = 40
 const FLIP_GRID_POINTS = 241
+/**
+ * The flip search's gammas between two yields to the event loop. One is a full black76Greeks,
+ * about 0.9 µs under `node --jitless` on an M-series Mac and a few µs on a budget phone's Hermes,
+ * so a slice is a few ms there, under a 60 Hz frame. Whole rows: at 612 legs (NIFTY, six expiries
+ * at 5%) a slice is 4 rows, at 3,240 (twenty expiries at "All") 1 row.
+ */
+const FLIP_SLICE_GAMMAS = 2_000
 const SECONDS_PER_YEAR = 365 * 86400
 /** _MIN_YEARS (:71): a flip leg's years are floored at about an hour. */
 const MIN_YEARS = 0.0001
@@ -115,27 +122,54 @@ export type FlipLeg = {
   sign: 1 | -1
 }
 
+/** The page aborted the request: the route rejects, as an aborted read does, so the router
+ *  answers nothing. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw Object.assign(new Error('The page aborted the request.'), { name: 'AbortError' })
+  }
+}
+
+/** The next turn of the event loop. A timer, not setImmediate: bridgeless React Native shims
+ *  setImmediate with queueMicrotask (Libraries/Core/setUpTimers.js), which runs before the JS
+ *  thread takes its next task, so taps, bridge messages and ticks would still wait. */
+const nextTask = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 /**
  * find_gamma_flip: the spot in [low, high] where Σ γ·OI·sign × p² changes sign, each leg's
  * forward moved in proportion to the spot (F·p/spot) and its gamma repriced at its own σ. The
  * grid is np.linspace (low + i·step, the last point `high`); a crossing is interpolated linearly,
  * or is a grid point where the total is 0; the one nearest `spot` wins, the first of two as near.
  * null with no legs, a bad range or no sign change.
+ *
+ * The search is points × legs Black-76 gammas (about 234k at six expiries and "All"), on the JS
+ * thread the app's header, bridge and ticks share. So it hands the thread back between grid rows,
+ * once each FLIP_SLICE_GAMMAS, and stops with the page: `o.signal` is checked before the first
+ * row and at every yield, and an abort rejects. A slice holds whole rows, and each row sums its
+ * legs in order, so the result is the one an unbroken loop gives.
  */
-export function findGammaFlip(
+export async function findGammaFlip(
   legs: readonly FlipLeg[],
   spot: number,
   low: number,
   high: number,
   points: number = FLIP_GRID_POINTS,
-): number | null {
+  o: RouteOptions = {},
+): Promise<number | null> {
   if (legs.length === 0 || spot <= 0 || low <= 0 || high <= low || points < 2) return null
+  throwIfAborted(o.signal)
   const step = (high - low) / (points - 1)
   const grid = Array.from({ length: points }, (_, i) => (i === points - 1 ? high : low + i * step))
   const weights = legs.map((l) => l.oi * l.sign)
   // the hot loop (points × legs gammas): plain loops, as the dot product sums in leg order
   const totals: number[] = []
+  let sliced = 0
   for (const price of grid) {
+    if (sliced >= FLIP_SLICE_GAMMAS) {
+      await nextTask()
+      throwIfAborted(o.signal)
+      sliced = 0
+    }
     const ratio = price / spot
     let dot = 0
     for (let j = 0; j < legs.length; j++) {
@@ -144,6 +178,7 @@ export function findGammaFlip(
         rawGamma('c', l.forward * ratio, l.strike, l.years, 0, l.sigma) * (weights[j] as number)
     }
     totals.push(dot * price * price)
+    sliced += legs.length
   }
 
   let best: number | null = null
@@ -381,7 +416,7 @@ export async function strikeProfile(
   })
   const low = strikes[0] as number
   const high = strikes[strikes.length - 1] as number
-  const flip = findGammaFlip(flipLegs, spot, low, high)
+  const flip = await findGammaFlip(flipLegs, spot, low, high, FLIP_GRID_POINTS, o)
 
   return {
     status: 'success',
