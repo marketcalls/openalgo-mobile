@@ -17,6 +17,7 @@ import {
   ServicesProvider,
   useSession,
 } from '~/core/services/services'
+import { useAnalyzer } from '~/features/account/api'
 import { openMasterDb } from '~/market/master/sqlite'
 import { TradingProvider } from '~/market/trading'
 import { Button } from '~/ui/Button'
@@ -130,6 +131,7 @@ function AppShell({ s }: { s: Services }) {
           <TickStoreContext.Provider value={s.store}>
             <LiveContext.Provider value={live}>
               <Lifecycle s={s} />
+              <ModeReader />
               {/* TalkBack would read through the overlay without this (iOS uses its modal flag). */}
               <View
                 style={styles.fill}
@@ -238,6 +240,16 @@ function AppShell({ s }: { s: Services }) {
 }
 
 /** The cold start once, then every AppState change, for this container. */
+/**
+ * The server's mode for every screen's badge (G16). The tabs layout used to be its only reader,
+ * so a deep link to a tool, the Option Chain (which offers BUY and SELL) or the chart, with no
+ * tabs under it, showed no LIVE or ANALYZE at all. The query is the tabs' own, shared.
+ */
+function ModeReader() {
+  useAnalyzer()
+  return null
+}
+
 function Lifecycle({ s }: { s: Services }) {
   useEffect(() => {
     const unwire = wireQueryManagers()

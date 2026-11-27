@@ -14,6 +14,7 @@ import { Text } from 'react-native'
 import RootLayout from '~/app/_layout'
 import AppLayout from '~/app/(app)/_layout'
 import type { Capabilities } from '~/core/capabilities/gates'
+import { useConnection } from '~/core/services/connection'
 import { defaultDeps } from '~/core/services/deps'
 import { type Services, useServices, useSession } from '~/core/services/services'
 import { applyServerUrl } from '~/features/account/serverChange'
@@ -195,6 +196,24 @@ test('sign-out and a server change each give the app a new trading container: no
   const third = shells[2] as (typeof shells)[number]
   expect(third.t).not.toBe(second.t)
   expect(third.t.depthDowngrades.getState().keys.size).toBe(0)
+})
+
+test('the shell reads the server mode with no tabs under it: a deep link still gets its badge (G16)', async () => {
+  // a deep link to /tools/maxpain, the chain or the chart mounts no tabs layout
+  const auth: { authenticateAsync: jest.Mock } = jest.requireMock('expo-local-authentication')
+  auth.authenticateAsync.mockResolvedValueOnce({ success: true })
+  ;(globalThis.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) =>
+    String(input).endsWith('/api/v1/analyzer')
+      ? new Response(
+          JSON.stringify({ status: 'success', data: { mode: 'analyze', analyze_mode: true } }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      : Promise.reject(new TypeError('Network request failed')),
+  )
+  useConnection.getState().reset()
+  await renderRouter(routes, { initialUrl: '/' })
+  await screen.findByText('app home', { includeHiddenElements: true })
+  await waitFor(() => expect(useConnection.getState().analyzer).toBe('analyze'))
 })
 
 test("the shell opens the symbol master's database once and never waits for it", async () => {

@@ -23,7 +23,7 @@ const TABS = [
 export default function TabsLayout() {
   const s = useServices()
   const conn = useConnection()
-  // the header badge reads conn.analyzer, which only this hook writes (ruling 10)
+  // the header badge reads conn.analyzer (ruling 10); the app shell reads it too, for a deep link
   useAnalyzer()
   const update = useUpdateNotice()
   const router = useRouter()
