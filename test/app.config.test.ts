@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ConfigContext } from 'expo/config'
@@ -56,6 +57,10 @@ describe('app.config', () => {
     expect(opts.android.usesCleartextTraffic).toBe(true)
   })
 
+  test('Android: blockedPermissions is exactly the permissions nothing uses', () => {
+    expect(build().android?.blockedPermissions).toEqual(BLOCKED)
+  })
+
   test('iOS: local networking only, never arbitrary loads', () => {
     const c = build()
     const info = c.ios?.infoPlist ?? {}
@@ -71,6 +76,80 @@ describe('app.config', () => {
     expect(c.extra?.minServerVersion).toBe('2.0.0.0')
     expect(c.experiments?.typedRoutes).toBe(true)
     expect(c.experiments?.reactCompiler).toBe(true)
+  })
+})
+
+// The release build's Android permissions: the template's and the plugins' (the introspected app
+// manifest) and each native package's own manifest, which Gradle merges in. Each one is kept, for
+// what it is used for, or blocked (tools:node="remove"). A package update that adds one fails
+// here until it is listed.
+const KEPT: Record<string, string> = {
+  'android.permission.INTERNET': 'the REST API and the WebSocket feed',
+  'android.permission.ACCESS_NETWORK_STATE': 'NetInfo: online state (src/core/query/wiring.ts)',
+  'android.permission.ACCESS_WIFI_STATE': 'NetInfo reads the Wi-Fi state it reports (its manifest)',
+  'android.permission.VIBRATE': 'expo-haptics (src/core/platform/haptics.ts)',
+  'android.permission.USE_BIOMETRIC': 'expo-local-authentication: the app lock',
+  'android.permission.USE_FINGERPRINT': 'the app lock on Android 7 to 8.1 (minSdk 24)',
+  // expo-screen-capture registers Activity.ScreenCaptureCallback when it starts and on every
+  // foreground on Android 14+, whether or not anything listens, and that call throws without it.
+  'android.permission.DETECT_SCREEN_CAPTURE': 'expo-screen-capture calls it unconditionally',
+}
+// Nothing asks for these at run time: files go to Paths.cache and back through the share sheet, a
+// backup is read from the picker's cache copy, no screenshot listener is added (only FLAG_SECURE
+// and the iOS app-switcher blur), and nothing draws over other apps.
+const BLOCKED = [
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+  'android.permission.READ_MEDIA_IMAGES',
+  'android.permission.SYSTEM_ALERT_WINDOW',
+]
+
+describe('Android permissions of the release build', () => {
+  const perms = () =>
+    JSON.parse(
+      execFileSync(process.execPath, [path.join(root, 'scripts', 'android-permissions.mjs')], {
+        cwd: root,
+        encoding: 'utf8',
+      }),
+    ) as {
+      app: { name: string; remove: boolean }[]
+      libraries: Record<string, string[]>
+      final: string[]
+    }
+
+  test('what is left after the merge is exactly the kept set', () => {
+    const p = perms()
+    expect(p.final).toEqual(Object.keys(KEPT).sort())
+    // the app manifest removes each blocked one, whichever package adds it
+    expect(p.app.filter((x) => x.remove).map((x) => x.name)).toEqual(BLOCKED)
+  })
+
+  test('every permission a package or the template declares is kept or blocked, never both', () => {
+    const p = perms()
+    const declared = new Set([...p.app.map((x) => x.name), ...Object.values(p.libraries).flat()])
+    const listed = new Set([...Object.keys(KEPT), ...BLOCKED])
+    expect([...declared].filter((name) => !listed.has(name))).toEqual([])
+    expect(BLOCKED.filter((name) => name in KEPT)).toEqual([])
+  })
+
+  test('no app code uses what is blocked', () => {
+    // a screenshot listener or its permission request, the media library, shared storage, an
+    // overlay, or a blocked permission by name
+    const use =
+      /addScreenshotListener|useScreenshotListener|(get|request)PermissionsAsync|expo-media-library|StorageAccessFramework|SYSTEM_ALERT_WINDOW|_EXTERNAL_STORAGE|READ_MEDIA_IMAGES/
+    const files = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const at = path.join(dir, e.name)
+        if (e.isDirectory()) return files(at)
+        return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [at] : []
+      })
+    const hits = files(path.join(root, 'src')).filter((f) => use.test(fs.readFileSync(f, 'utf8')))
+    expect(hits.map((f) => path.relative(root, f))).toEqual([])
+    // files stay in the app's own cache, which needs no storage permission
+    for (const f of ['src/features/tools/files.ts', 'src/features/backup/io.ts']) {
+      const text = fs.readFileSync(path.join(root, f), 'utf8')
+      expect([f, text.match(/new File\(Paths\.\w+/g)]).toEqual([f, ['new File(Paths.cache']])
+    }
   })
 })
 

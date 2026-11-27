@@ -36,6 +36,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       versionCode: build,
       allowBackup: false,
       predictiveBackGestureEnabled: false,
+      // Added by the template, expo-file-system or expo-screen-capture, and used by nothing: files
+      // stay in the app's cache, no screenshot listener is added, nothing draws over other apps.
+      // DETECT_SCREEN_CAPTURE stays (expo-screen-capture needs it on Android 14+); the list is
+      // pinned in test/app.config.test.ts, from scripts/android-permissions.mjs.
+      blockedPermissions: [
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+      ],
       // The white OpenAlgo mark on black; assets/brand/README.md says how the images are made.
       adaptiveIcon: {
         backgroundColor: '#000000',
