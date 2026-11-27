@@ -144,37 +144,42 @@ function recordedBodies(input, endpoint) {
 
 const chainBase = ({ strike_count: _n, with_greeks: _g, ...rest }) => stableJson(rest)
 
+/** Whether rank `a` comes before rank `b` (two [number, number] pairs, in order). */
+const before = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])
+
 /**
- * The chain reply for `ask` (an optionchain body): the recorded chain of the same expiry (and
- * underlying and exchange) with the same with_greeks and the smallest strike_count ≥ the asked,
- * else the other kind with the smallest such count; its rows cut to strike_count each side of
- * its own atm_strike by index (get_strikes_with_labels, option_chain_service.py:111-116), the
- * Greeks taken out when they were not asked for, and `server_ts` the case instant. A with_greeks
- * ask answered by a chain without them is left without (the phone computes them; the harness
- * attaches the server's own). NotRecorded when no recorded chain is wide enough.
+ * The chain reply for `ask` (an optionchain body), from the recorded chains of the same expiry
+ * (and underlying and exchange) at a strike_count ≥ the asked:
+ * - a plain ask: the narrowest of either kind, the plain one on a tie, its Greeks taken out
+ *   (which leaves the plain reply). So OI Profile's plain 20 is the with-Greeks 20 whose legs'
+ *   daily OI is recorded (preflight F 5c), not a wider plain chain recorded in another loop
+ *   around another ATM;
+ * - a with_greeks ask: the narrowest with-Greeks one, else the narrowest plain one, left
+ *   without Greeks (the phone computes them; the harness attaches the server's own).
+ * Its rows are cut to strike_count each side of its own atm_strike by index
+ * (get_strikes_with_labels, option_chain_service.py:111-116), and `server_ts` is the case
+ * instant. The first recorded wins a full tie. NotRecorded when no chain is wide enough.
  */
 export function servedChain(input, ask) {
   const n = ask.strike_count
   const greeks = ask.with_greeks === true
   const want = chainBase(ask)
-  let same = null
-  let other = null
+  let source = null
   if (isNumber(n)) {
     for (const { body, reply } of recordedBodies(input, 'optionchain')) {
       const count = body.strike_count
       if (chainBase(body) !== want || !isNumber(count) || count < n) continue
-      if ((body.with_greeks === true) === greeks) {
-        if (!same || count < same.count) same = { count, reply }
-      } else if (!other || count < other.count) other = { count, reply }
+      const other = (body.with_greeks === true) === greeks ? 0 : 1
+      const rank = greeks ? [other, count] : [count, other]
+      if (!source || before(rank, source.rank)) source = { rank, reply, other }
     }
   }
-  const source = same ?? other
   if (!source) throw new NotRecorded(`no recorded reply for optionchain ${stableJson(ask)}`)
   const reply = structuredClone(source.reply)
   const rows = Array.isArray(reply.chain) ? reply.chain : []
   const at = rows.findIndex((row) => row.strike === reply.atm_strike)
   if (at >= 0) reply.chain = rows.slice(Math.max(0, at - n), Math.min(rows.length, at + n + 1))
-  if (!greeks && source === other) {
+  if (!greeks && source.other === 1) {
     for (const row of reply.chain ?? []) {
       for (const leg of [row.ce, row.pe]) if (leg) for (const k of GREEKS) delete leg[k]
     }
@@ -454,8 +459,9 @@ export function strategyLegsOf(c, chain20, expiry) {
 /**
  * What recordedCallsF reads off a recording: the expiry lists, the first expiry's chains (the
  * with-Greeks 20 the Strike Profile probes and the builder reads, chain 1, and the plain 20 OI
- * Profile reads), and the reference's 1-minute candles over the straddle window, each as the
- * rule above serves it, or undefined while not recorded.
+ * Profile reads, which the rule serves from that with-Greeks 20 unless a plain 20 was
+ * recorded), and the reference's 1-minute candles over the straddle window, each as the rule
+ * above serves it, or undefined while not recorded.
  */
 export function contextF(c, input) {
   const get = (call) => {
@@ -498,10 +504,14 @@ export function contextF(c, input) {
  * - history at 5m over the strategy window (it holds the IV chart's): the reference, the IV
  *   chart's ATM legs (chain 1's and the master strike nearest its LTP) and the builder's;
  * - history at 5m over the OI Profile window: its future (the master's and the futures list's);
- *   'D' over 14 days for every leg with OI of the chain it reads;
+ *   'D' over 14 days for every leg with OI of the plain 20 it reads (the chain-20 legs: the
+ *   rule serves it from the with-Greeks 20);
  * - history at 1m over the straddle window: the reference; CE and PE of every strike its closes
- *   reach (nearest listed, first on ties), from the first of the 3 dates the straddle keeps
- *   (the merge drops the older candles, so they are not recorded);
+ *   reach (nearest listed, first on ties), from the first of the 3 dates the straddle keeps.
+ *   The server merges the legs at the reference's candles and then keeps the last 3 dates
+ *   (_cap_last_n_trading_dates), so older option candles change no output while each kept
+ *   date has option candles; they are not recorded (a fallback to an older date, when a kept
+ *   date has none, is not exercised);
  * - quotes for the reference.
  * Without duplicates, in that order.
  */

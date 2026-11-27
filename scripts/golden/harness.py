@@ -297,27 +297,28 @@ class Recording:
         return request_key("optionchain", asked) in self.responses
 
     def chain(self, ask):
-        """The chain for `ask` by the superset rule (preflight F 5a, golden-record-f.mjs
-        servedChain): the recorded chain of the same expiry with the same with_greeks and the
-        smallest strike_count >= the asked, else the other kind; its rows cut to strike_count
-        each side of its own atm_strike by index (get_strikes_with_labels); the Greeks taken out
-        when not asked for; server_ts the case instant. Returns (reply, whether Greeks were
-        asked of a chain without them: one recorded plain, before 2.0.2.0, or by the mock)."""
+        """The chain for `ask` by the superset rule (preflight F 5a with 5c,
+        golden-record-f.mjs servedChain), from the recorded chains of the same expiry at a
+        strike_count >= the asked: for a plain ask the narrowest of either kind, the plain one
+        on a tie, its Greeks taken out (OI Profile's plain 20 is the with-Greeks 20 whose legs'
+        daily OI is recorded); for a with_greeks ask the narrowest with-Greeks one, else the
+        narrowest plain one. Its rows cut to strike_count each side of its own atm_strike by
+        index (get_strikes_with_labels); server_ts the case instant; the first recorded wins a
+        full tie. Returns (reply, whether Greeks were asked of a chain without them: one
+        recorded plain, before 2.0.2.0, or by the mock)."""
         n = ask.get("strike_count")
         greeks = ask.get("with_greeks") is True
         want = chain_base(ask)
-        same = other = None
+        source = None
         if is_number(n):
             for asked, reply in self.chains:
                 count = asked.get("strike_count")
                 if chain_base(asked) != want or not is_number(count) or count < n:
                     continue
-                if (asked.get("with_greeks") is True) == greeks:
-                    if same is None or count < same[0]:
-                        same = (count, reply)
-                elif other is None or count < other[0]:
-                    other = (count, reply)
-        source = same if same is not None else other
+                other = 0 if (asked.get("with_greeks") is True) == greeks else 1
+                rank = (other, count) if greeks else (count, other)
+                if source is None or rank < source[0]:
+                    source = (rank, reply, other)
         if source is None:
             raise Missing(f"no recorded reply for {request_key('optionchain', ask)}")
         reply = copy.deepcopy(source[1])
@@ -327,7 +328,7 @@ class Recording:
         )
         if at >= 0:
             reply["chain"] = rows[max(0, at - n) : min(len(rows), at + n + 1)]
-        if not greeks and source is other:
+        if not greeks and source[2] == 1:
             for row in reply.get("chain") or []:
                 for leg in (row.get("ce"), row.get("pe")):
                     if leg:
@@ -473,7 +474,9 @@ def attach_greeks(svc, reply, expiry, options_ex):
 
 def install_master(svc, master):
     """The symbol cache holds the input's futures, so fno_search_symbols runs the server's own
-    search (token_db_enhanced.py:697-847) over them."""
+    search (token_db_enhanced.py:697-847) over them, in its own order: by symbol when there is
+    no query (:825-847), not the file order preflight F conflict 10 assumed. get_intervals is
+    left alone: none of the ported services calls it (only the blueprints do)."""
     tdb = svc["token_db_enhanced"]
     rows = [
         SimpleNamespace(

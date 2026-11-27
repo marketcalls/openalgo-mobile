@@ -8,7 +8,14 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { KEY, runMain } from '../dev/mock-server/test-helpers.mjs'
-import { CASES, chainCall, recordedCalls, requestKey, stableJson } from './lib/golden-keys.mjs'
+import {
+  CASES,
+  CHAIN_COUNTS,
+  chainCall,
+  recordedCalls,
+  requestKey,
+  stableJson,
+} from './lib/golden-keys.mjs'
 import {
   contextF,
   F_PARAMS,
@@ -296,6 +303,9 @@ test('record-fixtures --mock writes master strikes, NFO and MCX futures with non
     // exactly E's calls and F's superset, which the recording itself completes
     const ctx = contextF(c, input)
     const callsF = recordedCallsF(c, ctx)
+    // OI Profile reads the probe's legs, the ones its daily OI is read for (preflight F 5c)
+    const legs = (chain) => chain.chain.flatMap((row) => [row.ce?.symbol, row.pe?.symbol])
+    assert.deepEqual(legs(ctx.oiChain), legs(ctx.chain20), c.id)
     assert.deepEqual(
       keys,
       [...new Set([...calls, ...callsF].map((x) => requestKey(x.endpoint, x.body)))].sort(),
@@ -730,11 +740,7 @@ test('the harness and record-fixtures serve a superset recording by one rule (pr
         requestKey('expiry', { symbol: 'NIFTY', exchange: 'NFO', instrumenttype: 'options' })
       ].data[d],
     )
-  // without its plain 40 for the second expiry, a plain 20 there is the with-Greeks 20 without them
-  const plain40 = requestKey('optionchain', chainCall(c, ex(1), 40).body)
   const responses = { ...input.responses }
-  assert.ok(plain40 in responses)
-  delete responses[plain40]
   // with Greeks as a server computes them (the mock computes none)
   const g20 = requestKey('optionchain', chainCall(c, ex(1), 20, { withGreeks: true }).body)
   const greeks = structuredClone(responses[g20])
@@ -743,6 +749,13 @@ test('the harness and record-fixtures serve a superset recording by one rule (pr
     Object.assign(leg, { implied_volatility: 12.5, delta: 0.5, gamma: 0.001, theta: -9, vega: 12 })
   }
   responses[g20] = greeks
+  // each recorded chain names itself, so a reply shows which one it was served from
+  const prefix = 'optionchain '
+  for (const key of Object.keys(responses).filter((k) => k.startsWith(prefix))) {
+    const b = JSON.parse(key.slice(prefix.length))
+    const recorded = `${b.expiry_date} ${b.strike_count}${b.with_greeks ? ' greeks' : ''}`
+    responses[key] = { ...responses[key], recorded }
+  }
   // a reference read in milliseconds, as some brokers answer
   const ref5 = Object.keys(responses).find(
     (k) => k.startsWith('history ') && k.includes('"NSE_INDEX"') && k.includes('"5m"'),
@@ -751,13 +764,27 @@ test('the harness and record-fixtures serve a superset recording by one rule (pr
   for (const row of ms.data) row.timestamp *= 1000
   responses[ref5] = ms
   const fixture = { ...input, responses }
+  // the Strike Profile's with-Greeks count at 5 % (25 or 26 at the mock's spot)
+  const probe =
+    input.responses[requestKey('optionchain', chainCall(c, ex(0), 20, { withGreeks: true }).body)]
+  const wanted = wantedStrikes(probe, probe.underlying_ltp, 5)
+  assert.ok(wanted > 23 && wanted < 30, String(wanted))
+  // A plain read takes the narrowest wide-enough chain of either kind, plain on a tie; a
+  // with_greeks read the narrowest with-Greeks one, else the narrowest plain one (preflight F
+  // 5a, with 5c: OI Profile's plain 20 is the with-Greeks 20 whose legs' daily OI is recorded).
+  // The first expiry also has E's plain 23, 25 and 45.
   const chains = [
-    chainCall(c, ex(0), 20, { withGreeks: true }).body, // recorded as asked
-    chainCall(c, ex(1), 30, { withGreeks: true }).body, // the 40 cut to 30 a side
-    chainCall(c, ex(1), 20).body, // the with-Greeks 20 without them
-    chainCall(c, ex(2), 3).body, // the plain 40 cut to 3
-    chainCall(c, ex(1), 41, { withGreeks: true }).body, // nothing that wide
-    { underlying: 'NIFTY', exchange: 'NFO' }, // not a chain read
+    [chainCall(c, ex(0), 20, { withGreeks: true }).body, `${ex(0)} 20 greeks`], // as asked
+    [chainCall(c, ex(1), 30, { withGreeks: true }).body, `${ex(1)} 40 greeks`], // cut to 30 a side
+    [chainCall(c, ex(1), 20).body, `${ex(1)} 20 greeks`], // without them, not the plain 40 cut
+    [chainCall(c, ex(0), 20).body, `${ex(0)} 20 greeks`], // OI Profile's: not E's plain 23 cut
+    [chainCall(c, ex(0), 22).body, `${ex(0)} 23`], // a plain one when it is the narrowest
+    [chainCall(c, ex(1), 30).body, `${ex(1)} 40`], // the plain 40, on a tie with the with-Greeks 40
+    [chainCall(c, ex(0), 21, { withGreeks: true }).body, `${ex(0)} ${wanted} greeks`], // not plain 23
+    [chainCall(c, ex(0), 41, { withGreeks: true }).body, `${ex(0)} 45`], // no with-Greeks one that wide
+    [chainCall(c, ex(2), 3).body, `${ex(2)} 20 greeks`], // cut to 3, without them
+    [chainCall(c, ex(1), 41, { withGreeks: true }).body, 'NotRecorded'], // nothing that wide
+    [{ underlying: 'NIFTY', exchange: 'NFO' }, 'NotRecorded'], // not a chain read
   ]
   // the newest day the reference has candles on (a weekend recording has none today)
   const lastDay = new Date(input.responses[ref5].data.at(-1).timestamp * 1000 + IST_MS)
@@ -803,8 +830,9 @@ test('the harness and record-fixtures serve a superset recording by one rule (pr
       fut('CRUDEOIL22DEC26FUT', '22-DEC-26', 'OPTFUT'), // not a FUT row
     ],
   }
+  const asks = chains.map(([ask]) => ask)
   const ours = {
-    chains: chains.map((ask) => serve(servedChain, ask)),
+    chains: asks.map((ask) => serve(servedChain, ask)),
     histories: histories.map((ask) => serve(servedHistory, ask)),
     reference: referenceOf({ underlying: 'CRUDEOIL', exchange: 'MCX' }, mcx, input.serverNowMs),
   }
@@ -827,26 +855,38 @@ test('the harness and record-fixtures serve a superset recording by one rule (pr
       "       'reference': {'symbol': symbol, 'exchange': exchange}}",
       'json.dump(out, sys.stdout)',
     ].join('\n'),
-    { input: fixture, chains, histories, mcx },
+    { input: fixture, chains: asks, histories, mcx },
   )
   if (theirs === null) return t.skip('python3 is not installed')
   assert.deepEqual(theirs, ours)
+  // the source each read was served from
+  assert.deepEqual(
+    ours.chains.map((x) => x.recorded ?? x),
+    chains.map(([, source]) => source),
+  )
   // the slices themselves
-  const [exact, cut, stripped, three, wide, bare] = ours.chains
+  const [exact, cut, stripped, oi, plain23, tie, narrower, plain45, three] = ours.chains
   assert.equal(exact.chain.length, 41)
   assert.equal(cut.chain.length, 61)
-  assert.ok(
-    stripped.chain.every(
-      (row) => !('delta' in (row.ce ?? {})) && !('implied_volatility' in (row.pe ?? {})),
-    ),
+  for (const chain of [stripped, oi, three]) {
+    assert.ok(
+      chain.chain.every(
+        (row) => !('delta' in (row.ce ?? {})) && !('implied_volatility' in (row.pe ?? {})),
+      ),
+    )
+    assert.deepEqual([chain.greeks_included, chain.forward_price], [false, null])
+  }
+  // the server's ATM ± 20 legs as the probe saw them: exactly those F read daily OI for
+  assert.deepEqual(oi.chain, exact.chain)
+  assert.deepEqual(
+    [stripped, plain23, tie, narrower, plain45].map((chain) => chain.chain.length),
+    [41, 45, 61, 43, 81],
   )
-  assert.deepEqual([stripped.greeks_included, stripped.forward_price], [false, null])
   assert.deepEqual(
     three.chain.map((row) => row.strike),
     ladder(three.atm_strike - 150, 50, 7),
   )
-  assert.deepEqual([wide, bare], ['NotRecorded', 'NotRecorded'])
-  for (const chain of [exact, cut, stripped, three])
+  for (const chain of ours.chains.slice(0, -2))
     assert.equal(chain.server_ts, input.serverNowMs / 1000)
   const [lastOnly, folded, empty, missing] = ours.histories
   assert.ok(lastOnly.data.length > 0 && lastOnly.data.length < ms.data.length)
@@ -1021,6 +1061,45 @@ test('record-fixtures --from with --from-f merges each case: E clock and expiry,
   assert.equal(r3.code, 1, r3.stdout + r3.stderr)
   assert.match(r3.stdout, /nifty: refused, .*nearest expiry/)
   assert.deepEqual(readdirSync(none), [])
+})
+
+test('record-fixtures --from with --from-f: an ATM move between the two loops leaves part F whole (preflight F 5c)', async (t) => {
+  const origin = await mockOrigin(t)
+  const recorded = tmp(t)
+  const r0 = await run(RECORD, ['--mock', origin, '--out', recorded, '--case', 'nifty'])
+  assert.equal(r0.code, 0, r0.stdout + r0.stderr)
+  const input = JSON.parse(readFileSync(join(recorded, 'mock-nifty.json'), 'utf8'))
+  const fdir = tmp(t)
+  const rawF = await rawRecordingF(origin, input, fdir)
+  // the controller's part-F recorder reads none of E's plain chains (record-raw-f.mjs)
+  rawF.calls = rawF.calls.filter(
+    (x) =>
+      x.endpoint !== 'optionchain' ||
+      x.body.with_greeks === true ||
+      !CHAIN_COUNTS.includes(x.body.strike_count),
+  )
+  writeFileSync(join(fdir, 'real-nifty.json'), JSON.stringify(rawF))
+  // E's loop ran 20 minutes before F's and saw the index a strike higher: its chains centre there
+  const rawE = await rawRecording(origin, CASES[0])
+  for (const x of rawE.calls) {
+    if (x.endpoint !== 'optionchain' || x.body.with_greeks === true) continue
+    const at = x.json.chain.findIndex((row) => row.strike === x.json.atm_strike)
+    x.json.atm_strike = x.json.chain[at + 1].strike
+  }
+  const edir = tmp(t)
+  writeFileSync(join(edir, 'real-nifty.json'), JSON.stringify(rawE))
+  const out = tmp(t)
+  const r = await run(RECORD, ['--from', edir, '--from-f', fdir, '--out', out])
+  assert.equal(r.code, 0, r.stdout + r.stderr)
+  assert.doesNotMatch(r.stdout, /pending/)
+  const merged = JSON.parse(readFileSync(join(out, 'real-nifty.json'), 'utf8'))
+  assert.ok('master' in merged && 'strategyLegs' in merged)
+  // OI Profile's plain 20 is F's with-Greeks 20 without its Greeks, not E's plain 23 cut to 20:
+  // exactly the legs F read daily OI for
+  const ctx = contextF(CASES[0], merged)
+  const legs = (chain) => chain.chain.flatMap((row) => [row.ce?.symbol, row.pe?.symbol])
+  assert.deepEqual(legs(ctx.oiChain), legs(ctx.chain20))
+  assert.equal(ctx.oiChain.atm_strike, ctx.chain20.atm_strike)
 })
 
 test('record-fixtures --from-f refuses a failed read, and a case it cannot serve is part-F pending', async (t) => {
