@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { black76Greeks, normPdf } from '@/lib/optionGreeks'
+import { black76Greeks } from '@/lib/optionGreeks'
 import {
   fakeApi,
   type GoldenInput,
@@ -56,26 +56,40 @@ function safeIv(price: number, F: number, K: number, t: number, iv: number | nul
 }
 
 /**
- * How far rawIv may sit from opengreeks' IV: 1e-9 (preflight conflict 10). opengreeks stops once
- * the price is within 1e-12·(1 + price), so on a leg with almost no time value (vega near 0) that
- * stopping rule leaves σ undetermined by about 2·tol/vega, and the last bit of a log or an exp
- * moves both solvers' answer inside that band. There the bound is the band, up to 1e-7.
+ * How far rawIv may sit from opengreeks' IV, on every row: 1e-9 (preflight conflict 10). A miss
+ * is answered by the engine (./engine), never by a wider bound here.
  */
-function ivBound(price: number, F: number, K: number, t: number, iv: number) {
-  const d1 = (Math.log(F / K) + 0.5 * iv * iv * t) / (iv * Math.sqrt(t))
-  const vega = F * Math.sqrt(t) * normPdf(d1)
-  return Math.min(1e-7, Math.max(1e-9, (2e-12 * (1 + price)) / vega))
-}
+const IV_BOUND = 1e-9
+
+/**
+ * The one grid row engine.ts misses by more than 1e-9, named, with its own bound: a call 4,800 in
+ * the money with 30 days left and 1.8e-5 of time value (vega 3.5e-3). On 15 of the 98 Math.exp
+ * calls of its solve, V8 differs in the last bit from the macOS libm the golden was generated on
+ * (opengreeks' Rust calls it), which moves the IV by 1.35e-9 (measured). Replayed with libm's exp
+ * and log values, the same solve gives opengreeks' IV bit for bit, so no TypeScript engine can
+ * close it. A golden regenerated on another libm is measured again before this row changes.
+ */
+const LIBM_RESIDUE = { flag: 'c', F: 24000, K: 19200, t: 30 / 365, sigma: 0.15, bound: 2e-9 }
+const isLibmResidue = (g: GridRow) =>
+  g.flag === LIBM_RESIDUE.flag &&
+  g.F === LIBM_RESIDUE.F &&
+  g.K === LIBM_RESIDUE.K &&
+  g.t === LIBM_RESIDUE.t &&
+  g.sigma === LIBM_RESIDUE.sigma
+
+/**
+ * Of the 808 grid rows both sides solve, 724 give opengreeks' IV bit for bit. A normal CDF or a
+ * solver step that is not opengreeks' loses most of them while staying inside 1e-9 on many.
+ */
+const MIN_BIT_EXACT = 700
 
 /** How rawIv's `got` differs from opengreeks' `want` (kept as _safe_iv keeps it): null if not. */
-function ivMiss(got: number | null, want: number | null, row: { price: number } & Strike) {
+function ivMiss(got: number | null, want: number | null, bound = IV_BOUND) {
   if (got === null || want === null) return got === want ? null : `${got} for ${want}`
-  const bound = ivBound(row.price, row.F, row.K, row.t, want)
   if (!(Math.abs(got - want) <= bound)) return `|Δ| ${Math.abs(got - want)} > ${bound}`
   return pyRound(got * 100, 2) === pyRound(want * 100, 2) ? null : 'rounded to 2 places'
 }
 
-type Strike = { flag: Flag; F: number; K: number; t: number }
 const PLACES = { delta: 4, gamma: 6, theta: 4, vega: 4 } as const
 
 /**
@@ -94,15 +108,20 @@ test('the golden grid is the one T5 generated', () => {
   expect(B76.grid).toHaveLength(840)
   expect(B76.edges).toHaveLength(9)
   expect(B76.symbols).toHaveLength(12)
+  // The named exception is one row of this grid, so it cannot drift onto another.
+  expect(B76.grid.filter(isLibmResidue)).toHaveLength(1)
 })
 
-test('every synthetic vector: rounded outputs equal opengreeks exactly; |rawIv − iv| ≤ 1e-9 where the price pins σ that well; nulls agree', () => {
+test('every synthetic vector: rounded outputs equal opengreeks exactly; |rawIv − iv| ≤ 1e-9 (one named libm row ≤ 2e-9), at least 700 bit-exact; nulls agree', () => {
   const misses: string[] = []
+  let bitExact = 0
   for (const g of B76.grid) {
     const at = `${g.flag} F=${g.F} K=${g.K} t=${g.t} σ=${g.sigma}`
     const got = rawIv(g.price, g.F, g.K, B76.rate, g.t, g.flag)
-    const miss = ivMiss(got, safeIv(g.price, g.F, g.K, g.t, g.iv), g)
+    const want = safeIv(g.price, g.F, g.K, g.t, g.iv)
+    const miss = ivMiss(got, want, isLibmResidue(g) ? LIBM_RESIDUE.bound : IV_BOUND)
     if (miss) misses.push(`${at}: iv ${miss}`)
+    if (got !== null && got === want) bitExact++
     const ours = black76Greeks(g.flag, g.F, g.K, g.t, B76.rate, g.sigma)
     for (const k of Object.keys(PLACES) as (keyof typeof PLACES)[]) {
       if (!sameRounded(k, ours[k], g[k], g.flag)) misses.push(`${at}: ${k} ${ours[k]} for ${g[k]}`)
@@ -111,13 +130,14 @@ test('every synthetic vector: rounded outputs equal opengreeks exactly; |rawIv �
     if (!sameRounded('gamma', gamma, g.gamma, g.flag)) misses.push(`${at}: rawGamma ${gamma}`)
   }
   expect(misses).toEqual([])
+  expect(bitExact).toBeGreaterThanOrEqual(MIN_BIT_EXACT)
 })
 
 test.each(B76.edges)(
   'edge, $label ($flag F=$F K=$K at $price): rawIv agrees with opengreeks',
   (e) => {
     const got = rawIv(e.price, e.F, e.K, B76.rate, e.t, e.flag)
-    expect(ivMiss(got, safeIv(e.price, e.F, e.K, e.t, e.iv), e)).toBeNull()
+    expect(ivMiss(got, safeIv(e.price, e.F, e.K, e.t, e.iv))).toBeNull()
   },
 )
 
