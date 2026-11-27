@@ -11,9 +11,14 @@ import { log } from '~/core/log/logger'
 import type { DomReply, DomRequest, JSONValue } from '~/dom/bridge/protocol'
 
 export type Route = {
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   /** Matched exactly: no prefix, case folding or trailing slash. */
   path: string
+  /**
+   * A route with a path parameter (`/api/strategy-portfolio/:id`) matches this, anchored by its
+   * author, instead of `path`, which then only names it. Still no case folding or trailing slash.
+   */
+  match?: RegExp
   handle(r: DomRequest, signal: AbortSignal): Promise<DomReply>
 }
 
@@ -124,7 +129,9 @@ export function createRequestRouter(
     inflight--
   }
   return async (r, signal) => {
-    const route = routes.find((x) => x.method === r.method && x.path === r.path)
+    const route = routes.find(
+      (x) => x.method === r.method && (x.match ? x.match.test(r.path) : x.path === r.path),
+    )
     if (!route) return refused()
     const key = o.slotKey?.(r) ?? null
     const joins = key !== null && sharing.has(key)

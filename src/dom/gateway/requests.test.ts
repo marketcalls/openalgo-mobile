@@ -13,6 +13,7 @@ import {
   ok,
   pickFields,
   REFUSED_COPY,
+  type Route,
   refused,
   TOO_MANY_COPY,
 } from './requests'
@@ -40,7 +41,7 @@ const TOO_MANY = {
 }
 
 let lastRid = 0
-function req(path: string, body?: JSONValue, method: 'GET' | 'POST' = 'POST'): DomRequest {
+function req(path: string, body?: JSONValue, method: DomRequest['method'] = 'POST'): DomRequest {
   const r: DomRequest = { v: 1, kind: 'request', rid: ++lastRid, method, path }
   if (body !== undefined) r.body = body
   return r
@@ -448,5 +449,25 @@ describe('the router parts', () => {
     const r = req('/api/v1/x', {})
     await expect(router(r, signal)).resolves.toEqual(ok(null))
     expect(handle).toHaveBeenCalledWith(r, signal)
+  })
+})
+
+describe('a route with a path parameter', () => {
+  const item: Route = {
+    method: 'DELETE',
+    path: '/x/:id',
+    match: /^\/x\/(\d{1,3})$/,
+    handle: async (r) => ok(r.path),
+  }
+  const signal = new AbortController().signal
+
+  test('matches by its pattern instead of its path, for its own method only', async () => {
+    const router = createRequestRouter([item])
+    await expect(router(req('/x/42', undefined, 'DELETE'), signal)).resolves.toEqual(ok('/x/42'))
+    for (const p of ['/x/:id', '/x/abc', '/x/1234', '/x/4/', '/y/42']) {
+      await expect(router(req(p, undefined, 'DELETE'), signal)).resolves.toEqual(REFUSED)
+    }
+    await expect(router(req('/x/42', undefined, 'GET'), signal)).resolves.toEqual(REFUSED)
+    await expect(router(req('/x/42', undefined, 'PUT'), signal)).resolves.toEqual(REFUSED)
   })
 })

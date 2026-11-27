@@ -46,7 +46,7 @@ export function SignOutScreen() {
     setError(null)
     setNote(null)
     try {
-      const r = await backupNow(trading.watchlists, s.storage)
+      const r = await backupNow(trading.watchlists, s.storage, undefined, trading.strategies)
       setNote(droppedNotice(r.dropped))
     } catch (e) {
       log.warn('account', 'backup before sign-out failed', e)

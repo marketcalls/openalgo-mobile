@@ -225,7 +225,7 @@ export const DomToNativeSchema: z.ZodType<DomToNative> = z.discriminatedUnion('k
     v,
     kind: z.literal('request'),
     rid,
-    method: z.enum(['GET', 'POST']),
+    method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
     path,
     query: z.record(z.string(), z.string()).optional(),
     body: requestBody.optional(),

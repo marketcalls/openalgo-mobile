@@ -11,6 +11,12 @@ import {
 } from '~/dom/gateway/domStorage'
 import { ALL_EXCHANGES } from '~/market/instruments/exchanges'
 import {
+  MAX_STRATEGIES,
+  type PortfolioEntry,
+  PortfolioEntrySchema,
+  stripKeys,
+} from '~/market/strategies/schemas'
+import {
   WATCH_SORTS,
   WATCHLIST_LIMITS,
   type WatchGroup,
@@ -29,8 +35,10 @@ const CHART_RECORDS_MAX = 2000
 
 export type ChartRecords = { drawings: DomStoreRecord[]; prefs: DomStoreRecord[] }
 export type ChartSection = 'chartDrawings' | 'chartPrefs'
+/** What a backup can leave out to fit: the chart's sections, then the strategies. */
+export type BackupSection = ChartSection | 'strategyPortfolio'
 
-/** Content keys are USER_CONTENT names; M4 adds `strategyPortfolio`. */
+/** Content keys are USER_CONTENT names. */
 export type BackupFile = {
   kind: typeof BACKUP_KIND
   schema: number
@@ -40,11 +48,12 @@ export type BackupFile = {
     watchlists?: Watchlists
     chartDrawings?: DomStoreRecord[]
     chartPrefs?: DomStoreRecord[]
+    strategyPortfolio?: PortfolioEntry[]
   } & Record<string, unknown>
 }
 
 /** The content keys this version can restore; any other key in a file is skipped, at any schema. */
-const RESTORABLE = ['watchlists', 'chartDrawings', 'chartPrefs'] as const
+const RESTORABLE = ['watchlists', 'chartDrawings', 'chartPrefs', 'strategyPortfolio'] as const
 
 export class BackupLeakError extends Error {
   constructor() {
@@ -59,10 +68,12 @@ const LEAK = /\\*"api_?key\\*"\s*:/i
 export function buildBackup(o: {
   watchlists: Watchlists
   chart?: ChartRecords
+  strategies?: readonly PortfolioEntry[]
   now: Date | number
   appVersion: string
 }): string {
   const content: BackupFile['content'] = { watchlists: o.watchlists }
+  if (o.strategies?.length) content.strategyPortfolio = [...o.strategies]
   if (o.chart?.drawings.length) content.chartDrawings = o.chart.drawings
   if (o.chart?.prefs.length) content.chartPrefs = o.chart.prefs
   const file: BackupFile = {
@@ -78,39 +89,47 @@ export function buildBackup(o: {
 }
 
 /**
- * The backup text, within MAX_BACKUP_BYTES: drawings are left out first, then preferences, and
- * `dropped` names what was. The watchlists always stay.
+ * The backup text, within MAX_BACKUP_BYTES: drawings are left out first, then preferences, then
+ * the strategies, and `dropped` names what was. The watchlists always stay.
  */
 export function fitBackup(o: {
   watchlists: Watchlists
   chart: ChartRecords
+  strategies?: readonly PortfolioEntry[]
   now: Date | number
   appVersion: string
-}): { text: string; dropped: ChartSection[] } {
-  const dropped: ChartSection[] = []
+}): { text: string; dropped: BackupSection[] } {
+  const dropped: BackupSection[] = []
   let chart = o.chart
-  let text = buildBackup({ ...o, chart })
+  let strategies = o.strategies
+  let text = buildBackup({ ...o, chart, strategies })
   // The picker refuses a file by its bytes on disk (UTF-8), so that is what is measured.
   if (utf8Length(text) > MAX_BACKUP_BYTES && chart.drawings.length > 0) {
     dropped.push('chartDrawings')
     chart = { ...chart, drawings: [] }
-    text = buildBackup({ ...o, chart })
+    text = buildBackup({ ...o, chart, strategies })
   }
   if (utf8Length(text) > MAX_BACKUP_BYTES && chart.prefs.length > 0) {
     dropped.push('chartPrefs')
     chart = { ...chart, prefs: [] }
-    text = buildBackup({ ...o, chart })
+    text = buildBackup({ ...o, chart, strategies })
+  }
+  if (utf8Length(text) > MAX_BACKUP_BYTES && strategies?.length) {
+    dropped.push('strategyPortfolio')
+    strategies = []
+    text = buildBackup({ ...o, chart, strategies })
   }
   return { text, dropped }
 }
 
-const DROPPED_NAME: Record<ChartSection, string> = {
+const DROPPED_NAME: Record<BackupSection, string> = {
   chartDrawings: 'Chart drawings',
   chartPrefs: 'Chart preferences',
+  strategyPortfolio: 'Strategies',
 }
 
-/** What to tell the user when a backup left chart content out; null when nothing was. */
-export function droppedNotice(dropped: readonly ChartSection[]): string | null {
+/** What to tell the user when a backup left content out; null when nothing was. */
+export function droppedNotice(dropped: readonly BackupSection[]): string | null {
   if (dropped.length === 0) return null
   return dropped
     .map((d) => `${DROPPED_NAME[d]} were left out: the backup would be larger than 2 MB.`)
@@ -156,6 +175,22 @@ function cleanRecords(
     else records.push({ k: r.k, v: r.v })
   }
   return { records, trimmed }
+}
+
+/**
+ * The usable strategies of a `strategyPortfolio` value, at most MAX_STRATEGIES (the extras count
+ * in `trimmed`), less any key named like the API key.
+ */
+function cleanStrategies(v: unknown): { entries: PortfolioEntry[]; trimmed: number } {
+  const entries: PortfolioEntry[] = []
+  let trimmed = 0
+  for (const raw of Array.isArray(v) ? v : []) {
+    const r = PortfolioEntrySchema.safeParse(raw)
+    if (!r.success) continue
+    if (entries.length >= MAX_STRATEGIES) trimmed++
+    else entries.push({ ...r.data, legs: stripKeys(r.data.legs) })
+  }
+  return { entries, trimmed }
 }
 
 /** An entry, its exchange upper-cased ('nse' is NSE); 'unlisted' when no server accepts it. */
@@ -302,6 +337,11 @@ export function parseBackup(text: string, newId: () => string = fallbackId): Par
     if (!(key in raw.content)) continue
     const c = cleanRecords(raw.content[key], key === 'chartDrawings' ? 'drawings' : 'prefs')
     if (c.records.length > 0) content[key] = c.records
+    trimmed += c.trimmed
+  }
+  if ('strategyPortfolio' in raw.content) {
+    const c = cleanStrategies(raw.content.strategyPortfolio)
+    if (c.entries.length > 0) content.strategyPortfolio = c.entries
     trimmed += c.trimmed
   }
   return {

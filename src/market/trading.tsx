@@ -18,6 +18,7 @@ import { createOptionsData, type OptionsData } from './options/data'
 import { type AnalyzerGate, createAnalyzerGate } from './orders/analyzerGate'
 import { createOrderApi, type OrderApi } from './orders/api'
 import { currentBroker } from './session'
+import { createStrategyStore, type StrategyStore } from './strategies/store'
 import type { Watchlists } from './watchlists/model'
 import { createWatchlistsStore, type WatchlistsStore } from './watchlists/store'
 
@@ -172,6 +173,8 @@ export type Trading = {
   master: SymbolMaster
   /** Expiries, futures prices and chains, on the server clock. */
   options: OptionsData
+  /** The device-local Strategy Portfolio (design 7.8), kept per profile and in the backup. */
+  strategies: StrategyStore
 }
 
 /**
@@ -213,6 +216,7 @@ export function createTrading(
       now: o.now,
     }),
     options: createOptionsData({ api: s.api, queryClient: s.queryClient, pid, clock: s.clock }),
+    strategies: createStrategyStore(s.storage, o.now),
   }
 }
 

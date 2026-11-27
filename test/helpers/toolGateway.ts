@@ -23,7 +23,7 @@ export type ToolGateway = {
   saved: SavedFile[]
   /** One request as the page sends it, answered as the page would be. */
   send(
-    method: 'GET' | 'POST',
+    method: DomRequest['method'],
     path: string,
     x?: { query?: Record<string, string>; body?: JSONValue },
   ): Promise<DomReply>

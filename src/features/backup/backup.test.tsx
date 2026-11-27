@@ -120,9 +120,9 @@ test('cancelling the picker shows nothing', async () => {
 
 test('the file is summed up with its notes, and the lists stay until the confirm', async () => {
   await open()
-  await choose(backupText({ watchlists: FILE, strategyPortfolio: { a: 1 } }, 2))
+  await choose(backupText({ watchlists: FILE, somethingNew: { a: 1 } }, 2))
   expect(await screen.findByTestId('backup-summary')).toHaveTextContent('2 lists, 3 symbols')
-  expect(screen.getByText(BACKUP_COPY.skipped(['strategyPortfolio']))).toBeOnTheScreen()
+  expect(screen.getByText(BACKUP_COPY.skipped(['somethingNew']))).toBeOnTheScreen()
   expect(saved()).toEqual(MINE)
 
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
@@ -284,4 +284,79 @@ test('chart records the restore would skip are not counted, and the toast names 
   await waitFor(() => expect(screen.queryByTestId('backup-found')).toBeNull())
   expect(kv.data.has('oa.p1.chartDrawings:NSE:INFY')).toBe(true)
   expect(kv.data.size).toBeGreaterThan(0)
+})
+
+const LEG = {
+  segment: 'OPTION',
+  side: 'SELL',
+  lots: 1,
+  lotSize: 75,
+  expiry: '27NOV25',
+  price: 100,
+  symbol: 'NIFTY27NOV2524500CE',
+}
+const strategy = (id: number, name: string) => ({
+  id,
+  watchlist: 'mytrades',
+  name,
+  underlying: 'NIFTY',
+  exchange: 'NSE_INDEX',
+  expiry: null,
+  legs: [LEG],
+  notes: null,
+  created_at: `c${id}`,
+  updated_at: `c${id}`,
+})
+const stored = () =>
+  (
+    JSON.parse(kv.data.get('oa.p1.strategyPortfolio') ?? '{"items":[]}') as {
+      items: { id: number; name: string }[]
+    }
+  ).items
+
+test('a backup carries strategies; restore adds the missing ones with new ids and skips duplicates', async () => {
+  await open()
+  kv.data.set(
+    'oa.p1.strategyPortfolio',
+    JSON.stringify({ next: 3, items: [strategy(1, 'Mine'), strategy(2, 'Other')] }),
+  )
+  await userEvent.press(screen.getByTestId('backup-create'))
+  await waitFor(() => expect(share).toHaveBeenCalledTimes(1))
+  const made = JSON.parse(share.mock.calls.at(-1)?.[0] ?? '').content
+  expect(made.strategyPortfolio.map((s: { name: string }) => s.name).sort()).toEqual([
+    'Mine',
+    'Other',
+  ])
+
+  // a file with one the phone has (same name, list and creation time) and one it has not
+  await choose(
+    backupText(
+      { strategyPortfolio: [{ ...strategy(7, 'Mine'), created_at: 'c1' }, strategy(8, 'New one')] },
+      2,
+    ),
+  )
+  expect(await screen.findByTestId('backup-summary')).toHaveTextContent('2 strategies')
+  expect(screen.queryByTestId('restore-chart')).toBeNull()
+  await userEvent.press(screen.getByTestId('restore-strategies'))
+  await waitFor(() => expect(screen.queryByTestId('backup-found')).toBeNull())
+  expect(stored().map((s) => [s.id, s.name])).toEqual([
+    [1, 'Mine'],
+    [2, 'Other'],
+    [3, 'New one'],
+  ])
+  expect(BACKUP_COPY.restoredStrategies(1)).toBe('Restored 1 strategy.')
+  expect(BACKUP_COPY.restoredStrategies(2)).toBe('Restored 2 strategies.')
+  expect(saved()).toEqual(MINE)
+})
+
+test('lists and strategies restore together', async () => {
+  await open()
+  await choose(backupText({ watchlists: FILE, strategyPortfolio: [strategy(1, 'A')] }, 2))
+  expect(await screen.findByTestId('backup-summary')).toHaveTextContent(
+    '2 lists, 3 symbols, 1 strategy',
+  )
+  await userEvent.press(screen.getByTestId('restore-merge'))
+  await waitFor(() => expect(screen.queryByTestId('backup-found')).toBeNull())
+  expect(saved().lists).toHaveLength(4)
+  expect(stored().map((s) => s.name)).toEqual(['A'])
 })

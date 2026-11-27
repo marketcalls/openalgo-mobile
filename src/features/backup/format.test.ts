@@ -1,3 +1,4 @@
+import { utf8Length } from '~/dom/gateway/domStorage'
 import { WATCHLIST_LIMITS, type Watchlists } from '~/market/watchlists/model'
 import {
   applyRestore,
@@ -147,8 +148,8 @@ describe('parseBackup (RF 5)', () => {
   })
 
   test('a newer schema keeps the known keys and lists the rest', () => {
-    const r = parsed(wrap({ watchlists: W, strategyPortfolio: { a: 1 } }, { schema: 3 }))
-    expect(r.skipped).toEqual(['strategyPortfolio'])
+    const r = parsed(wrap({ watchlists: W, somethingNew: { a: 1 } }, { schema: 3 }))
+    expect(r.skipped).toEqual(['somethingNew'])
     expect(r.file.content.watchlists?.lists).toHaveLength(2)
     expect(Object.keys(r.file.content)).toEqual(['watchlists'])
   })
@@ -253,9 +254,9 @@ describe('parseBackup (RF 5)', () => {
   })
 
   test('a file with nothing to restore is still a backup', () => {
-    const r = parsed(wrap({ strategyPortfolio: {} }))
+    const r = parsed(wrap({ somethingNew: {} }))
     expect(r.file.content.watchlists).toBeUndefined()
-    expect(r.skipped).toEqual(['strategyPortfolio'])
+    expect(r.skipped).toEqual(['somethingNew'])
   })
 })
 
@@ -515,5 +516,100 @@ describe('chart content', () => {
     const r = parsed(wrap({ chartPrefs: [...many, rec('oac-widget:big', 'x'.repeat(1_000_001))] }))
     expect(r.file.content.chartPrefs).toHaveLength(2000)
     expect(r.trimmed).toBe(1)
+  })
+})
+
+describe('strategies', () => {
+  const leg = {
+    segment: 'OPTION' as const,
+    side: 'SELL' as const,
+    lots: 1,
+    lotSize: 75,
+    expiry: '27NOV25',
+    price: 100,
+    symbol: 'NIFTY27NOV2524500CE',
+  }
+  const entry = (i: number, over: Record<string, unknown> = {}) => ({
+    id: i,
+    watchlist: 'mytrades' as const,
+    name: `S${i}`,
+    underlying: 'NIFTY',
+    exchange: 'NSE_INDEX',
+    expiry: null,
+    legs: [leg],
+    notes: null,
+    created_at: `c${i}`,
+    updated_at: `c${i}`,
+    ...over,
+  })
+
+  test('a backup carries strategies, and they parse back', () => {
+    const text = buildBackup({
+      watchlists: W,
+      strategies: [entry(1), entry(2)],
+      now: NOW,
+      appVersion: '1',
+    })
+    const r = parsed(text)
+    expect(r.file.content.strategyPortfolio).toEqual([entry(1), entry(2)])
+    expect(r.skipped).toEqual([])
+    expect(
+      JSON.parse(buildBackup({ watchlists: W, strategies: [], now: NOW, appVersion: '1' })).content,
+    ).not.toHaveProperty('strategyPortfolio')
+  })
+
+  test('a hand-edited strategy is skipped, a key named apikey is cut, 501 keep 500', () => {
+    const r = parsed(
+      wrap({
+        strategyPortfolio: [
+          entry(1, { legs: [{ ...leg, api_key: 'SECRET', x: { apikey: 'S2', y: 1 } }] }),
+          { id: 'x' },
+          null,
+          entry(2, { watchlist: 'other' }),
+          ...Array.from({ length: 500 }, (_, i) => entry(i + 10)),
+        ],
+      }),
+    )
+    const got = r.file.content.strategyPortfolio ?? []
+    expect(got).toHaveLength(500)
+    expect(got[0]?.legs[0]).toEqual({ ...leg, x: { y: 1 } })
+    expect(r.trimmed).toBe(1)
+  })
+
+  test('over 2 MB: drawings, then prefs, then strategies are left out and named', () => {
+    const big = (k: string) => ({ k, v: 'x'.repeat(700_000) })
+    const fat = (i: number) => entry(i, { legs: [{ ...leg, blob: 'x'.repeat(700_000) }] })
+    const r = fitBackup({
+      watchlists: W,
+      chart: {
+        drawings: [big('oac-widget:chart:drawings:NSE:A'), big('oac-widget:chart:drawings:NSE:B')],
+        prefs: [big('oac-widget:p1'), big('oac-widget:p2')],
+      },
+      strategies: [fat(1), fat(2), fat(3)],
+      now: NOW,
+      appVersion: '1',
+    })
+    expect(r.dropped).toEqual(['chartDrawings', 'chartPrefs', 'strategyPortfolio'])
+    expect(utf8Length(r.text)).toBeLessThanOrEqual(MAX_BACKUP_BYTES)
+    expect(parsed(r.text).file.content.strategyPortfolio).toBeUndefined()
+    expect(droppedNotice(r.dropped)).toContain(
+      'Strategies were left out: the backup would be larger than 2 MB.',
+    )
+  })
+
+  test('strategies stay while the chart content alone makes room', () => {
+    const big = (k: string) => ({ k, v: 'x'.repeat(1_000_000) })
+    const r = fitBackup({
+      watchlists: W,
+      chart: {
+        drawings: [big('oac-widget:chart:drawings:NSE:A'), big('oac-widget:chart:drawings:NSE:B')],
+        prefs: [],
+      },
+      strategies: [entry(1)],
+      now: NOW,
+      appVersion: '1',
+    })
+    expect(r.dropped).toEqual(['chartDrawings'])
+    expect(parsed(r.text).file.content.strategyPortfolio).toHaveLength(1)
   })
 })

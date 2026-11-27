@@ -21,6 +21,14 @@ const ok = (x: unknown) => DomToNativeSchema.safeParse(x).success
 
 test('a DOM request parses', () => expect(ok(req)).toBe(true))
 
+test('a PUT and a DELETE parse (the Strategy Portfolio routes); another verb does not', () => {
+  expect(ok({ ...req, method: 'PUT', path: '/api/strategy-portfolio/7' })).toBe(true)
+  expect(ok({ ...req, method: 'DELETE', path: '/api/strategy-portfolio/7', body: undefined })).toBe(
+    true,
+  )
+  expect(ok({ ...req, method: 'PATCH' })).toBe(false)
+})
+
 test('another version, an unknown kind or an extra key is refused', () => {
   expect(ok({ ...req, v: 2 })).toBe(false)
   const { v: _v, ...noVersion } = req

@@ -1,4 +1,4 @@
-// Back up and restore the watchlists (design 7.7). A backup file holds the lists only. A restore
+// Back up and restore the watchlists, chart content and strategies (design 7.7). A restore
 // shows what the file holds first and changes nothing until Replace is confirmed or Merge is tapped.
 import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
@@ -8,6 +8,7 @@ import { notifySuccess, notifyWarning } from '~/core/platform/haptics'
 import { defaultDeps } from '~/core/services/deps'
 import { useServices } from '~/core/services/services'
 import { writeChartRecords } from '~/dom/gateway/chartStorage'
+import type { PortfolioEntry } from '~/market/strategies/schemas'
 import { useTrading, useWatchlists } from '~/market/trading'
 import { WATCHLIST_LIMITS, type Watchlists } from '~/market/watchlists/model'
 import { Button } from '~/ui/Button'
@@ -21,7 +22,7 @@ import { pickBackup } from '../io'
 
 export const BACKUP_COPY = {
   intro:
-    'A backup holds your watchlists and chart drawings. It never contains your API key or server address.',
+    'A backup holds your watchlists, chart drawings and strategies. It never contains your API key or server address.',
   tooLarge: 'This file is too large to be an OpenAlgo backup.',
   notBackup: "This isn't an OpenAlgo Mobile backup file.",
   createFailed: 'Could not create the backup. Try again.',
@@ -32,6 +33,9 @@ export const BACKUP_COPY = {
   restoredChart: (n: number) => `Restored ${n} chart ${n === 1 ? 'item' : 'items'}.`,
   restoredBoth: (lists: number, items: number) =>
     `Restored ${lists} ${lists === 1 ? 'list' : 'lists'} and ${items} chart ${items === 1 ? 'item' : 'items'}.`,
+  restoredStrategies: (n: number) => `Restored ${n} ${n === 1 ? 'strategy' : 'strategies'}.`,
+  strategyCount: (n: number) => `${n} ${n === 1 ? 'strategy' : 'strategies'}`,
+  strategiesAdded: 'Strategies are added to yours; the ones you already have are kept.',
   chartOnly: (n: number) => `${n} chart ${n === 1 ? 'item' : 'items'}`,
   skipped: (keys: string[]) => `Skipped data this version can't read: ${keys.join(', ')}.`,
   trimmed: (n: number) => `${n} entries were over the limits and were left out.`,
@@ -45,11 +49,17 @@ export const BACKUP_COPY = {
   replaceBody: 'The lists on this phone are removed and the lists from the file take their place.',
 } as const
 
-type Pending = { watchlists: Watchlists | null; chart: ChartRecords; notes: string[] }
+type Pending = {
+  watchlists: Watchlists | null
+  chart: ChartRecords
+  strategies: PortfolioEntry[]
+  notes: string[]
+}
 
 export function BackupScreen() {
   const { c } = useTheme()
-  const store = useTrading().watchlists
+  const trading = useTrading()
+  const store = trading.watchlists
   const { storage } = useServices()
   const current = useWatchlists((w) => w.lists.length)
   const [busy, setBusy] = useState(false)
@@ -75,7 +85,7 @@ export function BackupScreen() {
     setError(null)
     setDropped(null)
     try {
-      const r = await backupNow(store, storage, defaultDeps.now())
+      const r = await backupNow(store, storage, defaultDeps.now(), trading.strategies)
       setDropped(droppedNotice(r.dropped))
     } catch (e) {
       fail(BACKUP_COPY.createFailed, e)
@@ -98,7 +108,10 @@ export function BackupScreen() {
       if (r.skipped.length > 0) notes.push(BACKUP_COPY.skipped(r.skipped))
       if (r.trimmed > 0) notes.push(BACKUP_COPY.trimmed(r.trimmed))
       if (r.unlisted > 0) notes.push(BACKUP_COPY.unlisted(r.unlisted))
+      const strategies = r.file.content.strategyPortfolio ?? []
+      if (strategies.length > 0) notes.push(BACKUP_COPY.strategiesAdded)
       setPending({
+        strategies,
         watchlists: r.file.content.watchlists ?? null,
         chart: {
           drawings: r.file.content.chartDrawings ?? [],
@@ -117,6 +130,7 @@ export function BackupScreen() {
   const restore = async (
     incoming: Watchlists | null,
     chart: ChartRecords,
+    strategies: PortfolioEntry[],
     mode: 'replace' | 'merge',
   ) => {
     setBusy(true)
@@ -125,6 +139,7 @@ export function BackupScreen() {
       // Chart records first: a same-key replace is idempotent, so a retry after a failure here
       // cannot duplicate lists (a merge of the lists is not idempotent).
       const items = await writeChartRecords(storage, chart)
+      const added = strategies.length > 0 ? await trading.strategies.merge(strategies) : null
       let leftOut = 0
       if (incoming) {
         await store.getState().apply((w) => {
@@ -140,14 +155,17 @@ export function BackupScreen() {
           : incoming && leftOut === 0
             ? BACKUP_COPY.restoredBoth(incoming.lists.length, items)
             : BACKUP_COPY.restoredChart(items)
+      const strategyNote = added === null ? null : BACKUP_COPY.restoredStrategies(added)
       if (leftOut > 0) {
-        const text = [BACKUP_COPY.leftOut(leftOut), chartNote].filter(Boolean).join(' ')
+        const text = [BACKUP_COPY.leftOut(leftOut), chartNote, strategyNote]
+          .filter(Boolean)
+          .join(' ')
         notifyWarning()
         setError(text)
         toast(text)
       } else {
         notifySuccess()
-        toast(chartNote ?? BACKUP_COPY.restored)
+        toast([chartNote, strategyNote].filter(Boolean).join(' ') || BACKUP_COPY.restored)
       }
     } catch (e) {
       fail(BACKUP_COPY.restoreFailed, e)
@@ -156,7 +174,11 @@ export function BackupScreen() {
     }
   }
 
-  const replace = async (incoming: Watchlists, chart: ChartRecords) => {
+  const replace = async (
+    incoming: Watchlists,
+    chart: ChartRecords,
+    strategies: PortfolioEntry[],
+  ) => {
     const ok = await confirm(
       BACKUP_COPY.replaceTitle(current),
       BACKUP_COPY.replaceBody,
@@ -165,11 +187,12 @@ export function BackupScreen() {
         destructive: true,
       },
     )
-    if (ok) await restore(incoming, chart, 'replace')
+    if (ok) await restore(incoming, chart, strategies, 'replace')
   }
 
   const found = pending?.watchlists ?? null
   const chartItems = pending ? pending.chart.drawings.length + pending.chart.prefs.length : 0
+  const strategyItems = pending?.strategies.length ?? 0
   return (
     <ScrollView contentContainerStyle={styles.body} testID="backup-screen">
       <Stack.Screen
@@ -216,6 +239,7 @@ export function BackupScreen() {
                   )
                 : null,
               chartItems > 0 ? BACKUP_COPY.chartOnly(chartItems) : null,
+              strategyItems > 0 ? BACKUP_COPY.strategyCount(strategyItems) : null,
             ]
               .filter(Boolean)
               .join(', ') || BACKUP_COPY.nothing}
@@ -232,22 +256,28 @@ export function BackupScreen() {
                 title="Replace my watchlists"
                 variant="destructive"
                 loading={busy}
-                onPress={() => void replace(found, pending.chart)}
+                onPress={() => void replace(found, pending.chart, pending.strategies)}
               />
               <Button
                 testID="restore-merge"
                 title="Add to my watchlists"
                 variant="secondary"
                 loading={busy}
-                onPress={() => void restore(found, pending.chart, 'merge')}
+                onPress={() => void restore(found, pending.chart, pending.strategies, 'merge')}
               />
             </>
-          ) : chartItems > 0 ? (
+          ) : chartItems > 0 || strategyItems > 0 ? (
             <Button
-              testID="restore-chart"
-              title="Restore chart items"
+              testID={chartItems > 0 ? 'restore-chart' : 'restore-strategies'}
+              title={
+                strategyItems === 0
+                  ? 'Restore chart items'
+                  : chartItems === 0
+                    ? 'Restore strategies'
+                    : 'Restore chart items and strategies'
+              }
               loading={busy}
-              onPress={() => void restore(null, pending.chart, 'merge')}
+              onPress={() => void restore(null, pending.chart, pending.strategies, 'merge')}
             />
           ) : null}
         </View>

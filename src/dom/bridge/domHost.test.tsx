@@ -156,7 +156,7 @@ test('a malformed message is refused and reaches no handler', async () => {
     { ...loaded, extra: SECRET },
     { ...req(1), rid: -1 },
     { ...req(1), path: '/api/../auth/csrf-token' },
-    { ...req(1), method: 'DELETE' },
+    { ...req(1), method: 'PATCH' },
     { ...storageGet, apikey: SECRET },
     { ...socketOpen, sid: 1000 },
     { ...intent, intent: { ...intent.intent, lots: 0 } },

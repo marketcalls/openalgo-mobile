@@ -40,7 +40,7 @@ export type DomRequest = {
   v: typeof BRIDGE_VERSION
   kind: 'request'
   rid: number
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   path: string
   query?: Record<string, string>
   body?: JSONValue
