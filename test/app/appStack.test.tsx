@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { act, render, waitFor } from '@testing-library/react-native'
 import AppLayout from '~/app/(app)/_layout'
 import { useSession } from '~/core/services/services'
+import { toast } from '~/ui/Toast'
 
 // The real app layout, whose stack records the screens it declares (preflight conflict 32): only
 // the options each route is given are under test here.
@@ -108,5 +109,17 @@ test('optionchain/[key] has no header', async () => {
   const chain = mockScreens.filter((s) => s.name === 'optionchain/[key]').at(-1)
   // the chain draws its own header (OptionChainScreen), as the tool route does
   expect(chain?.options).toEqual({ headerShown: false })
+  await act(async () => view.unmount())
+})
+
+// A link refused at a cold start toasts before the unlock prompt is answered (+native-intent):
+// the host holds it under the lock, so it is not spent behind the overlay.
+test('a toast waits while the app is locked', async () => {
+  const view = await render(<AppLayout />)
+  await waitFor(() => expect(mockScreens.length).toBeGreaterThan(0))
+  await act(async () => toast('Orders cannot open from here'))
+  // the overlay hides the app from a screen reader, so look past that
+  expect(view.queryByTestId('toast', { includeHiddenElements: true })).toBeNull()
+  expect(view.getByTestId('lock-overlay', { includeHiddenElements: true })).toBeOnTheScreen()
   await act(async () => view.unmount())
 })

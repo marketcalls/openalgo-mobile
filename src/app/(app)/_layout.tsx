@@ -221,7 +221,7 @@ function AppShell({ s }: { s: Services }) {
                   {/* The chain draws its own header: only its ladder scrolls. */}
                   <Stack.Screen name="optionchain/[key]" options={{ headerShown: false }} />
                 </Stack>
-                <ToastHost />
+                <ToastHost hold={locked} />
               </View>
               {locked ? (
                 <LockLayer>

@@ -18,6 +18,9 @@ Writing a flow:
   repeat `back` while one of its ids is visible.
 - A button that waits for a read (Confirm in the review, Modify order) is tapped with
   `enabled: true`.
+- Reach the order ticket, the modify sheet and the GTT screens through the UI, never with
+  `openLink`: a link from outside the app opens the instrument sheet instead
+  (`src/app/+native-intent.tsx`). `scripts/e2e-ids.test.mjs` checks it.
 
 | Flow | Mock server | What it checks |
 |---|---|---|

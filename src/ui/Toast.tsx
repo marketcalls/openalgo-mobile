@@ -30,16 +30,20 @@ export function toast(text: string): void {
   announce(text)
 }
 
-export function ToastHost() {
+/**
+ * `hold` (the app is locked) keeps a toast off screen with its timer stopped, so one that came
+ * under the lock, such as a refused link's at a cold start, shows for its full time after.
+ */
+export function ToastHost({ hold = false }: { hold?: boolean }) {
   const { id, text } = useToastStore()
   const { c } = useTheme()
   // biome-ignore lint/correctness/useExhaustiveDependencies: `id` restarts the timer for a new toast
   useEffect(() => {
-    if (text === null) return
+    if (text === null || hold) return
     const t = setTimeout(() => useToastStore.setState({ text: null }), toastMs(text))
     return () => clearTimeout(t)
-  }, [id, text])
-  if (text === null) return null
+  }, [id, text, hold])
+  if (text === null || hold) return null
   return (
     <View pointerEvents="none" style={styles.wrap}>
       <View

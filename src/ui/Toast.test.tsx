@@ -39,6 +39,20 @@ describe('Toast', () => {
     expect(screen.queryByTestId('toast')).toBeNull()
   })
 
+  // A link refused at a cold start toasts before the unlock prompt is answered (+native-intent).
+  test('a held host (the app is locked) keeps the toast, then shows it for its full time', async () => {
+    const view = await render(<ToastHost hold />)
+    await act(async () => toast('Orders cannot open from here'))
+    await act(async () => jest.advanceTimersByTime(TOAST_MS * 5))
+    expect(screen.queryByTestId('toast')).toBeNull()
+    await view.rerender(<ToastHost hold={false} />)
+    expect(screen.getByTestId('toast')).toHaveTextContent('Orders cannot open from here')
+    await act(async () => jest.advanceTimersByTime(TOAST_MS - 1))
+    expect(screen.getByTestId('toast')).toBeOnTheScreen()
+    await act(async () => jest.advanceTimersByTime(1))
+    expect(screen.queryByTestId('toast')).toBeNull()
+  })
+
   test('VoiceOver hears it: iOS announces each toast, Android reads the live region', async () => {
     const say = jest
       .spyOn(AccessibilityInfo, 'announceForAccessibility')

@@ -64,6 +64,21 @@ test('every README template has its static prefix in src/', () => {
   assert.deepEqual(missing, [])
 })
 
+// A link from outside the app never opens an order screen (src/app/+native-intent.tsx): on the
+// device it would open the instrument sheet, so a flow reaches those screens through the UI.
+test('no flow opens the ticket, modify or a GTT screen by link', () => {
+  const offending = []
+  for (const f of readdirSync(e2e).filter((n) => n.endsWith('.yaml'))) {
+    const lines = readFileSync(join(e2e, f), 'utf8').split('\n')
+    for (const [i, line] of lines.entries()) {
+      if (/openLink|^\s*link:/.test(line) && /(order|gtt)(\/|%2f)/i.test(line)) {
+        offending.push(`${f}:${i + 1} ${line.trim()}`)
+      }
+    }
+  }
+  assert.deepEqual(offending, [])
+})
+
 test('the trading flows and the mock control script exist and start from a clean app', () => {
   for (const f of ['trading-analyzer', 'trading-semiauto', 'depth-levels']) {
     const text = readFileSync(join(e2e, `${f}.yaml`), 'utf8')
