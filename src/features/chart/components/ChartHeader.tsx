@@ -1,12 +1,13 @@
 // The chart's own header (the route shows none, so a pan never meets a back swipe): back, the
 // instrument, its price and the day's change, and the facts that stand for a review before a
-// one-tap order (design 7.10): the server's mode, and One-tap while it is on. The mode shows only
-// once it is known (preflight conflict 7). Depth for anything tradeable.
+// one-tap order (design 7.10): the server's mode, and One-tap while it is on, with the product it
+// sends here. The mode shows only once it is known (preflight conflict 7). Depth for anything
+// tradeable.
 import { Pressable, StyleSheet, View } from 'react-native'
 import { useLiveQuote } from '~/core/realtime/useLive'
 import type { Inst } from '~/dom/bridge/protocol'
 import { ModeBadge } from '~/market/components/ModeBadge'
-import { isQuoteOnly } from '~/market/instruments/exchanges'
+import { defaultProduct, isQuoteOnly } from '~/market/instruments/exchanges'
 import { Badge } from '~/ui/Badge'
 import { Change } from '~/ui/Change'
 import { fmtPrice } from '~/ui/format'
@@ -53,7 +54,13 @@ export function ChartHeader(p: {
       {p.priced ? (
         <View style={styles.facts}>
           {p.mode === 'unknown' ? null : <ModeBadge mode={p.mode} testID="chart-mode" />}
-          {p.oneTap ? <Badge testID="chart-onetap" label="One-tap" tone="warning" /> : null}
+          {p.oneTap ? (
+            <Badge
+              testID="chart-onetap"
+              label={isQuoteOnly(exchange) ? 'One-tap' : `One-tap · ${defaultProduct(exchange)}`}
+              tone="warning"
+            />
+          ) : null}
           <View style={styles.fill} />
           {isQuoteOnly(exchange) ? null : (
             <Pressable

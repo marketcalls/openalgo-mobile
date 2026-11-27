@@ -36,8 +36,9 @@ export const ACCOUNT_COPY = {
 
 /** What turning one-tap on means, which the switch asks the user to accept first (design 7.10). */
 export const ONE_TAP_COPY =
-  'BUY and SELL on the chart will place a market order at once, without the review step. ' +
-  'A live order still asks for biometrics when that is on.'
+  'BUY and SELL on the chart will place a market order at once, without the review step, in ' +
+  "the exchange's default product: CNC (delivery) for shares, NRML for futures, options and " +
+  'commodities. A live order still asks for biometrics when that is on.'
 
 const LOCK_AFTER = [
   { ms: 60_000, label: '1 min' },

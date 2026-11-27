@@ -493,8 +493,9 @@ describe('account screen', () => {
 
   test('one-tap is off by default and turning it on asks with the warning', async () => {
     expect(ONE_TAP_COPY).toBe(
-      'BUY and SELL on the chart will place a market order at once, without the review step. ' +
-        'A live order still asks for biometrics when that is on.',
+      'BUY and SELL on the chart will place a market order at once, without the review step, in ' +
+        "the exchange's default product: CNC (delivery) for shares, NRML for futures, options and " +
+        'commodities. A live order still asks for biometrics when that is on.',
     )
     await setup()
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {})
