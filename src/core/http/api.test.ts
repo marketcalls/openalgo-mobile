@@ -113,7 +113,7 @@ test('B4 Dedupe', async () => {
   expect(sent('placeorder')).toEqual([order, order])
 
   const key = run.mock.calls[0]?.[0].dedupeKey
-  expect(key).toBe('quotes {"exchange":"NSE","symbol":"RELIANCE"}')
+  expect(key).toMatch(/^quotes s\d+ \{"exchange":"NSE","symbol":"RELIANCE"\}$/)
   expect(key).not.toContain(KEY)
 
   // once the shared request settles, the next read goes out afresh
@@ -135,10 +135,33 @@ test('a fresh read goes out on its own, beside the same read already out', async
   await Promise.all(calls)
   expect(sent('orderbook')).toHaveLength(2)
   expect(run.mock.calls.map(([r]) => r.dedupeKey)).toEqual([
-    'orderbook {}',
+    expect.stringMatching(/^orderbook s\d+ \{\}$/),
     undefined,
-    'orderbook {}',
+    expect.stringMatching(/^orderbook s\d+ \{\}$/),
   ])
+})
+
+test('the same read parsed with two schemas is two requests: neither gets the other parse', async () => {
+  // a page's raw optionchain (PassThroughSchema) beside a native read of the same body
+  // (OptionChainSchema) once swapped replies: the page got a parsed chain, native a raw one
+  const raw = z.looseObject({ status: z.string() })
+  const parsed = z
+    .looseObject({ status: z.string(), data: z.object({ ok: z.boolean() }) })
+    .transform((d) => ({ parsed: d.data.ok }))
+  const { api, sent } = setup({ 'POST /api/v1/optionchain': later(100, OK) })
+  const body = { underlying: 'NIFTY', exchange: 'NFO', expiry_date: '01DEC26' }
+  const calls = [
+    api.call('optionchain', body, raw),
+    api.call('optionchain', body, parsed),
+    api.call('optionchain', { ...body }, raw),
+  ]
+  await jest.advanceTimersByTimeAsync(100)
+  const [a, b, c] = await Promise.all(calls)
+  expect(sent('optionchain')).toHaveLength(2)
+  expect(a).toEqual({ status: 'success', data: { ok: true } })
+  expect(b).toEqual({ parsed: true })
+  // the same schema still shares
+  expect(c).toBe(a)
 })
 
 describe('Deduped callers abort on their own (ruling 3b)', () => {
@@ -399,13 +422,14 @@ describe('KeyedApi.get', () => {
 
   test('KeyedApi.get shares one request for the same query', async () => {
     const { api, fetch } = setup({ 'GET /api/v1/instruments': CSV })
+    const text = z.string()
     const [a, b] = await Promise.all([
-      api.get('instruments', { exchange: 'NSE', x: '1' }, z.string(), { withKey: true }),
-      api.get('instruments', { x: '1', exchange: 'NSE' }, z.string(), { withKey: true }),
+      api.get('instruments', { exchange: 'NSE', x: '1' }, text, { withKey: true }),
+      api.get('instruments', { x: '1', exchange: 'NSE' }, text, { withKey: true }),
     ])
     expect([a, b]).toEqual(['a,b\n', 'a,b\n'])
     expect(fetch.calls).toHaveLength(1)
-    await api.get('instruments', { exchange: 'NFO' }, z.string(), { withKey: true })
+    await api.get('instruments', { exchange: 'NFO' }, text, { withKey: true })
     expect(fetch.calls).toHaveLength(2)
   })
 

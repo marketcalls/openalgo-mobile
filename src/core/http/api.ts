@@ -49,6 +49,22 @@ export function stableJson(v: unknown): string {
   )
 }
 
+/** Each schema object's own number. Callers share a request only when they parse it with the
+ *  same schema: a shared promise carries one parse, so a page's raw pass-through and a native
+ *  read of the same body must never swap replies (optionchain: PassThroughSchema beside
+ *  OptionChainSchema). */
+const schemaIds = new WeakMap<object, number>()
+let lastSchemaId = 0
+function schemaKey(schema: object): number {
+  let n = schemaIds.get(schema)
+  if (n === undefined) {
+    lastSchemaId += 1
+    n = lastSchemaId
+    schemaIds.set(schema, n)
+  }
+  return n
+}
+
 /** The fields to drop when `e` is a read refusing only optional fields that were sent. */
 function healable(def: EndpointDef, sent: Record<string, unknown>, e: unknown) {
   if (!(e instanceof ApiError) || e.kind !== 'Unsupported' || !e.unknownFields) return undefined
@@ -69,8 +85,8 @@ export function createApi({ http, scheduler, fields }: ApiDeps): KeyedApi {
       endpoint: id,
       lane: ENDPOINTS[id].lane,
       // The body never holds the key: the client adds it. The scheduler skips orders, and a
-      // fresh read is never shared.
-      dedupeKey: o?.fresh ? undefined : `${id} ${stableJson(body)}`,
+      // fresh read is never shared; a read parsed with another schema is another read.
+      dedupeKey: o?.fresh ? undefined : `${id} s${schemaKey(schema)} ${stableJson(body)}`,
       // The caller's abort rejects only this call; the request itself aborts on the
       // scheduler's signal, once every caller sharing it has aborted.
       signal: o?.signal,
@@ -85,7 +101,7 @@ export function createApi({ http, scheduler, fields }: ApiDeps): KeyedApi {
       return scheduler.run({
         endpoint: id,
         lane: ENDPOINTS[id].lane,
-        dedupeKey: o?.fresh ? undefined : `${id} ${stableJson(query)}`,
+        dedupeKey: o?.fresh ? undefined : `${id} s${schemaKey(schema)} ${stableJson(query)}`,
         signal: o?.signal,
         exec: (signal) => get(id, query, schema, { ...o, signal }),
       })
