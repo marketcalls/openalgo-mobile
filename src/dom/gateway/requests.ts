@@ -97,17 +97,40 @@ const errorName = (e: unknown) => (e instanceof Error ? e.name : typeof e)
  * gates every request, so a hidden chart's 30 s history tail stops (design 7.5). A path no route
  * has is refused at once, without the wait, and so is a request past MAX_DOM_INFLIGHT (429). A
  * request the page aborts rejects, which DomHost takes as given up.
+ *
+ * `slotKey` names the requests that go as one (identical ones waiting through one hidden period,
+ * which the caller coalesces): they hold one slot between them, from the first one's arrival to
+ * the last one's end, so a page on Auto behind another screen is never refused its newest tick
+ * (conflict 17 counted each). Null for a request that goes on its own, as every order write does.
  */
 export function createRequestRouter(
   routes: readonly Route[],
-  o: { whenActive?: () => Promise<void> } = {},
+  o: { whenActive?: () => Promise<void>; slotKey?: (r: DomRequest) => string | null } = {},
 ): (r: DomRequest, signal: AbortSignal) => Promise<DomReply> {
   let inflight = 0
+  /** The requests sharing a slot, by their key. */
+  const sharing = new Map<string, number>()
+  const release = (key: string | null) => {
+    if (key === null) {
+      inflight--
+      return
+    }
+    const left = (sharing.get(key) ?? 1) - 1
+    if (left > 0) {
+      sharing.set(key, left)
+      return
+    }
+    sharing.delete(key)
+    inflight--
+  }
   return async (r, signal) => {
     const route = routes.find((x) => x.method === r.method && x.path === r.path)
     if (!route) return refused()
-    if (inflight >= MAX_DOM_INFLIGHT) return tooMany()
-    inflight++
+    const key = o.slotKey?.(r) ?? null
+    const joins = key !== null && sharing.has(key)
+    if (!joins && inflight >= MAX_DOM_INFLIGHT) return tooMany()
+    if (!joins) inflight++
+    if (key !== null) sharing.set(key, (sharing.get(key) ?? 0) + 1)
     try {
       await untilActive(o.whenActive ?? (async () => {}), signal)
       return await route.handle(r, signal)
@@ -117,7 +140,7 @@ export function createRequestRouter(
       if (!(e instanceof ApiError)) log.warn('dom', `a route failed: ${errorName(e)}`)
       return fromApiError(e)
     } finally {
-      inflight--
+      release(key)
     }
   }
 }

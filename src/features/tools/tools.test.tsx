@@ -37,6 +37,7 @@ import type {
   ToolIntent,
 } from '~/dom/bridge/protocol'
 import { CANCELLED_COPY } from '~/dom/gateway/heldWrites'
+import { MAX_DOM_INFLIGHT } from '~/dom/gateway/requests'
 import { brokerCaps } from '~/market/brokers/seed'
 import { CHECKING } from '~/market/orders/outcome'
 import { holdOrder, otherOrderOut } from '~/market/orders/pending'
@@ -1066,6 +1067,60 @@ describe('the gateway', () => {
         body: { status: 'success', expiries: ['02-DEC-26', '30-DEC-26'] },
       })
     }
+  })
+
+  test('hidden for many Auto ticks: identical waiting requests share one slot, so none is refused and the newest gets the reply', async () => {
+    // IV Smile on Auto every 30 s, behind another screen for over 4 minutes: more identical
+    // requests than MAX_DOM_INFLIGHT wait, and the page keeps only its newest one's answer
+    await setup()
+    await openReady()
+    await setFocus(false)
+    const query = { exchange: 'NFO', underlying: 'NIFTY', instrumenttype: 'options' }
+    const ticks = Array.from({ length: MAX_DOM_INFLIGHT + 4 }, () =>
+      request('GET', '/search/api/expiries', { query }),
+    )
+    await pass(1_000)
+    expect(ticks.every((r) => r.reply === null)).toBe(true)
+    // distinct requests still count one slot each: the cap holds
+    const others = Array.from({ length: MAX_DOM_INFLIGHT - 1 }, (_, i) =>
+      request('GET', '/search/api/expiries', { query: { ...query, underlying: `U${i}` } }),
+    )
+    const over = request('GET', '/search/api/expiries', { query: { ...query, underlying: 'U9' } })
+    await pass(20)
+    expect(others.every((r) => r.reply === null)).toBe(true)
+    expect(over.reply?.status).toBe(429)
+
+    await setFocus(true)
+    await pass(2_000)
+    // the ticks as one call, and each other underlying's own
+    expect(requests('expiry').length).toBe(MAX_DOM_INFLIGHT)
+    for (const r of ticks) {
+      expect(r.reply).toEqual({
+        status: 200,
+        body: { status: 'success', expiries: ['02-DEC-26', '30-DEC-26'] },
+      })
+    }
+  })
+
+  test('two identical held orders that wait through one hidden period are two reviews, never one', async () => {
+    await setup()
+    await openReady()
+    await setFocus(false)
+    const a = await placeorder()
+    const b = await placeorder()
+    await pass(1_000)
+    await setFocus(true)
+    await pass(100)
+    // the first is on show, the second waits its turn: each is its own order
+    expect(screen.getByTestId('tool-held-sheet')).toBeTruthy()
+    expect(text('tool-held-queue')).toBe(heldQueueLine(1))
+    await press('tool-held-cancel')
+    expect(a.reply).toEqual({ status: 400, body: { status: 'error', message: CANCELLED_COPY } })
+    expect(b.reply).toBeNull()
+    expect(screen.getByTestId('tool-held-sheet')).toBeTruthy()
+    await press('tool-held-cancel')
+    expect(b.reply).toEqual({ status: 400, body: { status: 'error', message: CANCELLED_COPY } })
+    expect(requests('placeorder')).toHaveLength(0)
   })
 
   test('a waiting request the page gives up on leaves its group; the others still get the reply', async () => {

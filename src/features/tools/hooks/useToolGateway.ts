@@ -184,16 +184,36 @@ export function useToolGateway(o: {
     const { page } = latest.current
     /** The hidden period each request that arrived hidden joins, by request. */
     const arrivals = new WeakMap<DomRequest, Map<string, Group>>()
+    /** Each hidden period's own number, for the router's shared slots. */
+    const periods = new WeakMap<Map<string, Group>, number>()
+    let lastPeriod = 0
+    const isOrderWrite = (r: { method: string; path: string }) =>
+      r.method === 'POST' && ORDER_WRITE_PATHS.has(r.path)
+    const groupKey = (r: DomRequest) =>
+      `${r.method} ${r.path} ${stableJson({ q: r.query ?? null, b: r.body ?? null })}`
+    /** The slot a request that waits through a hidden period shares with those identical to it,
+     *  which go as one (coalesce); an order write, or one that arrived in front, has its own. */
+    const slotKey = (r: DomRequest): string | null => {
+      const groups = arrivals.get(r)
+      if (!groups || isOrderWrite(r)) return null
+      let n = periods.get(groups)
+      if (n === undefined) {
+        lastPeriod += 1
+        n = lastPeriod
+        periods.set(groups, n)
+      }
+      return `${n} ${groupKey(r)}`
+    }
 
     /** Identical waiting requests go as one; an order write never merges with another. */
     const coalesce = (route: Route): Route => {
-      if (route.method === 'POST' && ORDER_WRITE_PATHS.has(route.path)) return route
+      if (isOrderWrite(route)) return route
       return {
         ...route,
         handle(r, signal) {
           const groups = arrivals.get(r)
           if (!groups) return route.handle(r, signal)
-          const key = `${r.method} ${r.path} ${stableJson({ q: r.query ?? null, b: r.body ?? null })}`
+          const key = groupKey(r)
           let g = groups.get(key)
           if (!g) {
             const ctl = new AbortController()
@@ -263,7 +283,7 @@ export function useToolGateway(o: {
       }),
       ...createHeldWriteRoutes(held, page, { reviewable: new Set(['placeorder']) }),
     ].map(coalesce)
-    const route = createRequestRouter(routes, { whenActive })
+    const route = createRequestRouter(routes, { whenActive, slotKey })
     const primary = PRIMARY_ROUTE[page]
     const long = longPaths(page)
     /** When each long pass still out started, by its own token. */

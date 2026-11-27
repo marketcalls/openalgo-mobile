@@ -283,7 +283,10 @@ describe('the chart routes', () => {
 
 describe('the in-flight cap', () => {
   /** A router whose Api.call settles only when told to, or when its request aborts. */
-  function held(o?: { whenActive?: () => Promise<void> }) {
+  function held(o?: {
+    whenActive?: () => Promise<void>
+    slotKey?: (r: DomRequest) => string | null
+  }) {
     const pending: Array<{ answer(): void; fail(): void }> = []
     const call = jest.fn<ReturnType<Call>, Parameters<Call>>(
       (id, _b, _s, c) =>
@@ -363,6 +366,48 @@ describe('the in-flight cap', () => {
     await expect(Promise.all(waiting.map((w) => w.reply))).resolves.toHaveLength(
       MAX_DOM_INFLIGHT - 1,
     )
+  })
+
+  test('requests with one slotKey share one slot until the last of them ends; a null key has its own', async () => {
+    let show = () => {}
+    const shown = new Promise<void>((r) => (show = r))
+    // the key a caller gives requests that go as one: here, by query
+    const slotKey = (r: DomRequest) => {
+      const q = (r.body as { query?: string } | undefined)?.query
+      return q?.startsWith('same') ? q : null
+    }
+    const { send } = held({ whenActive: () => shown, slotKey })
+    const same = Array.from({ length: MAX_DOM_INFLIGHT * 2 }, () =>
+      send(req('/api/v1/search', { query: 'same' })),
+    )
+    const own = Array.from({ length: MAX_DOM_INFLIGHT - 1 }, () =>
+      send(req('/api/v1/search', { query: 'INF' })),
+    )
+    await settle()
+    // 1 shared slot + 7 own: full; a new key or a null key is refused, the same key joins
+    await expect(send(req('/api/v1/search', { query: 'same-2' })).reply).resolves.toEqual(TOO_MANY)
+    await expect(send(req('/api/v1/search', { query: 'INF' })).reply).resolves.toEqual(TOO_MANY)
+    const late = send(req('/api/v1/search', { query: 'same' }))
+    // all but one sharer give up: the slot stays with the last
+    for (const r of same) r.ctl.abort()
+    await Promise.allSettled(same.map((r) => r.reply))
+    await expect(send(req('/api/v1/search', { query: 'same-3' })).reply).resolves.toEqual(TOO_MANY)
+    // the last one ends: the slot is free
+    late.ctl.abort()
+    await expect(late.reply).rejects.toBeInstanceOf(Error)
+    const next = send(req('/api/v1/search', { query: 'same-4' }))
+    let refusedNext = false
+    void next.reply.then(
+      (x) => {
+        refusedNext = x.status === 429
+      },
+      () => {},
+    )
+    await settle()
+    expect(refusedNext).toBe(false)
+    show()
+    for (const r of [...own, next]) r.ctl.abort()
+    await Promise.allSettled([...own, next].map((r) => r.reply))
   })
 
   test('each router counts its own page', async () => {
