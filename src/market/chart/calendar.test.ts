@@ -3,8 +3,10 @@ import { log } from '~/core/log/logger'
 import {
   calendarExchange,
   calendarSpec,
+  DEFAULT_CALENDARS,
   DEFAULT_TIMINGS,
   IST_OFFSET_MS,
+  inSession,
   loadCalendars,
   timingOffsets,
   yearsAround,
@@ -147,6 +149,66 @@ describe('calendarSpec', () => {
       calendarSpec('NSE', DEFAULT_TIMINGS, []),
     )
     expect(calendarSpec('NCDEX', DEFAULT_TIMINGS, [])).toBeNull()
+  })
+})
+
+describe('inSession', () => {
+  /** An IST wall-clock time on a date, as epoch ms. */
+  const ist = (d: string, hhmm: string) =>
+    midnight(d) + (Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(2))) * 60_000
+
+  test('the weekly session on its weekdays, from its open up to its close', () => {
+    const nse = DEFAULT_CALENDARS.NSE
+    if (!nse) throw new Error('no NSE')
+    // Friday 2026-11-27
+    expect(inSession(nse, ist('2026-11-27', '0914'))).toBe(false)
+    expect(inSession(nse, ist('2026-11-27', '0915'))).toBe(true)
+    expect(inSession(nse, ist('2026-11-27', '1529'))).toBe(true)
+    expect(inSession(nse, ist('2026-11-27', '1530'))).toBe(false)
+    // Saturday and Sunday are not in 23456
+    expect(inSession(nse, ist('2026-11-28', '1000'))).toBe(false)
+    expect(inSession(nse, ist('2026-11-29', '1000'))).toBe(false)
+  })
+
+  test("a date's exceptions replace the week: a holiday closes it, a special session is its window", () => {
+    const spec = calendarSpec('NSE', DEFAULT_TIMINGS, [
+      {
+        date: '2026-11-27',
+        holiday_type: 'TRADING_HOLIDAY',
+        closed_exchanges: ['NSE'],
+        open_exchanges: [],
+      },
+      {
+        date: '2026-11-29',
+        holiday_type: 'SPECIAL_SESSION',
+        closed_exchanges: [],
+        open_exchanges: [
+          {
+            exchange: 'NSE',
+            start_time: ist('2026-11-29', '1800'),
+            end_time: ist('2026-11-29', '1900'),
+          },
+        ],
+      },
+    ])
+    if (!spec) throw new Error('no spec')
+    expect(inSession(spec, ist('2026-11-27', '1000'))).toBe(false)
+    expect(inSession(spec, ist('2026-11-29', '1000'))).toBe(false)
+    expect(inSession(spec, ist('2026-11-29', '1830'))).toBe(true)
+  })
+
+  test('CRYPTO is in session at any hour of any day', () => {
+    const crypto = DEFAULT_CALENDARS.CRYPTO
+    if (!crypto) throw new Error('no CRYPTO')
+    expect(inSession(crypto, ist('2026-11-29', '0300'))).toBe(true)
+    expect(inSession(crypto, ist('2026-11-27', '2359'))).toBe(true)
+  })
+
+  test("the defaults are every exchange's default hours, with no holidays", () => {
+    expect(Object.keys(DEFAULT_CALENDARS).sort()).toEqual(
+      DEFAULT_TIMINGS.map((r) => r.exchange).sort(),
+    )
+    expect(DEFAULT_CALENDARS.MCX).toEqual(calendarSpec('MCX', DEFAULT_TIMINGS, []))
   })
 })
 

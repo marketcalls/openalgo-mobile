@@ -201,6 +201,16 @@ function AppShell({ s }: { s: Services }) {
                       headerShadowVisible: false,
                     }}
                   />
+                  {/* The chart draws its own header, and owns every pan: no edge swipe back. */}
+                  <Stack.Screen
+                    name="chart/[key]"
+                    options={{
+                      headerShown: false,
+                      gestureEnabled: false,
+                      fullScreenGestureEnabled: false,
+                      animation: 'slide_from_right',
+                    }}
+                  />
                   <Stack.Screen
                     name="optionchain/[key]"
                     options={{

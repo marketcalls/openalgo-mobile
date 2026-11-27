@@ -175,6 +175,40 @@ const build = (timings: readonly TimingRow[], holidays: readonly HolidayRow[]) =
   return calendars
 }
 
+/**
+ * Every exchange's calendar at the server's default hours, with no holidays: what the chart
+ * opens with while the server's own calendar is not in yet.
+ */
+export const DEFAULT_CALENDARS: Readonly<Record<string, CalendarSpecJson>> = Object.freeze(
+  build(DEFAULT_TIMINGS, []),
+)
+
+/** `HHMM-HHMM`, with the opening weekdays (1 Sunday to 7) when it is a weekly session. */
+const WINDOW = /^(\d{2})(\d{2})-(\d{2})(\d{2})(?::([1-7]+))?$/
+
+/**
+ * Whether a calendar's regular session is on at `now` (epoch ms): the date's exceptions when it
+ * has any (an empty list closes it), else the weekly sessions on their weekdays. A window from
+ * a time to itself (`0000-0000`) is the whole day. The pre-open is not the session. It reads the
+ * specs `calendarSpec` writes: IST or UTC, and no window past midnight.
+ */
+export function inSession(spec: CalendarSpecJson, now: number): boolean {
+  const local = new Date(now + (spec.timezone === 'UTC' ? 0 : IST_OFFSET_MS))
+  const date = local.toISOString().slice(0, 10)
+  const minute = local.getUTCHours() * 60 + local.getUTCMinutes()
+  const weekday = String(local.getUTCDay() + 1)
+  const exception = spec.exceptions[date]
+  return (exception ?? spec.sessions).some((w) => {
+    const m = WINDOW.exec(w)
+    if (!m) return false
+    const [, h1, m1, h2, m2, days] = m
+    if (exception === undefined && days !== undefined && !days.includes(weekday)) return false
+    const open = Number(h1) * 60 + Number(m1)
+    const close = Number(h2) * 60 + Number(m2)
+    return open === close || (open <= minute && minute < close)
+  })
+}
+
 const isWeekend = (day: string) => [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay())
 
 const previousDay = (day: string) => istDate(Date.parse(`${day}T00:00:00Z`) - DAY_MS)

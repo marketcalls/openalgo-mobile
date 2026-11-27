@@ -25,6 +25,15 @@ import ToolRoute from '../../app/(app)/tools/[toolId]'
 import { InstrumentSheet } from './screens/InstrumentSheet'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: jest.fn() }))
+// The chart screen has its own suite (features/chart); here only the route's hand-off to it.
+jest.mock('~/features/chart/screens/ChartScreen', () => {
+  const { createElement } = require('react')
+  const { Text } = require('react-native')
+  return {
+    ChartScreen: ({ initial }: { initial: { exchange: string; symbol: string } }) =>
+      createElement(Text, { testID: 'chart-screen' }, `${initial.exchange}|${initial.symbol}`),
+  }
+})
 const mockReplace = jest.fn()
 const mockBack = jest.fn()
 let mockParams: Record<string, string> = {}
@@ -412,13 +421,15 @@ describe('the instrument route', () => {
   })
 })
 
-describe('placeholder routes', () => {
-  test('the chart route says charts are not in this build', async () => {
+describe('the chart route', () => {
+  test('the chart route renders ChartScreen', async () => {
+    mockParams = { key: 'NSE%3ARELIANCE' }
     await render(<ChartRoute />)
-    expect(screen.getByText("Charts aren't in this build yet.")).toBeTruthy()
-    expect(screen.getByText('They arrive in the next update.')).toBeTruthy()
+    expect(screen.getByTestId('chart-screen')).toHaveTextContent('NSE|RELIANCE')
   })
+})
 
+describe('placeholder routes', () => {
   test('the option chain route says option chains are not in this build', async () => {
     mockParams = { key: 'NSE_INDEX%3ANIFTY' }
     await render(<OptionChainRoute />)
