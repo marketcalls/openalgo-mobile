@@ -10,7 +10,11 @@
 //   page's sockets, drops what the page was not yet sent, and answers an unconfirmed held order
 //   "cancelled" (RF 5). A held order whose send has begun keeps its real outcome.
 // - Under polling the page's sockets close (whenPolling 'fail'): no tool in this build reads them.
-// - `status` is what the tool's header line tells: its last update, a long pass under way.
+// - `status` is what the tool's header line tells: its last update, a long pass under way, a
+//   route's progress.
+// - The device routes get the screen's focus, its progress line, one /intervals read (plan D's
+//   query) and a lifetime: `reset` (the screen goes, or the page loads again) aborts it, so work a
+//   route keeps on after its reply stops there, and the next load gets a new one.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { gate } from '~/core/capabilities/gates'
@@ -27,12 +31,13 @@ import {
   type HeldWrites,
   ORDER_WRITE_PATHS,
 } from '~/dom/gateway/heldWrites'
-import { createRequestRouter, type Route } from '~/dom/gateway/requests'
+import { createRequestRouter, type Route, untilActive } from '~/dom/gateway/requests'
 import { createStartupRoutes } from '~/dom/gateway/startupRoutes'
 import { TOOL_ALLOWLIST } from '~/dom/gateway/toolAllowlist'
 import { createToolRoutes, type SavedFile } from '~/dom/gateway/toolRoutes'
 import { createWsEmulation } from '~/dom/gateway/wsEmulation'
 import { brokerCaps } from '~/market/brokers/seed'
+import { chartIntervalsQuery } from '~/market/chart/queries'
 import { currentBroker } from '~/market/session'
 import { useTrading } from '~/market/trading'
 import { toast } from '~/ui/Toast'
@@ -49,7 +54,7 @@ export type ToolStatus = {
   last: LastUpdate | null
   /** When the oldest pass-through or download still out started (device ms), or null. */
   longSince: number | null
-  /** A pass's progress, from a route that reports one (none in this build). */
+  /** A long load's progress, from a route that reports one (RouteDeps.progress). */
   progress: { label: string; done: number; total: number } | null
 }
 
@@ -142,14 +147,18 @@ export function useToolGateway(o: {
 
   /** Every request's own abort, while it is out. */
   const [controllers] = useState(() => new Set<AbortController>())
+  /** The routes' lifetime (RouteDeps.lifetime), until the next `reset`. */
+  const [lifetime] = useState(() => ({ current: new AbortController() }))
   const reset = useCallback(() => {
+    lifetime.current.abort()
+    lifetime.current = new AbortController()
     for (const c of [...controllers]) c.abort()
     controllers.clear()
     emulation.closeAll()
     latest.current.outbox.clear()
     held.cancelAll()
     status.setState({ updating: 0, longSince: null, progress: null })
-  }, [controllers, emulation, held, status])
+  }, [controllers, lifetime, emulation, held, status])
   // the screen goes: nothing it held stays
   useEffect(() => reset, [reset])
 
@@ -250,6 +259,10 @@ export function useToolGateway(o: {
       }
     }
 
+    const greeksOnServer = () => {
+      const caps = s.caps.get()
+      return caps !== null && gate(caps, 'optionchainGreeks').on
+    }
     const routes: Route[] = [
       ...createStartupRoutes({
         seed: () => {
@@ -274,12 +287,18 @@ export function useToolGateway(o: {
           master: trading.master,
           api: s.api,
           now: () => s.clock.now(),
+          greeksOnServer,
+          // read when a route starts its work: the current load's
+          get lifetime() {
+            return lifetime.current.signal
+          },
+          progress: (p) => status.setState({ progress: p }),
+          active: () => shown.current.active,
+          untilActive: (signal) => untilActive(whenActive, signal),
+          intervals: () => s.queryClient.fetchQuery(chartIntervalsQuery(s.api, s.profile.get().id)),
         },
         save: share,
-        greeksOnServer: () => {
-          const caps = s.caps.get()
-          return caps !== null && gate(caps, 'optionchainGreeks').on
-        },
+        greeksOnServer,
       }),
       ...createHeldWriteRoutes(held, page, { reviewable: new Set(['placeorder']) }),
     ].map(coalesce)
@@ -353,7 +372,19 @@ export function useToolGateway(o: {
         latest.current.onEvent(e)
       },
     }
-  }, [o.outbox, s, trading, whenActive, emulation, held, reset, share, status, controllers])
+  }, [
+    o.outbox,
+    s,
+    trading,
+    whenActive,
+    emulation,
+    held,
+    reset,
+    share,
+    status,
+    controllers,
+    lifetime,
+  ])
 
   return { handlers, held, reset, status }
 }

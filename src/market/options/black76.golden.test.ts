@@ -12,7 +12,15 @@ import {
   goldenCases,
   greeksOf,
 } from '../../../test/helpers/golden'
-import { chainForward, rawGamma, rawIv, spotGreeks, withGreeksChain } from './black76'
+import {
+  chainForward,
+  rawGamma,
+  rawGreeks,
+  rawIv,
+  rawIvAny,
+  spotGreeks,
+  withGreeksChain,
+} from './black76'
 import { expiryInstantMs, optionsExchangeOf, serverYears } from './expiry'
 import { pyRound } from './pyRound'
 
@@ -32,7 +40,8 @@ type GridRow = {
   vega: number
 }
 type EdgeRow = { label: string; flag: Flag; F: number; K: number; t: number; price: number }
-type EdgeGolden = EdgeRow & { iv: number | null; error: string | null }
+type RawGreeks = { delta: number; gamma: number; theta: number; vega: number }
+type EdgeGolden = EdgeRow & { iv: number | null; error: string | null; greeks: RawGreeks | null }
 type SymbolRow = {
   label: string
   symbol: string
@@ -159,6 +168,86 @@ test('rawIv and rawGamma refuse what _safe_iv and _safe_gamma refuse', () => {
   expect(rawGamma('c', 24000, 24000, 0, 0, 0.2)).toBe(0)
   expect(rawGamma('p', 0, 24000, 0.02, 0, 0.2)).toBe(0)
   expect(rawGamma('p', 24000, 24000, 0.02, 0, 0.2)).toBeGreaterThan(0)
+})
+
+/** opengreeks' own IV, which rawIvAny answers: never asked for a price ≤ 0 (opengreeks gives 1e-6). */
+const anyIv = (price: number, iv: number | null) => (price > 0 ? iv : null)
+
+test('rawIvAny: overpriced → 4.999999999999996; at intrinsic → 1e-6; below intrinsic or price 0 → null', () => {
+  const edge = (label: string) => {
+    const e = B76.edges.find((x) => x.label === label)
+    if (!e) throw new Error(`no edge ${label}`)
+    return e
+  }
+  const sigma62 = edge('a price from sigma 6.2')
+  const atIntrinsic = edge('at intrinsic')
+  const any = (e: EdgeGolden) => rawIvAny(e.price, e.F, e.K, B76.rate, e.t, e.flag)
+  expect(any(sigma62)).toBe(4.999999999999996)
+  expect(any(atIntrinsic)).toBe(1e-6)
+  for (const label of ['below intrinsic', 'above the maximum']) {
+    const rows = B76.edges.filter((e) => e.label === label)
+    expect(rows.map(any)).toEqual(rows.map(() => null))
+  }
+  expect(rawIvAny(0, 24000, 24000, 0, atIntrinsic.t, 'c')).toBeNull()
+  expect(rawIvAny(-1, 24000, 24000, 0, atIntrinsic.t, 'c')).toBeNull()
+  expect(rawIvAny(Number.NaN, 24000, 24000, 0, atIntrinsic.t, 'c')).toBeNull()
+
+  // every edge and grid row as opengreeks answers it (the grid's one named libm row ≤ 2e-9)
+  const misses: string[] = []
+  for (const e of B76.edges) {
+    const miss = ivMiss(any(e), anyIv(e.price, e.iv))
+    if (miss) misses.push(`edge ${e.label} ${e.flag}: ${miss}`)
+  }
+  for (const g of B76.grid) {
+    const got = rawIvAny(g.price, g.F, g.K, B76.rate, g.t, g.flag)
+    const bound = isLibmResidue(g) ? LIBM_RESIDUE.bound : IV_BOUND
+    const miss = ivMiss(got, anyIv(g.price, g.iv), bound)
+    if (miss) misses.push(`${g.flag} F=${g.F} K=${g.K} t=${g.t} σ=${g.sigma}: ${miss}`)
+  }
+  expect(misses).toEqual([])
+})
+
+test('rawGreeks matches the black76 golden vectors, the two new edge rows included', () => {
+  const misses: string[] = []
+  const compare = (at: string, got: RawGreeks | null, want: RawGreeks, flag: Flag) => {
+    if (!got) {
+      misses.push(`${at}: null`)
+      return
+    }
+    for (const k of Object.keys(PLACES) as (keyof typeof PLACES)[]) {
+      if (!sameRounded(k, got[k], want[k], flag))
+        misses.push(`${at}: ${k} ${got[k]} for ${want[k]}`)
+    }
+  }
+  for (const g of B76.grid) {
+    const at = `${g.flag} F=${g.F} K=${g.K} t=${g.t} σ=${g.sigma}`
+    compare(at, rawGreeks(g.flag, g.F, g.K, g.t, B76.rate, g.sigma), g, g.flag)
+  }
+  // iv_chart_service.py:436-454: Greeks at the solved IV, the 1e-6 floor and the cap included
+  for (const e of B76.edges) {
+    const at = `edge ${e.label} ${e.flag}`
+    const sigma = rawIvAny(e.price, e.F, e.K, B76.rate, e.t, e.flag)
+    if (sigma === null || e.greeks === null) {
+      if (sigma !== null || e.greeks !== null) misses.push(`${at}: IV ${sigma} for ${e.iv}`)
+      continue
+    }
+    compare(at, rawGreeks(e.flag, e.F, e.K, e.t, B76.rate, sigma), e.greeks, e.flag)
+  }
+  expect(misses).toEqual([])
+  const priced = B76.edges.filter((e) => e.greeks !== null).map((e) => e.label)
+  expect(priced).toEqual(expect.arrayContaining(['a price from sigma 6.2', 'at intrinsic']))
+  expect(rawGreeks('c', 24000, 23000, 7 / 365, 0, 1e-6)).toEqual({
+    delta: 1,
+    gamma: 0,
+    theta: 0,
+    vega: 0,
+  })
+  // nothing to price: no σ, no time, no forward or no strike
+  expect(rawGreeks('c', 24000, 24000, 0.02, 0, 0)).toBeNull()
+  expect(rawGreeks('c', 24000, 24000, 0, 0, 0.2)).toBeNull()
+  expect(rawGreeks('p', 0, 24000, 0.02, 0, 0.2)).toBeNull()
+  expect(rawGreeks('p', 24000, 0, 0.02, 0, 0.2)).toBeNull()
+  expect(rawGreeks('p', 24000, 24000, 0.02, 0, Number.NaN)).toBeNull()
 })
 
 test.each(B76.symbols)('$label ($symbol): spotGreeks equals calculate_greeks', (s) => {

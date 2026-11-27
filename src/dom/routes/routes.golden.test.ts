@@ -13,6 +13,7 @@ import {
   type GoldenRoute,
   goldenCases,
 } from '../../../test/helpers/golden'
+import { testRouteDeps } from '../../../test/helpers/routeDeps'
 import {
   gammaDensity,
   gexData,
@@ -61,12 +62,11 @@ function goldenDeps(input: GoldenInput) {
   )
   if (!stamped) clock.noteDate(new Date(input.serverNowMs).toUTCString(), deviceNow)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const deps: RouteDeps = {
+  const deps = testRouteDeps({
     options: createOptionsData({ api, queryClient, pid: 'golden', clock }),
-    master: { underlyingsNow: async () => ({ list: [], source: 'defaults' }) },
     api,
     now: clock.now,
-  }
+  })
   return { deps, misses, queryClient }
 }
 

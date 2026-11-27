@@ -38,6 +38,7 @@ import type {
 } from '~/dom/bridge/protocol'
 import { CANCELLED_COPY } from '~/dom/gateway/heldWrites'
 import { MAX_DOM_INFLIGHT } from '~/dom/gateway/requests'
+import * as toolRoutes from '~/dom/gateway/toolRoutes'
 import { brokerCaps } from '~/market/brokers/seed'
 import { CHECKING, NOT_CHECKED } from '~/market/orders/outcome'
 import { holdOrder, otherOrderOut } from '~/market/orders/pending'
@@ -1201,6 +1202,52 @@ describe('the gateway', () => {
     expect(run.reply).not.toBeNull()
     await pass(60_000)
     expect(requests('placeorder')).toHaveLength(0)
+  })
+
+  test("the device routes get the Greeks gate, the screen's focus, its progress line, one intervals read and a lifetime each load ends", async () => {
+    const made = jest.spyOn(toolRoutes, 'createToolRoutes')
+    await setup({
+      'POST /api/v1/intervals': ok({ status: 'success', data: { minutes: ['1m', '5m'] } }),
+    })
+    await openReady()
+    const deps = made.mock.calls.at(-1)?.[1].deps
+    if (!deps) throw new Error('no tool routes were made')
+    expect(deps.greeksOnServer()).toBe(true)
+
+    expect(await deps.intervals()).toEqual({ minutes: ['1m', '5m'] })
+    expect(await deps.intervals()).toEqual({ minutes: ['1m', '5m'] })
+    expect(requests('intervals')).toHaveLength(1)
+
+    await act(async () => deps.progress({ label: 'Previous-day OI', done: 23, total: 82 }))
+    expect(text('tool-subtitle-text')).toBe('Previous-day OI: 23 of 82')
+    expect(screen.getByTestId('tool-progress')).toBeTruthy()
+
+    // hidden: a wait ends on focus, or at once when its own signal aborts
+    expect(deps.active()).toBe(true)
+    await setFocus(false)
+    expect(deps.active()).toBe(false)
+    let shown = false
+    void deps.untilActive(new AbortController().signal).then(() => {
+      shown = true
+    })
+    const given = new AbortController()
+    const dropped = deps.untilActive(given.signal)
+    given.abort()
+    await expect(dropped).rejects.toMatchObject({ name: 'AbortError' })
+    await pass(1_000)
+    expect(shown).toBe(false)
+    await setFocus(true)
+    expect(shown).toBe(true)
+    expect(deps.active()).toBe(true)
+
+    // the page loads again: the first load's lifetime ends, the next has its own; leaving ends it
+    const first = deps.lifetime
+    await load()
+    expect(first.aborted).toBe(true)
+    const second = deps.lifetime
+    expect(second.aborted).toBe(false)
+    await leave()
+    expect(second.aborted).toBe(true)
   })
 
   test('a save intent writes the file and opens the share sheet; a chart intent is refused', async () => {

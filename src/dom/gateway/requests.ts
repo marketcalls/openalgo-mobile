@@ -74,7 +74,7 @@ const abortError = () =>
   Object.assign(new Error('The page aborted the request.'), { name: 'AbortError' })
 
 /** Resolves once `whenActive` does; rejects at once when `signal` aborts first. */
-function untilActive(whenActive: () => Promise<void>, signal: AbortSignal): Promise<void> {
+export function untilActive(whenActive: () => Promise<void>, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(abortError())

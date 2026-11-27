@@ -9,11 +9,13 @@ import { createRequestRouter } from '~/dom/gateway/requests'
 import { createStartupRoutes } from '~/dom/gateway/startupRoutes'
 import { createToolRoutes, type SavedFile } from '~/dom/gateway/toolRoutes'
 import { brokerCaps } from '~/market/brokers/seed'
+import { chartIntervalsQuery } from '~/market/chart/queries'
 import { createSymbolMaster, type SymbolMaster } from '~/market/master/master'
 import { createMemoryMasterDb } from '~/market/master/memoryDb'
 import { createOptionsData, type OptionsData } from '~/market/options/data'
 import { createAnalyzerGate } from '~/market/orders/analyzerGate'
 import type { App } from './compatApp'
+import { testRouteDeps } from './routeDeps'
 
 export type ToolGateway = {
   /** What `createTrading` builds for these routes (trading.tsx imports react-native, not loadable here). */
@@ -48,6 +50,10 @@ export function toolGateway(app: App, page: ToolPageId): ToolGateway {
   }
   const saved: SavedFile[] = []
   const held = createHeldWrites()
+  const greeksOnServer = () => {
+    const caps = app.caps.get()
+    return caps !== null && gate(caps, 'optionchainGreeks').on
+  }
   const routes = [
     ...createStartupRoutes({
       seed: () => ({
@@ -58,19 +64,18 @@ export function toolGateway(app: App, page: ToolPageId): ToolGateway {
     }),
     ...createToolRoutes(page, {
       api: app.api,
-      deps: {
+      deps: testRouteDeps({
         options: trading.options,
         master: trading.master,
         api: app.api,
         now: () => app.clock.now(),
-      },
+        greeksOnServer,
+        intervals: () => app.queryClient.fetchQuery(chartIntervalsQuery(app.api, pid)),
+      }),
       save: async (f) => {
         saved.push(f)
       },
-      greeksOnServer: () => {
-        const caps = app.caps.get()
-        return caps !== null && gate(caps, 'optionchainGreeks').on
-      },
+      greeksOnServer,
     }),
     ...createHeldWriteRoutes(held, page, { reviewable: new Set(['placeorder']) }),
   ]

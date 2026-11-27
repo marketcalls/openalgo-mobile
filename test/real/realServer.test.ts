@@ -28,7 +28,7 @@ import { createChartFeeds } from '~/dom/chart/feeds'
 import { createChartRoutes } from '~/dom/gateway/chartRoutes'
 import { createRequestRouter } from '~/dom/gateway/requests'
 import { createWsEmulation } from '~/dom/gateway/wsEmulation'
-import { createDeviceRoutes, type RouteDeps } from '~/dom/routes'
+import { createDeviceRoutes } from '~/dom/routes'
 import { createDomClient } from '~/dom/web/client'
 import { capabilityReport } from '~/features/account/diagnostics'
 import { feedStep, keyStep, serverStep } from '~/features/onboarding/flow'
@@ -49,6 +49,7 @@ import { expiryInstantMs, optionsExchangeOf, serverYears } from '~/market/option
 import { OptionChainSchema } from '~/market/options/schemas'
 import { createOrderApi } from '~/market/orders/api'
 import { memoryKV } from '../helpers/memoryKV'
+import { testRouteDeps } from '../helpers/routeDeps'
 import { loadTestEnv, type TestEnv } from './env'
 
 const LIVE_MODE = 'Test server is in LIVE mode. Switch it to the analyzer on the web first.'
@@ -609,7 +610,7 @@ function suite({ url, key, wsUrl }: TestEnv) {
         pid: 'p0123456789ab',
         now: Date.now,
       })
-      const deps: RouteDeps = { options, master, api, now: clock.now }
+      const deps = testRouteDeps({ options, master, api, now: clock.now })
       return { api, options, master, deps, clock }
     }
     const nearest = async (options: ReturnType<typeof toolDeps>['options']) => {

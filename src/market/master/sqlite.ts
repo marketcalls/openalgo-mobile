@@ -1,8 +1,10 @@
 // The symbol master on the phone (design 7.8): expo-sqlite's 'symbol-master.db', one file for every
 // profile. Only the app shell imports this module, so tests and the default TradingProvider never
 // load the native module. Writes go one at a time, each in an exclusive transaction (on its own
-// connection, expo-sqlite); WAL lets reads run meanwhile.
+// connection, expo-sqlite); WAL lets reads run meanwhile. A master's rowids follow the CSV's
+// order, which the row queries keep (ORDER BY rowid).
 import { openDatabaseAsync, type SQLiteDatabase, type SQLiteStatement } from 'expo-sqlite'
+import { toDashed } from '~/market/options/expiry'
 import { byCharCode, isTestUnderlying, type MasterDb, type MasterRow } from './db'
 
 const SCHEMA = `
@@ -27,6 +29,8 @@ CREATE TABLE IF NOT EXISTS loads (
 `
 
 const COLUMNS = 'pid, exchange, symbol, name, underlying, expiry, strike, lotsize, tick, itype'
+/** A MasterRow's columns. */
+const ROW = 'symbol, name, exchange, expiry, strike, lotsize, tick, itype, underlying'
 /** One row's placeholders. */
 const TUPLE = `(${COLUMNS.split(', ')
   .map(() => '?')
@@ -99,8 +103,9 @@ function sqliteMasterDb(db: SQLiteDatabase): MasterDb {
       await exclusive(async (txn) => {
         const key = [pid, exchange]
         await txn.runAsync('DELETE FROM instruments WHERE pid = ? AND exchange = ?', key)
+        // in the staged order, so the rowids follow the CSV (the key's index would sort by symbol)
         await txn.runAsync(
-          `INSERT INTO instruments (${COLUMNS}) SELECT ${COLUMNS} FROM staging WHERE pid = ? AND exchange = ?`,
+          `INSERT INTO instruments (${COLUMNS}) SELECT ${COLUMNS} FROM staging WHERE pid = ? AND exchange = ? ORDER BY rowid`,
           key,
         )
         await txn.runAsync('DELETE FROM staging WHERE pid = ? AND exchange = ?', key)
@@ -136,6 +141,32 @@ function sqliteMasterDb(db: SQLiteDatabase): MasterDb {
         [pid, exchange, underlying],
       )
       return r !== null
+    },
+
+    async strikes(pid, exchange, underlying, ddmmmyy, type) {
+      const rows = await db.getAllAsync<{ strike: number }>(
+        `SELECT DISTINCT strike FROM instruments WHERE pid = ? AND exchange = ? AND underlying = ?
+         AND expiry = ? AND substr(upper(symbol), -2) = ? ORDER BY strike`,
+        [pid, exchange, underlying, toDashed(ddmmmyy), type],
+      )
+      return rows.map((r) => r.strike)
+    },
+
+    futures(pid, exchange) {
+      return db.getAllAsync<MasterRow>(
+        `SELECT ${ROW} FROM instruments WHERE pid = ? AND exchange = ?
+         AND substr(upper(symbol), -3) = 'FUT' ORDER BY rowid`,
+        [pid, exchange],
+      )
+    },
+
+    async lotSizeLike(pid, exchange, prefix) {
+      const r = await db.getFirstAsync<{ lotsize: number }>(
+        `SELECT lotsize FROM instruments WHERE pid = ? AND exchange = ? AND symbol LIKE ?
+         AND lotsize > 0 ORDER BY rowid LIMIT 1`,
+        [pid, exchange, `${prefix}%`],
+      )
+      return r ? r.lotsize : null
     },
 
     clear(pid) {

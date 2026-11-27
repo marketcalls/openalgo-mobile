@@ -36,6 +36,24 @@ export interface MasterDb {
   /** The distinct underlyings that have options, sorted, without the exchanges' test symbols. */
   optionUnderlyings(pid: string, exchange: string): Promise<string[]>
   hasOptions(pid: string, exchange: string, underlying: string): Promise<boolean>
+  /**
+   * The distinct strikes of `underlying`'s `type` options at `ddmmmyy` (rows whose expiry is its
+   * DD-MMM-YY form and whose symbol ends in `type`), ascending.
+   */
+  strikes(
+    pid: string,
+    exchange: string,
+    underlying: string,
+    ddmmmyy: string,
+    type: 'CE' | 'PE',
+  ): Promise<number[]>
+  /** Every row whose symbol ends FUT, in the CSV's order (rowid), expired ones included. */
+  futures(pid: string, exchange: string): Promise<MasterRow[]>
+  /**
+   * The lot size of the first row in the CSV's order whose symbol is LIKE `prefix%` (SQL's LIKE:
+   * case-blind, `_` any one character) and whose lot size is above 0; null when none is.
+   */
+  lotSizeLike(pid: string, exchange: string, prefix: string): Promise<number | null>
   /** Forgets every master of the profile. */
   clear(pid: string): Promise<void>
 }

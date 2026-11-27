@@ -22,6 +22,7 @@ import { expiryInstantMs, optionsExchangeOf } from '~/market/options/expiry'
 import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type Route as FetchRoute, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { type GoldenInput, goldenCases } from '../../../test/helpers/golden'
+import { testRouteDeps } from '../../../test/helpers/routeDeps'
 import {
   CANCELLED_COPY,
   createHeldWriteRoutes,
@@ -111,19 +112,12 @@ function wire(routes: Record<string, FetchRoute>) {
 
 /** The pickers answer from fakes; the tool POSTs read no chain in these tests. */
 function deviceDeps(api: KeyedApi): RouteDeps {
-  return {
-    options: {
-      expiries: async () => ['01-DEC-26', '08-DEC-26'],
-      expiriesQuery: () => {
-        throw new Error('no screen observes expiries here')
-      },
-      futuresPrice: async () => null,
-      chain: () => Promise.reject(new Error('no chain is read here')),
-    },
+  return testRouteDeps({
+    options: { expiries: async () => ['01-DEC-26', '08-DEC-26'] },
     master: { underlyingsNow: async () => ({ list: ['BANKNIFTY', 'NIFTY'], source: 'defaults' }) },
     api,
     now: () => NOW,
-  }
+  })
 }
 
 /** One tool screen's gateway as the tool screen composes it, over plan D's router. */

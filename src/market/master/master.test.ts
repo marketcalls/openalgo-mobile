@@ -130,6 +130,25 @@ const future = (u: string, exchange = 'NFO'): CsvRow => ({
   tick_size: 0.1,
 })
 
+/** One option row of `u` at `expiry` (DD-MMM-YY). */
+const option = (
+  u: string,
+  expiry: string,
+  strike: number,
+  type: 'CE' | 'PE',
+  lotsize: number,
+  exchange = 'NFO',
+): CsvRow => ({
+  symbol: `${u}${expiry.replaceAll('-', '')}${strike}${type}`,
+  name: u,
+  exchange,
+  expiry,
+  strike: `${strike}.0`,
+  lotsize,
+  instrumenttype: type,
+  tick_size: 0.05,
+})
+
 /** A full master: NIFTY and RELIANCE options, TCS futures only. */
 const FULL = csvOf([...options('NIFTY', 40), ...options('RELIANCE', 20), future('TCS')])
 
@@ -393,6 +412,59 @@ describe.each([
     expect(await db.loaded(PID, 'NFO')).toEqual({ day: '2026-11-25', rows: 2 })
   })
 
+  test('strikes of one expiry and type, distinct and ascending; FUT rows in file order; the first lot size LIKE a prefix', async () => {
+    // file order is not symbol order, so the copy out of staging has to keep it
+    const text = csvOf([
+      option('NIFTY', '30-DEC-26', 24100, 'CE', 0),
+      option('NIFTY', '30-DEC-26', 24000, 'PE', 75),
+      option('NIFTY', '30-DEC-26', 24000, 'CE', 75),
+      { ...option('NIFTY', '30-DEC-26', 24000, 'CE', 75), symbol: 'nifty30dec2624000ce' },
+      option('NIFTY', '30-DEC-26', 23950, 'CE', 75),
+      option('NIFTY', '06-JAN-27', 25000, 'CE', 75),
+      option('BANKNIFTY', '30-DEC-26', 52000, 'CE', 30),
+      { ...future('TCS'), lotsize: 175 },
+      { ...future('NIFTY'), lotsize: 75 },
+      { ...future('M&M'), lotsize: 350 },
+      { ...future('INFY'), symbol: 'infy30dec26fut' },
+    ])
+    await store(db, PID, 'NFO', '2026-11-24', text)
+
+    expect(await db.strikes(PID, 'NFO', 'NIFTY', '30DEC26', 'CE')).toEqual([23950, 24000, 24100])
+    expect(await db.strikes(PID, 'NFO', 'NIFTY', '30DEC26', 'PE')).toEqual([24000])
+    expect(await db.strikes(PID, 'NFO', 'NIFTY', '06JAN27', 'CE')).toEqual([25000])
+    expect(await db.strikes(PID, 'NFO', 'BANKNIFTY', '30DEC26', 'CE')).toEqual([52000])
+    expect(await db.strikes(PID, 'NFO', 'NIFTY', '30DEC2', 'CE')).toEqual([])
+    expect(await db.strikes(PID, 'BFO', 'NIFTY', '30DEC26', 'CE')).toEqual([])
+
+    const futures = await db.futures(PID, 'NFO')
+    expect(futures.map((r) => r.symbol)).toEqual([
+      'TCS30DEC26FUT',
+      'NIFTY30DEC26FUT',
+      'M&M30DEC26FUT',
+      'infy30dec26fut',
+    ])
+    expect(futures[1]).toEqual({
+      symbol: 'NIFTY30DEC26FUT',
+      name: 'NIFTY',
+      exchange: 'NFO',
+      expiry: '30-DEC-26',
+      strike: 0,
+      lotsize: 75,
+      tick: 0.1,
+      itype: 'FUT',
+      underlying: 'NIFTY',
+    })
+    expect(await db.futures('p2', 'NFO')).toEqual([])
+
+    // custom_straddle.py:96-104: SQL's LIKE, so case-blind, `_` any one character, lotsize > 0
+    expect(await db.lotSizeLike(PID, 'NFO', 'NIFTY')).toBe(75)
+    expect(await db.lotSizeLike(PID, 'NFO', 'nifty')).toBe(75)
+    expect(await db.lotSizeLike(PID, 'NFO', 'TCS')).toBe(175)
+    expect(await db.lotSizeLike(PID, 'NFO', 'M_M')).toBe(350)
+    expect(await db.lotSizeLike(PID, 'NFO', 'SBIN')).toBeNull()
+    expect(await db.lotSizeLike(PID, 'MCX', 'NIFTY')).toBeNull()
+  })
+
   test('clear forgets one profile only', async () => {
     await store(db, PID, 'NFO', '2026-11-24', csvOf(options('NIFTY', 2)))
     await store(db, PID, 'MCX', '2026-11-24', csvOf(options('CRUDEOIL', 2, 'MCX')))
@@ -559,6 +631,49 @@ describe('SymbolMaster', () => {
     expect(await h.master.hasOptions('NFO', 'RELIANCE')).toBe(true)
     expect(await h.master.hasOptions('NFO', 'TCS')).toBe(false)
     expect(await h.master.hasOptions('BFO', 'RELIANCE')).toBeNull()
+  })
+
+  test('strikes, futures and lotSizeLike answer from the master; with none: null, null, undefined', async () => {
+    const h = setup()
+    expect(await h.master.strikes('NFO', 'NIFTY', '30DEC26', 'CE')).toBeNull()
+    expect(await h.master.futures('NFO')).toBeNull()
+    expect(await h.master.lotSizeLike('NFO', 'NIFTY')).toBeUndefined()
+    // asking never downloads a master
+    await settle()
+    expect(h.calls).toHaveLength(0)
+
+    h.reply('NFO', FULL)
+    await h.master.ensure('NFO')
+    const strikes = Array.from({ length: 20 }, (_, i) => 1000 + 10 * i)
+    expect(await h.master.strikes('NFO', 'NIFTY', '30DEC26', 'CE')).toEqual(strikes)
+    expect(await h.master.strikes('NFO', 'RELIANCE', '30DEC26', 'PE')).toEqual(strikes.slice(0, 10))
+    expect(await h.master.strikes('NFO', 'NIFTY', '06JAN27', 'CE')).toEqual([])
+    expect((await h.master.futures('NFO'))?.map((r) => r.symbol)).toEqual(['TCS30DEC26FUT'])
+    expect(await h.master.lotSizeLike('NFO', 'RELIANCE')).toBe(50)
+    expect(await h.master.lotSizeLike('NFO', 'SBIN')).toBeNull()
+    // another exchange's master is not stored
+    expect(await h.master.strikes('BFO', 'SENSEX', '30DEC26', 'CE')).toBeNull()
+    expect(await h.master.futures('BFO')).toBeNull()
+    expect(await h.master.lotSizeLike('BFO', 'SENSEX')).toBeUndefined()
+    expect(h.calls).toHaveLength(1)
+  })
+
+  test("an earlier master's FUT that expired yesterday is not listed", async () => {
+    const h = setup()
+    const near = { ...future('NIFTY'), symbol: 'NIFTY24NOV26FUT', expiry: '24-NOV-26' }
+    h.reply('NFO', csvOf([...options('NIFTY', 60), near, future('NIFTY')]))
+    await h.master.ensure('NFO')
+    const listed = async () => (await h.master.futures('NFO'))?.map((r) => r.symbol)
+    // 10:30 IST on its expiry day: listed until NFO's 15:30 IST cut-off
+    expect(await listed()).toEqual(['NIFTY24NOV26FUT', 'NIFTY30DEC26FUT'])
+    h.setNow(DAY1 + 5 * 3_600_000 - 60_000)
+    expect(await listed()).toEqual(['NIFTY24NOV26FUT', 'NIFTY30DEC26FUT'])
+    h.setNow(DAY1 + 5 * 3_600_000 + 60_000)
+    expect(await listed()).toEqual(['NIFTY30DEC26FUT'])
+    // the next day, before today's master is in
+    h.setNow(DAY2)
+    expect(await h.db.loaded(PID, 'NFO')).toEqual({ day: '2026-11-24', rows: 62 })
+    expect(await listed()).toEqual(['NIFTY30DEC26FUT'])
   })
 
   test('a database that does not open falls back to memory, with a warning', async () => {

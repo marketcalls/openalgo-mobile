@@ -95,6 +95,49 @@ export function rawIv(
   return Number.isFinite(iv) && iv > 0 && iv <= 5 ? iv : null
 }
 
+/** opengreeks' IV floor, and the top of its bisection bracket, where a price past σ = 5 lands. */
+const IV_FLOOR = 1e-6
+const IV_CAP = 4.999999999999996
+
+/**
+ * iv_chart_service.py's IV (opengreeks implied_volatility) as a decimal: null where opengreeks
+ * raises (below intrinsic, above F for a call or K for a put, no convergence) and for a price ≤ 0,
+ * which the service never asks; 1e-6 at intrinsic; else the solver's σ within [1e-6,
+ * 4.999999999999996], where opengreeks saturates.
+ */
+export function rawIvAny(
+  price: number,
+  F: number,
+  K: number,
+  r: number,
+  t: number,
+  flag: Flag,
+): number | null {
+  if (!(price > 0)) return null
+  const solved = impliedVol(price, F, K, r, t, flag)
+  if ('error' in solved) return null
+  return Math.min(Math.max(solved.sigma, IV_FLOOR), IV_CAP)
+}
+
+/**
+ * The Greeks iv_chart_service.py prices at a solved σ (opengreeks delta, gamma, theta, vega): the
+ * web's Black-76 in opengreeks' units (theta per calendar day, vega per 1% of IV). null with
+ * nothing to price (σ, F, K or t not above 0) or a Greek that is not finite.
+ */
+export function rawGreeks(
+  flag: Flag,
+  F: number,
+  K: number,
+  t: number,
+  r: number,
+  sigma: number,
+): { delta: number; gamma: number; theta: number; vega: number } | null {
+  if (!(sigma > 0) || !(F > 0) || !(K > 0) || !(t > 0)) return null
+  const { delta, gamma, theta, vega } = black76Greeks(flag, F, K, t, r, sigma)
+  const g = { delta, gamma, theta, vega }
+  return Object.values(g).every(Number.isFinite) ? g : null
+}
+
 /** gamma_density_service._safe_gamma: Black-76 gamma, or 0 on any numerical failure. */
 export function rawGamma(
   flag: Flag,

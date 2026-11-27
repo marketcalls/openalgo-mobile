@@ -9,7 +9,8 @@ import { createOptionsData } from '~/market/options/data'
 import { pyRound } from '~/market/options/pyRound'
 import { DEFAULT_UNDERLYINGS } from '~/market/tools/registry'
 import { keepExpectedLogs } from '../../../test/helpers/consoleLogs'
-import { createDeviceRoutes, DEVICE_ROUTES, type RouteDeps } from './index'
+import { testRouteDeps } from '../../../test/helpers/routeDeps'
+import { createDeviceRoutes, DEVICE_ROUTES } from './index'
 
 // 10:30 IST on Friday 27 Nov 2026
 const NOW = Date.UTC(2026, 10, 27, 5, 0)
@@ -107,7 +108,7 @@ function setup(reply: Reply = () => new Error('no reply')) {
     pid: PID,
     now: () => NOW,
   })
-  const deps: RouteDeps = { options, master, api, now: clock.now }
+  const deps = testRouteDeps({ options, master, api, now: clock.now })
   const routes = createDeviceRoutes(deps)
   const send = (r: DomRequest) => {
     const route = routes.find((x) => x.method === r.method && x.path === r.path)

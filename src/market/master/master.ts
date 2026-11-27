@@ -8,9 +8,10 @@ import { z } from 'zod'
 import type { KeyedApi } from '~/core/http/api'
 import { log } from '~/core/log/logger'
 import { istDate } from '~/core/realtime/marketHours'
+import { expiryInstantMs } from '~/market/options/expiry'
 import { DEFAULT_UNDERLYINGS } from '~/market/tools/registry'
 import { parseInstrumentsCsv } from './csv'
-import { isOptionRow, type MasterDb } from './db'
+import { isOptionRow, type MasterDb, type MasterRow } from './db'
 import { createMemoryMasterDb } from './memoryDb'
 
 /** The exchanges the master covers: the tools' F&O exchanges (useSupportedExchanges.ts:11-17). */
@@ -37,6 +38,26 @@ export type SymbolMaster = {
   ): Promise<{ list: string[]; source: 'today' | 'earlier' | 'defaults' }>
   /** Whether the master lists options on `underlying`; null while no master is stored. */
   hasOptions(exchange: string, underlying: string): Promise<boolean | null>
+  /**
+   * The strikes the master lists for `underlying`'s `type` options at `ddmmmyy`, distinct and
+   * ascending (option_symbol_service.py get_available_strikes); null while no master is stored.
+   */
+  strikes(
+    exchange: string,
+    underlying: string,
+    ddmmmyy: string,
+    type: 'CE' | 'PE',
+  ): Promise<number[] | null>
+  /**
+   * The futures (symbol ends FUT) in the CSV's order, without those past their expiry instant
+   * (an earlier day's master still lists them); null while no master is stored.
+   */
+  futures(exchange: string): Promise<MasterRow[] | null>
+  /**
+   * custom_straddle.py get_lotsize: the lot size of the first row whose symbol is LIKE `prefix%`,
+   * above 0; null when none is; undefined while no master is stored.
+   */
+  lotSizeLike(exchange: string, prefix: string): Promise<number | null | undefined>
   /** Forgets this profile's masters (sign-out); a download in flight is dropped. */
   clear(): Promise<void>
 }
@@ -66,6 +87,12 @@ export function createSymbolMaster(d: {
   let generation = 0
   /** The last `clear`; an ensure begun meanwhile waits for it, so it never writes under it. */
   let clearing: Promise<void> = Promise.resolve()
+
+  /** The database when a master of `exchange` is stored, else null. Asking never downloads one. */
+  async function withMaster(exchange: string): Promise<MasterDb | null> {
+    const store = await db
+    return (await store.loaded(pid, exchange)) ? store : null
+  }
 
   async function stored(exchange: string): Promise<MasterState> {
     const l = await (await db).loaded(pid, exchange)
@@ -148,9 +175,28 @@ export function createSymbolMaster(d: {
     },
 
     async hasOptions(exchange, underlying) {
-      const store = await db
-      if (!(await store.loaded(pid, exchange))) return null
-      return store.hasOptions(pid, exchange, underlying)
+      const store = await withMaster(exchange)
+      return store ? store.hasOptions(pid, exchange, underlying) : null
+    },
+
+    async strikes(exchange, underlying, ddmmmyy, type) {
+      const store = await withMaster(exchange)
+      return store ? store.strikes(pid, exchange, underlying, ddmmmyy, type) : null
+    },
+
+    async futures(exchange) {
+      const store = await withMaster(exchange)
+      if (!store) return null
+      const t = now()
+      // a row whose expiry does not parse (a perpetual's) has no instant to pass
+      return (await store.futures(pid, exchange)).filter(
+        (r) => (expiryInstantMs(r.expiry, exchange) ?? t) >= t,
+      )
+    },
+
+    async lotSizeLike(exchange, prefix) {
+      const store = await withMaster(exchange)
+      return store ? store.lotSizeLike(pid, exchange, prefix) : undefined
     },
 
     clear() {
