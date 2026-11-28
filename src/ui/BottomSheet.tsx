@@ -2,7 +2,8 @@
 // header drags, so a drag in the body (a depth ladder, a list) scrolls the body instead. Screen
 // readers and Maestro cannot drag: the handle is a button and the backdrop closes (RF 5). While
 // it is not `dismissible` (an order on its way) nothing closes it: not the backdrop, not a drag
-// down (it springs back), not the screen reader's escape.
+// down (it springs back), not the screen reader's escape, and not a close begun before: if it
+// stops being dismissible while it slides out, it springs back and onClose never runs.
 import { type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import {
   type LayoutChangeEvent,
@@ -39,14 +40,20 @@ type Props = {
   snapPoints?: readonly number[]
   /** The snap point it opens at. */
   initial?: number
-  /** Called once the sheet has slid down: the owner removes it (a route goes back). */
+  /**
+   * Called once the sheet has slid down, if it is still `dismissible` then: the owner removes it
+   * (a route goes back). The latest one is called, not the one of the render the close began in.
+   */
   onClose(): void
   onSnap?(index: number): void
   /** The drag area, under the handle. */
   header: ReactNode
   /** A tap on the body reaches its row while the keyboard is up (a search field in the header). */
   persistTaps?: boolean
-  /** False while a write is on its way: the backdrop, a drag and the escape leave it open. */
+  /**
+   * False while a write is on its way: the backdrop, a drag and the escape leave it open, and a
+   * close already sliding out springs back.
+   */
   dismissible?: boolean
   /**
    * False: the body is a plain view of the height the snap point shows below the header, for
@@ -99,6 +106,21 @@ export function BottomSheet({
     onSnap?.(i)
   }
 
+  /**
+   * The slide down has ended: the owner's `onClose` as it is now, never the one of the render the
+   * close began in. A write that went on its way meanwhile (a confirm tapped while the panel slid
+   * out) keeps the sheet instead: it springs back to where it rested, and onClose never runs.
+   */
+  const slidOut = useRef(() => {})
+  slidOut.current = () => {
+    if (canClose.current) {
+      onClose()
+      return
+    }
+    closing.current = false
+    snapTo(index)
+  }
+
   // onClose runs from a JS timer, never from the animation's callback, so fake timers decide it.
   function close() {
     if (closing.current || !canClose.current) return
@@ -109,7 +131,7 @@ export function BottomSheet({
       return
     }
     y.value = withTiming(height, { duration: SHEET_CLOSE_MS })
-    closeTimer.current = setTimeout(onClose, SHEET_CLOSE_MS)
+    closeTimer.current = setTimeout(() => slidOut.current(), SHEET_CLOSE_MS)
   }
 
   function release(at: number, vy: number) {

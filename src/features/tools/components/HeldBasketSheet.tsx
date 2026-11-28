@@ -7,7 +7,9 @@
 //   up, or a tool that is left, answers "cancelled" and nothing goes, then or later; from then on
 //   the page gets the basket's real outcome, and if the tool goes meanwhile it shows as a toast.
 // - Before the send, Back, the backdrop, a drag down and Android's back cancel; while it is on its
-//   way none of them does anything (ui/BottomSheet's `dismissible`, useHoldSheet).
+//   way none of them does anything (ui/BottomSheet's `dismissible`, useHoldSheet). A backdrop tap
+//   or a drag down slides the sheet out first: a confirm tapped while it slides wins, the sheet
+//   springs back and the page gets the basket's real outcome, never "cancelled".
 // - It sits in the tool screen, under the app's lock cover, on every platform: a confirm never
 //   goes while locked, and a back on the cover cancels nothing.
 import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -124,12 +126,21 @@ function HeldBasketView({
 
   /** Its send began: until an outcome lands, nothing closes the sheet. */
   const [sending, setSending] = useState(false)
+  /**
+   * The same, as a close reads it when it runs: set as the send begins, not at the next render,
+   * so a close from an earlier render (one that began before the confirm) never cancels it.
+   */
+  const sendingNow = useRef(false)
   const begin = () => {
     const ok = held.begin(write.id)
-    if (ok) setSending(true)
+    if (ok) {
+      sendingNow.current = true
+      setSending(true)
+    }
     return ok
   }
   const onOutcome = (o: BasketOutcome) => {
+    sendingNow.current = false
     setSending(false)
     const reply = replyFor(o)
     if (reply === null) return
@@ -139,7 +150,7 @@ function HeldBasketView({
 
   /** Back, the backdrop, a drag down or Android's back: cancelled before the send, else put away. */
   const close = () => {
-    if (sending) return
+    if (sendingNow.current) return
     answer(heldRefusal('basketorder', 400, CANCELLED_COPY))
     onDone()
   }

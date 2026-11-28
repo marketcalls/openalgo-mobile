@@ -18,8 +18,9 @@ import {
 import { QUEUED_COPY } from '~/market/components/SessionBanners'
 import { type BasketLeg, type BasketSpec, LEGGING_RISK } from '~/market/orders/basket'
 import { CHECKING } from '~/market/orders/outcome'
+import { holdOrder, NEW_ORDER } from '~/market/orders/pending'
 import { liveSurpriseText } from '~/market/orders/submit'
-import { TradingProvider } from '~/market/trading'
+import { type Trading, TradingProvider, useTrading } from '~/market/trading'
 import { ToastHost } from '~/ui/Toast'
 import { tokens } from '~/ui/tokens'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
@@ -34,6 +35,7 @@ import {
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
 import { memoryKV } from '../../../test/helpers/memoryKV'
 import { BasketReview, legLabel } from './components/BasketReview'
+import { OTHER_OUT } from './components/ReviewStep'
 import type { BasketOutcome } from './hooks/useBasketSubmit'
 
 jest.mock('~/core/realtime/useScreenActive', () => ({ useScreenActive: () => true }))
@@ -157,6 +159,11 @@ let fetchFake = scriptedFetch({})
 const INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 }
 const outcomes: BasketOutcome[] = []
 const onClose = jest.fn()
+let trading: Trading | undefined
+const Grab = () => {
+  trading = useTrading()
+  return null
+}
 
 async function setup(routes: Record<string, Route> = {}) {
   fetchFake = scriptedFetch({ ...BASE_ROUTES, ...routes })
@@ -198,6 +205,7 @@ async function review(spec: BasketSpec = STRADDLE) {
     <SafeAreaInsetsContext.Provider value={INSETS}>
       <ServicesProvider value={s}>
         <TradingProvider now={Date.now}>
+          <Grab />
           <QueryClientProvider client={s.queryClient}>
             <TickStoreContext.Provider value={s.store}>
               <LiveContext.Provider
@@ -260,6 +268,7 @@ afterEach(async () => {
   await cleanup()
   if (services) disposeServices(services)
   services = null
+  trading = undefined
   jest.clearAllMocks()
   jest.restoreAllMocks()
   jest.useRealTimers()
@@ -599,4 +608,75 @@ test('a leg this server does not know holds confirm, and the review says why', a
   )
   await press('basket-confirm')
   expect(requests('basketorder')).toHaveLength(0)
+})
+
+describe('why confirm waits (BR-3)', () => {
+  test('another order whose outcome is unknown disables confirm with OTHER_OUT; once it is known the basket can go', async () => {
+    await setup()
+    await review()
+    if (!trading) throw new Error('no trading')
+    const t = trading
+    expect(disabled('basket-confirm')).toBe(false)
+    // a ticket's order goes out: its outcome is not known yet
+    let release: (outcome?: string | null) => void = () => {}
+    await act(async () => {
+      release = holdOrder(t, {}, NEW_ORDER)
+    })
+    expect(disabled('basket-confirm')).toBe(true)
+    expect(text('basket-reason')).toBe(OTHER_OUT)
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(0)
+    expect(outcomes).toEqual([])
+    // its outcome lands: the review reads the book again, then confirm sends once
+    await act(async () => release())
+    await pass(200)
+    expect(screen.queryByTestId('basket-reason')).toBeNull()
+    expect(disabled('basket-confirm')).toBe(false)
+    await press('basket-confirm')
+    await pass(50)
+    expect(requests('basketorder')).toHaveLength(1)
+    expect(text('basket-result-text')).toBe('Sandbox · 2 of 2 legs placed')
+  })
+
+  test('confirm waits for the review\'s own book read: "Reading the order book"', async () => {
+    let held: Promise<ScriptedReply> | null = null
+    let open: () => void = () => {}
+    await setup({ 'POST /api/v1/orderbook': () => held ?? book([]) })
+    held = new Promise<ScriptedReply>((resolve) => {
+      open = () => resolve(book([]))
+    })
+    await review()
+    expect(text('basket-mode-badge')).toBe('ANALYZE')
+    expect(disabled('basket-confirm')).toBe(true)
+    expect(text('basket-reason')).toBe('Reading the order book')
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(0)
+    await act(async () => open())
+    await pass(50)
+    expect(screen.queryByTestId('basket-reason')).toBeNull()
+    expect(disabled('basket-confirm')).toBe(false)
+  })
+
+  test('a mode read that fails shows the error with a retry; confirm waits until the retry reads it', async () => {
+    let up = true
+    await setup({ 'POST /api/v1/analyzer': () => (up ? analyzer('analyze') : 'throw') })
+    up = false
+    await review()
+    // the read's own retries
+    await pass(10_000)
+    expect(
+      screen.getByText("Can't reach the server. Check your connection and try again."),
+    ).toBeTruthy()
+    expect(screen.queryByTestId('basket-mode-badge')).toBeNull()
+    expect(disabled('basket-confirm')).toBe(true)
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(0)
+    up = true
+    await fireEvent.press(screen.getByText('Try again'))
+    await pass(50)
+    expect(screen.queryByText('Try again')).toBeNull()
+    expect(text('basket-mode-badge')).toBe('ANALYZE')
+    expect(disabled('basket-confirm')).toBe(false)
+    expect(requests('basketorder')).toHaveLength(0)
+  })
 })

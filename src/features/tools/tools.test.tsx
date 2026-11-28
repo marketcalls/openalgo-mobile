@@ -10,6 +10,7 @@ import {
   Keyboard,
   Platform,
 } from 'react-native'
+import { fireGestureHandler, getByGestureTestId } from 'react-native-gesture-handler/jest-utils'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import ToolsTab from '~/app/(app)/(tabs)/tools'
 import ToolRoute from '~/app/(app)/tools/[toolId]'
@@ -528,6 +529,9 @@ beforeEach(() => {
   removed.clear()
   asked = []
   confirmAnswer = 'ok'
+  // The preset's own jest.fn: a test that turns reduced motion on would otherwise leave it on for
+  // every later one (restoreAllMocks never resets it), and the sheets would close at once.
+  jest.mocked(AccessibilityInfo.isReduceMotionEnabled).mockResolvedValue(false)
   const add = BackHandler.addEventListener.bind(BackHandler)
   jest.spyOn(BackHandler, 'addEventListener').mockImplementation((name, fn) => {
     const sub = add(name, fn)
@@ -2003,6 +2007,73 @@ describe('held basket review', () => {
     await act(async () => basket.open(ok(PLACED_BASKET)))
     await pass(50)
     expect(d.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  /**
+   * A fling down on the sheet's header, past its close point. Its release reaches JS in a
+   * microtask (scheduleOnRN), which the fake clock runs: the close has begun once this returns.
+   */
+  async function flingDown() {
+    await act(async () =>
+      fireGestureHandler(getByGestureTestId('tool-held-basket-pan'), [
+        { translationY: 0, velocityY: 0 },
+        { translationY: 40, velocityY: 1200 },
+        { translationY: 40, velocityY: 1200 },
+      ]),
+    )
+    await pass(20)
+  }
+
+  test('confirm tapped while a backdrop close slides out wins: the page gets the real outcome, never CANCELLED_COPY (RF 2, BR-1)', async () => {
+    const basket = gate()
+    await setup({ 'POST /api/v1/basketorder': basket.route })
+    await openReady()
+    const r = await basketorder()
+    // the backdrop starts the slide out; the confirm lands within it
+    await fireEvent.press(screen.getByTestId('tool-held-basket-backdrop'))
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(1)
+    await pass(SHEET_CLOSE_MS)
+    // the sheet springs back over the send: not answered, not put away
+    expect(r.reply).toBeNull()
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    expect(text('basket-confirm')).toBe('Placing…')
+    await act(async () => basket.open(ok(PLACED_BASKET)))
+    await pass(50)
+    expect(r.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(text('basket-result-text')).toBe('2 of 2 legs placed')
+    // the review never went mid-send, so no toast stood in for it
+    expect(screen.queryByText(BASKET_STILL_SENDING)).toBeNull()
+    await pass(10_000)
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  test('confirm tapped while a drag-down close slides out wins too; a drag alone cancels (RF 2, BR-1)', async () => {
+    let basket = gate()
+    await setup({ 'POST /api/v1/basketorder': () => basket.route() })
+    await openReady()
+    // a drag down past the close point, alone, cancels as the backdrop does
+    const a = await basketorder()
+    await flingDown()
+    await pass(SHEET_CLOSE_MS)
+    expect(a.reply).toEqual(pageError(CANCELLED_COPY))
+    expect(screen.queryByTestId('tool-held-basket')).toBeNull()
+
+    basket = gate()
+    const r = await basketorder()
+    await flingDown()
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(1)
+    await pass(SHEET_CLOSE_MS)
+    expect(r.reply).toBeNull()
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    expect(text('basket-confirm')).toBe('Placing…')
+    await act(async () => basket.open(ok(PLACED_BASKET)))
+    await pass(50)
+    expect(r.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(text('basket-result-text')).toBe('2 of 2 legs placed')
+    await pass(10_000)
     expect(requests('basketorder')).toHaveLength(1)
   })
 

@@ -246,6 +246,63 @@ describe('while not dismissible (an order on its way)', () => {
     await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  /** The sheet again, as its owner renders it once a write went on its way. */
+  const sheet = (p: Props) => (
+    <BottomSheet testID="s" header={<Text>H</Text>} onClose={jest.fn()} {...p}>
+      <Text>B</Text>
+    </BottomSheet>
+  )
+
+  test('a backdrop close still sliding out when a write goes springs back; onClose never runs (BR-1)', async () => {
+    jest.useFakeTimers()
+    const { onClose, onSnap, rerender } = await renderSheet()
+    await layOut(800, 60)
+    await fireEvent.press(screen.getByTestId('s-backdrop'))
+    expect(withTiming).toHaveBeenCalledWith(800, { duration: SHEET_CLOSE_MS })
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS / 2))
+    // a confirm tapped as the panel slides: the owner says it may no longer close
+    await rerender(sheet({ onClose, onSnap, dismissible: false }))
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(springTo()).toBe(400)
+    expect(onSnap).toHaveBeenLastCalledWith(0)
+    // it rests open: still inert, and it closes once the write is done
+    await fireEvent.press(screen.getByTestId('s-backdrop'))
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(onClose).not.toHaveBeenCalled()
+    await rerender(sheet({ onClose, onSnap }))
+    await fireEvent.press(screen.getByTestId('s-backdrop'))
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  test('a fling-down close still sliding out when a write goes springs back too', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] })
+    const { onClose, onSnap, rerender } = await renderSheet()
+    await layOut(800, 60)
+    await drag(40, 1200)
+    expect(withTiming).toHaveBeenCalledWith(800, { duration: SHEET_CLOSE_MS })
+    await rerender(sheet({ onClose, onSnap, dismissible: false }))
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(springTo()).toBe(400)
+  })
+})
+
+test('the slide down ends in the latest onClose, never the one of the render the close began in', async () => {
+  jest.useFakeTimers()
+  const { onClose, rerender } = await renderSheet()
+  await fireEvent.press(screen.getByTestId('s-backdrop'))
+  const latest = jest.fn()
+  await rerender(
+    <BottomSheet testID="s" header={<Text>H</Text>} onClose={latest}>
+      <Text>B</Text>
+    </BottomSheet>,
+  )
+  await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+  expect(onClose).not.toHaveBeenCalled()
+  expect(latest).toHaveBeenCalledTimes(1)
 })
 
 test('a body that scrolls itself is a plain view of the height the snap point shows', async () => {
