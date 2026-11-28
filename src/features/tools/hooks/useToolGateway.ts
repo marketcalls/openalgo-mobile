@@ -7,8 +7,8 @@
 //   order write is never merged. Background, the lock or the share sheet only make new requests
 //   wait: what is in flight goes on.
 // - Each request has its own abort, linked to the page's: `reset` aborts them all, closes the
-//   page's sockets, drops what the page was not yet sent, and answers an unconfirmed held order
-//   "cancelled" (RF 5). A held order whose send has begun keeps its real outcome.
+//   page's sockets, drops what the page was not yet sent, and answers an unconfirmed held order or
+//   basket "cancelled" (RF 5, plan F RF 2). One whose send has begun keeps its real outcome.
 // - Under polling the page's sockets close (whenPolling 'fail'): no tool in this build reads them.
 // - `status` is what the tool's header line tells: its last update, a long pass under way, a
 //   route's progress.
@@ -30,6 +30,7 @@ import {
   createHeldWrites,
   type HeldWrites,
   ORDER_WRITE_PATHS,
+  REVIEWABLE_WRITES,
 } from '~/dom/gateway/heldWrites'
 import { createRequestRouter, type Route, untilActive } from '~/dom/gateway/requests'
 import { createStartupRoutes } from '~/dom/gateway/startupRoutes'
@@ -303,7 +304,7 @@ export function useToolGateway(o: {
         save: share,
         greeksOnServer,
       }),
-      ...createHeldWriteRoutes(held, page, { reviewable: new Set(['placeorder']) }),
+      ...createHeldWriteRoutes(held, page, { reviewable: REVIEWABLE_WRITES }),
     ].map(coalesce)
     const route = createRequestRouter(routes, { whenActive, slotKey })
     const primary = PRIMARY_ROUTE[page]

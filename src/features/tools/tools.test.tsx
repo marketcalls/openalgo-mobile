@@ -36,19 +36,23 @@ import type {
   ToolDomProps,
   ToolIntent,
 } from '~/dom/bridge/protocol'
-import { CANCELLED_COPY } from '~/dom/gateway/heldWrites'
+import { CANCELLED_COPY, TOOL_ORDERS_LATER } from '~/dom/gateway/heldWrites'
 import { MAX_DOM_INFLIGHT } from '~/dom/gateway/requests'
 import * as toolRoutes from '~/dom/gateway/toolRoutes'
+import { BASKET_STILL_SENDING } from '~/features/order'
 import { brokerCaps } from '~/market/brokers/seed'
+import { QUEUED_COPY } from '~/market/components/SessionBanners'
 import { CHECKING, NOT_CHECKED } from '~/market/orders/outcome'
 import { holdOrder, otherOrderOut } from '~/market/orders/pending'
 import { LIVE_SURPRISE } from '~/market/orders/submit'
 import { HOLD_COPY } from '~/market/orders/useHoldSheet'
 import { TOOLS } from '~/market/tools/registry'
 import { type Trading, TradingProvider, useTrading } from '~/market/trading'
+import { SHEET_CLOSE_MS } from '~/ui/sheetMath'
 import { ToastHost } from '~/ui/Toast'
 import { tokens } from '~/ui/tokens'
 import funds from '../../../test/fixtures/openalgo-docs/funds.json'
+import margin from '../../../test/fixtures/openalgo-docs/margin.json'
 import { expectLog, keepExpectedLogs } from '../../../test/helpers/consoleLogs'
 import { type Route, type ScriptedReply, scriptedFetch } from '../../../test/helpers/fakeFetch'
 import { fakeSockets } from '../../../test/helpers/fakeSocket'
@@ -252,6 +256,7 @@ const BASE_ROUTES: Record<string, Route> = {
   },
   'POST /api/v1/expiry': ok({ status: 'success', data: ['02-DEC-26', '30-DEC-26'] }),
   'POST /api/v1/placeorder': PLACED,
+  'POST /api/v1/margin': ok(margin),
 }
 
 let services: Services | null = null
@@ -1876,5 +1881,289 @@ describe('held order review', () => {
     expect(r.reply).toEqual({ status: 400, body: { status: 'error', message: CANCELLED_COPY } })
     expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
     expect(requests('placeorder')).toHaveLength(0)
+  })
+})
+
+describe('held basket review', () => {
+  const PE = 'NIFTY30DEC2624000PE'
+  const builderLeg = (o: Record<string, unknown> = {}) => ({
+    symbol: CE,
+    exchange: 'NFO',
+    action: 'SELL',
+    quantity: 75,
+    pricetype: 'LIMIT',
+    product: 'NRML',
+    price: 120.5,
+    trigger_price: 0,
+    ...o,
+  })
+  /**
+   * Strategy Builder's basket, as ExecuteBasketDialog sends it through placeBasketOrder: the
+   * builder's page is plan F's T11, so a page of this build holds it here (any page's basketorder
+   * is held the same way).
+   */
+  const BASKET = {
+    apikey: '__native__',
+    strategy: 'Short Straddle',
+    orders: [builderLeg(), builderLeg({ symbol: PE, price: 98.25 })],
+  }
+  /** The live server's reply: each leg in completion order, with no sandbox tag. */
+  const PLACED_BASKET = {
+    status: 'success',
+    results: [
+      { symbol: PE, exchange: 'NFO', product: 'NRML', status: 'success', orderid: '2002' },
+      { symbol: CE, exchange: 'NFO', product: 'NRML', status: 'success', orderid: '2001' },
+    ],
+  }
+  /** XL-1: every answer to a held basket other than placed and queued. */
+  const pageError = (message: string) => ({ status: 200, body: { status: 'error', message } })
+
+  /** The page's held basketorder, with `body` (Strategy Builder's by default). */
+  async function basketorder(body: JSONValue = BASKET) {
+    const r = request('POST', '/api/v1/basketorder', { body })
+    await pass(200)
+    return r
+  }
+  /** The tool opens again, as it would from the Tools tab after it was left. */
+  async function reopen() {
+    if (!services || !view) throw new Error('open first')
+    mockParams = { toolId: 'maxpain' }
+    await view.rerender(tree(services, <ToolRoute />))
+    await pass(10)
+    await load()
+    await ready()
+  }
+
+  test("held basketorder from Strategy Builder opens the sheet; confirm answers the page with the server's reply", async () => {
+    const success = jest.spyOn(haptics, 'notifySuccess')
+    await setup({ 'POST /api/v1/basketorder': ok(PLACED_BASKET) })
+    await openReady()
+    const r = await basketorder()
+    // the basket's own review, never the single order's
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    expect(text('basket-title')).toBe('Short Straddle')
+    expect(text('basket-mode-badge')).toBe('LIVE')
+    expect(text('basket-leg-2')).toContain('NIFTY 30 DEC 24000 PE')
+    expect(r.reply).toBeNull()
+    expect(requests('basketorder')).toHaveLength(0)
+
+    await press('basket-confirm')
+    await pass(50)
+    expect(requests('basketorder')).toHaveLength(1)
+    expect(requests('basketorder')[0]?.body).toEqual({
+      strategy: 'Short Straddle',
+      orders: [
+        { ...builderLeg(), disclosed_quantity: 0 },
+        { ...builderLeg({ symbol: PE, price: 98.25 }), disclosed_quantity: 0 },
+      ],
+      apikey: KEY,
+    })
+    // the page hears the server's reply as it came, which ExecuteBasketDialog reads per leg
+    expect(r.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(text('basket-result-text')).toBe('2 of 2 legs placed')
+    expect(text('basket-result-leg-1')).toBe('Placed · #2001')
+    expect(success).toHaveBeenCalledTimes(1)
+    await press('basket-done')
+    expect(screen.queryByTestId('tool-held-basket')).toBeNull()
+    await pass(10_000)
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  test('Back, the backdrop and Android back cancel a basket review before its send; while sending they do nothing (BR-1)', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android')
+    const basket = gate()
+    await setup({ 'POST /api/v1/basketorder': basket.route })
+    await openReady()
+    const a = await basketorder()
+    await press('basket-back')
+    expect(a.reply).toEqual(pageError(CANCELLED_COPY))
+    expect(screen.queryByTestId('tool-held-basket')).toBeNull()
+    const b = await basketorder()
+    await press('tool-held-basket-backdrop')
+    await pass(SHEET_CLOSE_MS)
+    expect(b.reply).toEqual(pageError(CANCELLED_COPY))
+    const c = await basketorder()
+    // the sheet takes Android's back first: the page is not asked, the stack does not pop
+    expect(await hardwareBack()).toBe(true)
+    expect(c.reply).toEqual(pageError(CANCELLED_COPY))
+    expect(pushes('tool.back')).toEqual([])
+    expect(mockRouter.back).not.toHaveBeenCalled()
+
+    const d = await basketorder()
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(1)
+    await press('tool-held-basket-backdrop')
+    await pass(SHEET_CLOSE_MS)
+    expect(await hardwareBack()).toBe(true)
+    expect(text('toast')).toBe(HOLD_COPY)
+    await press('basket-back')
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    expect(d.reply).toBeNull()
+    await act(async () => basket.open(ok(PLACED_BASKET)))
+    await pass(50)
+    expect(d.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  test('leaving before confirm answers CANCELLED_COPY and never sends; during a begun send a toast tells the outcome and NEW_ORDER holds until known (RF 2)', async () => {
+    const basket = gate()
+    await setup({ 'POST /api/v1/basketorder': basket.route })
+    await openReady()
+    const a = await basketorder()
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    await leave()
+    expect(a.reply).toEqual(pageError(CANCELLED_COPY))
+    await pass(10_000)
+    expect(requests('basketorder')).toHaveLength(0)
+
+    await reopen()
+    const b = await basketorder()
+    await press('basket-confirm')
+    expect(requests('basketorder')).toHaveLength(1)
+    await leave()
+    expect(text('toast')).toBe(BASKET_STILL_SENDING)
+    expect(BASKET_STILL_SENDING).toBe(
+      'Your basket is still being sent. Its outcome will show here.',
+    )
+    expect(b.reply).toBeNull()
+    const t = trading as Trading
+    // the new-order scope holds until the outcome is known: no other ticket sends meanwhile
+    expect(otherOrderOut(t, {})).toBe(true)
+    await act(async () => basket.open(ok(PLACED_BASKET)))
+    await pass(50)
+    // never cancelled: the page hears what came of it
+    expect(b.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(text('toast')).toBe('Basket: 2 of 2 legs placed')
+    expect(otherOrderOut(t, {})).toBe(false)
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  test('confirm, then a DOM abort while sending: the page gets the real outcome, never CANCELLED_COPY (RF 2)', async () => {
+    const basket = gate()
+    await setup({ 'POST /api/v1/basketorder': basket.route })
+    await openReady()
+    const r = await basketorder()
+    await press('basket-confirm')
+    r.abort()
+    await pass(50)
+    expect(r.reply).toBeNull()
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    await act(async () => basket.open(ok(PLACED_BASKET)))
+    await pass(50)
+    expect(r.reply).toEqual({ status: 200, body: PLACED_BASKET })
+    expect(text('basket-result-text')).toBe('2 of 2 legs placed')
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  test('backgrounding the app with the review open leaves it unsent (RF 2)', async () => {
+    const s = await setup({}, { appLock: true })
+    await openReady()
+    const r = await basketorder()
+    // the app goes to the background and locks on its way back
+    await act(async () => {
+      s.lock.handleAppState('background')
+      s.lock.handleAppState('active')
+    })
+    await setFocus(false)
+    await pass(10_000)
+    expect(s.lock.isLocked()).toBe(true)
+    // nothing goes while locked, a tap that reaches the review included; a back cancels nothing
+    await press('basket-confirm')
+    expect(await hardwareBack()).toBe(true)
+    expect(requests('basketorder')).toHaveLength(0)
+    expect(r.reply).toBeNull()
+    await act(async () => {
+      await s.lock.unlock()
+    })
+    await setFocus(true)
+    await pass(200)
+    // back in front, the review is as it was: unsent, unanswered, waiting for the trader
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    expect(r.reply).toBeNull()
+    expect(requests('basketorder')).toHaveLength(0)
+    await press('basket-back')
+    expect(r.reply).toEqual(pageError(CANCELLED_COPY))
+  })
+
+  test('a basket with no reply answers the page CHECKING and checks the order book, never resending', async () => {
+    await setup({ 'POST /api/v1/basketorder': () => new Promise<ScriptedReply>(() => {}) })
+    await openReady()
+    const r = await basketorder()
+    await press('basket-confirm')
+    // the client gives up on the basket after its 30 s
+    await pass(30_100)
+    expect(r.reply).toEqual(pageError(CHECKING))
+    expect(text('basket-result-text')).toBe(CHECKING)
+    await pass(128_000)
+    expect(text('basket-result-leg-1')).toBe('Missing · check the order book')
+    expect(screen.getByTestId('basket-view-orders')).toBeTruthy()
+    await press('basket-view-orders')
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith('/orders?segment=all')
+    expect(requests('basketorder')).toHaveLength(1)
+  })
+
+  test('a queued basket answers 200 semi_auto and shows Action Center', async () => {
+    await setup({
+      'POST /api/v1/basketorder': ok({
+        status: 'success',
+        mode: 'semi_auto',
+        pending_order_id: 7,
+        message: 'Order queued for approval in Action Center',
+      }),
+    })
+    await openReady()
+    const r = await basketorder()
+    await press('basket-confirm')
+    await pass(50)
+    expect(r.reply).toEqual({
+      status: 200,
+      body: { status: 'success', mode: 'semi_auto', pending_order_id: '7', message: QUEUED_COPY },
+    })
+    expect(text('basket-result-text')).toBe(QUEUED_COPY)
+    expect(screen.getByTestId('basket-action-center')).toBeTruthy()
+  })
+
+  test('a Semi-Auto 403 answers the page with its message, as a 200 error (XL-1)', async () => {
+    const SEMI =
+      'Basket order operation is not allowed in Semi-Auto mode. Please use the Action Center.'
+    await setup({
+      'POST /api/v1/basketorder': { status: 403, body: { status: 'error', message: SEMI } },
+    })
+    const error = jest.spyOn(haptics, 'notifyError')
+    await openReady()
+    const r = await basketorder()
+    await press('basket-confirm')
+    await pass(50)
+    expect(r.reply).toEqual(pageError(SEMI))
+    expect(text('basket-result-text')).toBe(SEMI)
+    expect(screen.getByTestId('basket-action-center')).toBeTruthy()
+    expect(error).toHaveBeenCalledTimes(1)
+  })
+
+  test('an unreadable basket answers UNREADABLE_ORDER without a send; splitorder and optionsmultiorder stay 501', async () => {
+    await setup()
+    await openReady()
+    const r = await basketorder({ ...BASKET, orders: [builderLeg({ quantity: 1.5 })] })
+    expect(r.reply).toEqual(pageError(UNREADABLE_ORDER))
+    expect(screen.queryByTestId('tool-held-basket')).toBeNull()
+    expect(screen.queryByTestId('tool-held-sheet')).toBeNull()
+    // the next readable one is reviewed as usual
+    const next = await basketorder()
+    expect(screen.getByTestId('tool-held-basket')).toBeTruthy()
+    await press('basket-back')
+    expect(next.reply).toEqual(pageError(CANCELLED_COPY))
+    // their legs carry what no review can show: optionsmultiorder's offsets, a split's children
+    for (const path of ['/api/v1/splitorder', '/api/v1/optionsmultiorder']) {
+      const w = request('POST', path, { body: ORDER })
+      await pass(20)
+      expect(w.reply).toEqual({
+        status: 501,
+        body: { status: 'error', message: TOOL_ORDERS_LATER },
+      })
+    }
+    expect(requests('basketorder')).toHaveLength(0)
+    expect(requests('splitorder')).toHaveLength(0)
+    expect(requests('optionsmultiorder')).toHaveLength(0)
   })
 })

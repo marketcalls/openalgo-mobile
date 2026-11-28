@@ -205,3 +205,54 @@ describe('a drag on the header', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('while not dismissible (an order on its way)', () => {
+  const drag = (translationY: number, velocityY: number) =>
+    act(async () =>
+      fireGestureHandler(getByGestureTestId('s-pan'), [
+        { translationY: 0, velocityY: 0 },
+        { translationY, velocityY },
+        { translationY, velocityY },
+      ]),
+    )
+
+  test('the backdrop and the escape leave it open', async () => {
+    jest.useFakeTimers()
+    const { onClose } = await renderSheet({ dismissible: false })
+    await layOut(800, 60)
+    await fireEvent.press(screen.getByTestId('s-backdrop'))
+    await fireEvent(screen.getByTestId('s'), 'accessibilityEscape')
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(withTiming).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  test('a fling down springs back to where it rested; once dismissible again it closes', async () => {
+    jest.useFakeTimers({ doNotFake: ['queueMicrotask'] })
+    const { onClose, onSnap, rerender } = await renderSheet({ dismissible: false })
+    await layOut(800, 60)
+    await drag(40, 1200)
+    expect(onSnap).toHaveBeenLastCalledWith(0)
+    expect(springTo()).toBe(400)
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(onClose).not.toHaveBeenCalled()
+
+    await rerender(
+      <BottomSheet testID="s" header={<Text>H</Text>} onClose={onClose} onSnap={onSnap}>
+        <Text>B</Text>
+      </BottomSheet>,
+    )
+    await fireEvent.press(screen.getByTestId('s-backdrop'))
+    await act(async () => jest.advanceTimersByTime(SHEET_CLOSE_MS))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+test('a body that scrolls itself is a plain view of the height the snap point shows', async () => {
+  await renderSheet({ bodyScrolls: false, snapPoints: [1] })
+  await layOut(800, 60)
+  const body = screen.getByTestId('s-body')
+  expect(body.type).toBe('View')
+  expect(body).toHaveStyle({ height: 740 })
+  expect(screen.getByText('B')).toBeOnTheScreen()
+})

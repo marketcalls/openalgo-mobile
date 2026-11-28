@@ -1,6 +1,8 @@
 // A sheet over a dimmed backdrop that rests at snap points, each a share of the height. Only the
 // header drags, so a drag in the body (a depth ladder, a list) scrolls the body instead. Screen
-// readers and Maestro cannot drag: the handle is a button and the backdrop closes (RF 5).
+// readers and Maestro cannot drag: the handle is a button and the backdrop closes (RF 5). While
+// it is not `dismissible` (an order on its way) nothing closes it: not the backdrop, not a drag
+// down (it springs back), not the screen reader's escape.
 import { type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import {
   type LayoutChangeEvent,
@@ -44,6 +46,13 @@ type Props = {
   header: ReactNode
   /** A tap on the body reaches its row while the keyboard is up (a search field in the header). */
   persistTaps?: boolean
+  /** False while a write is on its way: the backdrop, a drag and the escape leave it open. */
+  dismissible?: boolean
+  /**
+   * False: the body is a plain view of the height the snap point shows below the header, for
+   * content that scrolls itself and pins its own footer (a basket's review).
+   */
+  bodyScrolls?: boolean
   children: ReactNode
 }
 
@@ -55,6 +64,8 @@ export function BottomSheet({
   onSnap,
   header,
   persistTaps = false,
+  dismissible = true,
+  bodyScrolls = true,
   children,
 }: Props) {
   const { c } = useTheme()
@@ -75,6 +86,9 @@ export function BottomSheet({
   const closing = useRef(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const reduceMotion = useReduceMotionRef()
+  // read when a release or a press lands, which may come from an earlier render's gesture
+  const canClose = useRef(dismissible)
+  canClose.current = dismissible
 
   useEffect(() => () => clearTimeout(closeTimer.current), [])
 
@@ -87,7 +101,7 @@ export function BottomSheet({
 
   // onClose runs from a JS timer, never from the animation's callback, so fake timers decide it.
   function close() {
-    if (closing.current) return
+    if (closing.current || !canClose.current) return
     closing.current = true
     if (reduceMotion.current) {
       y.value = height
@@ -100,8 +114,9 @@ export function BottomSheet({
 
   function release(at: number, vy: number) {
     const to = snapIndexFor(at, vy, offsets)
-    if (to === 'close') close()
-    else snapTo(to)
+    if (to !== 'close') snapTo(to)
+    else if (canClose.current) close()
+    else snapTo(index)
   }
 
   const pan = usePanGesture({
@@ -127,6 +142,8 @@ export function BottomSheet({
   }
 
   const last = snapPoints.length - 1
+  /** What the snap point shows below the header. */
+  const bodyHeight = Math.max(0, height * (snapPoints[index] ?? 1) - headerHeight)
   return (
     <GestureHandlerRootView
       testID={testID}
@@ -164,14 +181,23 @@ export function BottomSheet({
             {header}
           </View>
         </GestureDetector>
-        <ScrollView
-          testID={`${testID}-body`}
-          style={{ maxHeight: Math.max(0, height * (snapPoints[index] ?? 1) - headerHeight) }}
-          contentContainerStyle={{ paddingBottom: insets.bottom }}
-          keyboardShouldPersistTaps={persistTaps ? 'handled' : 'never'}
-        >
-          {children}
-        </ScrollView>
+        {bodyScrolls ? (
+          <ScrollView
+            testID={`${testID}-body`}
+            style={{ maxHeight: bodyHeight }}
+            contentContainerStyle={{ paddingBottom: insets.bottom }}
+            keyboardShouldPersistTaps={persistTaps ? 'handled' : 'never'}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View
+            testID={`${testID}-body`}
+            style={{ height: bodyHeight, paddingBottom: insets.bottom }}
+          >
+            {children}
+          </View>
+        )}
       </Animated.View>
     </GestureHandlerRootView>
   )

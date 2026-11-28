@@ -9,7 +9,8 @@
 // - Back (the button, Android's, the iOS swipe on the tool's main view) goes to the page first:
 //   it closes a picker or a dialog, or leaves a report for its builder. The screen goes only when
 //   the page says it did nothing, or does not answer in 150 ms. A pass still running asks first.
-// - A held order from the page opens its review sheet (HeldOrderSheet).
+// - A held order from the page opens its review sheet (HeldOrderSheet), a held basket its own
+//   (HeldBasketSheet), over the page.
 
 import { useFocusEffect, useNavigation, usePreventRemove, useRouter } from 'expo-router'
 import { type JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -47,6 +48,7 @@ import { Text } from '~/ui/Text'
 import { useTheme } from '~/ui/theme'
 import { tokens } from '~/ui/tokens'
 import { useReduceMotion } from '~/ui/useReduceMotion'
+import { HeldBasketSheet } from '../components/HeldBasketSheet'
 import { HeldOrderSheet } from '../components/HeldOrderSheet'
 import { ToolHeader } from '../components/ToolHeader'
 import { ToolSkeleton } from '../components/ToolSkeleton'
@@ -452,6 +454,7 @@ export function ToolScreen({ page }: { page: ToolPageId }): JSX.Element {
           </>
         )}
       </KeyboardAvoidingView>
+      <HeldBasketSheet held={held} />
     </View>
   )
 }

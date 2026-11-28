@@ -114,7 +114,11 @@ const planOf = (o: HeldOrder): OrderPlan => ({
  * done with. Null while nothing is held.
  */
 export function HeldOrderSheet({ held }: { held: HeldWrites }): JSX.Element | null {
-  const current = useStore(held, (st) => st.current)
+  // a held basket has its own review (HeldBasketSheet)
+  const current = useStore(held, (st) =>
+    st.current?.endpoint === 'placeorder' ? st.current : null,
+  )
+  const shownNow = useStore(held, (st) => st.current)
   const waiting = useStore(held, (st) => st.waiting)
   /** The write on the sheet: it stays there after it is settled, while its outcome shows. */
   const [pinned, setPinned] = useState<HeldWrite | null>(null)
@@ -130,7 +134,7 @@ export function HeldOrderSheet({ held }: { held: HeldWrites }): JSX.Element | nu
   if (write === null) return null
   // Behind the write on show: those waiting, and the next, once this one is answered while its
   // outcome still shows.
-  const more = waiting + (current !== null && current.id !== write.id ? 1 : 0)
+  const more = waiting + (shownNow !== null && shownNow.id !== write.id ? 1 : 0)
   return (
     <HeldWriteView
       key={write.id}

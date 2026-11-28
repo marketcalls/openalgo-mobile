@@ -106,6 +106,19 @@ Order ticket and review
   `result-sandbox`, `view-orderbook`, `open-action-center` *, `ticket-done` *
 - `ticket-gtt` ("Create GTT", while the server serves GTT for the broker in this mode)
 
+Basket review (a tool's held basket, Arbitrage's trade sheet)
+- `basket-review`, `basket-head`, `basket-title`, `basket-meta` ("NFO · NRML · LIMIT", "mixed"
+  where the legs differ), `basket-mode-badge`, `basket-legs` (the legs' scroll)
+- `basket-leg-{N}` (`{N}` from 1, the legs' order), `basket-leg-side-{N}` (BUY or SELL, in its
+  colour)
+- the footer: `basket-footer`, `basket-net` ("Net credit ₹…", "Net debit ₹…" or "Net premium at
+  market (…)"), `basket-margin`, `basket-legging` (2 or more legs), `basket-notice`,
+  `basket-earlier`, `basket-reason` (why confirm waits), `basket-confirm` ("Place 2 orders"),
+  `basket-back`
+- once it has gone: `basket-result-text` ("Sandbox · 2 of 2 legs placed"), `basket-wait`,
+  `basket-result-leg-{N}` ("Placed · #id", "Failed · …", "Unclear · check the order book" or
+  "Missing · check the order book"), `basket-view-orders`, `basket-action-center`, `basket-done`
+
 GTT ticket (new and modify)
 - `gtt-screen`, `gtt-ltp`, `gtt-type-{TYPE}` (`SINGLE`, `OCO`; not on a modify), `gtt-side-buy`,
   `gtt-side-sell` * (not on a modify), `gtt-qty`, `gtt-trigger` *, `gtt-price` *, `gtt-sl-trigger`,
@@ -167,6 +180,8 @@ Tools
   `tool-held-cancel`, `tool-held-result`, `tool-held-orderbook`, `tool-held-done`,
   `tool-held-queue` (in the footer while more orders from the tool wait: "1 more order from this
   tool is waiting")
+- a held basket's sheet: `tool-held-basket`, `tool-held-basket-backdrop`; its review carries the
+  Basket review ids
 
 Option chain (`/optionchain/{key}`, and the Option Chain tool)
 - `oc-screen` *, `oc-screen-incomplete` (a link that names no chain), `oc-back`

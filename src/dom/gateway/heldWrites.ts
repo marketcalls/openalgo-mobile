@@ -1,12 +1,12 @@
 // A tool page's order writes (design 7.7 and 7.10): every page has a route for each /api/v1 order
 // write, whatever its allowlist, and nothing here sends one. A reviewable write is held until
 // native settles it with the reply the page gets: the review sheet shows it, and only a confirmed
-// review sends it (the tool screen's HeldOrderSheet). Held writes are shown one at a time, first
-// in, first out (ux-bar T12-12): the others wait their turn, unanswered, and none of them can be
-// begun or settled until it is the one on show. An unreviewable write is answered 501 at once.
-// Until the review begins its send, a DOM abort or cancelAll (the user left the tool) answers the
-// page "cancelled" and the write is dropped for good (RF 5), the waiting ones too; once it has
-// begun, the write keeps its real outcome.
+// review sends it (the tool screen's HeldOrderSheet and HeldBasketSheet). Held writes are shown
+// one at a time, first in, first out (ux-bar T12-12): the others wait their turn, unanswered, and
+// none of them can be begun or settled until it is the one on show. An unreviewable write is
+// answered 501 at once. Until the review begins its send, a DOM abort or cancelAll (the user left
+// the tool) answers the page "cancelled" and the write is dropped for good (RF 5, plan F RF 2),
+// the waiting ones too; once it has begun, the write keeps its real outcome.
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import { ENDPOINTS, type EndpointId } from '~/core/http/endpoints'
 import { isRecord } from '~/core/http/errors'
@@ -26,6 +26,16 @@ export type OrderWriteEndpoint = (typeof ORDER_WRITE_ENDPOINTS)[number]
 export const ORDER_WRITE_PATHS: ReadonlySet<string> = new Set(
   ORDER_WRITE_ENDPOINTS.map((e) => ENDPOINTS[e].path),
 )
+
+/**
+ * The writes the tool screen holds for its native review: an order and a basket. The others stay
+ * 501: no review can show a smart order's position size, a split's children or an options
+ * multi-order's offset legs (`schemas.py:259-313`), and no web tool sends one.
+ */
+export const REVIEWABLE_WRITES: ReadonlySet<OrderWriteEndpoint> = new Set([
+  'placeorder',
+  'basketorder',
+])
 
 /** A write held for review: the page's body as it came, its `apikey` placeholder included. */
 export type HeldWrite = {
@@ -73,6 +83,19 @@ const errorReply = (status: number, message: string): DomReply => ({
   body: { status: 'error', message },
 })
 
+/**
+ * A held write's answer without the server's own (cancelled, not sent, refused), as its page
+ * reads it (ux-bar XL-1). The web sends a basket through `apiClient`, which has no error
+ * interceptor, so a 4xx would reach ExecuteBasketDialog as "Request failed with status code N":
+ * a basket hears every such answer as a 200 `{status:'error', message}`, which the dialog toasts as
+ * it is, leaving Execute enabled as a 4xx would. Every other write keeps its status (plan E).
+ */
+export const heldRefusal = (
+  endpoint: OrderWriteEndpoint,
+  status: number,
+  message: string,
+): DomReply => errorReply(endpoint === 'basketorder' ? 200 : status, message)
+
 type Hold = (w: Omit<HeldWrite, 'id'>, signal: AbortSignal) => Promise<DomReply>
 /** Each store's way to hold a write, for its routes only: the store itself holds nothing. */
 const HOLDERS = new WeakMap<HeldWrites, Hold>()
@@ -117,14 +140,14 @@ export function createHeldWrites(): HeldWrites {
       }
       if (gone.length === 0) return
       publish()
-      for (const p of gone) p.answer(errorReply(400, CANCELLED_COPY))
+      for (const p of gone) p.answer(heldRefusal(p.write.endpoint, 400, CANCELLED_COPY))
     },
   }
 
   HOLDERS.set(held, (w, signal) => {
-    if (signal.aborted) return Promise.resolve(errorReply(400, CANCELLED_COPY))
+    if (signal.aborted) return Promise.resolve(heldRefusal(w.endpoint, 400, CANCELLED_COPY))
     if ((shown ? 1 : 0) + queue.length >= MAX_HELD_WRITES) {
-      return Promise.resolve(errorReply(409, ONE_AT_A_TIME))
+      return Promise.resolve(heldRefusal(w.endpoint, 409, ONE_AT_A_TIME))
     }
     const write: HeldWrite = { id: ++lastId, ...w }
     return new Promise((resolve) => {
@@ -138,15 +161,16 @@ export function createHeldWrites(): HeldWrites {
       }
       function onAbort() {
         if (p.begun) return
+        const cancelled = heldRefusal(write.endpoint, 400, CANCELLED_COPY)
         if (shown === p) {
-          answerShown(errorReply(400, CANCELLED_COPY))
+          answerShown(cancelled)
           return
         }
         const i = queue.indexOf(p)
         if (i < 0) return
         queue.splice(i, 1)
         publish()
-        p.answer(errorReply(400, CANCELLED_COPY))
+        p.answer(cancelled)
       }
       signal.addEventListener('abort', onAbort, { once: true })
       if (shown) queue.push(p)

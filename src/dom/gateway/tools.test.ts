@@ -968,7 +968,8 @@ describe('held order writes', () => {
     expect(await outcome(p)).toBe('pending')
     expect(held.getState().current).toMatchObject({ endpoint: 'basketorder', page: 'gammadensity' })
     held.cancelAll()
-    expect(await p).toEqual(error(400, CANCELLED_COPY))
+    // a basket hears it as a 200 error (plan F rulings 11, ux-bar XL-1; heldWrites.test.ts)
+    expect(await p).toEqual(error(200, CANCELLED_COPY))
   })
 
   test('a write whose body is not an object is refused, never held', async () => {
